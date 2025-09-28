@@ -1,11 +1,17 @@
 // /js/view.practice.js
 import { FL_total, PSI_PER_FT } from './store.js';
 
+const TRUCK_W = 390;
+const TRUCK_H = 260;
+const PX_PER_50FT = 45;
+const CURVE_PULL = 36;
+const BRANCH_LIFT = 10;
+
 export async function render(container){
   container.innerHTML = `
     <section class="stack">
 
-      <!-- Practice controls ABOVE the truck -->
+      <!-- Controls ABOVE the truck -->
       <section class="card" style="padding-bottom:6px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
           <div>
@@ -19,14 +25,13 @@ export async function render(container){
         </div>
       </section>
 
-      <!-- Visual first (matches Calculations placement) -->
+      <!-- Visual (truck first) -->
       <section class="wrapper card">
-        <div class="stage">
-          <svg id="overlayPractice" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
-            <image href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260"></image>
+        <div class="stage" id="stageP">
+          <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
+            <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
             <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g>
           </svg>
-          <div class="info" id="practiceInfo">Tap <b>New Problem</b> to generate a scenario.</div>
         </div>
 
         <!-- Hose color key -->
@@ -35,9 +40,12 @@ export async function render(container){
           <span class="legSwatch sw25"></span> 2½″
           <span class="legSwatch sw5"></span> 5″
         </div>
+
+        <!-- Moved BELOW the truck so it never covers labels -->
+        <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Problem</b> to generate a scenario.</div>
       </section>
 
-      <!-- Answer row immediately under the visual -->
+      <!-- Answer row -->
       <section class="card">
         <div class="row" style="align-items:flex-end">
           <div class="field" style="max-width:200px">
@@ -59,6 +67,9 @@ export async function render(container){
   `;
 
   // ===== DOM refs
+  const stageEl = container.querySelector('#stageP');
+  const svg = container.querySelector('#overlayPractice');
+  const truckImg = container.querySelector('#truckImgP');
   const G_hosesP = container.querySelector('#hosesP');
   const G_branchesP = container.querySelector('#branchesP');
   const G_labelsP = container.querySelector('#labelsP');
@@ -68,7 +79,32 @@ export async function render(container){
   const ns = 'http://www.w3.org/2000/svg';
   let practiceAnswer = null;
 
-  // ===== helpers
+  // ===== geometry helpers (mirrors view.calc.js)
+  function computeViewHeight(mainFt, branchMaxFt){
+    const mainPx = (mainFt/50)*PX_PER_50FT;
+    const branchPx = branchMaxFt ? (branchMaxFt/50)*PX_PER_50FT + BRANCH_LIFT : 0;
+    // Some headroom above truck & labels
+    return Math.max(TRUCK_H + 20 + mainPx + branchPx, TRUCK_H + 20);
+  }
+  function truckTopY(viewH){ return viewH - TRUCK_H; }
+  function pumpXY(viewH){
+    const top = truckTopY(viewH);
+    return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; // same pump spot as calc
+  }
+  function mainCurve(totalPx, viewH, dir=0){
+    const {x:sx,y:sy} = pumpXY(viewH);
+    const ex = dir===-1 ? sx - 110 : dir===1 ? sx + 110 : sx;
+    const ey = Math.max(10, sy - totalPx);
+    const cx = (sx+ex)/2 + (dir===-1?-CURVE_PULL:dir===1?CURVE_PULL:0);
+    const cy = sy - (sy-ey)*0.48;
+    return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
+  }
+  function straightBranch(side, startX, startY, totalPx){
+    const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
+    return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
+  }
+
+  // ===== util
   function clearPractice(){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
@@ -76,30 +112,18 @@ export async function render(container){
   }
   function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
   function weightedPick(weightedArray){
-    // weightedArray: [{v:..., w:...}, ...]
     const total = weightedArray.reduce((a,x)=>a+x.w,0);
     let r = Math.random()*total;
     for(const x of weightedArray){ if((r-=x.w)<=0) return x.v; }
     return weightedArray[weightedArray.length-1].v;
   }
 
-  // Generate a realistic scenario, biasing PP ≤ 250 psi (allow rare high cases)
+  // ===== scenario generator (realistic; rarely >250)
   function makeRealisticScenario(){
-    // Main hose selection (more 1¾″ than 2½″)
-    const mainSize = weightedPick([
-      {v:'1.75', w:70},
-      {v:'2.5',  w:30},
-    ]);
-    // Typical preconnect lengths (slight bias to 200')
-    const mainLen = weightedPick([
-      {v:150, w:25}, {v:200, w:50}, {v:250, w:20}, {v:300, w:5}
-    ]);
-    // Elevation conservative
-    const elev = weightedPick([
-      {v:0, w:30}, {v:10, w:30}, {v:20, w:25}, {v:30, w:10}, {v:40, w:5}
-    ]);
+    const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
+    const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
+    const elev     = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
 
-    // Nozzles: Align to line size (avoid unrealistic combos)
     const mainNozzles_175 = [
       {gpm:185, NP:50, label:'ChiefXD 185@50'},
       {gpm:150, NP:75, label:'Fog 150@75'},
@@ -111,8 +135,7 @@ export async function render(container){
     ];
     const mainNoz = mainSize==='2.5' ? pick(mainNozzles_25) : pick(mainNozzles_175);
 
-    // Wye usage: sometimes, and usually two flowing branches if used
-    const useWye = Math.random() < 0.28; // ~28% cases
+    const useWye = Math.random() < 0.28;
     const twoBranches = useWye && Math.random() < 0.7;
 
     const branchNozzles = [
@@ -120,39 +143,29 @@ export async function render(container){
       {gpm:185, NP:50, label:'ChiefXD 185@50'},
       {gpm:185, NP:75, label:'Fog 185@75'}
     ];
-    const branchLens = [50, 75, 100, 150];
+    const branchLens = [50,75,100,150];
 
-    let bnA = null, bnB = null, wyeLoss = 10;
-
+    let bnA=null, bnB=null, wyeLoss=10;
     if(useWye){
-      bnA = {
-        len: pick(branchLens),
-        noz: pick(branchNozzles) // 1¾″ branch assumed
-      };
-      if(twoBranches){
-        bnB = {
-          len: pick(branchLens),
-          noz: pick(branchNozzles)
-        };
-      }
+      bnA = { len: pick(branchLens), noz: pick(branchNozzles) };
+      if(twoBranches){ bnB = { len: pick(branchLens), noz: pick(branchNozzles) }; }
     }
 
-    // Compute PP for this layout (mirrors your calculation rules)
     const flow = useWye
-      ? ( (bnA?.noz.gpm || 0) + (bnB?.noz.gpm || 0) + (!twoBranches ? mainNoz.gpm : 0) )
+      ? ((bnA?.noz.gpm||0) + (bnB?.noz.gpm||0) + (!twoBranches ? mainNoz.gpm : 0))
       : mainNoz.gpm;
 
     const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
 
-    let PDP = 0;
+    let PDP=0;
     if(!useWye){
       PDP = mainNoz.NP + mainFL + elev*PSI_PER_FT;
-    } else if(useWye && twoBranches){
-      const needA = (bnA.noz.NP) + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
-      const needB = (bnB.noz.NP) + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
+    }else if(twoBranches){
+      const needA = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
+      const needB = bnB.noz.NP + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
       PDP = Math.max(needA, needB) + mainFL + wyeLoss + elev*PSI_PER_FT;
-    } else { // single branch via wye
-      const needBranch = (bnA.noz.NP) + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
+    }else{ // single branch via wye
+      const needBranch = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
       PDP = needBranch + mainFL + elev*PSI_PER_FT; // no extra wye loss for single flowing
     }
 
@@ -162,62 +175,69 @@ export async function render(container){
       flow, PDP: Math.round(PDP)
     };
   }
-
-  // Keep scenarios mostly ≤ 250 psi; allow rare tougher ones
   function generateBiasedScenario(){
-    let scenario;
-    for(let i=0; i<12; i++){
-      scenario = makeRealisticScenario();
-      if(scenario.PDP <= 250) return scenario;
-    }
-    // If we kept hitting high PP, accept the last one with a small chance (rare >250)
-    return scenario;
+    let S;
+    for(let i=0;i<12;i++){ S = makeRealisticScenario(); if(S.PDP<=250) return S; }
+    return S;
   }
 
   function drawScenario(S){
     clearPractice();
 
-    // Draw main
-    const totalPx = (S.mainLen/50)*45;
-    const sx=200, sy=220; const ex=200, ey=Math.max(18, sy-totalPx);
-    const pathData = `M ${sx},${sy} Q 200 ${sy-totalPx*0.6} ${ex},${ey}`;
-    const base=document.createElementNS(ns,'path'); base.setAttribute('d', pathData); G_hosesP.appendChild(base);
+    // Compute SVG height and layout
+    const branchMax = S.useWye ? Math.max(S.bnA.len, S.twoBranches? S.bnB.len : 0) : 0;
+    const viewH = Math.ceil(computeViewHeight(S.mainLen, branchMax));
+    svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
+    stageEl.style.height = viewH + 'px';
+    truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    const shadow=document.createElementNS(ns,'path');
-    shadow.setAttribute('class','hoseBase shadow'); shadow.setAttribute('d', pathData);
-    G_hosesP.appendChild(shadow);
+    // MAIN curve from pump
+    const totalPx = (S.mainLen/50)*PX_PER_50FT;
+    const geom = mainCurve(totalPx, viewH, 0); // dir 0 = center
+    const base = document.createElementNS(ns,'path'); base.setAttribute('d', geom.d); G_hosesP.appendChild(base);
 
-    const mainPath=document.createElementNS(ns,'path');
-    mainPath.setAttribute('class',`hoseBase ${S.mainSize==='2.5'?'hose25':'hose175'}`);
-    mainPath.setAttribute('d', pathData);
+    const sh = document.createElementNS(ns,'path');
+    sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', geom.d);
+    G_hosesP.appendChild(sh);
+
+    const main = document.createElementNS(ns,'path');
+    main.setAttribute('class', `hoseBase ${S.mainSize==='2.5'?'hose25':'hose175'}`);
+    main.setAttribute('d', geom.d);
     const L = base.getTotalLength();
-    mainPath.setAttribute('stroke-dasharray', `${L} ${L}`);
-    mainPath.setAttribute('stroke-dashoffset','0');
-    G_hosesP.appendChild(mainPath);
+    main.setAttribute('stroke-dasharray', `${L} ${L}`);
+    main.setAttribute('stroke-dashoffset','0');
+    G_hosesP.appendChild(main);
 
-    // Draw branches
+    // BRANCHES (from the end of main)
     if(S.useWye){
-      // Branch A (left)
-      const ax = ex-20, ay = ey-10, ay2 = Math.max(8, ay - (S.bnA.len/50)*45);
-      const apath = `M ${ex},${ey} L ${ex},${ay} L ${ax},${ay} L ${ax},${ay2}`;
-      const aShadow=document.createElementNS(ns,'path'); aShadow.setAttribute('class','hoseBase shadow'); aShadow.setAttribute('d',apath); G_branchesP.appendChild(aShadow);
-      const aVis=document.createElementNS(ns,'path'); aVis.setAttribute('class','hoseBase hose175'); aVis.setAttribute('d',apath); G_branchesP.appendChild(aVis);
+      // A (left)
+      const aPx = (S.bnA.len/50)*PX_PER_50FT;
+      const aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
+      const aSh = document.createElementNS(ns,'path'); aSh.setAttribute('class','hoseBase shadow'); aSh.setAttribute('d', aGeom.d); G_branchesP.appendChild(aSh);
+      const a = document.createElementNS(ns,'path'); a.setAttribute('class','hoseBase hose175'); a.setAttribute('d', aGeom.d); G_branchesP.appendChild(a);
 
-      // Branch B (right) if used
+      // B (right) if any
       if(S.twoBranches){
-        const bx = ex+20, by = ey-10, by2 = Math.max(8, by - (S.bnB.len/50)*45);
-        const bpath = `M ${ex},${ey} L ${ex},${by} L ${bx},${by} L ${bx},${by2}`;
-        const bShadow=document.createElementNS(ns,'path'); bShadow.setAttribute('class','hoseBase shadow'); bShadow.setAttribute('d',bpath); G_branchesP.appendChild(bShadow);
-        const bVis=document.createElementNS(ns,'path'); bVis.setAttribute('class','hoseBase hose175'); bVis.setAttribute('d',bpath); G_branchesP.appendChild(bVis);
+        const bPx = (S.bnB.len/50)*PX_PER_50FT;
+        const bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
+        const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
+        const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
       }
     }
 
-    // Label
+    // LABEL near the main nozzle/branch junction; info text is below, so no overlap
     const npLabel = S.useWye
       ? (S.twoBranches ? 'Wye (two branches)' : 'Wye (single branch)')
       : `Nozzle ${S.mainNoz.NP} psi`;
     const lbl = `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'} @ ${S.flow} gpm — ${npLabel}${S.elev?` — Elev ${S.elev}′`:''}`;
-    const text=document.createElementNS(ns,'text'); text.setAttribute('x', ex); text.setAttribute('y', ey-10); text.setAttribute('text-anchor','middle'); text.setAttribute('fill','#eaf2ff'); text.setAttribute('font-size','12'); text.textContent = lbl; G_labelsP.appendChild(text);
+    const t=document.createElementNS(ns,'text');
+    t.setAttribute('x', geom.endX);
+    t.setAttribute('y', Math.max(12, geom.endY - 10));
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill','#eaf2ff');
+    t.setAttribute('font-size','12');
+    t.textContent = lbl;
+    G_labelsP.appendChild(t);
   }
 
   // Generate & render
