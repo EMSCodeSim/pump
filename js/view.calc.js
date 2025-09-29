@@ -1,3 +1,4 @@
+// /js/view.calc.js
 import {
   state, NOZ, NOZ_LIST, COLORS,
   FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT,
@@ -12,9 +13,36 @@ export async function render(container){
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet" onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
+
+          <!-- Tip editor moved INSIDE the stage; positioned above the truck -->
+          <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
+               style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
+            <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
+            <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
+            <div class="te-row"><label>Diameter</label>
+              <select id="teSize"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
+            </div>
+            <div class="te-row"><label>Length (ft)</label><input type="number" id="teLen" min="0" step="25" value="200"></div>
+            <div class="te-row"><label>Nozzle</label><select id="teNoz"></select></div>
+            <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5" value="0"></div>
+            <div class="te-row"><label>Wye</label>
+              <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
+            </div>
+            <div id="branchBlock" class="is-hidden">
+              <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
+              <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
+              <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
+              <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
+            </div>
+            <div class="te-actions">
+              <button class="btn" id="teCancel">Cancel</button>
+              <button class="btn primary" id="teApply">Apply</button>
+            </div>
+          </div>
+
           <div class="info" id="topInfo">No lines deployed</div>
           <div class="linebar">
             <button class="linebtn" data-line="left">Line 1</button>
@@ -22,31 +50,6 @@ export async function render(container){
             <button class="linebtn" data-line="right">Line 3</button>
             <button class="supplybtn" id="supplyBtn">Supply</button>
             <button class="presetsbtn" id="presetsBtn">Presets</button>
-          </div>
-        </div>
-
-        <!-- Floating tip editor -->
-        <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true">
-          <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
-          <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
-          <div class="te-row"><label>Diameter</label>
-            <select id="teSize"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
-          </div>
-          <div class="te-row"><label>Length (ft)</label><input type="number" id="teLen" min="0" step="25" value="200"></div>
-          <div class="te-row"><label>Nozzle</label><select id="teNoz"></select></div>
-          <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5" value="0"></div>
-          <div class="te-row"><label>Wye</label>
-            <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
-          </div>
-          <div id="branchBlock" class="is-hidden">
-            <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
-            <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
-            <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
-            <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
-          </div>
-          <div class="te-actions">
-            <button class="btn" id="teCancel">Cancel</button>
-            <button class="btn primary" id="teApply">Apply</button>
           </div>
         </div>
       </section>
@@ -119,14 +122,14 @@ export async function render(container){
   const teWye   = container.querySelector('#teWye');
   const teLenA  = container.querySelector('#teLenA');
   const teLenB  = container.querySelector('#teLenB');
-
   const GPMel = container.querySelector('#GPM');
+
+  // remember current SVG height for editor positioning
+  let currentViewH = null;
 
   let chosenPreset=null, chosenLine=null, editorContext=null;
 
   // helpers
-  const $ = s=>container.querySelector(s);
-  const $$ = s=>Array.from(container.querySelectorAll(s));
   function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
   function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
 
@@ -236,8 +239,10 @@ export async function render(container){
 
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
+    currentViewH = viewH; // remember current height for editor placement
     overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
-    stage.style.height = viewH + 'px';
+    const hpx = viewH + 'px';
+    stage.style.height = hpx;
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
@@ -532,14 +537,14 @@ export async function render(container){
   }
 
   // === Interactions ===
-  // tap plus circles -> edit
+  // tap plus circles -> edit (position editor ABOVE the truck, centered near pump)
   overlay.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
-    container.querySelector('#teTitle').textContent = `${L.label} — ${where==='main'?'Main':'Branch '+where}`;
+    teTitle.textContent = `${L.label} — ${where==='main'?'Main':'Branch '+where}`;
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
@@ -558,15 +563,32 @@ export async function render(container){
     }
 
     branchBlock.classList.toggle('is-hidden', teWye.value==='off');
-    container.querySelector('#teNozA').value = (L.nozLeft?.id)||'chiefXD';
-    container.querySelector('#teNozB').value = (L.nozRight?.id)||'chiefXD265';
+    teNozA.value = (L.nozLeft?.id)||'chiefXD';
+    teNozB.value = (L.nozRight?.id)||'chiefXD265';
     teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
     teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
 
-    const rect = stage.getBoundingClientRect();
-    tipEditor.style.left = Math.min(rect.width-310, Math.max(8, e.clientX-rect.left-140)) + 'px';
-    tipEditor.style.top  = Math.min(rect.height-10, Math.max(8, e.clientY-rect.top+8)) + 'px';
+    // --- New: position editor above the truck, centered on pump panel
+    tipEditor.style.visibility = 'hidden';
     tipEditor.classList.remove('is-hidden');
+
+    const edW = tipEditor.offsetWidth || 300;
+    const edH = tipEditor.offsetHeight || 240;
+
+    const { x: pumpX } = pumpXY(currentViewH || 260);
+    const truckTop = truckTopY(currentViewH || 260);
+
+    const srect = stage.getBoundingClientRect();
+    let left = pumpX - edW/2;
+    let top  = truckTop - edH - 8;
+
+    // clamp to stage
+    left = Math.max(8, Math.min(left, srect.width - edW - 8));
+    top  = Math.max(8, Math.min(top, srect.height - edH - 8));
+
+    tipEditor.style.left = left + 'px';
+    tipEditor.style.top  = top + 'px';
+    tipEditor.style.visibility = 'visible';
   });
 
   teWye.addEventListener('change', ()=>{ branchBlock.classList.toggle('is-hidden', teWye.value==='off'); });
