@@ -1,5 +1,5 @@
 // /js/view.practice.js
-import { FL_total, PSI_PER_FT } from './store.js';
+import { COEFF, FL_total, PSI_PER_FT } from './store.js';
 
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -16,7 +16,7 @@ export async function render(container){
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
           <div>
             <b>Practice Mode</b>
-            <div class="sub">Realistic line setups. Find the correct Pump Pressure (PP).</div>
+            <div class="sub">Read the given info and calculate Pump Pressure (PP).</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="newScenarioBtn">New Problem</button>
@@ -34,14 +34,28 @@ export async function render(container){
           </svg>
         </div>
 
-        <!-- Hose color key -->
+        <!-- Hose color key + formulas -->
         <div class="hoseLegend" style="margin-top:8px">
           <span class="legSwatch sw175"></span> 1¾″
           <span class="legSwatch sw25"></span> 2½″
           <span class="legSwatch sw5"></span> 5″
         </div>
+        <div class="mini" style="margin-top:6px;opacity:.9">
+          <div><b>Friction Loss:</b> <code>FL/100′ = C × (GPM/100)²</code>, &nbsp; <code>FL(len) = FL/100′ × (len/100)</code></div>
+          <div><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
+          <div style="margin-top:4px"><b>PP equations:</b>
+            <ul class="simpleList" style="margin-top:4px">
+              <li><b>Single line:</b> <code>PP = NP + Main FL ± Elev</code></li>
+              <li><b>Single branch via wye:</b> <code>PP = NP(branch) + Branch FL + Main FL ± Elev</code></li>
+              <li><b>Two-branch wye:</b> <code>PP = max(Need A, Need B) + Main FL + Wye ± Elev</code></li>
+            </ul>
+          </div>
+        </div>
 
-        <!-- Moved BELOW the truck so it never covers labels -->
+        <!-- Given info for the scenario -->
+        <div id="givenPanel" class="math" style="margin-top:10px"></div>
+
+        <!-- Status text (kept below so it never overlaps labels) -->
         <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Problem</b> to generate a scenario.</div>
       </section>
 
@@ -75,21 +89,21 @@ export async function render(container){
   const G_labelsP = container.querySelector('#labelsP');
   const practiceInfo = container.querySelector('#practiceInfo');
   const statusEl = container.querySelector('#practiceStatus');
+  const givenPanel = container.querySelector('#givenPanel');
 
   const ns = 'http://www.w3.org/2000/svg';
   let practiceAnswer = null;
 
-  // ===== geometry helpers (mirrors view.calc.js)
+  // ===== geometry helpers (matches calc view)
   function computeViewHeight(mainFt, branchMaxFt){
     const mainPx = (mainFt/50)*PX_PER_50FT;
     const branchPx = branchMaxFt ? (branchMaxFt/50)*PX_PER_50FT + BRANCH_LIFT : 0;
-    // Some headroom above truck & labels
     return Math.max(TRUCK_H + 20 + mainPx + branchPx, TRUCK_H + 20);
   }
   function truckTopY(viewH){ return viewH - TRUCK_H; }
   function pumpXY(viewH){
     const top = truckTopY(viewH);
-    return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; // same pump spot as calc
+    return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 };
   }
   function mainCurve(totalPx, viewH, dir=0){
     const {x:sx,y:sy} = pumpXY(viewH);
@@ -104,7 +118,7 @@ export async function render(container){
     return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
   }
 
-  // ===== util
+  // ===== utils
   function clearPractice(){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
@@ -117,6 +131,7 @@ export async function render(container){
     for(const x of weightedArray){ if((r-=x.w)<=0) return x.v; }
     return weightedArray[weightedArray.length-1].v;
   }
+  function sizeLabel(sz){ return sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`); }
 
   // ===== scenario generator (realistic; rarely >250)
   function makeRealisticScenario(){
@@ -151,6 +166,7 @@ export async function render(container){
       if(twoBranches){ bnB = { len: pick(branchLens), noz: pick(branchNozzles) }; }
     }
 
+    // Flow through main
     const flow = useWye
       ? ((bnA?.noz.gpm||0) + (bnB?.noz.gpm||0) + (!twoBranches ? mainNoz.gpm : 0))
       : mainNoz.gpm;
@@ -166,7 +182,7 @@ export async function render(container){
       PDP = Math.max(needA, needB) + mainFL + wyeLoss + elev*PSI_PER_FT;
     }else{ // single branch via wye
       const needBranch = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
-      PDP = needBranch + mainFL + elev*PSI_PER_FT; // no extra wye loss for single flowing
+      PDP = needBranch + mainFL + elev*PSI_PER_FT;
     }
 
     return {
@@ -181,6 +197,7 @@ export async function render(container){
     return S;
   }
 
+  // ===== render helpers
   function drawScenario(S){
     clearPractice();
 
@@ -193,7 +210,7 @@ export async function render(container){
 
     // MAIN curve from pump
     const totalPx = (S.mainLen/50)*PX_PER_50FT;
-    const geom = mainCurve(totalPx, viewH, 0); // dir 0 = center
+    const geom = mainCurve(totalPx, viewH, 0); // center
     const base = document.createElementNS(ns,'path'); base.setAttribute('d', geom.d); G_hosesP.appendChild(base);
 
     const sh = document.createElementNS(ns,'path');
@@ -225,7 +242,7 @@ export async function render(container){
       }
     }
 
-    // LABEL near the main nozzle/branch junction; info text is below, so no overlap
+    // LABEL near the main nozzle/branch junction
     const npLabel = S.useWye
       ? (S.twoBranches ? 'Wye (two branches)' : 'Wye (single branch)')
       : `Nozzle ${S.mainNoz.NP} psi`;
@@ -238,6 +255,63 @@ export async function render(container){
     t.setAttribute('font-size','12');
     t.textContent = lbl;
     G_labelsP.appendChild(t);
+
+    // GIVEN PANEL (NP, GPM, length, size for each line)
+    renderGivenPanel(S);
+  }
+
+  function renderGivenPanel(S){
+    // Helper for rows
+    const row = (title, obj) => `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div style="min-width:90px"><b>${title}</b></div>
+        <div class="tag">Size: ${sizeLabel(obj.size)}</div>
+        <div class="tag">Length: ${obj.len}′</div>
+        <div class="tag">GPM: ${obj.gpm}</div>
+        <div class="tag">NP: ${obj.np}</div>
+      </div>
+    `;
+
+    // Build lines info
+    let html = `<div class="mini" style="opacity:.9;margin-bottom:6px">Use the values below to compute PP.</div>`;
+
+    // Main line — if two-branch wye, NP is "— (wye)" and show Wye loss
+    const mainNP = S.useWye
+      ? (S.twoBranches ? `— (wye)` : `${S.bnA.noz.NP}`)
+      : `${S.mainNoz.NP}`;
+
+    html += row('Main', {
+      size: S.mainSize,
+      len: S.mainLen,
+      gpm: S.flow,
+      np: mainNP
+    });
+
+    if(S.useWye){
+      html += `<div class="mini" style="margin:6px 0 2px">Branches</div>`;
+      // Branch A (always present)
+      html += row('Branch A', {
+        size: '1.75',
+        len: S.bnA.len,
+        gpm: S.bnA.noz.gpm,
+        np:  S.bnA.noz.NP
+      });
+      // Branch B (optional)
+      if(S.twoBranches){
+        html += row('Branch B', {
+          size: '1.75',
+          len: S.bnB.len,
+          gpm: S.bnB.noz.gpm,
+          np:  S.bnB.noz.NP
+        });
+        html += `<div class="tag" style="margin-top:4px">Wye loss: ${S.wyeLoss} psi</div>`;
+      }
+    }
+
+    // Elevation callout (always helpful)
+    html += `<div class="tag" style="margin-top:6px">Elevation: ${S.elev}′ (≈ ${S.elev*PSI_PER_FT} psi)</div>`;
+
+    givenPanel.innerHTML = html;
   }
 
   // Generate & render
