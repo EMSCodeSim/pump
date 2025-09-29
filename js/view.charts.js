@@ -1,5 +1,5 @@
 // /js/view.charts.js
-import { COEFF, NOZ, NOZ_LIST } from './store.js';
+import { COEFF, NOZ } from './store.js';
 
 export async function render(container){
   container.innerHTML = `
@@ -10,89 +10,61 @@ export async function render(container){
 
         <details class="math" open>
           <summary style="font-weight:700">Fog Nozzles</summary>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px" id="fogGrid"></div>
+          <div id="fogGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
         </details>
 
         <details class="math" open>
           <summary style="font-weight:700">Smooth Bore Tips</summary>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px" id="sbGrid"></div>
+          <div id="sbGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
         </details>
 
         <details class="math" open>
           <summary style="font-weight:700">ChiefXD</summary>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px" id="cxdGrid"></div>
+          <div id="cxdGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
         </details>
       </section>
 
-      <!-- Friction Loss Explorer -->
+      <!-- Vertical Hose Size buttons + Common GPM quick chart -->
       <section class="card">
-        <h3 style="margin:4px 0 10px">Friction Loss Explorer (per 100′)</h3>
+        <h3 style="margin:4px 0 8px">Friction Loss (per 100′) — Quick Chart</h3>
 
-        <div class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div class="field" style="min-width:160px">
-            <label>Hose Size</label>
-            <select id="hoseSize">
-              <option value="1.75">1¾″ (C=${COEFF["1.75"]})</option>
-              <option value="2.5">2½″ (C=${COEFF["2.5"]})</option>
-              <option value="5">5″ (C=${COEFF["5"]})</option>
-            </select>
+        <div style="display:grid;grid-template-columns: 160px 1fr; gap:12px; align-items:start">
+          <!-- Vertical buttons -->
+          <div id="hoseBtns" style="display:flex;flex-direction:column;gap:8px">
+            <button class="preset" data-size="1.75" style="text-align:left">1¾″ (C=${COEFF["1.75"]})</button>
+            <button class="preset" data-size="2.5"  style="text-align:left">2½″ (C=${COEFF["2.5"]})</button>
+            <button class="preset" data-size="5"    style="text-align:left">5″ (C=${COEFF["5"]})</button>
           </div>
 
-          <div class="field" style="min-width:120px">
-            <label>From (gpm)</label>
-            <input type="number" id="gpmFrom" value="100" min="1" step="5">
+          <!-- Chart output -->
+          <div>
+            <div class="mini" style="opacity:.85;margin-bottom:6px">
+              Select a hose size on the left to see common GPMs and the friction loss per 100′.
+              Formula: <code>FL/100′ = C × (gpm/100)²</code>
+            </div>
+            <div id="quickChartWrap"></div>
           </div>
-          <div class="field" style="min-width:120px">
-            <label>To (gpm)</label>
-            <input type="number" id="gpmTo" value="300" min="1" step="5">
-          </div>
-          <div class="field" style="min-width:120px">
-            <label>Step (gpm)</label>
-            <input type="number" id="gpmStep" value="25" min="1" step="1">
-          </div>
-
-          <div class="field" style="min-width:160px">
-            <button class="btn primary" id="genBtn" style="width:100%">Generate</button>
-          </div>
-        </div>
-
-        <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
-          <div class="mini" style="opacity:.8">Quick ranges:</div>
-          <button class="btn" data-quick="attack">150–250 by 25</button>
-          <button class="btn" data-quick="big">250–500 by 50</button>
-          <button class="btn" data-quick="wide">100–400 by 50</button>
-        </div>
-
-        <div id="flTableWrap" style="margin-top:10px"></div>
-        <div class="status" id="flNote" style="margin-top:6px;color:#9fb0c8">
-          Formula: <code>FL/100′ = C × (gpm/100)²</code>. Coefficients from your app constants.
         </div>
       </section>
     </section>
   `;
 
-  // ---- Build nozzle cards
+  // --- Build nozzle cards
   const fogGrid = container.querySelector('#fogGrid');
   const sbGrid  = container.querySelector('#sbGrid');
   const cxdGrid = container.querySelector('#cxdGrid');
 
-  // Group existing nozzles and supplement with a few very common ones
   const fogList = [
-    // From your store:
     NOZ.fog125_75, NOZ.fog150_75, NOZ.fog185_75, NOZ.fog200_75,
-    // A common 250@75 fog for 2½"
     {id:'fog250_75_extra', grp:'Fog', name:'Fog 250@75', gpm:250, NP:75}
   ].filter(Boolean);
 
   const sbList = [
     NOZ.sb7_8, NOZ.sb15_16, NOZ.sb1_1_8,
-    // Optionally include 1¼" (~325 gpm @ 50) if you want a bigger master stream tip:
     {id:'sb1_1_4', grp:'Smooth Bore', name:'SB 1¼″ (325@50)', gpm:325, NP:50}
   ].filter(Boolean);
 
-  const chiefList = [
-    NOZ.chiefXD, NOZ.chiefXD265
-  ].filter(Boolean);
+  const chiefList = [ NOZ.chiefXD, NOZ.chiefXD265 ].filter(Boolean);
 
   function nozzleCard(n){
     const el = document.createElement('div');
@@ -108,60 +80,59 @@ export async function render(container){
   sbList.forEach(n=> sbGrid.appendChild(nozzleCard(n)));
   chiefList.forEach(n=> cxdGrid.appendChild(nozzleCard(n)));
 
-  // ---- Friction Loss Explorer
-  const hoseSize = container.querySelector('#hoseSize');
-  const gpmFrom  = container.querySelector('#gpmFrom');
-  const gpmTo    = container.querySelector('#gpmTo');
-  const gpmStep  = container.querySelector('#gpmStep');
-  const genBtn   = container.querySelector('#genBtn');
-  const flTableWrap = container.querySelector('#flTableWrap');
+  // --- Quick FL chart per hose size
+  const btnsWrap = container.querySelector('#hoseBtns');
+  const chartWrap = container.querySelector('#quickChartWrap');
 
-  function clampRange(a,b){
-    let from = Math.max(1, Math.min(a,b));
-    let to   = Math.max(1, Math.max(a,b));
-    if(to === from) to = from + 1;
-    return {from, to};
+  const COMMON_GPM = {
+    "1.75": [100, 150, 185],         // per your example
+    "2.5":  [200, 250, 300],
+    "5":    [500, 750, 1000],
+  };
+
+  function sizeLabel(sz){
+    return sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : '5″');
   }
 
-  function buildFLTable(){
-    const size = hoseSize.value;
+  function renderQuickChart(size){
     const C = COEFF[size] || 0;
-    const step = Math.max(1, +gpmStep.value||25);
-    const {from, to} = clampRange(+gpmFrom.value||100, +gpmTo.value||300);
-
-    const rows = [];
-    for(let g=from; g<=to; g+=step){
+    const gps = COMMON_GPM[size] || [];
+    const rows = gps.map(g=>{
       const Q = g/100;
-      const fl = C*(Q*Q); // per 100'
-      rows.push({gpm:g, fl:Math.round(fl*10)/10});
-    }
+      const fl = C * (Q*Q);
+      return {gpm:g, fl: Math.round(fl*10)/10};
+    });
 
-    // Build table
-    const t = document.createElement('table');
-    t.innerHTML = `
-      <caption>FL per 100′ — ${size==='1.75'?'1¾″':(size==='2.5'?'2½″':'5″')} (C=${C})</caption>
+    // table
+    const table = document.createElement('table');
+    table.innerHTML = `
+      <caption>FL per 100′ — ${sizeLabel(size)} (C=${C})</caption>
       <thead><tr><th>GPM</th><th>FL / 100′ (psi)</th></tr></thead>
       <tbody>${rows.map(r=>`<tr><td>${r.gpm}</td><td>${r.fl}</td></tr>`).join('')}</tbody>
     `;
-    flTableWrap.innerHTML = '';
-    flTableWrap.appendChild(t);
+    chartWrap.innerHTML = '';
+    chartWrap.appendChild(table);
   }
 
-  genBtn.addEventListener('click', buildFLTable);
-
-  // Quick range buttons
-  container.querySelectorAll('[data-quick]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const type = btn.getAttribute('data-quick');
-      if(type==='attack'){ gpmFrom.value=150; gpmTo.value=250; gpmStep.value=25; }
-      else if(type==='big'){ gpmFrom.value=250; gpmTo.value=500; gpmStep.value=50; hoseSize.value='2.5'; }
-      else if(type==='wide'){ gpmFrom.value=100; gpmTo.value=400; gpmStep.value=50; }
-      buildFLTable();
+  // button interactions
+  function setActive(size){
+    btnsWrap.querySelectorAll('.preset').forEach(b=>{
+      const on = b.getAttribute('data-size')===size;
+      b.style.outline = on ? '2px solid var(--accent)' : 'none';
     });
+  }
+
+  btnsWrap.addEventListener('click', e=>{
+    const b = e.target.closest('.preset');
+    if(!b) return;
+    const size = b.getAttribute('data-size');
+    setActive(size);
+    renderQuickChart(size);
   });
 
-  // Build an initial table by default
-  buildFLTable();
+  // default selection: 1.75
+  setActive('1.75');
+  renderQuickChart('1.75');
 
   return { dispose(){} };
 }
