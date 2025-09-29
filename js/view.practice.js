@@ -6,6 +6,7 @@ const TRUCK_H = 260;
 const PX_PER_50FT = 45;
 const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
+const TOL = 1; // fixed ±1 psi
 
 export async function render(container){
   container.innerHTML = `
@@ -16,7 +17,7 @@ export async function render(container){
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
           <div>
             <b>Practice Mode</b>
-            <div class="sub">Read the given info and calculate Pump Pressure (PP).</div>
+            <div class="sub">Use the info on the graphic to find Pump Pressure (PP).</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="newScenarioBtn">New Problem</button>
@@ -34,7 +35,7 @@ export async function render(container){
           </svg>
         </div>
 
-        <!-- Hose color key + formulas -->
+        <!-- Hose color key + formulas (kept) -->
         <div class="hoseLegend" style="margin-top:8px">
           <span class="legSwatch sw175"></span> 1¾″
           <span class="legSwatch sw25"></span> 2½″
@@ -52,26 +53,20 @@ export async function render(container){
           </div>
         </div>
 
-        <!-- Given info for the scenario -->
-        <div id="givenPanel" class="math" style="margin-top:10px"></div>
-
-        <!-- Status text (kept below so it never overlaps labels) -->
+        <!-- Status text / reveal work -->
         <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Problem</b> to generate a scenario.</div>
+        <div id="work" class="math" style="margin-top:8px"></div>
       </section>
 
-      <!-- Answer row -->
+      <!-- Answer row (fixed ±1) -->
       <section class="card">
         <div class="row" style="align-items:flex-end">
-          <div class="field" style="max-width:200px">
+          <div class="field" style="max-width:220px">
             <label>Your PP answer (psi)</label>
             <input type="number" id="ppGuess" placeholder="e.g., 145">
           </div>
           <div class="field" style="max-width:160px">
-            <label>Tolerance (± psi)</label>
-            <input type="number" id="ppTol" value="10">
-          </div>
-          <div class="field" style="max-width:160px">
-            <button class="btn primary" id="checkBtn" style="width:100%">Check</button>
+            <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL})</button>
           </div>
         </div>
         <div id="practiceStatus" class="status" style="margin-top:8px">No scenario loaded.</div>
@@ -89,10 +84,11 @@ export async function render(container){
   const G_labelsP = container.querySelector('#labelsP');
   const practiceInfo = container.querySelector('#practiceInfo');
   const statusEl = container.querySelector('#practiceStatus');
-  const givenPanel = container.querySelector('#givenPanel');
+  const workEl = container.querySelector('#work');
 
   const ns = 'http://www.w3.org/2000/svg';
   let practiceAnswer = null;
+  let scenario = null; // keep last scenario for reveal
 
   // ===== geometry helpers (matches calc view)
   function computeViewHeight(mainFt, branchMaxFt){
@@ -123,6 +119,7 @@ export async function render(container){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
     while(G_labelsP.firstChild) G_labelsP.removeChild(G_labelsP.firstChild);
+    workEl.innerHTML = '';
   }
   function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
   function weightedPick(weightedArray){
@@ -131,7 +128,7 @@ export async function render(container){
     for(const x of weightedArray){ if((r-=x.w)<=0) return x.v; }
     return weightedArray[weightedArray.length-1].v;
   }
-  function sizeLabel(sz){ return sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`); }
+  const sizeLabel = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
 
   // ===== scenario generator (realistic; rarely >250)
   function makeRealisticScenario(){
@@ -166,7 +163,6 @@ export async function render(container){
       if(twoBranches){ bnB = { len: pick(branchLens), noz: pick(branchNozzles) }; }
     }
 
-    // Flow through main
     const flow = useWye
       ? ((bnA?.noz.gpm||0) + (bnB?.noz.gpm||0) + (!twoBranches ? mainNoz.gpm : 0))
       : mainNoz.gpm;
@@ -180,7 +176,7 @@ export async function render(container){
       const needA = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
       const needB = bnB.noz.NP + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
       PDP = Math.max(needA, needB) + mainFL + wyeLoss + elev*PSI_PER_FT;
-    }else{ // single branch via wye
+    }else{
       const needBranch = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
       PDP = needBranch + mainFL + elev*PSI_PER_FT;
     }
@@ -197,9 +193,36 @@ export async function render(container){
     return S;
   }
 
+  // ===== SVG label helper
+  function addLabel(x, y, text){
+    const pad = 4;
+    const g = document.createElementNS(ns,'g');
+    const t = document.createElementNS(ns,'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill','#0b0f14');
+    t.setAttribute('font-size','12');
+    t.textContent = text;
+    const r = document.createElementNS(ns,'rect');
+    // compute bbox after adding text
+    G_labelsP.appendChild(t);
+    const bb = t.getBBox();
+    r.setAttribute('x', bb.x - pad);
+    r.setAttribute('y', bb.y - pad);
+    r.setAttribute('width', bb.width + pad*2);
+    r.setAttribute('height', bb.height + pad*2);
+    r.setAttribute('fill', '#eaf2ff');
+    r.setAttribute('stroke', '#111');
+    r.setAttribute('stroke-width', '.5');
+    r.setAttribute('rx','4'); r.setAttribute('ry','4');
+    g.appendChild(r); g.appendChild(t);
+    G_labelsP.appendChild(g);
+  }
+
   // ===== render helpers
   function drawScenario(S){
     clearPractice();
+    workEl.innerHTML = '';
 
     // Compute SVG height and layout
     const branchMax = S.useWye ? Math.max(S.bnA.len, S.twoBranches? S.bnB.len : 0) : 0;
@@ -210,7 +233,7 @@ export async function render(container){
 
     // MAIN curve from pump
     const totalPx = (S.mainLen/50)*PX_PER_50FT;
-    const geom = mainCurve(totalPx, viewH, 0); // center
+    const geom = mainCurve(totalPx, viewH, 0);
     const base = document.createElementNS(ns,'path'); base.setAttribute('d', geom.d); G_hosesP.appendChild(base);
 
     const sh = document.createElementNS(ns,'path');
@@ -226,120 +249,151 @@ export async function render(container){
     G_hosesP.appendChild(main);
 
     // BRANCHES (from the end of main)
+    let aGeom=null, bGeom=null;
     if(S.useWye){
       // A (left)
       const aPx = (S.bnA.len/50)*PX_PER_50FT;
-      const aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
+      aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
       const aSh = document.createElementNS(ns,'path'); aSh.setAttribute('class','hoseBase shadow'); aSh.setAttribute('d', aGeom.d); G_branchesP.appendChild(aSh);
       const a = document.createElementNS(ns,'path'); a.setAttribute('class','hoseBase hose175'); a.setAttribute('d', aGeom.d); G_branchesP.appendChild(a);
 
       // B (right) if any
       if(S.twoBranches){
         const bPx = (S.bnB.len/50)*PX_PER_50FT;
-        const bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
+        bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
         const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
         const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
       }
     }
 
-    // LABEL near the main nozzle/branch junction
-    const npLabel = S.useWye
-      ? (S.twoBranches ? 'Wye (two branches)' : 'Wye (single branch)')
-      : `Nozzle ${S.mainNoz.NP} psi`;
-    const lbl = `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'} @ ${S.flow} gpm — ${npLabel}${S.elev?` — Elev ${S.elev}′`:''}`;
-    const t=document.createElementNS(ns,'text');
-    t.setAttribute('x', geom.endX);
-    t.setAttribute('y', Math.max(12, geom.endY - 10));
-    t.setAttribute('text-anchor','middle');
-    t.setAttribute('fill','#eaf2ff');
-    t.setAttribute('font-size','12');
-    t.textContent = lbl;
-    G_labelsP.appendChild(t);
-
-    // GIVEN PANEL (NP, GPM, length, size for each line)
-    renderGivenPanel(S);
-  }
-
-  function renderGivenPanel(S){
-    // Helper for rows
-    const row = (title, obj) => `
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <div style="min-width:90px"><b>${title}</b></div>
-        <div class="tag">Size: ${sizeLabel(obj.size)}</div>
-        <div class="tag">Length: ${obj.len}′</div>
-        <div class="tag">GPM: ${obj.gpm}</div>
-        <div class="tag">NP: ${obj.np}</div>
-      </div>
-    `;
-
-    // Build lines info
-    let html = `<div class="mini" style="opacity:.9;margin-bottom:6px">Use the values below to compute PP.</div>`;
-
-    // Main line — if two-branch wye, NP is "— (wye)" and show Wye loss
-    const mainNP = S.useWye
-      ? (S.twoBranches ? `— (wye)` : `${S.bnA.noz.NP}`)
-      : `${S.mainNoz.NP}`;
-
-    html += row('Main', {
-      size: S.mainSize,
-      len: S.mainLen,
-      gpm: S.flow,
-      np: mainNP
-    });
+    // ==== LABELS ON THE GRAPHIC (only here, nothing below)
+    // Main label shows NP or Wye
+    const mainNPText = !S.useWye
+      ? `NP ${S.mainNoz.NP} psi`
+      : (S.twoBranches ? `Wye ${S.wyeLoss} psi` : `— via Wye`);
+    addLabel(
+      geom.endX,
+      Math.max(12, geom.endY - 12),
+      `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'} — ${S.flow} gpm — ${mainNPText}${S.elev?` — Elev ${S.elev}′`:''}`
+    );
 
     if(S.useWye){
-      html += `<div class="mini" style="margin:6px 0 2px">Branches</div>`;
-      // Branch A (always present)
-      html += row('Branch A', {
-        size: '1.75',
-        len: S.bnA.len,
-        gpm: S.bnA.noz.gpm,
-        np:  S.bnA.noz.NP
-      });
-      // Branch B (optional)
-      if(S.twoBranches){
-        html += row('Branch B', {
-          size: '1.75',
-          len: S.bnB.len,
-          gpm: S.bnB.noz.gpm,
-          np:  S.bnB.noz.NP
-        });
-        html += `<div class="tag" style="margin-top:4px">Wye loss: ${S.wyeLoss} psi</div>`;
+      // Branch A
+      addLabel(
+        aGeom.endX,
+        Math.max(12, aGeom.endY - 12),
+        `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi`
+      );
+      // Branch B if present
+      if(S.twoBranches && bGeom){
+        addLabel(
+          bGeom.endX,
+          Math.max(12, bGeom.endY - 12),
+          `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi`
+        );
       }
     }
+  }
 
-    // Elevation callout (always helpful)
-    html += `<div class="tag" style="margin-top:6px">Elevation: ${S.elev}′ (≈ ${S.elev*PSI_PER_FT} psi)</div>`;
+  // ===== Build human-readable PP breakdown for Reveal
+  function buildReveal(S){
+    const E = S.elev * PSI_PER_FT;
+    const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
 
-    givenPanel.innerHTML = html;
+    if(!S.useWye){
+      const total = S.mainNoz.NP + mainFL + E;
+      return {
+        total: Math.round(total),
+        html: `
+          <div><b>Simple PP (Single line)</b></div>
+          <ul class="simpleList">
+            <li>Nozzle Pressure = <b>${S.mainNoz.NP} psi</b></li>
+            <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
+          </ul>
+          <div><b>PP = ${S.mainNoz.NP} + ${Math.round(mainFL)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+        `
+      };
+    }
+
+    if(S.useWye && !S.twoBranches){
+      const bFL = FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
+      const total = S.bnA.noz.NP + bFL + mainFL + E;
+      return {
+        total: Math.round(total),
+        html: `
+          <div><b>Simple PP (Single branch via wye)</b></div>
+          <ul class="simpleList">
+            <li>Branch NP = <b>${S.bnA.noz.NP} psi</b></li>
+            <li>Branch FL (A: ${S.bnA.len}′ 1¾″ @ ${S.bnA.noz.gpm} gpm) = <b>${Math.round(bFL)} psi</b></li>
+            <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
+          </ul>
+          <div><b>PP = ${S.bnA.noz.NP} + ${Math.round(bFL)} + ${Math.round(mainFL)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+        `
+      };
+    }
+
+    // two-branch wye
+    const aFL = FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
+    const bFL = FL_total(S.bnB.noz.gpm, [{size:'1.75', lengthFt:S.bnB.len}]);
+    const needA = S.bnA.noz.NP + aFL;
+    const needB = S.bnB.noz.NP + bFL;
+    const higher = Math.max(needA, needB);
+    const total = higher + mainFL + S.wyeLoss + E;
+
+    return {
+      total: Math.round(total),
+      html: `
+        <div><b>Simple PP (Wye)</b></div>
+        <ul class="simpleList">
+          <li>Branch A need = NP ${S.bnA.noz.NP} + FL ${Math.round(aFL)} = <b>${Math.round(needA)} psi</b></li>
+          <li>Branch B need = NP ${S.bnB.noz.NP} + FL ${Math.round(bFL)} = <b>${Math.round(needB)} psi</b></li>
+          <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
+          <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+          <li>Wye loss = +<b>${S.wyeLoss} psi</b></li>
+          <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
+        </ul>
+        <div><b>PP = ${Math.round(higher)} + ${Math.round(mainFL)} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+      `
+    };
   }
 
   // Generate & render
   function makePractice(){
     const S = generateBiasedScenario();
-    practiceAnswer = S.PDP;
+    scenario = S;
+    const rev = buildReveal(S);
+    practiceAnswer = rev.total;
     drawScenario(S);
-    practiceInfo.textContent = 'Scenario ready — enter your PP answer below.';
+    practiceInfo.textContent = 'Scenario ready — enter your PP below (±1 psi).';
     statusEl.textContent = 'Awaiting your answer…';
+    workEl.innerHTML = ''; // hidden until Reveal
   }
 
   // ===== interactions
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
+
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
     const guess = +(container.querySelector('#ppGuess').value||0);
-    const tol = Math.max(0, +(container.querySelector('#ppTol').value||10));
     if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
     const diff = Math.abs(guess - practiceAnswer);
-    if(diff<=tol){ statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
-    else if(diff<=tol*2){ statusEl.innerHTML = `<span class="warn">⚠️ Close.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
+    if(diff<=TOL){ statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
+    else if(diff<=TOL*2){ statusEl.innerHTML = `<span class="warn">⚠️ Close.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
     else{ statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
   });
+
   container.querySelector('#revealBtn').addEventListener('click', ()=>{
-    if(practiceAnswer!=null) statusEl.innerHTML = `<b>Answer:</b> ${practiceAnswer} psi`;
+    if(!scenario) return;
+    const rev = buildReveal(scenario);
+    workEl.innerHTML = rev.html;
+    statusEl.innerHTML = `<b>Answer:</b> ${rev.total} psi`;
+    workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
   });
 
   // default state
   practiceAnswer = null;
+  scenario = null;
 
   return { dispose(){} };
 }
