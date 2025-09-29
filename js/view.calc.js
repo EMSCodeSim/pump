@@ -13,11 +13,8 @@ export async function render(container){
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
-            <g id="G_supply"></g>
-            <g id="G_hoses"></g>
-            <g id="G_labels"></g>
-            <g id="G_tips"></g>
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet" onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
+            <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
           <!-- Tip editor INSIDE stage; positioned above the truck -->
@@ -63,38 +60,6 @@ export async function render(container){
           <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
-
-        <!-- Hydrant Residual %Drop Helper (shows only in Hydrant supply) -->
-        <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-          <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
-          <div class="mini" style="color:#a9bed9; margin-bottom:8px">
-            Enter static & residual with one line flowing to estimate how many <b>additional same-size lines</b> you can add.
-            Bands: 0–10% → 3×, 11–15% → 2×, 16–25% → 1×, &gt;25% → 0×.
-          </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
-            <div class="field" style="min-width:150px">
-              <label>Line size</label>
-              <select id="hydrantLineSize">
-                <option value="1.75">1¾″ (attack)</option>
-                <option value="2.5">2½″</option>
-                <option value="5">5″ LDH</option>
-              </select>
-            </div>
-            <div class="field" style="min-width:140px">
-              <label>Static (psi)</label>
-              <input type="number" id="hydrantStatic" placeholder="e.g., 80" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:170px">
-              <label>Residual w/ 1 line (psi)</label>
-              <input type="number" id="hydrantResidual" placeholder="e.g., 72" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
-              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
-            </div>
-          </div>
-          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Select size, enter pressures, then press <b>Evaluate %Drop</b>.</div>
-        </div>
-
         <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
     </section>
@@ -121,25 +86,52 @@ export async function render(container){
         <div class="preset" data-applyline="back">Line 2</div>
         <div class="preset" data-applyline="right">Line 3</div>
       </div>
-
-      <div class="mini" style="opacity:.7;margin-top:10px">Then press “Apply to Line”.</div>
-      <div style="display:flex; gap:10px; margin-top:8px">
-        <button id="sheetApply" class="btn primary" disabled>Apply to Line</button>
-      </div>
+      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
     </div>
-    <div id="sheetBackdrop" class="backdrop"></div>
+    <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ======= DOM / groups =======
-  const overlay = container.querySelector('#overlay');
-  const stage = container.querySelector('.stage');
-  const G_supply = overlay.querySelector('#G_supply');
-  const G = overlay.querySelector('#G_hoses');
-  const G_labels = overlay.querySelector('#G_labels');
-  const G_tips = overlay.querySelector('#G_tips');
+  // init nozzle selects in editor
+  const teNoz = container.querySelector('#teNoz');
+  const teNozA = container.querySelector('#teNozA');
+  const teNozB = container.querySelector('#teNozB');
+  [teNoz, teNozA, teNozB].forEach(sel=>{
+    sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name}</option>`).join('');
+  });
 
-  // ======= helper funcs (drawing support) =======
+  // DOM refs
+  const overlay   = container.querySelector('#overlay');
+  const stage     = container.querySelector('#stage');
+  const G_hoses   = container.querySelector('#hoses');
+  const G_branches= container.querySelector('#branches');
+  const G_labels  = container.querySelector('#labels');
+  const G_tips    = container.querySelector('#tips');
+  const G_supply  = container.querySelector('#supplyG');
+  const truckImg  = container.querySelector('#truckImg');
+  const topInfo   = container.querySelector('#topInfo');
+  const linesTable= container.querySelector('#linesTable');
+  const PDPel     = container.querySelector('#PDP');
+  const whyBtn    = container.querySelector('#whyBtn');
+  const branchBlock = container.querySelector('#branchBlock');
+  const tipEditor = container.querySelector('#tipEditor');
+  const teTitle = container.querySelector('#teTitle');
+  const teWhere = container.querySelector('#teWhere');
+  const teSize  = container.querySelector('#teSize');
+  const teLen   = container.querySelector('#teLen');
+  const teElev  = container.querySelector('#teElev');
+  const teWye   = container.querySelector('#teWye');
+  const teLenA  = container.querySelector('#teLenA');
+  const teLenB  = container.querySelector('#teLenB');
+  const GPMel = container.querySelector('#GPM');
+
+  // remember current SVG height for editor positioning
+  let currentViewH = null;
+
+  let chosenPreset=null, chosenLine=null, editorContext=null;
+
+  // helpers
   function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+  function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
 
   function supplyHeight(){ return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: 0; }
   function computeNeededHeightPx(){
@@ -180,39 +172,63 @@ export async function render(container){
     if(!totalLen||!gpm){
       containerEl.textContent='No hose yet';
       containerEl.style.color='#9fb0c8';
+      containerEl.style.fontSize='12px';
       return;
     }
+    const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
+    const svgNS='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(svgNS,'svg');
+    svg.setAttribute('width','100%'); svg.setAttribute('height',H);
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
 
-    const ns='http://www.w3.org/2000/svg';
-    const svg=document.createElementNS(ns,'svg');
-    svg.setAttribute('viewBox', `0 0 360 60`);
-    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-    svg.setAttribute('class','hosebarSvg');
+    if(nozzleText){
+      const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
+      t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
+      svg.appendChild(t);
+    }
 
-    let x=10, y=30;
-    const totalPx = (totalLen/50)*PX_PER_50FT;
-    const sw = totalPx>180? 10 : totalPx>90? 14 : 18;
+    const innerW=W-16-NP_W;
+    const track=document.createElementNS(svgNS,'rect');
+    track.setAttribute('x',8); track.setAttribute('y',20);
+    track.setAttribute('width',innerW); track.setAttribute('height',18);
+    track.setAttribute('fill','#0c1726'); track.setAttribute('stroke','#20324f');
+    track.setAttribute('rx',6); track.setAttribute('ry',6);
+    svg.appendChild(track);
 
-    // segments
-    sections.forEach(s=>{
-      const w = (s.lengthFt/50) * PX_PER_50FT;
-      const r = document.createElementNS(ns,'rect');
-      r.setAttribute('x', x); r.setAttribute('y', y - sw/2);
-      r.setAttribute('width', w); r.setAttribute('height', sw);
-      r.setAttribute('rx','6'); r.setAttribute('fill', s.size==='1.75' ? COLORS['1.75'] : s.size==='2.5'? COLORS['2.5'] : COLORS['5']);
+    let x=8;
+    sections.forEach(seg=>{
+      const segW=(seg.lengthFt/totalLen)*innerW;
+      const r=document.createElementNS(svgNS,'rect');
+      r.setAttribute('x',x); r.setAttribute('y',20);
+      r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18);
+      r.setAttribute('fill',COLORS[seg.size]||'#888');
+      r.setAttribute('stroke','rgba(0,0,0,.35)');
+      r.setAttribute('rx',5); r.setAttribute('ry',5);
       svg.appendChild(r);
-      x += w + 2;
+
+      const fl=FL(gpm,seg.size,seg.lengthFt);
+      const t=document.createElementNS(svgNS,'text');
+      t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','11');
+      t.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
+      t.setAttribute('text-anchor','middle'); t.setAttribute('x',x+segW/2); t.setAttribute('y',34);
+      t.textContent=`${seg.lengthFt}′ • ${Math.round(fl)} psi`;
+      svg.appendChild(t);
+
+      x+=segW;
     });
 
-    // text: left label
-    const left = document.createElementNS(ns,'text');
-    left.setAttribute('x', 10); left.setAttribute('y', 16); left.setAttribute('class','barlabel');
-    left.textContent = nozzleText;
-    svg.appendChild(left);
+    const pill=document.createElementNS(svgNS,'rect');
+    pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
+    pill.setAttribute('width',64-12); pill.setAttribute('height',18);
+    pill.setAttribute('fill','#eaf2ff'); pill.setAttribute('stroke','#20324f');
+    pill.setAttribute('rx',6); pill.setAttribute('ry',6);
+    svg.appendChild(pill);
 
-    // text: right chip
-    const npT = document.createElementNS(ns,'text');
-    npT.setAttribute('x', 350); npT.setAttribute('y', 44); npT.setAttribute('class','chip');
+    const npT=document.createElementNS(svgNS,'text');
+    npT.setAttribute('x',innerW+8+(64-12)/2); npT.setAttribute('y',33);
+    npT.setAttribute('text-anchor','middle'); npT.setAttribute('fill','#0b0f14'); npT.setAttribute('font-size','11');
+
+    // Use override when provided (e.g., "Wye 10"), otherwise show "NP 50"
     npT.textContent = pillOverride ?? `NP ${npPsi}`;
     svg.appendChild(npT);
 
@@ -230,49 +246,47 @@ export async function render(container){
     const bg = document.createElementNS(ns,'rect');
     bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
     bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-    bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity','.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
+    bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
     g.insertBefore(bg, t);
   }
   function addTip(key, where, x, y){
     const ns='http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns,'g');
     g.setAttribute('class','hose-end'); g.setAttribute('data-line',key); g.setAttribute('data-where',where);
-    const hit = document.createElementNS(ns,'rect'); hit.setAttribute('x',x-20); hit.setAttribute('y',y-20); hit.setAttribute('width', 40); hit.setAttribute('height', 40);
-    const c = document.createElementNS(ns,'circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',14);
-    const v = document.createElementNS(ns,'line'); v.setAttribute('x1',x); v.setAttribute('y1',y-6); v.setAttribute('x2',x); v.setAttribute('y2',y+6);
-    const h = document.createElementNS(ns,'line'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y);
+    const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-20); hit.setAttribute('y', y-20); hit.setAttribute('width', 40); hit.setAttribute('height', 40);
+    const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',14);
+    const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign'); v.setAttribute('x1',x); v.setAttribute('y1',y-6); v.setAttribute('x2',x); v.setAttribute('y2',y+6);
+    const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y);
     g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
   }
 
-  // ======= SUPPLY drawing =======
   function drawSupply(viewH){
     const G = G_supply; clearGroup(G);
     const h = supplyHeight(); if(!h) return;
     const baseY = truckTopY(viewH) + TRUCK_H + 6; const ns=G.namespaceURI;
     if(state.supply==='pressurized'){
-      let hyd=document.createElementNS(ns,'rect'); hyd.setAttribute('x','50'); hyd.setAttribute('y', String(baseY+20)); hyd.setAttribute('width','80'); hyd.setAttribute('height','60');
+      let hyd=document.createElementNS(ns,'rect'); hyd.setAttribute('x','10'); hyd.setAttribute('y', String(baseY+20)); hyd.setAttribute('width','80'); hyd.setAttribute('height','60');
       hyd.setAttribute('fill','#243614'); hyd.setAttribute('stroke','#7aa35e'); G.appendChild(hyd);
-      let t=document.createElementNS(ns,'text'); t.setAttribute('x','90'); t.setAttribute('y', String(baseY+56)); t.setAttribute('fill','#cfe4ff'); t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','12'); t.textContent='Hydrant'; G.appendChild(t);
+      let t=document.createElementNS(ns,'text'); t.setAttribute('x','50'); t.setAttribute('y', String(baseY+55)); t.setAttribute('fill','#cfe4ff'); t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','12'); t.textContent='Hydrant'; G.appendChild(t);
       const pump = pumpXY(viewH);
       let hose=document.createElementNS(ns,'path');
       hose.setAttribute('d',`M 90 ${baseY+50} C 160 ${baseY+50} 240 ${baseY+50} ${pump.x} ${pump.y-20}`);
-      hose.setAttribute('stroke','#ecd464'); hose.setAttribute('fill','none'); hose.setAttribute('stroke-width','8'); hose.setAttribute('stroke-linecap','round'); G.appendChild(hose);
+      hose.setAttribute('stroke','#ecd464'); hose.setAttribute('stroke-width','12'); hose.setAttribute('fill','none'); hose.setAttribute('stroke-linecap','round'); G.appendChild(hose);
     } else if(state.supply==='drafting'){
-      let r=document.createElementNS(ns,'rect'); r.setAttribute('x','60'); r.setAttribute('y', String(baseY+30)); r.setAttribute('width','120'); r.setAttribute('height','70');
+      let r=document.createElementNS(ns,'rect'); r.setAttribute('x','10'); r.setAttribute('y', String(baseY+60)); r.setAttribute('width','120'); r.setAttribute('height','70');
       r.setAttribute('fill','#10233b'); r.setAttribute('stroke','#4a6a9b'); G.appendChild(r);
-      let t=document.createElementNS(ns,'text'); t.setAttribute('x','120'); t.setAttribute('y', String(baseY+72)); t.setAttribute('fill','#cfe4ff'); t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','12'); t.textContent='Static Source'; G.appendChild(t);
+      let t=document.createElementNS(ns,'text'); t.setAttribute('x','70'); t.setAttribute('y', String(baseY+100)); t.setAttribute('fill','#cfe4ff'); t.setAttribute('text-anchor','middle'); t.setAttribute('font-size','12'); t.textContent='Static Source'; G.appendChild(t);
       const pump = pumpXY(viewH);
       let path=document.createElementNS(ns,'path');
       path.setAttribute('d',`M ${pump.x},${pump.y} C 240 ${baseY+40}, 190 ${baseY+65}, 130 ${baseY+95}`);
-      path.setAttribute('stroke','#6ecbff'); path.setAttribute('fill','none'); path.setAttribute('stroke-width','8'); path.setAttribute('stroke-linecap','round'); G.appendChild(path);
+      path.setAttribute('stroke','#6ecbff'); path.setAttribute('stroke-width','8'); path.setAttribute('fill','none'); path.setAttribute('stroke-linecap','round'); G.appendChild(path);
     } else if(state.supply==='relay'){
-      let img=document.createElementNS(ns,'rect'); img.setAttribute('x','70'); img.setAttribute('y', String(baseY+20)); img.setAttribute('width','120'); img.setAttribute('height','60');
-      img.setAttribute('fill','#1b2536'); img.setAttribute('stroke','#2b3c5a'); G.appendChild(img);
-      let tt=document.createElementNS(ns,'text'); tt.setAttribute('x','130'); tt.setAttribute('y', String(baseY+45)); tt.setAttribute('fill','#cfe4ff'); tt.setAttribute('text-anchor','middle'); tt.setAttribute('font-size','12'); tt.textContent='Engine 2'; G.appendChild(tt);
+      let img=document.createElementNS(ns,'rect'); img.setAttribute('x','10'); img.setAttribute('y', String(baseY)); img.setAttribute('width','120'); img.setAttribute('height','80'); img.setAttribute('fill','#162032'); img.setAttribute('stroke','#2b3c5a'); G.appendChild(img);
+      let tt=document.createElementNS(ns,'text'); tt.setAttribute('x','70'); tt.setAttribute('y', String(baseY+45)); tt.setAttribute('fill','#cfe4ff'); tt.setAttribute('text-anchor','middle'); tt.setAttribute('font-size','12'); tt.textContent='Engine 2'; G.appendChild(tt);
       const pump = pumpXY(viewH);
       let hose=document.createElementNS(ns,'path');
       hose.setAttribute('d',`M 130 ${baseY+40} C 190 ${baseY+36} 250 ${baseY+36} ${pump.x} ${pump.y-20}`);
-      hose.setAttribute('stroke','#ecd464'); hose.setAttribute('fill','none'); hose.setAttribute('stroke-width','8'); hose.setAttribute('stroke-linecap','round'); G.appendChild(hose);
+      hose.setAttribute('stroke','#ecd464'); hose.setAttribute('stroke-width','12'); hose.setAttribute('fill','none'); hose.setAttribute('stroke-linecap','round'); G.appendChild(hose);
     }
   }
 
@@ -284,313 +298,379 @@ export async function render(container){
     stage.style.height = hpx;
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    clearGroup(G); clearGroup(G_labels); clearGroup(G_tips);
-    drawSupply(viewH);
+    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
-    const lines = state.lines;
-    const active = Object.entries(lines).filter(([,L])=>L.visible);
+    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
+    topInfo.textContent = visibleKeys.length ? `Deployed: ${visibleKeys.map(k=>state.lines[k].label).join(' • ')}` : 'No lines deployed';
 
-    // KPIs
-    let totalGPM = 0, maxPP = 0;
-    active.forEach(([key,L])=>{
-      const flow = (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0);
-      totalGPM += flow;
-      const parts = [];
-      const mainSecs = splitIntoSections(L.itemsMain);
-      const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
-      const mainSum = mainFLs.reduce((a,c)=>a+c,0);
-      const elev = (L.elevFt||0) * PSI_PER_FT;
-      let pp = 0;
-      if(!L.hasWye){
-        const NP = (L.nozRight?.NP||0);
-        pp = NP + mainSum + elev;
-      } else {
-        const leftFlow = (L.nozLeft?.gpm||0);
-        const rightFlow= (L.nozRight?.gpm||0);
-        const bflow = Math.max(leftFlow, rightFlow);
-        const wye = 10; // default wye loss
-        // main uses branch max flow
-        pp = (activeNozzle(L)?.NP||0) + mainSum + elev + wye;
-      }
-      maxPP = Math.max(maxPP, pp);
-    });
-    const GPM = container.querySelector('#GPM');
-    const PDP = container.querySelector('#PDP');
-    GPM.textContent = totalGPM ? `${Math.round(totalGPM)} gpm` : '— gpm';
-    PDP.textContent = maxPP ? `${Math.round(maxPP)} psi` : '— psi';
+    ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
+      const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
+      const mainFt = sumFt(L.itemsMain);
+      const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
-    // Draw each line
-    active.forEach(([key,L])=>{
-      // main curve
-      const totalPx = (sumFt(L.itemsMain)/50)*PX_PER_50FT;
-      const side = activeSide(L);
-      const dir = side==='L' ? -1 : side==='R' ? 1 : 0;
-      const curve = mainCurve(dir, totalPx, viewH);
-      const ns='http://www.w3.org/2000/svg';
-      let path = document.createElementNS(ns,'path');
-      path.setAttribute('d', curve.d);
-      path.setAttribute('stroke', COLORS[L.itemsMain?.[0]?.size || '1.75']);
-      path.setAttribute('fill','none');
-      path.setAttribute('stroke-width','10'); path.setAttribute('stroke-linecap','round');
-      G.appendChild(path);
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
+      drawSegmentedPath(G_hoses, base, L.itemsMain);
+      addTip(key,'main',geom.endX,geom.endY);
 
-      // label main length near middle
-      const mx = (pumpXY(viewH).x + curve.endX)/2, my = (pumpXY(viewH).y + curve.endY)/2 - 10;
-      addLabel(`${sumFt(L.itemsMain)}′`, mx, my);
-
-      // branch(es)
-      if(L.hasWye){
-        const br = straightBranch(side, curve.endX, curve.endY, (sumFt(side==='L'?L.itemsLeft:L.itemsRight)/50)*PX_PER_50FT);
-        let brPath=document.createElementNS(ns,'path');
-        brPath.setAttribute('d', br.d); brPath.setAttribute('stroke', COLORS[side==='L'?(L.itemsLeft?.[0]?.size||'1.75'):(L.itemsRight?.[0]?.size||'1.75')]);
-        brPath.setAttribute('fill','none'); brPath.setAttribute('stroke-width','8'); brPath.setAttribute('stroke-linecap','round'); G.appendChild(brPath);
-        addLabel(`${sumFt(side==='L'?L.itemsLeft:L.itemsRight)}′`, br.endX, br.endY, -8);
-      }
-
-      // tips
-      if(L.hasWye){
-        addTip(key, 'L', curve.endX, curve.endY-((sumFt(L.itemsLeft)/50)*PX_PER_50FT || 0));
-        addTip(key, 'R', curve.endX, curve.endY-((sumFt(L.itemsRight)/50)*PX_PER_50FT || 0));
-      } else {
-        addTip(key, 'R', curve.endX, curve.endY);
-      }
-    });
-
-    // math / why tables
-    const linesTable = container.querySelector('#linesTable');
-    linesTable.classList.toggle('is-hidden', active.length===0);
-
-    active.forEach(([key,L])=>{
       const single = isSingleWye(L);
-      const side = activeSide(L);
-      const mathWrap = document.createElement('div');
-      mathWrap.className = 'mathWrap';
-      const wye = 10;
-      const flow = (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0);
-      const bflow = Math.max(L.nozLeft?.gpm||0, L.nozRight?.gpm||0);
-      const mainSecs = splitIntoSections(L.itemsMain);
-      const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
-      const mainParts = mainSecs.map((s,i)=>`${fmt(mainFLs[i])} (${fmtSegLabel(s.lengthFt, s.size)})`);
-      const mainSum = mainFLs.reduce((a,c)=>a+c,0);
-      const elevPsi = (L.elevFt||0) * PSI_PER_FT;
-      const elevStr = `${elevPsi>=0? '+':''}${fmt(elevPsi)} psi`;
+      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
+      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
+      const npLabel = usedNoz ? ` — Nozzle ${usedNoz.NP} psi` : (L.hasWye ? ' — via Wye' : ` — Nozzle ${L.nozRight.NP} psi`);
+      addLabel(`${mainFt}′ @ ${flowGpm} gpm${npLabel}`, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
-      if(!L.hasWye){
-        mathWrap.innerHTML = `
-          <details class="math">
-            <summary>Why is PP ${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi?</summary>
-            <div class="hoseviz">
-              <div class="hoseLegend">
-                <span class="legSwatch sw175"></span> 1¾″
-                <span class="legSwatch sw25"></span> 2½″
-                <span class="legSwatch sw5"></span> 5″
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${flow} gpm — NP ${(L.nozRight?.NP||0)} psi</div>
-                <div class="hosebar" id="viz_main_${key}"></div>
-              </div>
-              <div class="simpleBox" id="pp_simple_${key}"></div>
-            </div>
-          </details>
-        `;
-        linesTable.appendChild(mathWrap);
-        drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), flow, L.nozRight?.NP||0, `Main ${sumFt(L.itemsMain)}′ @ ${flow} gpm`);
-        document.getElementById(`pp_simple_${key}`).innerHTML = `
-          <div><b>Simple PP:</b>
-            <ul class="simpleList">
-              <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
-              <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-              <li><b>Elevation</b> = ${elevStr}</li>
-            </ul>
-            <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = <span class="pill">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
-          </div>
-        `;
-      } else if(single){
-        const noz = activeNozzle(L);
-        const brSecs = splitIntoSections(side==='L'?L.itemsLeft:L.itemsRight);
-        const brFLs  = brSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
-        const brParts= brSecs.map((s,i)=>`${fmt(brFLs[i])} (${fmtSegLabel(s.lengthFt, s.size)})`);
-        const brSum  = brFLs.reduce((x,y)=>x+y,0);
-        const total  = noz.NP + brSum + mainSum + elevPsi;
-        mathWrap.innerHTML = `
-          <details class="math">
-            <summary>Why is PP ${fmt(total)} psi?</summary>
-            <div class="hoseviz">
-              <div class="hoseLegend">
-                <span class="legSwatch sw175"></span> 1¾″
-                <span class="legSwatch sw25"></span> 2½″
-                <span class="legSwatch sw5"></span> 5″
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
-                <div class="hosebar" id="viz_main_${key}"></div>
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Branch ${sumFt(brSecs)||0}′ @ ${noz.gpm} gpm — NP ${noz.NP} psi</div>
-                <div class="hosebar" id="viz_${side}_${key}"></div>
-              </div>
-              <div class="simpleBox" id="pp_simple_${key}"></div>
-            </div>
-          </details>
-        `;
-        linesTable.appendChild(mathWrap);
+      if(L.hasWye){
+        if(sumFt(L.itemsLeft)>0){
+          const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
+          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
+          addTip(key,'L',gL.endX,gL.endY);
+        } else addTip(key,'L',geom.endX-20,geom.endY-20);
 
-        // Main bar shows Wye loss chip instead of NP
-        drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, 0, `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`, `Wye ${wye}`);
-        drawHoseBar(document.getElementById(`viz_${side}_${key}`), brSecs, noz.gpm||0, noz.NP||0, `Branch ${sumFt(brSecs)||0}′`);
-        document.getElementById(`pp_simple_${key}`).innerHTML = `
-          <div><b>Simple PP (Single branch via wye):</b>
-            <ul class="simpleList">
-              <li><b>Nozzle Pressure</b> = ${fmt(noz.NP)} psi</li>
-              <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-              <li><b>Friction Loss (Branch)</b> = ${brSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
-              <li><b>Wye</b> = +${wye} psi</li>
-              <li><b>Elevation</b> = ${elevStr}</li>
-            </ul>
-            <div style="margin-top:6px"><b>PP = NP + Main FL + Branch FL + Wye ± Elev = <span class="pill">${fmt(total)} psi</span></b></div>
-          </div>
-        `;
-      } else {
-        const leftFlow = (L.nozLeft?.gpm||0);
-        const rightFlow= (L.nozRight?.gpm||0);
-        const bflow = Math.max(leftFlow, rightFlow);
-        const mainSecs = splitIntoSections(L.itemsMain);
-        const mainFLs = mainSecs.map(s => FL(bflow, s.size, s.lengthFt));
-        const mainParts = mainSecs.map((s,i)=>`${fmt(mainFLs[i])} (${fmtSegLabel(s.lengthFt, s.size)})`);
-        const mainSum = mainFLs.reduce((a,c)=>a+c,0);
-        const elevPsi = (L.elevFt||0) * PSI_PER_FT;
-        const elevStr = `${elevPsi>=0? '+':''}${fmt(elevPsi)} psi`;
-
-        const LFL = splitIntoSections(L.itemsLeft).map(s=>FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
-        const RFL = splitIntoSections(L.itemsRight).map(s=>FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
-        const Lsum = LFL.reduce((a,c)=>a+c,0), Rsum = RFL.reduce((a,c)=>a+c,0);
-        const total = (activeNozzle(L)?.NP||0) + mainSum + elevPsi + 10 + Math.max(Lsum, Rsum);
-
-        mathWrap.innerHTML = `
-          <details class="math">
-            <summary>Why is PP ${fmt(total)} psi?</summary>
-            <div class="hoseviz">
-              <div class="hoseLegend">
-                <span class="legSwatch sw175"></span> 1¾″
-                <span class="legSwatch sw25"></span> 2½″
-                <span class="legSwatch sw5"></span> 5″
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye 10 psi</div>
-                <div class="hosebar" id="viz_main_${key}"></div>
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
-                <div class="hosebar" id="viz_L_${key}"></div>
-              </div>
-              <div class="barWrap">
-                <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
-                <div class="hosebar" id="viz_R_${key}"></div>
-              </div>
-              <div class="simpleBox" id="pp_simple_${key}"></div>
-            </div>
-          </details>
-        `;
-        linesTable.appendChild(mathWrap);
-
-        // Main bar shows Wye loss chip instead of NP
-        drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, 0, `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`, `Wye 10`);
-        drawHoseBar(document.getElementById(`viz_L_${key}`), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, `Branch A ${sumFt(L.itemsLeft)||0}′`);
-        drawHoseBar(document.getElementById(`viz_R_${key}`), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, `Branch B ${sumFt(L.itemsRight)||0}′`);
-
-        document.getElementById(`pp_simple_${key}`).innerHTML = `
-          <div><b>Simple PP (Two branches via wye):</b>
-            <ul class="simpleList">
-              <li><b>Nozzle Pressure</b> = ${fmt(activeNozzle(L)?.NP||0)} psi</li>
-              <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-              <li><b>Friction Loss (Branches)</b> = max(${fmt(splitIntoSections(L.itemsLeft).map(s=>FL(L.nozLeft?.gpm||0, s.size, s.lengthFt)).reduce((a,c)=>a+c,0))}, ${fmt(splitIntoSections(L.itemsRight).map(s=>FL(L.nozRight?.gpm||0, s.size, s.lengthFt)).reduce((a,c)=>a+c,0))})</li>
-              <li><b>Wye</b> = +10 psi</li>
-              <li><b>Elevation</b> = ${elevStr}</li>
-            </ul>
-            <div style="margin-top:6px"><b>PP = NP + Main FL + max(Branch FL) + Wye ± Elev = <span class="pill">${fmt(total)} psi</span></b></div>
-          </div>
-        `;
+        if(sumFt(L.itemsRight)>0){
+          const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          addTip(key,'R',gR.endX,gR.endY);
+        } else addTip(key,'R',geom.endX+20,geom.endY-20);
       }
+      base.remove();
     });
 
-    // place editable tips after drawing
-    G_tips.querySelectorAll('.hose-end').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        const key = el.getAttribute('data-line');
-        const where = el.getAttribute('data-where');
-        openTipEditor(key, where);
-      });
-    });
+    drawSupply(viewH);
+    refreshTotals();
+    renderLinesPanel();
   }
 
-  function fmt(n){ return Math.round(n); }
-  function fmtSegLabel(ft, size){ return `${ft}′ of ${sizeLabel(size)}`; }
-
-  // ===== tip editor =====
-  let currentViewH = TRUCK_H;
-  const tipEditor = container.querySelector('#tipEditor');
-  const teCancel = tipEditor.querySelector('#teCancel');
-  const teApply = tipEditor.querySelector('#teApply');
-
-  function openTipEditor(key, where){
-    const L = seedDefaultsForKey(key);
-    tipEditor.classList.remove('is-hidden');
-    tipEditor.querySelector('#teTitle').textContent = `Edit ${key==='left'?'Line 1':key==='back'?'Line 2':'Line 3'} (${where==='R'?'Nozzle':'Branch'})`;
-    tipEditor.querySelector('#teWhere').value = where==='R'?'Nozzle': where==='L'?'Branch A':'Branch B';
-
-    const sizeSel = tipEditor.querySelector('#teSize');
-    sizeSel.value = (where==='R' ? (L.itemsMain?.[0]?.size || '1.75') : (where==='L' ? (L.itemsLeft?.[0]?.size || '1.75') : (L.itemsRight?.[0]?.size || '1.75')));
-
-    const nozSel = tipEditor.querySelector('#teNoz');
-    nozSel.innerHTML = NOZ_LIST.map(k=>`<option value="${k}">${NOZ[k].label}</option>`).join('');
-    nozSel.value = (where==='R' ? (L.nozRight?._k || NOZ_LIST[0]) : (where==='L' ? (L.nozLeft?._k || NOZ_LIST[0]) : (L.nozRight?._k || NOZ_LIST[0])));
-
-    tipEditor.style.top = (truckTopY(currentViewH) + 8) + 'px';
-
-    // init lengths/elev
-    tipEditor.querySelector('#teLen').value = sumFt(L.itemsMain) || 200;
-    tipEditor.querySelector('#teElev').value = L.elevFt || 0;
-    tipEditor.querySelector('#teWye').value = L.hasWye ? 'on' : 'off';
-
-    // Branch block
-    const bb = tipEditor.querySelector('#branchBlock');
-    bb.classList.toggle('is-hidden', where==='R');
-    if(where!=='R'){
-      tipEditor.querySelector('#teLenA').value = sumFt(L.itemsLeft) || 100;
-      tipEditor.querySelector('#teLenB').value = sumFt(L.itemsRight) || 100;
-
-      const nozSelA = tipEditor.querySelector('#teNozA');
-      const nozSelB = tipEditor.querySelector('#teNozB');
-      nozSelA.innerHTML = NOZ_LIST.map(k=>`<option value="${k}">${NOZ[k].label}</option>`).join('');
-      nozSelB.innerHTML = NOZ_LIST.map(k=>`<option value="${k}">${NOZ[k].label}</option>`).join('');
-      nozSelA.value = (L.nozLeft?._k || NOZ_LIST[0]);
-      nozSelB.value = (L.nozRight?._k || NOZ_LIST[0]);
+  function refreshTotals(){
+    const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
+    let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
+    vis.forEach(([key, L])=>{
+      const single = isSingleWye(L);
+      const flow = single ? (activeNozzle(L)?.gpm||0)
+                 : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
+                            : (L.nozRight?.gpm||0);
+      const mainFL = FL_total(flow, L.itemsMain);
+      let PDP=0;
+      if(single){
+        const side = activeSide(L);
+        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
+        const bnNoz  = activeNozzle(L);
+        const branchFL = FL_total(bnNoz.gpm, bnSegs);
+        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+      }else if(L.hasWye){
+        const lNeed = FL_total(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
+        const rNeed = FL_total(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
+        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||0) + (L.elevFt * PSI_PER_FT);
+      }else{
+        PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+      }
+      totalGPM += flow;
+      if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
+    });
+    state.lastMaxKey = maxKey;
+    GPMel.textContent = vis.length? `${Math.round(totalGPM)} gpm` : '— gpm';
+    PDPel.classList.remove('orange','red');
+    if(vis.length){
+      const v = Math.round(maxPDP);
+      PDPel.textContent = `${v} psi`;
+      if(v>250) PDPel.classList.add('red');
+      else if(v>200) PDPel.classList.add('orange');
+    }else{
+      PDPel.textContent = '— psi';
     }
   }
 
-  teCancel.addEventListener('click', ()=> tipEditor.classList.add('is-hidden'));
-  teApply.addEventListener('click', ()=>{
-    const where = tipEditor.querySelector('#teWhere').value.startsWith('Nozzle') ? 'R' : (tipEditor.querySelector('#teWhere').value.includes('A') ? 'L' : 'R');
-    const key = Array.from(document.querySelectorAll('.hose-end')).find(el=>el.classList.contains('selected'))?.getAttribute('data-line') || 'left';
+  function fmt(n){ return Math.round(n); }
+  function fmtSegLabel(lenFt, size){ return `${lenFt}′ ${sizeLabel(size)}`; }
 
-    const size = tipEditor.querySelector('#teSize').value;
-    const len = Number(tipEditor.querySelector('#teLen').value || 0);
-    const elev = Number(tipEditor.querySelector('#teElev').value || 0);
-    const nozKey = tipEditor.querySelector('#teNoz').value;
-    const wyeOn = tipEditor.querySelector('#teWye').value === 'on';
+  function ppExplainHTML(L){
+    const single = isSingleWye(L);
+    const side = activeSide(L);
+    const flow = single ? (activeNozzle(L)?.gpm||0)
+               : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
+                          : (L.nozRight?.gpm||0);
+    const mainSecs = splitIntoSections(L.itemsMain);
+    const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
+    const mainParts = mainSecs.map((s,i)=>`${fmt(mainFLs[i])} (${fmtSegLabel(s.lengthFt, s.size)})`);
+    const mainSum = mainFLs.reduce((a,c)=>a+c,0);
+    const elevPsi = (L.elevFt||0) * PSI_PER_FT;
+    const elevStr = `${elevPsi>=0? '+':''}${fmt(elevPsi)} psi`;
 
+    if(!L.hasWye){
+      return `
+        <div><b>Simple PP:</b>
+          <ul class="simpleList">
+            <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+            <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+            <li><b>Elevation</b> = ${elevStr}</li>
+          </ul>
+          <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:var(--ok)">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
+        </div>
+      `;
+    } else if(single){
+      const noz = activeNozzle(L);
+      const brSecs = splitIntoSections(side==='L'?L.itemsLeft:L.itemsRight);
+      const brFLs  = brSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
+      const brParts= brSecs.map((s,i)=>`${fmt(brFLs[i])} (${fmtSegLabel(s.lengthFt, s.size)})`);
+      const brSum  = brFLs.reduce((x,y)=>x+y,0);
+      const total  = noz.NP + brSum + mainSum + elevPsi;
+      return `
+        <div><b>Simple PP (Single branch via wye):</b>
+          <ul class="simpleList">
+            <li><b>Nozzle Pressure</b> = ${fmt(noz.NP)} psi</li>
+            <li><b>Branch FL</b> = ${brSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
+            <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+            <li><b>Elevation</b> = ${elevStr}</li>
+          </ul>
+          <div style="margin-top:6px"><b>PP = NP + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:var(--ok)">${fmt(total)} psi</span></b></div>
+        </div>
+      `;
+    } else {
+      const aSecs = splitIntoSections(L.itemsLeft);
+      const bSecs = splitIntoSections(L.itemsRight);
+      const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
+      const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
+      const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
+      const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
+      const maxNeed = Math.max(aNeed, bNeed);
+      const wyeLoss = L.wyeLoss||0;
+      const total = maxNeed + mainSum + wyeLoss + elevPsi;
+      return `
+        <div><b>Simple PP (Wye):</b>
+          <ul class="simpleList">
+            <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
+            <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
+            <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+            <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+            ${wyeLoss? `<li><b>Wye loss</b> = +${wyeLoss} psi</li>` : ``}
+            <li><b>Elevation</b> = ${elevStr}</li>
+          </ul>
+          <div style="margin-top:6px"><b>PP = max(A,B) + Main FL ${wyeLoss?`+ Wye`:``} ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} ${wyeLoss?`+ ${fmt(wyeLoss)} `:``}${elevStr} = <span style="color:var(--ok)">${fmt(total)} psi</span></b></div>
+        </div>
+      `;
+    }
+  }
+
+  function drawHoseBarOld(containerEl, sections, gpm, npPsi, nozzleText){
+    // kept only for reference; not used
+  }
+
+  function drawSegmentedPath(group, basePath, segs){
+    const ns = 'http://www.w3.org/2000/svg';
+    const sh = document.createElementNS(ns,'path');
+    sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
+    const total = basePath.getTotalLength(); let offset = 0;
+    const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
+    segs.forEach(seg=>{
+      const px = (seg.lengthFt/50)*PX_PER_50FT;
+      const portion = Math.min(total, (px/totalPx)*total);
+      const p = document.createElementNS(ns,'path');
+      p.setAttribute('class', `hoseBase ${clsFor(seg.size)}`);
+      p.setAttribute('d', basePath.getAttribute('d'));
+      p.setAttribute('stroke-dasharray', `${portion} ${total}`);
+      p.setAttribute('stroke-dashoffset', `${-offset}`);
+      group.appendChild(p);
+      offset += portion;
+    });
+  }
+
+  function renderLinesPanel(){
+    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
+    if(!anyDeployed || !state.showMath){ linesTable.innerHTML=''; linesTable.classList.add('is-hidden'); return; }
+    linesTable.classList.remove('is-hidden'); linesTable.innerHTML='';
+
+    ['left','back','right'].forEach(key=>{
+      const L = state.lines[key];
+      const row = document.createElement('div'); row.className='lineRow';
+      const segs = L.itemsMain.length ? L.itemsMain.map(s=>`${s.lengthFt}′ ${sizeLabel(s.size)}`).join(' + ') : 'empty';
+      const single = isSingleWye(L);
+      const usedNoz = single ? activeNozzle(L) : L.nozRight;
+      const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
+
+      const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
+        <span class="title">${L.label}</span>
+        <span class="tag">Main: ${sumFt(L.itemsMain)}′ (${segs})</span>
+        <span class="tag">Flow: ${flow} gpm</span>
+        <span class="tag">${L.visible? 'DEPLOYED':'not deployed'}</span>
+      `;
+      row.appendChild(head);
+      linesTable.appendChild(row);
+
+      if(L.visible){
+        const bflow = flow;
+        const mathWrap = document.createElement('div');
+
+        if(L.hasWye && !single){
+          const wye = (L.wyeLoss ?? 10);
+          mathWrap.innerHTML = `
+            <details class="math" open>
+              <summary>Line math</summary>
+              <div class="hoseviz">
+                <div class="hoseLegend">
+                  <span class="legSwatch sw175"></span> 1¾″
+                  <span class="legSwatch sw25"></span> 2½″
+                  <span class="legSwatch sw5"></span> 5″
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="hosebar" id="viz_L_${key}"></div>
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_R_${key}"></div>
+                </div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
+              </div>
+            </details>
+          `;
+          linesTable.appendChild(mathWrap);
+
+          // Main bar shows Wye loss chip instead of NP
+          drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`, `Wye ${wye}`);
+          drawHoseBar(document.getElementById(`viz_L_${key}`), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, `Branch A ${sumFt(L.itemsLeft)||0}′`);
+          drawHoseBar(document.getElementById(`viz_R_${key}`), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, `Branch B ${sumFt(L.itemsRight)||0}′`);
+          document.getElementById(`pp_simple_${key}`).innerHTML = ppExplainHTML(L);
+
+        } else if(single){
+          const side = activeSide(L);
+          const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+          const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
+          const noz = activeNozzle(L);
+
+          mathWrap.innerHTML = `
+            <details class="math" open>
+              <summary>Line math</summary>
+              <div class="hoseviz">
+                <div class="hoseLegend">
+                  <span class="legSwatch sw175"></span> 1¾″
+                  <span class="legSwatch sw25"></span> 2½″
+                  <span class="legSwatch sw5"></span> 5″
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${noz.NP} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm</div>
+                  <div class="hosebar" id="viz_BR_${key}"></div>
+                </div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
+              </div>
+            </details>
+          `;
+          linesTable.appendChild(mathWrap);
+
+          // Single-branch via wye: main shows NP of the active nozzle (unchanged)
+          drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (noz?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`);
+          drawHoseBar(document.getElementById(`viz_BR_${key}`), splitIntoSections(bnSegs), bflow, (noz?.NP||0), `${bnTitle} ${sumFt(bnSegs)||0}′`);
+          document.getElementById(`pp_simple_${key}`).innerHTML = ppExplainHTML(L);
+
+        } else {
+          mathWrap.innerHTML = `
+            <details class="math" open>
+              <summary>Line math</summary>
+              <div class="hoseviz">
+                <div class="hoseLegend">
+                  <span class="legSwatch sw175"></span> 1¾″
+                  <span class="legSwatch sw25"></span> 2½″
+                  <span class="legSwatch sw5"></span> 5″
+                </div>
+                <div class="barWrap">
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
+                </div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
+              </div>
+            </details>
+          `;
+          linesTable.appendChild(mathWrap);
+
+          drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`);
+          document.getElementById(`pp_simple_${key}`).innerHTML = ppExplainHTML(L);
+        }
+      }
+    });
+  }
+
+  // === Interactions ===
+  // tap plus circles -> edit (position editor ABOVE the truck, centered near pump)
+  overlay.addEventListener('click', (e)=>{
+    const tip = e.target.closest('.hose-end'); if(!tip) return;
+    const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     const L = seedDefaultsForKey(key);
-    L.itemsMain = len? [{size, lengthFt:len}] : [];
-    L.elevFt = elev;
-    const noz = NOZ[nozKey];
+    L.visible = true;
+    editorContext = {key, where};
+    teTitle.textContent = `${L.label} — ${where==='main'?'Main':'Branch '+where}`;
+    teWhere.value = where.toUpperCase();
+    teElev.value = L.elevFt||0;
+    teWye.value  = L.hasWye? 'on':'off';
 
-    if(where==='R'){
-      L.hasWye = wyeOn || false; L.nozRight = noz;
-      if(wyeOn){
-        L.itemsLeft = L.itemsLeft?.length? L.itemsLeft : [{size, lengthFt:Number(tipEditor.querySelector('#teLenA').value||0)}];
-        L.itemsRight = L.itemsRight?.length? L.itemsRight : [{size, lengthFt:Number(tipEditor.querySelector('#teLenB').value||0)}];
-        L.nozLeft = NOZ[tipEditor.querySelector('#teNozA').value] || L.nozLeft;
-        L.nozRight = NOZ[tipEditor.querySelector('#teNozB').value] || L.nozRight;
+    if(where==='main'){
+      const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
+      teSize.value = seg.size; teLen.value = seg.lengthFt||0;
+      const nozId = (isSingleWye(L)? activeNozzle(L)?.id : L.nozRight.id) || L.nozRight.id;
+      teNoz.value = nozId;
+    } else if(where==='L'){
+      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
+      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozLeft?.id)||'chiefXD';
+    } else {
+      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
+      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozRight?.id)||'chiefXD265';
+    }
+
+    branchBlock.classList.toggle('is-hidden', teWye.value==='off');
+    teNozA.value = (L.nozLeft?.id)||'chiefXD';
+    teNozB.value = (L.nozRight?.id)||'chiefXD265';
+    teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
+    teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
+
+    // place the editor above the truck, centered on the pump
+    tipEditor.style.visibility = 'hidden';
+    tipEditor.classList.remove('is-hidden');
+
+    const edW = tipEditor.offsetWidth || 300;
+    const edH = tipEditor.offsetHeight || 240;
+
+    const { x: pumpX } = pumpXY(currentViewH || 260);
+    const truckTop = truckTopY(currentViewH || 260);
+
+    const srect = stage.getBoundingClientRect();
+    let left = pumpX - edW/2;
+    let top  = truckTop - edH - 8;
+
+    left = Math.max(8, Math.min(left, srect.width - edW - 8));
+    top  = Math.max(8, Math.min(top, srect.height - edH - 8));
+
+    tipEditor.style.left = left + 'px';
+    tipEditor.style.top  = top + 'px';
+    tipEditor.style.visibility = 'visible';
+  });
+
+  teWye.addEventListener('change', ()=>{ branchBlock.classList.toggle('is-hidden', teWye.value==='off'); });
+  container.querySelector('#teCancel').addEventListener('click', ()=> tipEditor.classList.add('is-hidden'));
+  container.querySelector('#teApply').addEventListener('click', ()=>{
+    if(!editorContext) return;
+    const {key, where} = editorContext; const L = state.lines[key];
+    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
+    const noz = (NOZ[container.querySelector('#teNoz').value]);
+    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
+    L.elevFt = elev;
+    if(where==='main'){
+      L.itemsMain = [{size, lengthFt:len}];
+      if(!wyeOn){
+        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[]; L.nozRight = noz;
+      }else{
+        L.hasWye=true;
+        const lenA = Math.max(0, +teLenA.value||0);
+        const lenB = Math.max(0, +teLenB.value||0);
+        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
+        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
+        L.nozLeft  = NOZ[container.querySelector('#teNozA').value] || L.nozLeft;
+        L.nozRight = NOZ[container.querySelector('#teNozB').value] || L.nozRight;
       }
     } else if(where==='L'){
       L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : []; L.nozLeft = noz;
@@ -616,112 +696,47 @@ export async function render(container){
     drawAll();
   });
 
-  // Hydrant helper visibility synced to supply mode
-  function updateHydrantHelper(){
-    const helper = container.querySelector('#hydrantHelper');
-    if(!helper) return;
-    const isHydrant = (state.supply === 'pressurized' || state.supply === 'hydrant');
-    helper.style.display = isHydrant ? 'block' : 'none';
-  }
-  updateHydrantHelper();
-
-  // Hydrant %Drop calculation
-  const hydrantLineSize = container.querySelector('#hydrantLineSize');
-  const hydrantStatic   = container.querySelector('#hydrantStatic');
-  const hydrantResidual = container.querySelector('#hydrantResidual');
-  const hydrantCalcBtn  = container.querySelector('#hydrantCalcBtn');
-  const hydrantResult   = container.querySelector('#hydrantResult');
-
-  function toNum(v){ const n=Number(v); return isFinite(n)?n:NaN; }
-  function sizePretty(v){ return v==='1.75'?'1¾″':(v==='2.5'?'2½″':v==='5'?'5″':''); }
-
-  hydrantCalcBtn?.addEventListener('click', ()=>{
-    const size = hydrantLineSize?.value || '1.75';
-    const stat = toNum(hydrantStatic?.value);
-    const res  = toNum(hydrantResidual?.value);
-    if(!(stat>0)){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Enter a valid <b>Static</b> pressure.</span>'; return; }
-    if(!(res>0)){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Enter a valid <b>Residual</b> pressure.</span>'; return; }
-    if(res>stat){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Residual cannot exceed Static.</span>'; return; }
-    const dropPct = ((stat-res)/stat)*100;
-    let addl=0, band='';
-    if(dropPct<=10){ addl=3; band='0–10%'; }
-    else if(dropPct<=15){ addl=2; band='11–15%'; }
-    else if(dropPct<=25){ addl=1; band='16–25%'; }
-    else { addl=0; band='>25%'; }
-    const tone = addl>=2?'#c9ffd1':addl===1?'#ffe2a6':'#ffc0c0';
-    hydrantResult.innerHTML = `
-      <div class="status" style="color:${tone}">
-        Drop = <b>${(Math.round(dropPct*10)/10).toFixed(1)}%</b> <span class="pill" style="background:#1a2738;border:1px solid rgba(255,255,255,.2);color:#fff">${band}</span><br>
-        You can add <b>${addl}</b> more <b>${sizePretty(size)}</b> line${addl===1?'':'s'} at the same flow.
-      </div>`;
-  });
-
-  // Ensure helper visibility changes when supply mode cycles
-  const origSupplyHandler = container.querySelector('#supplyBtn').onclick;
-  container.querySelector('#supplyBtn').addEventListener('click', ()=>{
-    updateHydrantHelper();
-  }, { capture:false });
-
   // Presets sheet
   const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
   function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
-  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; selectedLine=null; container.querySelector('#sheetApply').disabled=true; }
-
+  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
   container.querySelector('#presetsBtn').addEventListener('click', openSheet);
   container.querySelector('#sheetClose').addEventListener('click', closeSheet);
   sheetBackdrop.addEventListener('click', closeSheet);
-
-  // choose preset
-  let selectedPreset=null, selectedLine=null;
-  container.querySelectorAll('#presetGrid .preset').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      container.querySelectorAll('#presetGrid .preset').forEach(n=>n.classList.remove('on'));
-      el.classList.add('on'); selectedPreset = el.dataset.preset;
-      maybeEnableApply();
-    });
+  container.querySelector('#presetGrid').addEventListener('click',(e)=>{
+    const p = e.target.closest('.preset'); if(!p) return;
+    chosenPreset = p.dataset.preset;
+    container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
+    p.style.outline = '2px solid var(--accent)'; updateSheetApply();
   });
-  container.querySelectorAll('.linepick .preset').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      container.querySelectorAll('.linepick .preset').forEach(n=>n.classList.remove('on'));
-      el.classList.add('on'); selectedLine = el.dataset.applyline;
-      maybeEnableApply();
-    });
+  container.querySelector('.linepick').addEventListener('click',(e)=>{
+    const p = e.target.closest('.preset'); if(!p) return;
+    chosenLine = p.dataset.applyline;
+    container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
+    p.style.outline = '2px solid var(--accent)'; updateSheetApply();
   });
-  function maybeEnableApply(){
-    container.querySelector('#sheetApply').disabled = !(selectedPreset && selectedLine);
+  function updateSheetApply(){ container.querySelector('#sheetApply').disabled = !(chosenPreset && chosenLine); }
+  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); closeSheet(); });
+  function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
+  function applyPresetTo(preset, key){
+    const L = state.lines[key]; clearLine(L); L.visible = true;
+    switch(preset){
+      case 'standpipe': L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false; L.nozRight=NOZ.fog150_75; L.elevFt=60; break;
+      case 'sprinkler': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:50}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; break;
+      case 'foam': L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; L.elevFt=0; break;
+      case 'monitor': L.itemsMain=[{size:'2.5', lengthFt:200}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=0; break;
+      case 'aerial': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=80; break;
+    }
+    drawAll();
   }
 
-  container.querySelector('#sheetApply').addEventListener('click', ()=>{
-    if(!selectedPreset || !selectedLine) return;
-    const L = seedDefaultsForKey(selectedLine);
-    // simple examples: fill out L per preset key
-    if(selectedPreset==='standpipe'){
-      L.itemsMain = [{size:'2.5', lengthFt:150}];
-      L.nozRight = NOZ['chief185']; L.elevFt = 50; // example
-    } else if(selectedPreset==='sprinkler'){
-      L.itemsMain = [{size:'2.5', lengthFt:100}];
-      L.nozRight = NOZ['fog200']; L.elevFt = 0;
-    } else if(selectedPreset==='foam'){
-      L.itemsMain = [{size:'1.75', lengthFt:200}];
-      L.nozRight = NOZ['fog150']; L.elevFt = 0;
-    } else if(selectedPreset==='monitor'){
-      L.itemsMain = [{size:'2.5', lengthFt:150}];
-      L.nozRight = NOZ['msb1250']; L.elevFt = 0;
-    } else if(selectedPreset==='aerial'){
-      L.itemsMain = [{size:'5', lengthFt:200}];
-      L.nozRight = NOZ['msb1000']; L.elevFt = 80;
-    }
-    L.visible = true;
-    closeSheet();
-    drawAll();
-  });
-
-  // WHY scroll
-  container.querySelector('#whyBtn').addEventListener('click', ()=>{
-    const linesTable = container.querySelector('#linesTable');
-    if(linesTable.classList.contains('is-hidden')) return;
-    // flash first detail
-    const target = linesTable.querySelector('.math details');
+  // Why? (reveal math)
+  whyBtn.addEventListener('click', ()=>{
+    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
+    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
+    if(!state.showMath){ state.showMath = true; renderLinesPanel(); }
+    if(!state.lastMaxKey) return;
+    const target = container.querySelector(`#pp_simple_${state.lastMaxKey}`);
     if(target){
       target.scrollIntoView({behavior:'smooth', block:'center'});
       target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
