@@ -17,7 +17,7 @@ export async function render(container){
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
-          <!-- Tip editor moved INSIDE the stage; positioned above the truck -->
+          <!-- Tip editor INSIDE stage; positioned above the truck -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
                style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
@@ -164,24 +164,77 @@ export async function render(container){
     const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
     return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
   }
-  function drawSegmentedPath(group, basePath, segs){
-    const ns = 'http://www.w3.org/2000/svg';
-    const sh = document.createElementNS(ns,'path');
-    sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
-    const total = basePath.getTotalLength(); let offset = 0;
-    const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
-    segs.forEach(seg=>{
-      const px = (seg.lengthFt/50)*PX_PER_50FT;
-      const portion = Math.min(total, (px/totalPx)*total);
-      const p = document.createElementNS(ns,'path');
-      p.setAttribute('class', `hoseBase ${clsFor(seg.size)}`);
-      p.setAttribute('d', basePath.getAttribute('d'));
-      p.setAttribute('stroke-dasharray', `${portion} ${total}`);
-      p.setAttribute('stroke-dashoffset', `${-offset}`);
-      group.appendChild(p);
-      offset += portion;
+
+  // NOTE: Added pillOverride to let us show "Wye 10" on the main bar (wye case)
+  function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
+    const totalLen = sumFt(sections);
+    containerEl.innerHTML='';
+    if(!totalLen||!gpm){
+      containerEl.textContent='No hose yet';
+      containerEl.style.color='#9fb0c8';
+      containerEl.style.fontSize='12px';
+      return;
+    }
+    const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
+    const svgNS='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(svgNS,'svg');
+    svg.setAttribute('width','100%'); svg.setAttribute('height',H);
+    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+    if(nozzleText){
+      const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
+      t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
+      svg.appendChild(t);
+    }
+
+    const innerW=W-16-NP_W;
+    const track=document.createElementNS(svgNS,'rect');
+    track.setAttribute('x',8); track.setAttribute('y',20);
+    track.setAttribute('width',innerW); track.setAttribute('height',18);
+    track.setAttribute('fill','#0c1726'); track.setAttribute('stroke','#20324f');
+    track.setAttribute('rx',6); track.setAttribute('ry',6);
+    svg.appendChild(track);
+
+    let x=8;
+    sections.forEach(seg=>{
+      const segW=(seg.lengthFt/totalLen)*innerW;
+      const r=document.createElementNS(svgNS,'rect');
+      r.setAttribute('x',x); r.setAttribute('y',20);
+      r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18);
+      r.setAttribute('fill',COLORS[seg.size]||'#888');
+      r.setAttribute('stroke','rgba(0,0,0,.35)');
+      r.setAttribute('rx',5); r.setAttribute('ry',5);
+      svg.appendChild(r);
+
+      const fl=FL(gpm,seg.size,seg.lengthFt);
+      const t=document.createElementNS(svgNS,'text');
+      t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','11');
+      t.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
+      t.setAttribute('text-anchor','middle'); t.setAttribute('x',x+segW/2); t.setAttribute('y',34);
+      t.textContent=`${seg.lengthFt}′ • ${Math.round(fl)} psi`;
+      svg.appendChild(t);
+
+      x+=segW;
     });
+
+    const pill=document.createElementNS(svgNS,'rect');
+    pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
+    pill.setAttribute('width',64-12); pill.setAttribute('height',18);
+    pill.setAttribute('fill','#eaf2ff'); pill.setAttribute('stroke','#20324f');
+    pill.setAttribute('rx',6); pill.setAttribute('ry',6);
+    svg.appendChild(pill);
+
+    const npT=document.createElementNS(svgNS,'text');
+    npT.setAttribute('x',innerW+8+(64-12)/2); npT.setAttribute('y',33);
+    npT.setAttribute('text-anchor','middle'); npT.setAttribute('fill','#0b0f14'); npT.setAttribute('font-size','11');
+
+    // Use override when provided (e.g., "Wye 10"), otherwise show "NP 50"
+    npT.textContent = pillOverride ?? `NP ${npPsi}`;
+    svg.appendChild(npT);
+
+    containerEl.appendChild(svg);
   }
+
   function addLabel(text, x, y, dy=0){
     const ns='http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns,'g');
@@ -398,23 +451,27 @@ export async function render(container){
     }
   }
 
-  function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText){
-    const totalLen = sumFt(sections); containerEl.innerHTML=''; if(!totalLen||!gpm){ containerEl.textContent='No hose yet'; containerEl.style.color='#9fb0c8'; containerEl.style.fontSize='12px'; return; }
-    const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
-    const svgNS='http://www.w3.org/2000/svg'; const svg=document.createElementNS(svgNS,'svg'); svg.setAttribute('width','100%'); svg.setAttribute('height',H); svg.setAttribute('viewBox',`0 0 ${W} ${H}`); const innerW=W-16-NP_W;
-    if(nozzleText){ const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12); t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText; svg.appendChild(t); }
-    const track=document.createElementNS(svgNS,'rect'); track.setAttribute('x',8); track.setAttribute('y',20); track.setAttribute('width',innerW); track.setAttribute('height',18); track.setAttribute('fill','#0c1726'); track.setAttribute('stroke','#20324f'); track.setAttribute('rx',6); track.setAttribute('ry',6); svg.appendChild(track);
-    let x=8;
-    sections.forEach(seg=>{
-      const segW=(seg.lengthFt/totalLen)*innerW;
-      const r=document.createElementNS(svgNS,'rect'); r.setAttribute('x',x); r.setAttribute('y',20); r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18); r.setAttribute('fill',COLORS[seg.size]||'#888'); r.setAttribute('stroke','rgba(0,0,0,.35)'); r.setAttribute('rx',5); r.setAttribute('ry',5); svg.appendChild(r);
-      const fl=FL(gpm,seg.size,seg.lengthFt);
-      const t=document.createElementNS(svgNS,'text'); t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','11'); t.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace'); t.setAttribute('text-anchor','middle'); t.setAttribute('x',x+segW/2); t.setAttribute('y',34); t.textContent=`${seg.lengthFt}′ • ${Math.round(fl)} psi`; svg.appendChild(t);
-      x+=segW;
+  function drawHoseBarOld(containerEl, sections, gpm, npPsi, nozzleText){
+    // kept only for reference; not used
+  }
+
+  function drawSegmentedPath(group, basePath, segs){
+    const ns = 'http://www.w3.org/2000/svg';
+    const sh = document.createElementNS(ns,'path');
+    sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
+    const total = basePath.getTotalLength(); let offset = 0;
+    const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
+    segs.forEach(seg=>{
+      const px = (seg.lengthFt/50)*PX_PER_50FT;
+      const portion = Math.min(total, (px/totalPx)*total);
+      const p = document.createElementNS(ns,'path');
+      p.setAttribute('class', `hoseBase ${clsFor(seg.size)}`);
+      p.setAttribute('d', basePath.getAttribute('d'));
+      p.setAttribute('stroke-dasharray', `${portion} ${total}`);
+      p.setAttribute('stroke-dashoffset', `${-offset}`);
+      group.appendChild(p);
+      offset += portion;
     });
-    const pill=document.createElementNS(svgNS,'rect'); pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20); pill.setAttribute('width',NP_W-12); pill.setAttribute('height',18); pill.setAttribute('fill','#eaf2ff'); pill.setAttribute('stroke','#20324f'); pill.setAttribute('rx',6); pill.setAttribute('ry',6); svg.appendChild(pill);
-    const npT=document.createElementNS(svgNS,'text'); npT.setAttribute('x',innerW+8+(NP_W-12)/2); npT.setAttribute('y',33); npT.setAttribute('text-anchor','middle'); npT.setAttribute('fill','#0b0f14'); npT.setAttribute('font-size','11'); npT.textContent=`NP ${npPsi}`; svg.appendChild(npT);
-    containerEl.appendChild(svg);
   }
 
   function renderLinesPanel(){
@@ -444,6 +501,7 @@ export async function render(container){
         const mathWrap = document.createElement('div');
 
         if(L.hasWye && !single){
+          const wye = (L.wyeLoss ?? 10);
           mathWrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
@@ -454,7 +512,7 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
@@ -471,7 +529,8 @@ export async function render(container){
           `;
           linesTable.appendChild(mathWrap);
 
-          drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`);
+          // Main bar shows Wye loss chip instead of NP
+          drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`, `Wye ${wye}`);
           drawHoseBar(document.getElementById(`viz_L_${key}`), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, `Branch A ${sumFt(L.itemsLeft)||0}′`);
           drawHoseBar(document.getElementById(`viz_R_${key}`), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, `Branch B ${sumFt(L.itemsRight)||0}′`);
           document.getElementById(`pp_simple_${key}`).innerHTML = ppExplainHTML(L);
@@ -505,6 +564,7 @@ export async function render(container){
           `;
           linesTable.appendChild(mathWrap);
 
+          // Single-branch via wye: main shows NP of the active nozzle (unchanged)
           drawHoseBar(document.getElementById(`viz_main_${key}`), splitIntoSections(L.itemsMain), bflow, (noz?.NP||0), `Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm`);
           drawHoseBar(document.getElementById(`viz_BR_${key}`), splitIntoSections(bnSegs), bflow, (noz?.NP||0), `${bnTitle} ${sumFt(bnSegs)||0}′`);
           document.getElementById(`pp_simple_${key}`).innerHTML = ppExplainHTML(L);
@@ -568,7 +628,7 @@ export async function render(container){
     teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
     teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
 
-    // --- New: position editor above the truck, centered on pump panel
+    // place the editor above the truck, centered on the pump
     tipEditor.style.visibility = 'hidden';
     tipEditor.classList.remove('is-hidden');
 
@@ -582,7 +642,6 @@ export async function render(container){
     let left = pumpX - edW/2;
     let top  = truckTop - edH - 8;
 
-    // clamp to stage
     left = Math.max(8, Math.min(left, srect.width - edW - 8));
     top  = Math.max(8, Math.min(top, srect.height - edH - 8));
 
@@ -688,7 +747,6 @@ export async function render(container){
   // boot
   drawAll();
 
-  // expose disposer if needed later
   return { dispose(){} };
 }
 
