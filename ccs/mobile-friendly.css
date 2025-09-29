@@ -1,0 +1,169 @@
+/* ===== Base mobile comfort ===== */
+html, body {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%; /* don't auto-zoom text */
+  background: #0b0f14;
+  color: #eaf2ff;
+}
+
+:root{
+  --bg: #0b0f14;
+  --panel: #121821;
+  --panel-2: #0f141c;
+  --ink: #eaf2ff;
+  --ink-2:#c7d2e1;
+  --brand:#3aa0ff;
+  --ok:#14c184;
+  --warn:#ffb020;
+  --alert:#ff5d5d;
+
+  /* Touch sizes */
+  --tap-h: 52px;             /* min touch height */
+  --tap-pad-y: 12px;
+  --tap-pad-x: 16px;
+  --radius: 14px;
+  --gap: 10px;
+
+  /* Typography (>=16px on controls stops iOS zoom-on-focus) */
+  --text: 16px;
+  --text-sm: 14px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+}
+
+/* Ensure all interactive elements are >= 16px to avoid iOS zoom on focus */
+button, input, select, textarea {
+  font-size: var(--text);
+  line-height: 1.25;
+}
+
+/* ===== Layout cards / stack spacing ===== */
+.stack { display: grid; gap: var(--gap); }
+.card {
+  background: var(--panel);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.wrapper.card { padding: 8px; }
+
+/* ===== Buttons ===== */
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,.10);
+  background: linear-gradient(180deg, #192230, #131b26);
+  color: var(--ink);
+  border-radius: var(--radius);
+  padding: var(--tap-pad-y) var(--tap-pad-x);
+  min-height: var(--tap-h);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 6px 16px rgba(0,0,0,.25);
+  transition: transform .04s ease, box-shadow .15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn.primary {
+  background: linear-gradient(180deg, #2a8cff, #1671da);
+  border-color: rgba(255,255,255,.14);
+  color: #fff;
+}
+.btn:active { transform: translateY(1px); }
+.btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Make button rows wrap cleanly on mobile */
+.card .row, .card .controls {
+  display: flex; flex-wrap: wrap; gap: var(--gap);
+}
+
+/* ===== Form fields ===== */
+.field { width: 100%; }
+.field label {
+  display: block; font-size: var(--text-sm); color: var(--ink-2); margin-bottom: 6px;
+}
+.field input,
+.field select,
+.field textarea {
+  width: 100%; height: var(--tap-h);
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,.12);
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: 0 1px 0 rgba(255,255,255,.06) inset;
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid var(--brand); outline-offset: 2px;
+}
+
+/* Remove number spinners (keeps layout stable) */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input[type="number"] { -moz-appearance: textfield; }
+
+/* ===== Status / math blocks ===== */
+.status { color: var(--ink-2); font-size: var(--text); }
+.math { background: #0e151e; border: 1px solid rgba(255,255,255,.06); border-radius: var(--radius); padding: 10px; }
+.mini { color: var(--ink-2); font-size: var(--text-sm); }
+.simpleList { margin: 0.25rem 0 0 1rem; padding: 0; }
+.ok { color: var(--ok); } .warn{ color: var(--warn);} .alert{ color: var(--alert); }
+
+/* ===== Visual stage / SVG ===== */
+.stage {
+  width: 100%;
+  min-height: 280px;             /* steady frame so buttons don't push it */
+  background: #0d141c;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+#overlayPractice { width: 100%; height: 100%; display: block; }
+
+/* SVG hose styles (keep strokes consistent to avoid reflow on active) */
+.hoseBase { fill: none; stroke-width: 10; stroke-linecap: round; }
+.hose175 { stroke: #2ad1ff; }
+.hose25  { stroke: #5cff87; }
+.hose5   { stroke: #ffd44d; }
+.shadow  { stroke: rgba(0,0,0,.45); stroke-width: 12; filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+
+/* Label legibility */
+text { paint-order: stroke; stroke: rgba(11,15,20,.35); stroke-width: 2px; }
+
+/* ===== Bottom tab bar (if you have it) ===== */
+.bottomTabs {
+  position: sticky; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(180deg, #0f1620, #0b1119);
+  border-top: 1px solid rgba(255,255,255,.08);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  padding: env(safe-area-inset-bottom, 0) 6px calc(env(safe-area-inset-bottom, 0) + 6px);
+  min-height: 64px;             /* stable height = no content jump */
+  z-index: 50;
+}
+.bottomTabs button {
+  min-height: 56px;
+  border-radius: 12px;
+  margin: 4px 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ===== Mobile-only boosts ===== */
+@media (max-width: 480px){
+  .card { padding: 12px; }
+  .btn { width: auto; }
+  .wrapper.card { padding: 8px; }
+  .status { font-size: 15px; }
+  .math { font-size: 15px; }
+}
+
+/* Prevent layout “wiggle” on active states: never change border widths on :active */
+.btn, .field input, .field select { border-width: 1px; }
+.btn:active, .field input:active { border-width: 1px; }
