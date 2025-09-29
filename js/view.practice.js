@@ -1,5 +1,5 @@
 // /js/view.practice.js
-import { COEFF, FL_total, PSI_PER_FT } from './store.js';
+import { COEFF, FL_total, FL, PSI_PER_FT } from './store.js';
 
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -42,7 +42,7 @@ export async function render(container){
           <span class="legSwatch sw5"></span> 5″
         </div>
         <div class="mini" style="margin-top:6px;opacity:.9">
-          <div><b>Friction Loss:</b> <code>FL/100′ = C × (GPM/100)²</code>, &nbsp; <code>FL(len) = FL/100′ × (len/100)</code></div>
+          <div><b>Friction Loss:</b> <code>FL/100′ = C × (GPM/100)²</code>, &nbsp; <code>FL(length) = FL/100′ × (length/100)</code></div>
           <div><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
           <div style="margin-top:4px"><b>PP equations:</b>
             <ul class="simpleList" style="margin-top:4px">
@@ -134,7 +134,7 @@ export async function render(container){
   function makeRealisticScenario(){
     const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
     const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
-    const elev     = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
+    const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
 
     const mainNozzles_175 = [
       {gpm:185, NP:50, label:'ChiefXD 185@50'},
@@ -171,18 +171,18 @@ export async function render(container){
 
     let PDP=0;
     if(!useWye){
-      PDP = mainNoz.NP + mainFL + elev*PSI_PER_FT;
+      PDP = mainNoz.NP + mainFL + elevFt*PSI_PER_FT;
     }else if(twoBranches){
       const needA = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
       const needB = bnB.noz.NP + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
-      PDP = Math.max(needA, needB) + mainFL + wyeLoss + elev*PSI_PER_FT;
+      PDP = Math.max(needA, needB) + mainFL + wyeLoss + elevFt*PSI_PER_FT;
     }else{
       const needBranch = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
-      PDP = needBranch + mainFL + elev*PSI_PER_FT;
+      PDP = needBranch + mainFL + elevFt*PSI_PER_FT;
     }
 
     return {
-      mainSize, mainLen, elev, mainNoz,
+      mainSize, mainLen, elevFt, mainNoz,
       useWye, twoBranches, bnA, bnB, wyeLoss,
       flow, PDP: Math.round(PDP)
     };
@@ -193,20 +193,33 @@ export async function render(container){
     return S;
   }
 
-  // ===== SVG label helper
+  // ===== label helpers (with overlap guard)
+  const placedLabels = [];
+  function placeY(y){
+    // If another label is within 14px vertically, bump this one up
+    let yy = y;
+    const step = 14;
+    let safety = 0;
+    while(placedLabels.some(v => Math.abs(v-yy) < step) && safety<10){
+      yy -= step; // raise
+      safety++;
+    }
+    placedLabels.push(yy);
+    return yy;
+  }
   function addLabel(x, y, text){
     const pad = 4;
     const g = document.createElementNS(ns,'g');
     const t = document.createElementNS(ns,'text');
-    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('x', x);
+    t.setAttribute('y', placeY(y));
     t.setAttribute('text-anchor','middle');
     t.setAttribute('fill','#0b0f14');
     t.setAttribute('font-size','12');
     t.textContent = text;
-    const r = document.createElementNS(ns,'rect');
-    // compute bbox after adding text
     G_labelsP.appendChild(t);
     const bb = t.getBBox();
+    const r = document.createElementNS(ns,'rect');
     r.setAttribute('x', bb.x - pad);
     r.setAttribute('y', bb.y - pad);
     r.setAttribute('width', bb.width + pad*2);
@@ -222,6 +235,7 @@ export async function render(container){
   // ===== render helpers
   function drawScenario(S){
     clearPractice();
+    placedLabels.length = 0;
     workEl.innerHTML = '';
 
     // Compute SVG height and layout
@@ -267,94 +281,107 @@ export async function render(container){
     }
 
     // ==== LABELS ON THE GRAPHIC (only here, nothing below)
-    // Main label shows NP or Wye
-    const mainNPText = !S.useWye
-      ? `NP ${S.mainNoz.NP} psi`
-      : (S.twoBranches ? `Wye ${S.wyeLoss} psi` : `— via Wye`);
-    addLabel(
-      geom.endX,
-      Math.max(12, geom.endY - 12),
-      `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'} — ${S.flow} gpm — ${mainNPText}${S.elev?` — Elev ${S.elev}′`:''}`
-    );
+    // Rule: always show main length (and size). If wye: branches only show GPM and Elev psi.
+    const elevPsi = Math.round(S.elevFt * PSI_PER_FT);
+
+    // Main label: length + size; if no wye, also show NP and GPM
+    const mainText = !S.useWye
+      ? `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
+      : `${S.mainLen}′ ${sizeLabel(S.mainSize)}${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`;
+    addLabel(geom.endX, Math.max(12, geom.endY - 12), mainText);
 
     if(S.useWye){
-      // Branch A
+      // Branch A label: only GPM and Elev
       addLabel(
         aGeom.endX,
         Math.max(12, aGeom.endY - 12),
-        `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi`
+        `A: ${S.bnA.noz.gpm} gpm${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
       );
-      // Branch B if present
+      // Branch B label: only GPM and Elev
       if(S.twoBranches && bGeom){
         addLabel(
           bGeom.endX,
           Math.max(12, bGeom.endY - 12),
-          `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi`
+          `B: ${S.bnB.noz.gpm} gpm${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
         );
       }
     }
   }
 
-  // ===== Build human-readable PP breakdown for Reveal
+  // ===== Build human-readable PP breakdown for Reveal (with explicit FL equation)
   function buildReveal(S){
-    const E = S.elev * PSI_PER_FT;
+    const E = S.elevFt * PSI_PER_FT;
     const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
 
+    const flEq = (gpm, size, lenFt) => {
+      const C = COEFF[size];
+      const per100 = C * Math.pow(gpm/100, 2);
+      const flLen = per100 * (lenFt/100);
+      return { C, per100, flLen };
+    };
+
     if(!S.useWye){
-      const total = S.mainNoz.NP + mainFL + E;
+      const { C, per100, flLen } = flEq(S.flow, S.mainSize, S.mainLen);
+      const total = S.mainNoz.NP + flLen + E;
       return {
         total: Math.round(total),
         html: `
           <div><b>Simple PP (Single line)</b></div>
           <ul class="simpleList">
             <li>Nozzle Pressure = <b>${S.mainNoz.NP} psi</b></li>
-            <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+            <li>Main FL: <code>FL/100′ = C × (G/100)² = ${C} × (${S.flow}/100)² = ${per100.toFixed(1)}</code></li>
+            <li> → <code>FL(length) = ${per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(flLen)} psi</code></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.mainNoz.NP} + ${Math.round(mainFL)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${S.mainNoz.NP} + ${Math.round(flLen)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
     if(S.useWye && !S.twoBranches){
-      const bFL = FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
-      const total = S.bnA.noz.NP + bFL + mainFL + E;
+      const b = flEq(S.bnA.noz.gpm, '1.75', S.bnA.len);
+      const m = flEq(S.flow, S.mainSize, S.mainLen);
+      const total = S.bnA.noz.NP + b.flLen + m.flLen + E;
       return {
         total: Math.round(total),
         html: `
           <div><b>Simple PP (Single branch via wye)</b></div>
           <ul class="simpleList">
             <li>Branch NP = <b>${S.bnA.noz.NP} psi</b></li>
-            <li>Branch FL (A: ${S.bnA.len}′ 1¾″ @ ${S.bnA.noz.gpm} gpm) = <b>${Math.round(bFL)} psi</b></li>
-            <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+            <li>Branch FL: <code>FL/100′ = ${COEFF['1.75']} × (${S.bnA.noz.gpm}/100)² = ${b.per100.toFixed(1)}</code></li>
+            <li> → <code>FL(length) = ${b.per100.toFixed(1)} × (${S.bnA.len}/100) = ${Math.round(b.flLen)} psi</code></li>
+            <li>Main FL: <code>FL/100′ = ${COEFF[S.mainSize]} × (${S.flow}/100)² = ${m.per100.toFixed(1)}</code></li>
+            <li> → <code>FL(length) = ${m.per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(m.flLen)} psi</code></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.bnA.noz.NP} + ${Math.round(bFL)} + ${Math.round(mainFL)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${S.bnA.noz.NP} + ${Math.round(b.flLen)} + ${Math.round(m.flLen)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
     // two-branch wye
-    const aFL = FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
-    const bFL = FL_total(S.bnB.noz.gpm, [{size:'1.75', lengthFt:S.bnB.len}]);
-    const needA = S.bnA.noz.NP + aFL;
-    const needB = S.bnB.noz.NP + bFL;
+    const a = flEq(S.bnA.noz.gpm, '1.75', S.bnA.len);
+    const b = flEq(S.bnB.noz.gpm, '1.75', S.bnB.len);
+    const m = flEq(S.flow, S.mainSize, S.mainLen);
+
+    const needA = S.bnA.noz.NP + a.flLen;
+    const needB = S.bnB.noz.NP + b.flLen;
     const higher = Math.max(needA, needB);
-    const total = higher + mainFL + S.wyeLoss + E;
+    const total = higher + m.flLen + S.wyeLoss + E;
 
     return {
       total: Math.round(total),
       html: `
         <div><b>Simple PP (Wye)</b></div>
         <ul class="simpleList">
-          <li>Branch A need = NP ${S.bnA.noz.NP} + FL ${Math.round(aFL)} = <b>${Math.round(needA)} psi</b></li>
-          <li>Branch B need = NP ${S.bnB.noz.NP} + FL ${Math.round(bFL)} = <b>${Math.round(needB)} psi</b></li>
+          <li>Branch A: <code>NeedA = NP ${S.bnA.noz.NP} + FL_A</code>, where <code>FL_A/100′ = ${COEFF['1.75']} × (${S.bnA.noz.gpm}/100)² = ${a.per100.toFixed(1)}</code>, so <code>FL_A = ${a.per100.toFixed(1)} × (${S.bnA.len}/100) = ${Math.round(a.flLen)} psi</code> → <b>${Math.round(needA)} psi</b></li>
+          <li>Branch B: <code>NeedB = NP ${S.bnB.noz.NP} + FL_B</code>, where <code>FL_B/100′ = ${COEFF['1.75']} × (${S.bnB.noz.gpm}/100)² = ${b.per100.toFixed(1)}</code>, so <code>FL_B = ${b.per100.toFixed(1)} × (${S.bnB.len}/100) = ${Math.round(b.flLen)} psi</code> → <b>${Math.round(needB)} psi</b></li>
           <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
-          <li>Main FL (${S.mainLen}′ ${sizeLabel(S.mainSize)} @ ${S.flow} gpm) = <b>${Math.round(mainFL)} psi</b></li>
+          <li>Main FL: <code>FL/100′ = ${COEFF[S.mainSize]} × (${S.flow}/100)² = ${m.per100.toFixed(1)}</code>, so <code>FL = ${m.per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(m.flLen)} psi</code></li>
           <li>Wye loss = +<b>${S.wyeLoss} psi</b></li>
           <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
         </ul>
-        <div><b>PP = ${Math.round(higher)} + ${Math.round(mainFL)} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+        <div><b>PP = ${Math.round(higher)} + ${Math.round(m.flLen)} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
       `
     };
   }
@@ -368,7 +395,7 @@ export async function render(container){
     drawScenario(S);
     practiceInfo.textContent = 'Scenario ready — enter your PP below (±1 psi).';
     statusEl.textContent = 'Awaiting your answer…';
-    workEl.innerHTML = ''; // hidden until Reveal
+    workEl.innerHTML = ''; // hidden until Reveal or miss
   }
 
   // ===== interactions
@@ -378,9 +405,17 @@ export async function render(container){
     const guess = +(container.querySelector('#ppGuess').value||0);
     if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
     const diff = Math.abs(guess - practiceAnswer);
-    if(diff<=TOL){ statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
-    else if(diff<=TOL*2){ statusEl.innerHTML = `<span class="warn">⚠️ Close.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
-    else{ statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`; }
+    const rev = buildReveal(scenario);
+    if(diff<=TOL){
+      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
+      // Keep breakdown hidden when correct (unless they press Reveal)
+      workEl.innerHTML = '';
+    }else{
+      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
+      // On miss, show the full breakdown automatically
+      workEl.innerHTML = rev.html;
+      workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
   });
 
   container.querySelector('#revealBtn').addEventListener('click', ()=>{
