@@ -136,19 +136,14 @@ export async function render(container){
 
   // Fog (handline LP & standard, plus Master Fog @100 NP)
   const FOG_HANDLINE = [
-    // Standard 75 psi
     { label:'Fog 150@75', gpm:150, NP:75, note:'Handline' },
     { label:'Fog 185@75', gpm:185, NP:75, note:'Handline high-flow' },
     { label:'Fog 200@75', gpm:200, NP:75, note:'Handline high-flow' },
     { label:'Fog 250@75 (2½″)', gpm:250, NP:75, note:'2½″ line' },
-
-    // Low-pressure ChiefXD 50 psi (incl. 265)
     { label:'ChiefXD 150@50', gpm:150, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 185@50', gpm:185, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 200@50', gpm:200, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½″ capable)' },
-
-    // Optional legacy 100 psi
     { label:'Fog 95@100',  gpm:95,  NP:100, note:'Legacy in some depts' },
     { label:'Fog 125@100', gpm:125, NP:100, note:'Legacy in some depts' },
     { label:'Fog 150@100', gpm:150, NP:100, note:'Legacy in some depts' },
@@ -177,36 +172,21 @@ export async function render(container){
     { tag:'Cellar',        title:'NP 80 psi',               text:'Cellar nozzle nozzle pressure.' },
   ];
 
-  // Hose sizes to display (must exist in COEFF to compute)
-  const HOSE_ORDER = ['1.75','2.5','3','5'];
+  // Hose sizes to display — 3″ removed
+  const HOSE_ORDER = ['1.75','2.5','5'];
   const HOSE_LABEL = s =>
     s==='1.75' ? '1¾″' :
     s==='2.5'  ? '2½″' :
     `${s}″`;
 
-  // Build FL ranges per your spec
-  function buildRange_175(){  // 100–265 gpm (10 gpm steps, include 265)
-    const arr = [];
-    for(let g=100; g<=260; g+=10) arr.push(g);
-    if(!arr.includes(265)) arr.push(265);
-    return arr;
-  }
-  function buildRange_25_3(){ // 150–600 gpm (50 gpm steps)
-    const arr = [];
-    for(let g=150; g<=600; g+=50) arr.push(g);
-    return arr;
-  }
-  function buildRange_5(){    // 500–1000 gpm (50 gpm steps)
-    const arr = [];
-    for(let g=500; g<=1000; g+=50) arr.push(g);
-    return arr;
-  }
-
+  // FL ranges
   const GPM_SETS = {
-    '1.75': buildRange_175(),
-    '2.5':  buildRange_25_3(),
-    '3':    buildRange_25_3(),
-    '5':    buildRange_5()
+    // 1¾″: 100–185 gpm (focused set)
+    '1.75': [100, 125, 150, 160, 175, 185],
+    // 2½″: 150–600 gpm (50 gpm steps)
+    '2.5':  buildRange(150, 600, 50),
+    // 5″: 500–1000 gpm (50 gpm steps)
+    '5':    buildRange(500, 1000, 50)
   };
 
   // ====== DOM refs
@@ -272,7 +252,6 @@ export async function render(container){
   function renderHoseButtons(){
     hoseRow.innerHTML = '';
     const available = HOSE_ORDER.filter(s => COEFF[s] != null);
-    // We still render a disabled-looking button for sizes missing in COEFF
     HOSE_ORDER.forEach((s, i)=>{
       const b = document.createElement('button');
       const hasC = COEFF[s] != null;
@@ -296,7 +275,7 @@ export async function render(container){
     if(available.length){
       renderFLTable(available[0]);
     }else{
-      flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found in store.js (expected keys: 1.75, 2.5, 3, 5).</div>`;
+      flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found in store.js (expected keys: 1.75, 2.5, 5).</div>`;
     }
   }
 
@@ -378,6 +357,11 @@ export async function render(container){
 export default { render };
 
 /* ========== helpers ========== */
+function buildRange(start, end, step){
+  const arr = [];
+  for(let g=start; g<=end; g+=step) arr.push(g);
+  return arr;
+}
 function injectLocalStyles(root, cssText){
   const style = document.createElement('style');
   style.textContent = cssText;
