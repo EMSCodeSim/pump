@@ -1,44 +1,130 @@
 <!doctype html>
-<html lang="en" class="withTabs">
-  <head>
-    <meta charset="utf-8" />
-    <title>Visual Pump Builder</title>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>FireOps SIM</title>
+  <link rel="preload" href="/js/store.js" as="script" type="module">
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1624; --ink:#eaf2ff; --muted:#9fb0c8; --edge:rgba(255,255,255,.14);
+      --hose5:#ecd464; --hose25:#6ecbff; --hose175:#ff6b6b;
+      --bubble:#172134; --bubble-edge:rgba(255,255,255,.15);
+      --btn:#0b1320; --btnEdge:#20324f;
+      --accent:#3aa7ff; --ok:#9fe879; --warn:#ffa726; --alert:#ef5350;
+      --nav:#0a111d; --navEdge:#1b2a44;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
+    header{position:sticky;top:0;z-index:10;padding:10px 14px;background:linear-gradient(180deg,#0c1320,#0b0f14);border-bottom:1px solid var(--edge)}
+    .title{font-weight:700}
+    .sub{font-size:12px;color:#9fb0c8}
 
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#0b0f14" />
+    main{padding:10px;padding-bottom:84px}
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
-    <link rel="stylesheet" href="./css/mobile-friendly.css" />
-    <style>
-      body.withTabs main { padding-bottom: calc(env(safe-area-inset-bottom, 0) + 86px); }
-      .container { max-width: 860px; margin: 0 auto; padding: 10px; }
-      header.site { display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 10px; margin-bottom: 6px; }
-      header.site h1{ font-size: 18px; font-weight: 700; margin: 0; color: #eaf2ff; }
-      header .right { display:flex; gap:8px; }
-    </style>
-  </head>
+    /* Visual builder */
+    .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
+    .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
+    #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
+    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--bubble);border:1px solid var(--bubble-edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
 
-  <body class="withTabs">
-    <header class="site container">
-      <h1>Visual Pump Builder</h1>
-      <div class="right">
-        <button class="btn" id="newProblemQuick" title="New practice problem">New Problem</button>
-        <button class="btn" id="showEqQuick" title="Show/Hide equations">Equations</button>
-      </div>
-    </header>
+    .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
+    .linebtn,.supplybtn,.presetsbtn{
+      background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
+      padding:8px 10px;font-size:13px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap
+    }
+    .linebtn.active{outline:2px solid var(--accent)}
 
-    <main id="app" class="container stack" aria-live="polite">
-      <section class="card"><div class="status">Loading…</div></section>
-    </main>
+    .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .hose5{stroke:var(--hose5);stroke-width:12}
+    .hose25{stroke:var(--hose25);stroke-width:9}
+    .hose175{stroke:var(--hose175);stroke-width:6}
+    .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
 
-    <nav class="bottomTabs" role="tablist" aria-label="Main views">
-      <button class="btn" data-tab="calc" role="tab" aria-selected="true">Calculations</button>
-      <button class="btn" data-tab="practice" role="tab" aria-selected="false">Practice</button>
-      <button class="btn" data-tab="charts" role="tab" aria-selected="false">Charts</button>
-      <button class="btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
-    </nav>
+    .hose-end{cursor:pointer;pointer-events:all}
+    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
+    .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+    .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
 
-    <!-- Bootstrap your app (RELATIVE path) -->
-    <script type="module" src="./js/app.js"></script>
-  </body>
+    /* KPIs + math */
+    .kpis{display:flex;gap:8px;flex-wrap:wrap}
+    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .kpi b{font-size:18px}
+    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:6px 9px;font-size:12px;cursor:pointer}
+    .whyBtn:active{transform:translateY(1px)}
+    #PDP.orange{color:var(--warn)}
+    #PDP.red{color:var(--alert)}
+
+    .linesTable{margin-top:8px;border-top:1px solid var(--edge);padding-top:8px;display:grid;gap:8px}
+    .lineRow{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px}
+    .lineHeader{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px;font-size:12px;color:#cfe4ff}
+    .lineHeader .title{font-weight:700;color:#eaf2ff}
+    .lineHeader .tag{display:inline-block;background:#0b1a29;border:1px solid #1f3a57;border-radius:999px;padding:3px 7px;margin:2px 2px;font-size:11px}
+    details.math{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:6px 8px;margin-top:6px}
+    details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
+    .hoseviz{margin-top:6px}
+    .hoseLegend{display:flex;gap:8px;align-items:center;font-size:11px;color:#cfe4ff;margin:2px 0 6px}
+    .legSwatch{width:14px;height:8px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.35)}
+    .sw175{background:var(--hose175)} .sw25{background:var(--hose25)} .sw5{background:var(--hose5)}
+    .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
+    .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
+    .ppEq{font-size:14px;color:#eaf2ff;margin-top:6px;font-weight:700}
+    .lbl{font-size:10px;fill:#0b0f14}
+    .is-hidden{display:none!important}
+
+    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
+    .simpleBox b{color:#eaf2ff}
+    .simpleList{margin:6px 0 0 16px;padding:0}
+    .simpleList li{margin:2px 0}
+
+    @keyframes flashBox{0%{box-shadow:0 0 0 rgba(63,191,255,0)} 25%{box-shadow:0 0 0 4px rgba(58,167,255,.35)} 100%{box-shadow:0 0 0 rgba(63,191,255,0)}}
+    .flash{animation:flashBox 1200ms ease 1}
+
+    /* Preset bottom sheet */
+    .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:saturate(110%) blur(2px);z-index:40;display:none}
+    .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:#0e1726;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;padding:12px 12px 16px;transform:translateY(100%);transition:.28s ease}
+    .sheet.show + .sheet-backdrop{display:block}
+    .sheet.show{transform:translateY(0)}
+    .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+    .preset{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:10px;text-align:center;font-size:13px;cursor:pointer}
+    .linepick{display:flex;gap:8px;margin-top:10px}
+    .linepick .preset{flex:1}
+
+    /* Bottom nav */
+    .bottom-nav{
+      position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--nav);border-top:1px solid var(--navEdge);
+      display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;
+      padding-bottom:calc(8px + env(safe-area-inset-bottom));
+    }
+    .navbtn{
+      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer
+    }
+    .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
+    .status{font-size:13px;color:#cfe4ff;margin-top:6px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .alert{color:var(--alert)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid var(--edge);padding:6px 8px;font-size:13px}
+    th{background:#0b1320;color:#cfe4ff;text-align:left}
+    caption{caption-side:top;text-align:left;color:#cfe4ff;font-weight:700;margin:6px 0}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">FireOps SIM</div>
+    <div class="sub">Calculations • Practice • Charts • Settings</div>
+  </header>
+
+  <main id="app"></main>
+
+  <nav class="bottom-nav">
+    <button class="navbtn active" data-view="calc">Calculations</button>
+    <button class="navbtn" data-view="practice">Practice</button>
+    <button class="navbtn" data-view="charts">Charts</button>
+    <button class="navbtn" data-view="settings">Settings</button>
+  </nav>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
 </html>
