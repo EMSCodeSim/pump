@@ -4,28 +4,16 @@
     <meta charset="utf-8" />
     <title>Visual Pump Builder</title>
 
-    <!-- Mobile-friendly meta -->
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#0b0f14" />
 
-    <!-- Your existing styles (optional) -->
-    <!-- <link rel="stylesheet" href="/css/styles.css"> -->
-
-    <!-- Phone UX improvements (larger buttons/inputs, stable layout, safe-area padding) -->
-    <link rel="stylesheet" href="/css/mobile-friendly.css" />
+    <link rel="stylesheet" href="./css/mobile-friendly.css" />
     <style>
-      /* Ensure content isn't hidden behind the sticky tabs */
       body.withTabs main { padding-bottom: calc(env(safe-area-inset-bottom, 0) + 86px); }
-      /* Basic container width for desktop/tablet, still fluid on phones */
       .container { max-width: 860px; margin: 0 auto; padding: 10px; }
-      header.site {
-        display:flex; align-items:center; justify-content:space-between; gap:10px;
-        padding: 10px; margin-bottom: 6px;
-      }
-      header.site h1{
-        font-size: 18px; font-weight: 700; margin: 0; color: #eaf2ff;
-      }
+      header.site { display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 10px; margin-bottom: 6px; }
+      header.site h1{ font-size: 18px; font-weight: 700; margin: 0; color: #eaf2ff; }
       header .right { display:flex; gap:8px; }
     </style>
   </head>
@@ -34,20 +22,15 @@
     <header class="site container">
       <h1>Visual Pump Builder</h1>
       <div class="right">
-        <!-- quick access (optional) -->
         <button class="btn" id="newProblemQuick" title="New practice problem">New Problem</button>
         <button class="btn" id="showEqQuick" title="Show/Hide equations">Equations</button>
       </div>
     </header>
 
     <main id="app" class="container stack" aria-live="polite">
-      <!-- Your JS (app.js + views) will render here -->
-      <section class="card">
-        <div class="status">Loading…</div>
-      </section>
+      <section class="card"><div class="status">Loading…</div></section>
     </main>
 
-    <!-- Sticky bottom tabs -->
     <nav class="bottomTabs" role="tablist" aria-label="Main views">
       <button class="btn" data-tab="calc" role="tab" aria-selected="true">Calculations</button>
       <button class="btn" data-tab="practice" role="tab" aria-selected="false">Practice</button>
@@ -55,48 +38,7 @@
       <button class="btn" data-tab="settings" role="tab" aria-selected="false">Settings</button>
     </nav>
 
-    <!-- App bootstrap -->
-    <script type="module">
-      // Expecting /js/app.js to export a default init() and a navigate() or setTab() function.
-      // If your app.js already sets up everything, you can remove this helper and just include app.js below.
-      import initApp, * as App from '/js/app.js';
-
-      (async () => {
-        // Mount app to #app
-        await initApp?.(document.getElementById('app'));
-
-        // Bottom tab wiring (keeps layout stable; no resize on tap)
-        const tabs = document.querySelectorAll('.bottomTabs [data-tab]');
-        function setActive(tabName){
-          tabs.forEach(b=>{
-            const on = b.getAttribute('data-tab')===tabName;
-            b.setAttribute('aria-selected', on ? 'true' : 'false');
-          });
-          // Call your app's navigation (supports either setTab or navigate)
-          if (typeof App.setTab === 'function') App.setTab(tabName);
-          else if (typeof App.navigate === 'function') App.navigate(tabName);
-          else window.location.hash = tabName; // last-resort hash
-        }
-        tabs.forEach(b=>{
-          b.addEventListener('click', ()=> setActive(b.getAttribute('data-tab')));
-        });
-
-        // Quick actions in header (optional, no-ops if view doesn't listen)
-        const np = document.getElementById('newProblemQuick');
-        const eq = document.getElementById('showEqQuick');
-        np?.addEventListener('click', ()=>{
-          // Ensure we're on Practice, then dispatch app-level event
-          setActive('practice');
-          window.dispatchEvent(new CustomEvent('practice:newProblem'));
-        });
-        eq?.addEventListener('click', ()=>{
-          // Toggle equations panel in whichever view supports it (practice view in our case)
-          window.dispatchEvent(new CustomEvent('toggle:equations'));
-        });
-
-        // Default view
-        setActive('calc');
-      })();
-    </script>
+    <!-- Bootstrap your app (RELATIVE path) -->
+    <script type="module" src="./js/app.js"></script>
   </body>
 </html>
