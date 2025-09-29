@@ -432,11 +432,12 @@ export async function render(container){
         const NP = (L.nozRight?.NP||0);
         pp = NP + mainSum + elev;
       } else {
-        const leftFlow = (L.nozLeft?.gpm||0);
-        const rightFlow= (L.nozRight?.gpm||0);
-        const bflow = Math.max(leftFlow, rightFlow);
         const wye = 10;
-        pp = (activeNozzle(L)?.NP||0) + mainSum + elev + wye;
+        const maxBranchNeed = Math.max(
+          (L.nozLeft?.NP||0) + splitIntoSections(L.itemsLeft).map(s=>FL(L.nozLeft?.gpm||0,s.size,s.lengthFt)).reduce((a,c)=>a+c,0),
+          (L.nozRight?.NP||0)+ splitIntoSections(L.itemsRight).map(s=>FL(L.nozRight?.gpm||0,s.size,s.lengthFt)).reduce((a,c)=>a+c,0)
+        );
+        pp = maxBranchNeed + mainSum + wye + elev;
       }
       maxPP = Math.max(maxPP, pp);
     });
@@ -618,8 +619,8 @@ export async function render(container){
             <div class="barWrap">
               <div class="barTitle">${
                 L.hasWye
-                  ? \`Main \${sumFt(L.itemsMain)}′ @ \${Math.max(L.nozLeft?.gpm||0,L.nozRight?.gpm||0)} gpm — Wye 10 psi\`
-                  : \`Main \${sumFt(L.itemsMain)}′ @ \${flow} gpm — NP \${L.nozRight?.NP||0} psi\`
+                  ? \`Main ${sumFt(L.itemsMain)}′ @ ${Math.max(L.nozLeft?.gpm||0,L.nozRight?.gpm||0)} gpm — Wye 10 psi\`
+                  : \`Main ${sumFt(L.itemsMain)}′ @ ${flow} gpm — NP ${L.nozRight?.NP||0} psi\`
               }</div>
               <div class="hosebar" id="viz_main_${key}"></div>
             </div>
@@ -782,7 +783,7 @@ export async function render(container){
   container.querySelector('#sheetApply').addEventListener('click', ()=>{
     if(!(chosenPreset && chosenLine)) return;
     const L = seedDefaultsForKey(chosenLine);
-    // keep presets lightweight; adjust as needed
+    // example presets (keep light)
     if(chosenPreset==='standpipe'){
       L.itemsMain = [{size:'2.5', lengthFt:150}];
       L.nozRight = NOZ['chief185']; L.elevFt = 50; L.hasWye=false;
@@ -806,15 +807,15 @@ export async function render(container){
     drawAll();
   });
 
-  // Why? button
+  // Why? button (FIXED syntax here)
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
     state.showMath = true;
     renderLinesPanel();
-    const target = linesTable.querySelector('.math details, .math, details.math');
+    const target = linesTable.querySelector('details.math, .math details');
     if(target){
-      (target.open !== undefined) && (target.open = true);
+      if (typeof target.open !== 'undefined') target.open = true;
       target.scrollIntoView({behavior:'smooth', block:'center'});
     }
   });
