@@ -3,11 +3,11 @@ import { COEFF } from './store.js';
 
 /**
  * Charts View
- * - Default state: only launcher buttons visible.
+ * - Default: only launcher buttons visible.
  * - Sections:
- *   1) Nozzles  (Fog | Smooth Bore; includes ChiefXD)
+ *   1) Nozzles  (Fog | Smooth Bore)
  *   2) Hose Friction Loss (horizontal hose-size buttons; FL per 100')
- *   3) Rules of Thumb (your quick reference list)
+ *   3) Rules of Thumb
  */
 
 export async function render(container){
@@ -34,7 +34,9 @@ export async function render(container){
           </div>
         </div>
 
+        <!-- Fog containers -->
         <div id="nozzlesFog" class="nozzWrap" style="margin-top:10px"></div>
+        <!-- Smooth Bore containers -->
         <div id="nozzlesSB" class="nozzWrap" style="margin-top:10px; display:none"></div>
       </section>
 
@@ -65,7 +67,7 @@ export async function render(container){
     </section>
   `;
 
-  // ====== Local styles (high contrast, segmented control, tag pills)
+  // ====== Local styles (high contrast, segmented control, layout)
   injectLocalStyles(container, `
     .ink-strong { color: #ffffff; }
     .seg { display:inline-flex; background:#0f141c; border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden }
@@ -75,8 +77,12 @@ export async function render(container){
     }
     .segBtn.segOn { background:#1a2738; color:#fff; }
 
-    .nozzWrap { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:10px; }
+    .nozzWrap { display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
     .nozzCard { background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:10px; }
+    .groupHeader {
+      grid-column:1/-1; margin:2px 0 6px 0; color:#fff; font-weight:800; letter-spacing:.2px;
+      padding-top:4px; border-top:1px dashed rgba(255,255,255,.12);
+    }
     .nozzTitle { color:#fff; font-weight:700; margin-bottom:4px; }
     .nozzSub { color:#cfe6ff; font-size:14px; }
 
@@ -109,26 +115,57 @@ export async function render(container){
   `);
 
   // ====== Data
-  const FOG = [
-    { label:'Fog 150@75', gpm:150, NP:75, note:'Common handline' },
-    { label:'Fog 185@75', gpm:185, NP:75, note:'High-flow handline' },
-    { label:'Fog 200@75', gpm:200, NP:75, note:'High-flow handline' },
+
+  // Fog (handline LP & standard, plus Master Fog @100 NP)
+  const FOG_HANDLINE = [
+    // Standard 75 psi
+    { label:'Fog 150@75', gpm:150, NP:75, note:'Handline' },
+    { label:'Fog 185@75', gpm:185, NP:75, note:'Handline high-flow' },
+    { label:'Fog 200@75', gpm:200, NP:75, note:'Handline high-flow' },
     { label:'Fog 250@75 (2½″)', gpm:250, NP:75, note:'2½″ line' },
+
+    // Low-pressure ChiefXD 50 psi (incl. 265)
     { label:'ChiefXD 150@50', gpm:150, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 185@50', gpm:185, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 200@50', gpm:200, NP:50, note:'Low-pressure' },
+    { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½″ capable)' },
+
+    // Optional legacy/common 100 psi entries (kept here for reference)
+    { label:'Fog 95@100',  gpm:95,  NP:100, note:'Legacy in some depts' },
+    { label:'Fog 125@100', gpm:125, NP:100, note:'Legacy in some depts' },
+    { label:'Fog 150@100', gpm:150, NP:100, note:'Legacy in some depts' },
+    { label:'Fog 200@100', gpm:200, NP:100, note:'Legacy in some depts' },
+    { label:'Fog 250@100', gpm:250, NP:100, note:'Legacy in some depts' },
   ];
 
-  const SB = [
+  const FOG_MASTER = [
+    { label:'Master Fog 500@100',  gpm:500,  NP:100, note:'Monitor/deck gun' },
+    { label:'Master Fog 750@100',  gpm:750,  NP:100, note:'Monitor/deck gun' },
+    { label:'Master Fog 1000@100', gpm:1000, NP:100, note:'Monitor/deck gun' },
+    { label:'Master Fog 1250@100', gpm:1250, NP:100, note:'Monitor/deck gun' },
+  ];
+
+  // Smooth Bore — Handline 50 psi, Master 80 psi (GPM from 29.7*d^2*sqrt(NP))
+  const SB_HANDLINE_50 = [
     { tip:'7/8″',  gpm:161, NP:50 },
     { tip:'15/16″',gpm:185, NP:50 },
     { tip:'1″',    gpm:210, NP:50 },
-    { tip:'1 1/8″',gpm:265, NP:50 },
+    { tip:'1 1/8″',gpm:266, NP:50 },
     { tip:'1 1/4″',gpm:328, NP:50 },
+    { tip:'1 3/8″',gpm:398, NP:50 },
     { tip:'1 1/2″',gpm:473, NP:50 },
   ];
+  const SB_MASTER_80 = [
+    { tip:'1″',     gpm:266,  NP:80 },
+    { tip:'1 1/8″', gpm:336,  NP:80 },
+    { tip:'1 1/4″', gpm:415,  NP:80 },
+    { tip:'1 3/8″', gpm:502,  NP:80 },
+    { tip:'1 1/2″', gpm:598,  NP:80 },
+    { tip:'1 3/4″', gpm:814,  NP:80 },
+    { tip:'2″',     gpm:1063, NP:80 },
+  ];
 
-  // Rules of Thumb (as requested)
+  // Rules of Thumb
   const RULES = [
     { tag:'Appliances',    title:'Add 10 psi over 350 gpm', text:'For appliance losses when total flow exceeds ~350 gpm, add 10 psi.' },
     { tag:'Master Stream', title:'Add 25 psi',              text:'Typical appliance loss for deck gun/monitor/master stream devices.' },
@@ -174,20 +211,42 @@ export async function render(container){
     rulesCard.style.display = (card === rulesCard)? 'block' : 'none';
   }
 
-  function renderNozzles(){
-    fogWrap.innerHTML = FOG.map(n=>`
-      <div class="nozzCard">
-        <div class="nozzTitle">${escapeHTML(n.label)}</div>
-        <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b>${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}</div>
-      </div>
-    `).join('');
+  function renderNozzlesFog(){
+    fogWrap.innerHTML = `
+      <div class="groupHeader">Handline Fog</div>
+      ${FOG_HANDLINE.map(n=>`
+        <div class="nozzCard">
+          <div class="nozzTitle">${escapeHTML(n.label)}</div>
+          <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b>${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}</div>
+        </div>
+      `).join('')}
+      <div class="groupHeader">Master Stream Fog</div>
+      ${FOG_MASTER.map(n=>`
+        <div class="nozzCard">
+          <div class="nozzTitle">${escapeHTML(n.label)}</div>
+          <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b>${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}</div>
+        </div>
+      `).join('')}
+    `;
+  }
 
-    sbWrap.innerHTML = SB.map(n=>`
-      <div class="nozzCard">
-        <div class="nozzTitle">${escapeHTML(n.tip)}</div>
-        <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b></div>
-      </div>
-    `).join('');
+  function renderNozzlesSB(){
+    sbWrap.innerHTML = `
+      <div class="groupHeader">Handline Smooth Bore (50 psi NP)</div>
+      ${SB_HANDLINE_50.map(n=>`
+        <div class="nozzCard">
+          <div class="nozzTitle">${escapeHTML(n.tip)}</div>
+          <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b></div>
+        </div>
+      `).join('')}
+      <div class="groupHeader">Master Stream Smooth Bore (80 psi NP)</div>
+      ${SB_MASTER_80.map(n=>`
+        <div class="nozzCard">
+          <div class="nozzTitle">${escapeHTML(n.tip)}</div>
+          <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b></div>
+        </div>
+      `).join('')}
+    `;
   }
 
   function renderHoseButtons(){
@@ -245,7 +304,15 @@ export async function render(container){
 
   // ====== Interactions
   btnShowNozzles.addEventListener('click', ()=>{
-    renderNozzles();
+    renderNozzlesFog();
+    renderNozzlesSB();
+    // default to Fog tab visible
+    document.querySelectorAll('.segBtn').forEach(b=>{
+      const on = b.dataset.type==='fog';
+      b.classList.toggle('segOn', on);
+      b.setAttribute('aria-selected', on?'true':'false');
+    });
+    fogWrap.style.display='grid'; sbWrap.style.display='none';
     showOnly(nozzCard);
   });
 
@@ -259,7 +326,7 @@ export async function render(container){
     showOnly(rulesCard);
   });
 
-  // Nozzle segmented control
+  // Nozzle segmented control (Fog | SB)
   container.addEventListener('click', (e)=>{
     const t = e.target.closest('.segBtn'); if(!t) return;
     const type = t.dataset.type;
