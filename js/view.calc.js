@@ -60,6 +60,41 @@ export async function render(container){
           <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
+
+        <!-- Hydrant Residual %Drop Helper (only shows when Supply = Hydrant) -->
+        <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+          <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
+          <div class="mini" style="color:#a9bed9; margin-bottom:8px">
+            Enter static & residual with one line flowing to estimate how many <b>additional same-size lines</b> you can add:
+            <span class="pill" style="margin-left:6px">0–10% → 3×</span>
+            <span class="pill">11–15% → 2×</span>
+            <span class="pill">16–25% → 1×</span>
+            <span class="pill">&gt;25% → 0×</span>
+          </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
+            <div class="field" style="min-width:150px">
+              <label>Line size</label>
+              <select id="hydrantLineSize">
+                <option value="1.75">1¾″ (attack)</option>
+                <option value="2.5">2½″</option>
+                <option value="5">5″ LDH</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:140px">
+              <label>Static (psi)</label>
+              <input type="number" id="hydrantStatic" placeholder="e.g., 80" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:170px">
+              <label>Residual w/ 1 line (psi)</label>
+              <input type="number" id="hydrantResidual" placeholder="e.g., 72" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
+              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
+            </div>
+          </div>
+          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Select size, enter pressures, then press <b>Evaluate %Drop</b>.</div>
+        </div>
+
         <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
     </section>
@@ -123,6 +158,14 @@ export async function render(container){
   const teLenA  = container.querySelector('#teLenA');
   const teLenB  = container.querySelector('#teLenB');
   const GPMel = container.querySelector('#GPM');
+
+  // Hydrant helper refs
+  const hydrantHelper = container.querySelector('#hydrantHelper');
+  const hydrantLineSize = container.querySelector('#hydrantLineSize');
+  const hydrantStatic   = container.querySelector('#hydrantStatic');
+  const hydrantResidual = container.querySelector('#hydrantResidual');
+  const hydrantCalcBtn  = container.querySelector('#hydrantCalcBtn');
+  const hydrantResult   = container.querySelector('#hydrantResult');
 
   // remember current SVG height for editor positioning
   let currentViewH = null;
@@ -292,7 +335,7 @@ export async function render(container){
 
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
-    currentViewH = viewH; // remember current height for editor placement
+    currentViewH = viewH; // remember current height for editor positioning
     overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     const hpx = viewH + 'px';
     stage.style.height = hpx;
@@ -339,6 +382,7 @@ export async function render(container){
     drawSupply(viewH);
     refreshTotals();
     renderLinesPanel();
+    updateHydrantHelper(); // show/hide hydrant helper based on supply
   }
 
   function refreshTotals(){
@@ -690,10 +734,43 @@ export async function render(container){
   });
 
   // Supply toggle
-  container.querySelector('#supplyBtn').addEventListener('click', ()=>{
+  const supplyBtn = container.querySelector('#supplyBtn');
+  supplyBtn.addEventListener('click', ()=>{
     const order = ['none','pressurized','drafting','relay'];
     state.supply = order[(order.indexOf(state.supply)+1)%order.length];
     drawAll();
+  });
+
+  // Hydrant helper show/hide based on supply
+  function updateHydrantHelper(){
+    if(!hydrantHelper) return;
+    const isHydrant = (state.supply === 'pressurized' || state.supply === 'hydrant');
+    hydrantHelper.style.display = isHydrant ? 'block' : 'none';
+  }
+
+  // Hydrant %Drop calculation
+  function toNum(v){ const n=Number(v); return isFinite(n)?n:NaN; }
+  function sizePretty(v){ return v==='1.75'?'1¾″':(v==='2.5'?'2½″':v==='5'?'5″':''); }
+
+  hydrantCalcBtn?.addEventListener('click', ()=>{
+    const size = hydrantLineSize?.value || '1.75';
+    const stat = toNum(hydrantStatic?.value);
+    const res  = toNum(hydrantResidual?.value);
+    if(!(stat>0)){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Enter a valid <b>Static</b> pressure.</span>'; return; }
+    if(!(res>0)){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Enter a valid <b>Residual</b> pressure.</span>'; return; }
+    if(res>stat){ hydrantResult.innerHTML = '<span class="status alert" style="color:#ffc0c0">Residual cannot exceed Static.</span>'; return; }
+    const dropPct = ((stat-res)/stat)*100;
+    let addl=0, band='';
+    if(dropPct<=10){ addl=3; band='0–10%'; }
+    else if(dropPct<=15){ addl=2; band='11–15%'; }
+    else if(dropPct<=25){ addl=1; band='16–25%'; }
+    else { addl=0; band='>25%'; }
+    const tone = addl>=2?'#c9ffd1':addl===1?'#ffe2a6':'#ffc0c0';
+    hydrantResult.innerHTML = `
+      <div class="status" style="color:${tone}">
+        Drop = <b>${(Math.round(dropPct*10)/10).toFixed(1)}%</b> <span class="pill" style="background:#1a2738;border:1px solid rgba(255,255,255,.2);color:#fff">${band}</span><br>
+        You can add <b>${addl}</b> more <b>${sizePretty(size)}</b> line${addl===1?'':'s'} at the same flow.
+      </div>`;
   });
 
   // Presets sheet
