@@ -1,5 +1,5 @@
 // /js/view.practice.js
-import { COEFF, FL_total, FL, PSI_PER_FT } from './store.js';
+import { COEFF, FL_total, PSI_PER_FT } from './store.js';
 
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -35,22 +35,15 @@ export async function render(container){
           </svg>
         </div>
 
-        <!-- Hose color key + formulas (kept) -->
+        <!-- Hose color key + ONLY FL equation + C -->
         <div class="hoseLegend" style="margin-top:8px">
           <span class="legSwatch sw175"></span> 1¾″
           <span class="legSwatch sw25"></span> 2½″
           <span class="legSwatch sw5"></span> 5″
         </div>
         <div class="mini" style="margin-top:6px;opacity:.9">
-          <div><b>Friction Loss:</b> <code>FL/100′ = C × (GPM/100)²</code>, &nbsp; <code>FL(length) = FL/100′ × (length/100)</code></div>
+          <div><b>Friction Loss:</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
           <div><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
-          <div style="margin-top:4px"><b>PP equations:</b>
-            <ul class="simpleList" style="margin-top:4px">
-              <li><b>Single line:</b> <code>PP = NP + Main FL ± Elev</code></li>
-              <li><b>Single branch via wye:</b> <code>PP = NP(branch) + Branch FL + Main FL ± Elev</code></li>
-              <li><b>Two-branch wye:</b> <code>PP = max(Need A, Need B) + Main FL + Wye ± Elev</code></li>
-            </ul>
-          </div>
         </div>
 
         <!-- Status text / reveal work -->
@@ -193,10 +186,9 @@ export async function render(container){
     return S;
   }
 
-  // ===== label helpers (with overlap guard)
+  // ===== label anti-overlap helpers
   const placedLabels = [];
   function placeY(y){
-    // If another label is within 14px vertically, bump this one up
     let yy = y;
     const step = 14;
     let safety = 0;
@@ -280,29 +272,37 @@ export async function render(container){
       }
     }
 
-    // ==== LABELS ON THE GRAPHIC (only here, nothing below)
-    // Rule: always show main length (and size). If wye: branches only show GPM and Elev psi.
-    const elevPsi = Math.round(S.elevFt * PSI_PER_FT);
-
-    // Main label: length + size; if no wye, also show NP and GPM
-    const mainText = !S.useWye
-      ? `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
-      : `${S.mainLen}′ ${sizeLabel(S.mainSize)}${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`;
-    addLabel(geom.endX, Math.max(12, geom.endY - 12), mainText);
-
-    if(S.useWye){
-      // Branch A label: only GPM and Elev
+    // ==== LABELS ON THE GRAPHIC
+    // Wye case:
+    //  - Main label: main length + size only (no elevation here)
+    //  - Branch labels: Branch length, GPM, NP, Elevation (feet only)
+    // Non-wye case:
+    //  - Main label includes GPM, NP and Elevation (feet)
+    if(!S.useWye){
+      addLabel(
+        geom.endX,
+        Math.max(12, geom.endY - 12),
+        `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
+      );
+    } else {
+      // main
+      addLabel(
+        geom.endX,
+        Math.max(12, geom.endY - 12),
+        `${S.mainLen}′ ${sizeLabel(S.mainSize)}`
+      );
+      // A
       addLabel(
         aGeom.endX,
         Math.max(12, aGeom.endY - 12),
-        `A: ${S.bnA.noz.gpm} gpm${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
+        `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
       );
-      // Branch B label: only GPM and Elev
+      // B
       if(S.twoBranches && bGeom){
         addLabel(
           bGeom.endX,
           Math.max(12, bGeom.endY - 12),
-          `B: ${S.bnB.noz.gpm} gpm${S.elevFt?` — Elev ${S.elevFt}′ (${elevPsi} psi)`:''}`
+          `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
         );
       }
     }
@@ -313,75 +313,85 @@ export async function render(container){
     const E = S.elevFt * PSI_PER_FT;
     const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
 
-    const flEq = (gpm, size, lenFt) => {
+    // helper for formatted FL steps
+    const flSteps = (gpm, size, lenFt, label) => {
       const C = COEFF[size];
       const per100 = C * Math.pow(gpm/100, 2);
       const flLen = per100 * (lenFt/100);
-      return { C, per100, flLen };
+      return {
+        text1: `${label} FL: FL = C × (GPM/100)² × (length/100)`,
+        text2: `= ${C} × (${gpm}/100)² × (${lenFt}/100)`,
+        value: Math.round(flLen)
+      };
     };
 
     if(!S.useWye){
-      const { C, per100, flLen } = flEq(S.flow, S.mainSize, S.mainLen);
-      const total = S.mainNoz.NP + flLen + E;
+      const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
+      const total = S.mainNoz.NP + m.value + E;
       return {
         total: Math.round(total),
         html: `
-          <div><b>Simple PP (Single line)</b></div>
+          <div><b>PP Breakdown (Single line)</b></div>
           <ul class="simpleList">
             <li>Nozzle Pressure = <b>${S.mainNoz.NP} psi</b></li>
-            <li>Main FL: <code>FL/100′ = C × (G/100)² = ${C} × (${S.flow}/100)² = ${per100.toFixed(1)}</code></li>
-            <li> → <code>FL(length) = ${per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(flLen)} psi</code></li>
+            <li>${m.text1}</li>
+            <li>${m.text2} → <b>${m.value} psi</b></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.mainNoz.NP} + ${Math.round(flLen)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${S.mainNoz.NP} + ${m.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
     if(S.useWye && !S.twoBranches){
-      const b = flEq(S.bnA.noz.gpm, '1.75', S.bnA.len);
-      const m = flEq(S.flow, S.mainSize, S.mainLen);
-      const total = S.bnA.noz.NP + b.flLen + m.flLen + E;
+      const b = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch');
+      const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
+      const total = S.bnA.noz.NP + b.value + m.value + E;
       return {
         total: Math.round(total),
         html: `
-          <div><b>Simple PP (Single branch via wye)</b></div>
+          <div><b>PP Breakdown (Single branch via wye)</b></div>
           <ul class="simpleList">
             <li>Branch NP = <b>${S.bnA.noz.NP} psi</b></li>
-            <li>Branch FL: <code>FL/100′ = ${COEFF['1.75']} × (${S.bnA.noz.gpm}/100)² = ${b.per100.toFixed(1)}</code></li>
-            <li> → <code>FL(length) = ${b.per100.toFixed(1)} × (${S.bnA.len}/100) = ${Math.round(b.flLen)} psi</code></li>
-            <li>Main FL: <code>FL/100′ = ${COEFF[S.mainSize]} × (${S.flow}/100)² = ${m.per100.toFixed(1)}</code></li>
-            <li> → <code>FL(length) = ${m.per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(m.flLen)} psi</code></li>
+            <li>${b.text1}</li>
+            <li>${b.text2} → <b>${b.value} psi</b></li>
+            <li>${m.text1}</li>
+            <li>${m.text2} → <b>${m.value} psi</b></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.bnA.noz.NP} + ${Math.round(b.flLen)} + ${Math.round(m.flLen)} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${S.bnA.noz.NP} + ${b.value} + ${m.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
     // two-branch wye
-    const a = flEq(S.bnA.noz.gpm, '1.75', S.bnA.len);
-    const b = flEq(S.bnB.noz.gpm, '1.75', S.bnB.len);
-    const m = flEq(S.flow, S.mainSize, S.mainLen);
+    const a = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch A');
+    const b = flSteps(S.bnB.noz.gpm, '1.75', S.bnB.len, 'Branch B');
+    const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
 
-    const needA = S.bnA.noz.NP + a.flLen;
-    const needB = S.bnB.noz.NP + b.flLen;
+    const needA = S.bnA.noz.NP + a.value;
+    const needB = S.bnB.noz.NP + b.value;
     const higher = Math.max(needA, needB);
-    const total = higher + m.flLen + S.wyeLoss + E;
+    const total = higher + m.value + S.wyeLoss + E;
 
     return {
       total: Math.round(total),
       html: `
-        <div><b>Simple PP (Wye)</b></div>
+        <div><b>PP Breakdown (Wye)</b></div>
         <ul class="simpleList">
-          <li>Branch A: <code>NeedA = NP ${S.bnA.noz.NP} + FL_A</code>, where <code>FL_A/100′ = ${COEFF['1.75']} × (${S.bnA.noz.gpm}/100)² = ${a.per100.toFixed(1)}</code>, so <code>FL_A = ${a.per100.toFixed(1)} × (${S.bnA.len}/100) = ${Math.round(a.flLen)} psi</code> → <b>${Math.round(needA)} psi</b></li>
-          <li>Branch B: <code>NeedB = NP ${S.bnB.noz.NP} + FL_B</code>, where <code>FL_B/100′ = ${COEFF['1.75']} × (${S.bnB.noz.gpm}/100)² = ${b.per100.toFixed(1)}</code>, so <code>FL_B = ${b.per100.toFixed(1)} × (${S.bnB.len}/100) = ${Math.round(b.flLen)} psi</code> → <b>${Math.round(needB)} psi</b></li>
+          <li>Branch A need: NP ${S.bnA.noz.NP} + ${a.value} = <b>${Math.round(needA)} psi</b></li>
+          <li>  • ${a.text1}</li>
+          <li>  • ${a.text2} → <b>${a.value} psi</b></li>
+          <li>Branch B need: NP ${S.bnB.noz.NP} + ${b.value} = <b>${Math.round(needB)} psi</b></li>
+          <li>  • ${b.text1}</li>
+          <li>  • ${b.text2} → <b>${b.value} psi</b></li>
           <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
-          <li>Main FL: <code>FL/100′ = ${COEFF[S.mainSize]} × (${S.flow}/100)² = ${m.per100.toFixed(1)}</code>, so <code>FL = ${m.per100.toFixed(1)} × (${S.mainLen}/100) = ${Math.round(m.flLen)} psi</code></li>
+          <li>${m.text1}</li>
+          <li>${m.text2} → <b>${m.value} psi</b></li>
           <li>Wye loss = +<b>${S.wyeLoss} psi</b></li>
           <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
         </ul>
-        <div><b>PP = ${Math.round(higher)} + ${Math.round(m.flLen)} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+        <div><b>PP = ${Math.round(higher)} + ${m.value} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
       `
     };
   }
@@ -408,12 +418,10 @@ export async function render(container){
     const rev = buildReveal(scenario);
     if(diff<=TOL){
       statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
-      // Keep breakdown hidden when correct (unless they press Reveal)
       workEl.innerHTML = '';
     }else{
       statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
-      // On miss, show the full breakdown automatically
-      workEl.innerHTML = rev.html;
+      workEl.innerHTML = rev.html; // show full breakdown on a miss
       workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
   });
