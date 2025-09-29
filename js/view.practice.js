@@ -8,6 +8,13 @@ const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 const TOL = 1; // fixed ±1 psi
 
+// Master stream defaults (typical)
+const MS_CHOICES = [
+  { gpm: 500, NP: 80, appliance: 25 },
+  { gpm: 750, NP: 80, appliance: 25 },
+  { gpm: 1000, NP: 80, appliance: 25 }
+];
+
 export async function render(container){
   container.innerHTML = `
     <section class="stack">
@@ -35,7 +42,7 @@ export async function render(container){
           </svg>
         </div>
 
-        <!-- Hose color key + ONLY FL equation + C -->
+        <!-- Hose color key + Equations -->
         <div class="hoseLegend" style="margin-top:8px">
           <span class="legSwatch sw175"></span> 1¾″
           <span class="legSwatch sw25"></span> 2½″
@@ -43,7 +50,10 @@ export async function render(container){
         </div>
         <div class="mini" style="margin-top:6px;opacity:.9">
           <div><b>Friction Loss:</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
-          <div><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
+          <div><b>PP (single line):</b> <code>PP = NP + Main FL ± Elev</code></div>
+          <div><b>PP (two-branch wye):</b> <code>PP = max(Need A, Need B) + Main FL + Wye ± Elev</code></div>
+          <div><b>PP (master stream; two 2½″):</b> <code>PP = NP(ms) + max(FL line1, FL line2) + Appliance ± Elev</code></div>
+          <div style="margin-top:4px"><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
         </div>
 
         <!-- Status text / reveal work -->
@@ -123,66 +133,93 @@ export async function render(container){
   }
   const sizeLabel = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
 
-  // ===== scenario generator (realistic; rarely >250)
-  function makeRealisticScenario(){
-    const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
-    const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
-    const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
+  // ===== scenario generator (no single-branch wye; add master stream)
+  function makeScenario(){
+    const kind = weightedPick([
+      { v:'single', w:45 },
+      { v:'wye2',   w:25 }, // two-branch wye only
+      { v:'master', w:30 }  // two 2½″ to master stream
+    ]);
 
-    const mainNozzles_175 = [
-      {gpm:185, NP:50, label:'ChiefXD 185@50'},
-      {gpm:150, NP:75, label:'Fog 150@75'},
-      {gpm:185, NP:75, label:'Fog 185@75'}
-    ];
-    const mainNozzles_25 = [
-      {gpm:265, NP:50, label:'SB 1 1/8 265@50'},
-      {gpm:250, NP:75, label:'Fog 250@75'}
-    ];
-    const mainNoz = mainSize==='2.5' ? pick(mainNozzles_25) : pick(mainNozzles_175);
-
-    const useWye = Math.random() < 0.28;
-    const twoBranches = useWye && Math.random() < 0.7;
-
-    const branchNozzles = [
-      {gpm:150, NP:75, label:'Fog 150@75'},
-      {gpm:185, NP:50, label:'ChiefXD 185@50'},
-      {gpm:185, NP:75, label:'Fog 185@75'}
-    ];
-    const branchLens = [50,75,100,150];
-
-    let bnA=null, bnB=null, wyeLoss=10;
-    if(useWye){
-      bnA = { len: pick(branchLens), noz: pick(branchNozzles) };
-      if(twoBranches){ bnB = { len: pick(branchLens), noz: pick(branchNozzles) }; }
+    if(kind==='single'){
+      const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
+      const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
+      const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
+      const mainNozzles_175 = [
+        {gpm:185, NP:50, label:'ChiefXD 185@50'},
+        {gpm:150, NP:75, label:'Fog 150@75'},
+        {gpm:185, NP:75, label:'Fog 185@75'}
+      ];
+      const mainNozzles_25 = [
+        {gpm:265, NP:50, label:'SB 1 1/8 265@50'},
+        {gpm:250, NP:75, label:'Fog 250@75'}
+      ];
+      const mainNoz = mainSize==='2.5' ? pick(mainNozzles_25) : pick(mainNozzles_175);
+      const flow = mainNoz.gpm;
+      const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
+      const PDP = Math.round(mainNoz.NP + mainFL + elevFt*PSI_PER_FT);
+      return { type:'single', mainSize, mainLen, elevFt, mainNoz, flow, PDP };
     }
 
-    const flow = useWye
-      ? ((bnA?.noz.gpm||0) + (bnB?.noz.gpm||0) + (!twoBranches ? mainNoz.gpm : 0))
-      : mainNoz.gpm;
+    if(kind==='wye2'){
+      const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
+      const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
+      const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
+      const wyeLoss = 10;
 
-    const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
+      const nozChoices = [
+        {gpm:150, NP:75, label:'Fog 150@75'},
+        {gpm:185, NP:50, label:'ChiefXD 185@50'},
+        {gpm:185, NP:75, label:'Fog 185@75'}
+      ];
+      const lenChoices = [50,75,100,150];
 
-    let PDP=0;
-    if(!useWye){
-      PDP = mainNoz.NP + mainFL + elevFt*PSI_PER_FT;
-    }else if(twoBranches){
+      const bnA = { len: pick(lenChoices), noz: pick(nozChoices) };
+      const bnB = { len: pick(lenChoices), noz: pick(nozChoices) };
+
+      const flow = bnA.noz.gpm + bnB.noz.gpm;
+      const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
+
       const needA = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
       const needB = bnB.noz.NP + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
-      PDP = Math.max(needA, needB) + mainFL + wyeLoss + elevFt*PSI_PER_FT;
-    }else{
-      const needBranch = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
-      PDP = needBranch + mainFL + elevFt*PSI_PER_FT;
+
+      const PDP = Math.round(Math.max(needA,needB) + mainFL + wyeLoss + elevFt*PSI_PER_FT);
+      return { type:'wye2', mainSize, mainLen, elevFt, wyeLoss, bnA, bnB, flow, PDP };
     }
 
-    return {
-      mainSize, mainLen, elevFt, mainNoz,
-      useWye, twoBranches, bnA, bnB, wyeLoss,
-      flow, PDP: Math.round(PDP)
-    };
+    // master stream: two 2.5" lines to master (siamese/appliance)
+    if(kind==='master'){
+      const elevFt = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
+      const ms = pick(MS_CHOICES); // choose flow/NP/appliance
+      const totalGPM = ms.gpm;
+      const perLine = totalGPM/2;
+      const lenChoices = [100,150,200,250,300];
+      const L1 = pick(lenChoices);
+      const L2 = pick(lenChoices);
+
+      const fl1 = FL_total(perLine, [{size:'2.5', lengthFt:L1}]);
+      const fl2 = FL_total(perLine, [{size:'2.5', lengthFt:L2}]);
+      const worst = Math.max(fl1, fl2);
+      const PDP = Math.round(ms.NP + worst + ms.appliance + elevFt*PSI_PER_FT);
+
+      return {
+        type:'master',
+        elevFt,
+        ms, // {gpm, NP, appliance}
+        line1: { len: L1, gpm: perLine },
+        line2: { len: L2, gpm: perLine },
+        PDP
+      };
+    }
   }
-  function generateBiasedScenario(){
+
+  function generateScenario(){
+    // bias to keep PP ≤ 250 where possible
     let S;
-    for(let i=0;i<12;i++){ S = makeRealisticScenario(); if(S.PDP<=250) return S; }
+    for(let i=0;i<16;i++){
+      S = makeScenario();
+      if(S.PDP <= 270) return S; // allow a little headroom; "very few" >250
+    }
     return S;
   }
 
@@ -230,8 +267,37 @@ export async function render(container){
     placedLabels.length = 0;
     workEl.innerHTML = '';
 
-    // Compute SVG height and layout
-    const branchMax = S.useWye ? Math.max(S.bnA.len, S.twoBranches? S.bnB.len : 0) : 0;
+    if(S.type==='master'){
+      // Draw two branches directly from the pump (no main)
+      const viewH = Math.max(TRUCK_H + 20 + (Math.max(S.line1.len, S.line2.len)/50)*PX_PER_50FT + BRANCH_LIFT, TRUCK_H+20);
+      svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${Math.ceil(viewH)}`);
+      stageEl.style.height = Math.ceil(viewH) + 'px';
+      truckImg.setAttribute('y', String(truckTopY(viewH)));
+
+      const {x:sx,y:sy} = pumpXY(viewH);
+
+      // Left branch
+      const aPx = (S.line1.len/50)*PX_PER_50FT;
+      const aGeom = straightBranch('L', sx, sy, aPx);
+      const aSh = document.createElementNS(ns,'path'); aSh.setAttribute('class','hoseBase shadow'); aSh.setAttribute('d', aGeom.d); G_branchesP.appendChild(aSh);
+      const a = document.createElementNS(ns,'path'); a.setAttribute('class','hoseBase hose25'); a.setAttribute('d', aGeom.d); G_branchesP.appendChild(a);
+
+      // Right branch
+      const bPx = (S.line2.len/50)*PX_PER_50FT;
+      const bGeom = straightBranch('R', sx, sy, bPx);
+      const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
+      const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose25'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
+
+      // Labels: each line gets length + gpm; master nozzle gets NP, Elev, Appliance
+      addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `Line 1: ${S.line1.len}′ 2½″ — ${S.line1.gpm} gpm`);
+      addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `Line 2: ${S.line2.len}′ 2½″ — ${S.line2.gpm} gpm`);
+      addLabel(sx, sy - 20, `Master: NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+
+      return;
+    }
+
+    // Single or Wye-2 drawing (reuse main+branches geometry)
+    const branchMax = S.type==='wye2' ? Math.max(S.bnA.len, S.bnB.len) : 0;
     const viewH = Math.ceil(computeViewHeight(S.mainLen, branchMax));
     svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageEl.style.height = viewH + 'px';
@@ -247,71 +313,47 @@ export async function render(container){
     G_hosesP.appendChild(sh);
 
     const main = document.createElementNS(ns,'path');
-    main.setAttribute('class', `hoseBase ${S.mainSize==='2.5'?'hose25':'hose175'}`);
+    const mainClass = S.mainSize==='2.5' ? 'hose25' : (S.mainSize==='1.75' ? 'hose175':'hoseBase');
+    main.setAttribute('class', `hoseBase ${mainClass}`);
     main.setAttribute('d', geom.d);
-    const L = base.getTotalLength();
-    main.setAttribute('stroke-dasharray', `${L} ${L}`);
+    const Ltot = base.getTotalLength();
+    main.setAttribute('stroke-dasharray', `${Ltot} ${Ltot}`);
     main.setAttribute('stroke-dashoffset','0');
     G_hosesP.appendChild(main);
 
-    // BRANCHES (from the end of main)
+    // Branches if wye2
     let aGeom=null, bGeom=null;
-    if(S.useWye){
-      // A (left)
+    if(S.type==='wye2'){
       const aPx = (S.bnA.len/50)*PX_PER_50FT;
       aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
       const aSh = document.createElementNS(ns,'path'); aSh.setAttribute('class','hoseBase shadow'); aSh.setAttribute('d', aGeom.d); G_branchesP.appendChild(aSh);
       const a = document.createElementNS(ns,'path'); a.setAttribute('class','hoseBase hose175'); a.setAttribute('d', aGeom.d); G_branchesP.appendChild(a);
 
-      // B (right) if any
-      if(S.twoBranches){
-        const bPx = (S.bnB.len/50)*PX_PER_50FT;
-        bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
-        const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
-        const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
-      }
+      const bPx = (S.bnB.len/50)*PX_PER_50FT;
+      bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
+      const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
+      const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
     }
 
-    // ==== LABELS ON THE GRAPHIC
-    // Wye case:
-    //  - Main label: main length + size only (no elevation here)
-    //  - Branch labels: Branch length, GPM, NP, Elevation (feet only)
-    // Non-wye case:
-    //  - Main label includes GPM, NP and Elevation (feet)
-    if(!S.useWye){
+    // Labels:
+    if(S.type==='single'){
       addLabel(
         geom.endX,
         Math.max(12, geom.endY - 12),
         `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
       );
-    } else {
-      // main
-      addLabel(
-        geom.endX,
-        Math.max(12, geom.endY - 12),
-        `${S.mainLen}′ ${sizeLabel(S.mainSize)}`
-      );
-      // A
-      addLabel(
-        aGeom.endX,
-        Math.max(12, aGeom.endY - 12),
-        `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
-      );
-      // B
-      if(S.twoBranches && bGeom){
-        addLabel(
-          bGeom.endX,
-          Math.max(12, bGeom.endY - 12),
-          `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`
-        );
-      }
+    } else if(S.type==='wye2'){
+      // Main: show only main length & size (no elevation at wye)
+      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`);
+      // Branch labels include branch length, GPM, NP, Elev(ft) — but DO NOT convert elev to psi and DO NOT show at wye
+      addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+      addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     }
   }
 
   // ===== Build human-readable PP breakdown for Reveal (with explicit FL equation)
   function buildReveal(S){
     const E = S.elevFt * PSI_PER_FT;
-    const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
 
     // helper for formatted FL steps
     const flSteps = (gpm, size, lenFt, label) => {
@@ -325,80 +367,87 @@ export async function render(container){
       };
     };
 
-    if(!S.useWye){
-      const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
-      const total = S.mainNoz.NP + m.value + E;
+    if(S.type==='single'){
+      const mFL = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
+      const total = S.mainNoz.NP + mFL.value + E;
       return {
         total: Math.round(total),
         html: `
           <div><b>PP Breakdown (Single line)</b></div>
           <ul class="simpleList">
             <li>Nozzle Pressure = <b>${S.mainNoz.NP} psi</b></li>
-            <li>${m.text1}</li>
-            <li>${m.text2} → <b>${m.value} psi</b></li>
+            <li>${mFL.text1}</li>
+            <li>${mFL.text2} → <b>${mFL.value} psi</b></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.mainNoz.NP} + ${m.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${S.mainNoz.NP} + ${mFL.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
-    if(S.useWye && !S.twoBranches){
-      const b = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch');
-      const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
-      const total = S.bnA.noz.NP + b.value + m.value + E;
+    if(S.type==='wye2'){
+      const flow = S.bnA.noz.gpm + S.bnB.noz.gpm;
+      const mainFL = flSteps(flow, S.mainSize, S.mainLen, 'Main');
+      const aFL = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch A');
+      const bFL = flSteps(S.bnB.noz.gpm, '1.75', S.bnB.len, 'Branch B');
+
+      const needA = S.bnA.noz.NP + aFL.value;
+      const needB = S.bnB.noz.NP + bFL.value;
+      const higher = Math.max(needA, needB);
+      const total = higher + mainFL.value + S.wyeLoss + E;
+
       return {
         total: Math.round(total),
         html: `
-          <div><b>PP Breakdown (Single branch via wye)</b></div>
+          <div><b>PP Breakdown (Two-branch wye)</b></div>
           <ul class="simpleList">
-            <li>Branch NP = <b>${S.bnA.noz.NP} psi</b></li>
-            <li>${b.text1}</li>
-            <li>${b.text2} → <b>${b.value} psi</b></li>
-            <li>${m.text1}</li>
-            <li>${m.text2} → <b>${m.value} psi</b></li>
+            <li>Branch A need = NP ${S.bnA.noz.NP} + FL_A = <b>${Math.round(needA)} psi</b></li>
+            <li>  • ${aFL.text1}</li>
+            <li>  • ${aFL.text2} → <b>${aFL.value} psi</b></li>
+            <li>Branch B need = NP ${S.bnB.noz.NP} + FL_B = <b>${Math.round(needB)} psi</b></li>
+            <li>  • ${bFL.text1}</li>
+            <li>  • ${bFL.text2} → <b>${bFL.value} psi</b></li>
+            <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
+            <li>${mainFL.text1}</li>
+            <li>${mainFL.text2} → <b>${mainFL.value} psi</b></li>
+            <li>Wye loss = +<b>${S.wyeLoss} psi</b></li>
             <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
           </ul>
-          <div><b>PP = ${S.bnA.noz.NP} + ${b.value} + ${m.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+          <div><b>PP = ${Math.round(higher)} + ${mainFL.value} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
         `
       };
     }
 
-    // two-branch wye
-    const a = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch A');
-    const b = flSteps(S.bnB.noz.gpm, '1.75', S.bnB.len, 'Branch B');
-    const m = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
+    if(S.type==='master'){
+      const perLine = S.ms.gpm/2;
+      const a = flSteps(perLine, '2.5', S.line1.len, 'Line 1');
+      const b = flSteps(perLine, '2.5', S.line2.len, 'Line 2');
+      const worst = Math.max(a.value, b.value);
+      const total = S.ms.NP + worst + S.ms.appliance + E;
 
-    const needA = S.bnA.noz.NP + a.value;
-    const needB = S.bnB.noz.NP + b.value;
-    const higher = Math.max(needA, needB);
-    const total = higher + m.value + S.wyeLoss + E;
-
-    return {
-      total: Math.round(total),
-      html: `
-        <div><b>PP Breakdown (Wye)</b></div>
-        <ul class="simpleList">
-          <li>Branch A need: NP ${S.bnA.noz.NP} + ${a.value} = <b>${Math.round(needA)} psi</b></li>
-          <li>  • ${a.text1}</li>
-          <li>  • ${a.text2} → <b>${a.value} psi</b></li>
-          <li>Branch B need: NP ${S.bnB.noz.NP} + ${b.value} = <b>${Math.round(needB)} psi</b></li>
-          <li>  • ${b.text1}</li>
-          <li>  • ${b.text2} → <b>${b.value} psi</b></li>
-          <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
-          <li>${m.text1}</li>
-          <li>${m.text2} → <b>${m.value} psi</b></li>
-          <li>Wye loss = +<b>${S.wyeLoss} psi</b></li>
-          <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
-        </ul>
-        <div><b>PP = ${Math.round(higher)} + ${m.value} + ${S.wyeLoss} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
-      `
-    };
+      return {
+        total: Math.round(total),
+        html: `
+          <div><b>PP Breakdown (Master stream; two 2½″ lines)</b></div>
+          <ul class="simpleList">
+            <li>Master NP = <b>${S.ms.NP} psi</b></li>
+            <li>Appliance loss = <b>${S.ms.appliance} psi</b></li>
+            <li>${a.text1}</li>
+            <li>${a.text2} → <b>${a.value} psi</b></li>
+            <li>${b.text1}</li>
+            <li>${b.text2} → <b>${b.value} psi</b></li>
+            <li>Take higher line FL = <b>${Math.round(worst)} psi</b></li>
+            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
+          </ul>
+          <div><b>PP = ${S.ms.NP} + ${Math.round(worst)} + ${S.ms.appliance} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
+        `
+      };
+    }
   }
 
   // Generate & render
   function makePractice(){
-    const S = generateBiasedScenario();
+    const S = generateScenario();
     scenario = S;
     const rev = buildReveal(S);
     practiceAnswer = rev.total;
