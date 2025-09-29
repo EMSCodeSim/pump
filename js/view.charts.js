@@ -7,7 +7,7 @@ import { COEFF } from './store.js';
  *   1) Nozzles  (Smooth Bore | Fog)  ← SB first, default selected
  *   2) Hose Friction Loss (horizontal hose-size buttons; FL per 100')
  *   3) Rules of Thumb
- * - Nothing shows until a section button is pressed.
+ * - Each section shows "Common GPM" presets as chips for quick reference.
  */
 
 export async function render(container){
@@ -47,6 +47,9 @@ export async function render(container){
         <!-- Horizontal hose-size buttons -->
         <div class="hoseRow" role="tablist" aria-label="Hose size"></div>
 
+        <!-- Common GPM presets for the selected hose -->
+        <div id="flPresetsWrap" class="chipsWrap" style="display:none; margin-top:8px"></div>
+
         <div id="flTableWrap" style="margin-top:8px"></div>
         <div class="mini" style="opacity:.95; margin-top:6px">
           FL equation: <code>FL_per100 = C × (GPM/100)²</code>
@@ -65,7 +68,7 @@ export async function render(container){
     </section>
   `;
 
-  // ====== Local styles (high contrast, segmented control, layout)
+  // ====== Local styles (high contrast, segmented control, layout, chips)
   injectLocalStyles(container, `
     .ink-strong { color: #ffffff; }
     .seg { display:inline-flex; background:#0f141c; border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden }
@@ -84,6 +87,14 @@ export async function render(container){
     .nozzTitle { color:#fff; font-weight:700; margin-bottom:4px; }
     .nozzSub { color:#cfe6ff; font-size:14px; }
 
+    .chipsWrap { display:flex; gap:8px; flex-wrap:wrap; }
+    .chip {
+      background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.15);
+      border-radius:999px; padding:6px 10px; font-size:13px; font-weight:700;
+      user-select:none;
+    }
+    .chip.note { background:#0e151e; color:#a9bed9; border-style:dashed; }
+
     .hoseRow { display:flex; gap:8px; flex-wrap:wrap; }
     .hoseRow .hoser {
       appearance:none; border:1px solid rgba(255,255,255,.14); background:#131b26; color:#fff;
@@ -97,6 +108,7 @@ export async function render(container){
     .flTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
     .flTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
     .flTable .muted { color:#a9bed9; }
+    .flTable tr.hi td { outline:2px solid #2a8cff; outline-offset:-2px; }
 
     .rulesList { display:grid; gap:8px; }
     .rule {
@@ -144,13 +156,13 @@ export async function render(container){
     { label:'ChiefXD 185@50', gpm:185, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 200@50', gpm:200, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½″ capable)' },
+    // Optional 100 psi legacy
     { label:'Fog 95@100',  gpm:95,  NP:100, note:'Legacy in some depts' },
     { label:'Fog 125@100', gpm:125, NP:100, note:'Legacy in some depts' },
     { label:'Fog 150@100', gpm:150, NP:100, note:'Legacy in some depts' },
     { label:'Fog 200@100', gpm:200, NP:100, note:'Legacy in some depts' },
     { label:'Fog 250@100', gpm:250, NP:100, note:'Legacy in some depts' },
   ];
-
   const FOG_MASTER = [
     { label:'Master Fog 500@100',  gpm:500,  NP:100, note:'Monitor/deck gun' },
     { label:'Master Fog 750@100',  gpm:750,  NP:100, note:'Monitor/deck gun' },
@@ -172,7 +184,7 @@ export async function render(container){
     { tag:'Cellar',        title:'NP 80 psi',               text:'Cellar nozzle nozzle pressure.' },
   ];
 
-  // Hose sizes to display — 3″ removed
+  // Hose sizes to display — (3″ removed)
   const HOSE_ORDER = ['1.75','2.5','5'];
   const HOSE_LABEL = s =>
     s==='1.75' ? '1¾″' :
@@ -181,11 +193,11 @@ export async function render(container){
 
   // FL ranges
   const GPM_SETS = {
-    // 1¾″: 100–185 gpm (focused set)
+    // 1¾″: focused common handline range
     '1.75': [100, 125, 150, 160, 175, 185],
-    // 2½″: 150–600 gpm (50 gpm steps)
+    // 2½″: 150–600 gpm (50 steps)
     '2.5':  buildRange(150, 600, 50),
-    // 5″: 500–1000 gpm (50 gpm steps)
+    // 5″: 500–1000 gpm (50 steps)
     '5':    buildRange(500, 1000, 50)
   };
 
@@ -201,6 +213,7 @@ export async function render(container){
   const fogWrap = container.querySelector('#nozzlesFog');
   const sbWrap  = container.querySelector('#nozzlesSB');
   const hoseRow = container.querySelector('.hoseRow');
+  const flPresetsWrap = container.querySelector('#flPresetsWrap');
   const flTableWrap = container.querySelector('#flTableWrap');
   const rulesList = container.querySelector('#rulesList');
 
@@ -211,9 +224,23 @@ export async function render(container){
     rulesCard.style.display = (card === rulesCard)? 'block' : 'none';
   }
 
+  // --- NOZZLES (with Common GPM chips under each group)
+  function chipsHTML(title, arr){
+    if(!arr?.length) return '';
+    return `
+      <div class="chipsWrap" style="grid-column:1/-1; margin:-2px 0 6px 0">
+        <span class="chip note">${title}</span>
+        ${[...new Set(arr)].map(g=>`<span class="chip">${g} gpm</span>`).join('')}
+      </div>
+    `;
+  }
+
   function renderNozzlesSB(){
+    const sbHandGPM   = SB_HANDLINE_50.map(n=>n.gpm);
+    const sbMasterGPM = SB_MASTER_80.map(n=>n.gpm);
     sbWrap.innerHTML = `
       <div class="groupHeader">Handline Smooth Bore (50 psi NP)</div>
+      ${chipsHTML('Common GPM', sbHandGPM)}
       ${SB_HANDLINE_50.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.tip)}</div>
@@ -221,6 +248,7 @@ export async function render(container){
         </div>
       `).join('')}
       <div class="groupHeader">Master Stream Smooth Bore (80 psi NP)</div>
+      ${chipsHTML('Common GPM', sbMasterGPM)}
       ${SB_MASTER_80.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.tip)}</div>
@@ -231,8 +259,11 @@ export async function render(container){
   }
 
   function renderNozzlesFog(){
+    const fogHandGPM   = FOG_HANDLINE.map(n=>n.gpm);
+    const fogMasterGPM = FOG_MASTER.map(n=>n.gpm);
     fogWrap.innerHTML = `
       <div class="groupHeader">Handline Fog</div>
+      ${chipsHTML('Common GPM', fogHandGPM)}
       ${FOG_HANDLINE.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.label)}</div>
@@ -240,6 +271,7 @@ export async function render(container){
         </div>
       `).join('')}
       <div class="groupHeader">Master Stream Fog (100 psi NP)</div>
+      ${chipsHTML('Common GPM', fogMasterGPM)}
       ${FOG_MASTER.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.label)}</div>
@@ -249,6 +281,7 @@ export async function render(container){
     `;
   }
 
+  // --- FL (with Common GPM preset chips that highlight table rows)
   function renderHoseButtons(){
     hoseRow.innerHTML = '';
     const available = HOSE_ORDER.filter(s => COEFF[s] != null);
@@ -275,11 +308,31 @@ export async function render(container){
     if(available.length){
       renderFLTable(available[0]);
     }else{
+      flPresetsWrap.style.display = 'none';
       flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found in store.js (expected keys: 1.75, 2.5, 5).</div>`;
     }
   }
 
+  function renderFLPresets(sizeKey){
+    const list = GPM_SETS[sizeKey] || [];
+    if(!list.length){ flPresetsWrap.style.display = 'none'; return; }
+    flPresetsWrap.style.display = 'flex';
+    flPresetsWrap.innerHTML = `
+      <div class="chipsWrap">
+        <span class="chip note">Common GPM</span>
+        ${list.map(g=>`<button class="chip" data-g="${g}" type="button">${g} gpm</button>`).join('')}
+      </div>
+    `;
+    flPresetsWrap.querySelectorAll('[data-g]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const g = +btn.dataset.g;
+        highlightRowForGPM(g);
+      });
+    });
+  }
+
   function renderFLTable(sizeKey){
+    renderFLPresets(sizeKey);
     const C = COEFF[sizeKey];
     if(C == null){
       flTableWrap.innerHTML = `<div class="status alert">Missing C for ${HOSE_LABEL(sizeKey)} in store.js.</div>`;
@@ -289,7 +342,7 @@ export async function render(container){
     const rows = list.map(g=>{
       const per100 = C * Math.pow(g/100, 2);
       const val = per100 < 1 ? (Math.round(per100*10)/10).toFixed(1) : Math.round(per100);
-      return `<tr><td>${g} gpm</td><td class="muted">C=${C}</td><td><b>${val}</b> psi / 100′</td></tr>`;
+      return `<tr data-g="${g}"><td>${g} gpm</td><td class="muted">C=${C}</td><td><b>${val}</b> psi / 100′</td></tr>`;
     }).join('');
     flTableWrap.innerHTML = `
       <table class="flTable" role="table" aria-label="Friction loss per 100 feet">
@@ -299,6 +352,18 @@ export async function render(container){
     `;
   }
 
+  function highlightRowForGPM(g){
+    const tbody = flTableWrap.querySelector('tbody');
+    if(!tbody) return;
+    tbody.querySelectorAll('tr').forEach(tr=> tr.classList.remove('hi'));
+    const row = tbody.querySelector(`tr[data-g="${g}"]`);
+    if(row){
+      row.classList.add('hi');
+      row.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+  }
+
+  // --- RULES
   function renderRules(){
     rulesList.innerHTML = `
       <div class="rulesList">
@@ -320,7 +385,7 @@ export async function render(container){
     renderNozzlesSB();
     renderNozzlesFog();
     // default to Smooth Bore visible (SB first)
-    document.querySelectorAll('.segBtn').forEach(b=>{
+    container.querySelectorAll('.segBtn').forEach(b=>{
       const on = b.dataset.type==='sb';
       b.classList.toggle('segOn', on);
       b.setAttribute('aria-selected', on?'true':'false');
