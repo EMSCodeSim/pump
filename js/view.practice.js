@@ -19,7 +19,7 @@ export async function render(container){
   container.innerHTML = `
     <section class="stack">
 
-      <!-- Controls ABOVE the truck -->
+      <!-- Header / controls -->
       <section class="card" style="padding-bottom:6px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
           <div>
@@ -29,6 +29,7 @@ export async function render(container){
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="newScenarioBtn">New Problem</button>
             <button class="btn" id="revealBtn">Reveal</button>
+            <button class="btn" id="eqToggleBtn">Show Equations</button>
           </div>
         </div>
       </section>
@@ -42,20 +43,22 @@ export async function render(container){
           </svg>
         </div>
 
-        <!-- Hose color key + Equations (NO master-stream equation here) -->
+        <!-- Hose color key -->
         <div class="hoseLegend" style="margin-top:8px">
           <span class="legSwatch sw175"></span> 1¾″
           <span class="legSwatch sw25"></span> 2½″
           <span class="legSwatch sw5"></span> 5″
         </div>
-        <div class="mini" style="margin-top:6px;opacity:.9">
+
+        <!-- Equations panel (hidden by default) -->
+        <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none">
           <div><b>Friction Loss:</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
           <div><b>PP (single line):</b> <code>PP = NP + Main FL ± Elev</code></div>
           <div><b>PP (two-branch wye):</b> <code>PP = max(Need A, Need B) + Main FL + Wye ± Elev</code></div>
           <div style="margin-top:4px"><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
         </div>
 
-        <!-- Status text / reveal work -->
+        <!-- Status / working -->
         <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Problem</b> to generate a scenario.</div>
         <div id="work" class="math" style="margin-top:8px"></div>
       </section>
@@ -87,10 +90,13 @@ export async function render(container){
   const practiceInfo = container.querySelector('#practiceInfo');
   const statusEl = container.querySelector('#practiceStatus');
   const workEl = container.querySelector('#work');
+  const eqBox = container.querySelector('#eqBox');
+  const eqToggleBtn = container.querySelector('#eqToggleBtn');
 
   const ns = 'http://www.w3.org/2000/svg';
   let practiceAnswer = null;
   let scenario = null; // keep last scenario for reveal
+  let eqVisible = false;
 
   // ===== geometry helpers (matches calc view)
   function computeViewHeight(mainFt, branchMaxFt){
@@ -132,7 +138,7 @@ export async function render(container){
   }
   const sizeLabel = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
 
-  // ===== scenario generator (no single-branch wye; master stream equals lengths)
+  // ===== scenario generator (no single-branch wye; master stream equals lengths; hide per-line GPM on graphic)
   function makeScenario(){
     const kind = weightedPick([
       { v:'single', w:45 },
@@ -194,9 +200,10 @@ export async function render(container){
       const perLine = totalGPM/2;
       const lenChoices = [100,150,200,250,300];
       const L = pick(lenChoices); // equal length
-      const fl1 = FL_total(perLine, [{size:'2.5', lengthFt:L}]);
-      const fl2 = FL_total(perLine, [{size:'2.5', lengthFt:L}]);
-      const worst = Math.max(fl1, fl2);
+
+      // compute for grading/reveal only
+      const flPer = FL_total(perLine, [{size:'2.5', lengthFt:L}]); // same for both
+      const worst = flPer;
       const PDP = Math.round(ms.NP + worst + ms.appliance + elevFt*PSI_PER_FT);
 
       return {
@@ -265,7 +272,8 @@ export async function render(container){
     workEl.innerHTML = '';
 
     if(S.type==='master'){
-      // Two equal-length 2.5" lines from pump to a single junction (nozzle)
+      // Two equal-length 2.5" lines to a single junction (nozzle)
+      // IMPORTANT: start from two *separate* discharges so lines don't look like a split.
       const maxLenPx = (S.line1.len/50)*PX_PER_50FT; // equal length
       const viewH = Math.max(TRUCK_H + 20 + maxLenPx + BRANCH_LIFT, TRUCK_H+20) + 20;
       svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${Math.ceil(viewH)}`);
@@ -273,29 +281,33 @@ export async function render(container){
       truckImg.setAttribute('y', String(truckTopY(viewH)));
 
       const {x:sx,y:sy} = pumpXY(viewH);
+      const outLeftX  = sx - 26;   // separate discharge (left)
+      const outRightX = sx + 26;   // separate discharge (right)
+      const outY = sy;             // same vertical
       const junctionY = Math.max(12, sy - maxLenPx);
-      const junctionX = sx; // meet directly above pump
+      const junctionX = sx; // merge centered above pump
 
-      // Left branch path to junction
-      const aPath = `M ${sx},${sy} L ${sx},${sy - BRANCH_LIFT} L ${sx - 20},${sy - BRANCH_LIFT} L ${sx - 20},${junctionY} L ${junctionX},${junctionY}`;
+      // Left discharge path
+      const aPath = `M ${outLeftX},${outY} L ${outLeftX},${outY - BRANCH_LIFT} L ${outLeftX},${junctionY} L ${junctionX},${junctionY}`;
       const aSh = document.createElementNS(ns,'path'); aSh.setAttribute('class','hoseBase shadow'); aSh.setAttribute('d', aPath); G_branchesP.appendChild(aSh);
       const a = document.createElementNS(ns,'path'); a.setAttribute('class','hoseBase hose25'); a.setAttribute('d', aPath); G_branchesP.appendChild(a);
 
-      // Right branch path to junction
-      const bPath = `M ${sx},${sy} L ${sx},${sy - BRANCH_LIFT} L ${sx + 20},${sy - BRANCH_LIFT} L ${sx + 20},${junctionY} L ${junctionX},${junctionY}`;
+      // Right discharge path
+      const bPath = `M ${outRightX},${outY} L ${outRightX},${outY - BRANCH_LIFT} L ${outRightX},${junctionY} L ${junctionX},${junctionY}`;
       const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bPath); G_branchesP.appendChild(bSh);
       const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose25'); b.setAttribute('d', bPath); G_branchesP.appendChild(b);
 
-      // End cap circle to suggest a nozzle at junction
+      // Junction / nozzle
       const nozzle = document.createElementNS(ns,'circle');
       nozzle.setAttribute('cx', junctionX); nozzle.setAttribute('cy', junctionY);
       nozzle.setAttribute('r', 4); nozzle.setAttribute('fill', '#eaf2ff'); nozzle.setAttribute('stroke', '#111'); nozzle.setAttribute('stroke-width', '.8');
       G_hosesP.appendChild(nozzle);
 
-      // Labels: each line & the master nozzle
-      addLabel(sx - 26, junctionY - 10, `Line 1: ${S.line1.len}′ 2½″ — ${S.line1.gpm} gpm`);
-      addLabel(sx + 26, junctionY - 10, `Line 2: ${S.line2.len}′ 2½″ — ${S.line2.gpm} gpm`);
-      addLabel(junctionX, Math.max(12, junctionY - 22), `Master: NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+      // LABELS:
+      // Per your request, do NOT display per-line GPM. Users must derive it (total/2).
+      addLabel(outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`);
+      addLabel(outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`);
+      addLabel(junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
 
       return;
     }
@@ -349,7 +361,7 @@ export async function render(container){
     } else if(S.type==='wye2'){
       // Main: show only main length & size (no elevation at wye)
       addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`);
-      // Branch labels include branch length, GPM, NP, Elev(ft) — but DO NOT convert elev to psi and DO NOT show at wye
+      // Branch labels include branch length, GPM, NP, Elev(ft) — do NOT convert elev to psi and do NOT show at wye
       addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
       addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     }
@@ -423,18 +435,19 @@ export async function render(container){
     }
 
     if(S.type==='master'){
-      const perLine = S.ms.gpm/2;
+      const totalGPM = S.ms.gpm;
+      const perLine = totalGPM/2;
       const a = flSteps(perLine, '2.5', S.line1.len, 'Line 1');
       const b = flSteps(perLine, '2.5', S.line2.len, 'Line 2');
       const worst = Math.max(a.value, b.value);
       const total = S.ms.NP + worst + S.ms.appliance + E;
 
-      // Note: We intentionally do NOT show a "master-stream equation" line in the formulas box.
       return {
         total: Math.round(total),
         html: `
           <div><b>PP Breakdown (Master stream; two equal 2½″ lines)</b></div>
           <ul class="simpleList">
+            <li>Total GPM at nozzle = <b>${totalGPM} gpm</b> → per-line flow = <b>${totalGPM}/2 = ${perLine} gpm</b></li>
             <li>Master NP = <b>${S.ms.NP} psi</b></li>
             <li>Appliance loss = <b>${S.ms.appliance} psi</b></li>
             <li>${a.text1}</li>
@@ -486,6 +499,13 @@ export async function render(container){
     workEl.innerHTML = rev.html;
     statusEl.innerHTML = `<b>Answer:</b> ${rev.total} psi`;
     workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
+
+  // Equations toggle
+  eqToggleBtn.addEventListener('click', ()=>{
+    eqVisible = !eqVisible;
+    eqBox.style.display = eqVisible ? 'block' : 'none';
+    eqToggleBtn.textContent = eqVisible ? 'Hide Equations' : 'Show Equations';
   });
 
   // default state
