@@ -1,44 +1,54 @@
-// /js/view.calc.js
+// view.calc.js
+// Main calc & UI (lines, presets, drawing, tip “+” editor).
+// Water-supply graphics & helper panels are delegated to waterSupply.js.
+
 import {
   state, NOZ, NOZ_LIST, COLORS,
-  FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT,
-  seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel
+  FL_total, sumFt, PSI_PER_FT,
+  isSingleWye, activeNozzle, activeSide
 } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 
 const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
 
 export async function render(container){
+  // ---------- DOM ----------
   container.innerHTML = `
     <section class="stack">
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet" onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
-          <!-- Tip editor INSIDE stage; positioned above the truck -->
+          <!-- Inline tip editor -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
-               style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
+               style="position:absolute; z-index:4; left:8px; top:8px; max-width:320px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
-            <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
-            <div class="te-row"><label>Diameter</label>
-              <select id="teSize"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
+            <div class="te-row"><label>Line</label><input id="teWhere" readonly></div>
+            <div class="te-row">
+              <label>Diameter</label>
+              <select id="teSize">
+                <option value="1.75">1¾″</option>
+                <option value="2.5">2½″</option>
+                <option value="5">5″</option>
+              </select>
             </div>
-            <div class="te-row"><label>Length (ft)</label><input type="number" id="teLen" min="0" step="25" value="200"></div>
-            <div class="te-row"><label>Nozzle</label><select id="teNoz"></select></div>
-            <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5" value="0"></div>
-            <div class="te-row"><label>Wye</label>
+            <div class="te-row"><label>Main Length (ft)</label><input type="number" id="teLen" min="0" step="25"></div>
+            <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5"></div>
+            <div class="te-row">
+              <label>Wye</label>
               <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
             </div>
             <div id="branchBlock" class="is-hidden">
-              <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
-              <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
-              <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
-              <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
+              <div class="te-row"><label>Branch L len</label><input type="number" id="teLenA" min="0" step="25"></div>
+              <div class="te-row"><label>Branch L nozzle</label><select id="teNozA"></select></div>
+              <div class="te-row"><label>Branch R len</label><input type="number" id="teLenB" min="0" step="25"></div>
+              <div class="te-row"><label>Branch R nozzle</label><select id="teNozB"></select></div>
             </div>
-            <div class="te-actions">
+            <div class="te-row"><label>Nozzle (single)</label><select id="teNoz"></select></div>
+            <div class="te-actions" style="display:flex;gap:8px;margin-top:6px">
               <button class="btn" id="teCancel">Cancel</button>
               <button class="btn primary" id="teApply">Apply</button>
             </div>
@@ -55,12 +65,59 @@ export async function render(container){
         </div>
       </section>
 
-      <!-- KPIs -->
       <section class="card">
         <div class="kpis">
           <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
+
+        <!-- HYDRANT %DROP (markup only; logic in waterSupply.js) -->
+        <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+          <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
+          <div class="mini" style="color:#a9bed9; margin-bottom:8px">
+            0–10% → 3× • 11–15% → 2× • 16–25% → 1× • &gt;25% → 0×
+          </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
+            <div class="field" style="min-width:140px">
+              <label>Static (psi)</label>
+              <input type="number" id="hydrantStatic" placeholder="80" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:170px">
+              <label>Residual w/ 1 line (psi)</label>
+              <input type="number" id="hydrantResidual" placeholder="72" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
+              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
+            </div>
+          </div>
+          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
+        </div>
+
+        <!-- STATIC / DRAFTING: TENDER SHUTTLE (markup only; logic in waterSupply.js) -->
+        <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div>
+              <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
+              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start on depart; stop on return full.</div>
+            </div>
+            <div class="pill">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
+          </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <div class="field" style="min-width:160px">
+              <label>Tender ID / Number</label>
+              <input id="tAddId" type="text" placeholder="Tender 2">
+            </div>
+            <div class="field" style="min-width:160px">
+              <label>Capacity (gal)</label>
+              <input id="tAddCap" type="number" inputmode="decimal" placeholder="3000">
+            </div>
+            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
+              <button id="tAddBtn" class="btn primary" type="button">Add Tender</button>
+            </div>
+          </div>
+          <div id="tenderList" style="margin-top:10px"></div>
+        </div>
+
         <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
     </section>
@@ -92,7 +149,20 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // DOM refs
+  // ---------- styles (hose color coding, etc.) ----------
+  injectStyle(container, `
+    .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.2); font-weight:800; }
+    .sheet.open{transform:translateY(0)}
+    #presetGrid .preset.selected, #linePick .preset.selected { outline:2px solid var(--accent,#6ecbff); border-radius:10px; }
+    /* Hose color coding */
+    .hose175 { stroke:#ff5d5d; stroke-width:10; fill:none; stroke-linecap:round; } /* red-ish */
+    .hose25  { stroke:#4ecb6f; stroke-width:12; fill:none; stroke-linecap:round; } /* green */
+    .hose5   { stroke:#6ecbff; stroke-width:16; fill:none; stroke-linecap:round; } /* LDH blue */
+    .branch  { stroke-width:8; }
+    .lbl{fill:#0b0f14; font-size:12px}
+  `);
+
+  // ---------- refs ----------
   const overlay   = container.querySelector('#overlay');
   const stage     = container.querySelector('#stage');
   const G_hoses   = container.querySelector('#hoses');
@@ -100,32 +170,32 @@ export async function render(container){
   const G_labels  = container.querySelector('#labels');
   const G_tips    = container.querySelector('#tips');
   const G_supply  = container.querySelector('#supplyG');
-
-  // Water supply module instance (delegates hydrant/static/relay graphics & panels)
-  const waterSupply = new WaterSupplyUI({ container, state, pumpXY, truckTopY, G_supply, TRUCK_H });
   const truckImg  = container.querySelector('#truckImg');
   const topInfo   = container.querySelector('#topInfo');
-  const linesTable= container.querySelector('#linesTable');
   const PDPel     = container.querySelector('#PDP');
-  const whyBtn    = container.querySelector('#whyBtn');
-  const branchBlock = container.querySelector('#branchBlock');
+  const GPMel     = container.querySelector('#GPM');
 
-  // Prevent image namespace issues (fallback set in markup via onerror)
+  // ---------- image href/xlink fallback ----------
   (function fixTruckImageNS(){
     const XLINK = 'http://www.w3.org/1999/xlink';
     const url = truckImg.getAttribute('href') || truckImg.getAttribute('xlink:href') || '/assets/images/engine181.png';
     truckImg.setAttribute('href', url);
     truckImg.setAttributeNS(XLINK, 'xlink:href', url);
+    truckImg.addEventListener('error', () => {
+      const fallback = 'https://fireopssim.com/pump/engine181.png';
+      truckImg.setAttribute('href', fallback);
+      truckImg.setAttributeNS(XLINK, 'xlink:href', fallback);
+    }, { once:true });
   })();
 
-  // STYLE helpers
+  // ---------- helpers ----------
   function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
   function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
-  function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
-
-  function supplyHeight(){ return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: 0; }
+  function supplySpace(){ return (state.supply==='drafting'||state.supply==='pressurized')?150:(state.supply==='relay'?170:0); }
+  function truckTopY(viewH){ return viewH - TRUCK_H - supplySpace(); }
+  function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
   function computeNeededHeightPx(){
-    const needs = Object.values(state.lines).filter(l=>l.visible);
+    const needs = Object.values(state.lines||{}).filter(l=>l.visible);
     let maxUp = 0;
     needs.forEach(L=>{
       const mainPx = (sumFt(L.itemsMain)/50)*PX_PER_50FT;
@@ -137,30 +207,9 @@ export async function render(container){
       }
       maxUp = Math.max(maxUp, mainPx + branchPx);
     });
-    return Math.max(TRUCK_H + supplyHeight() + 10, TRUCK_H + maxUp + 40 + supplyHeight());
-  }
-  function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
-  function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
-
-  function drawSegmentedPath(group, basePath, items){
-    const totalFt = sumFt(items);
-    if(totalFt<=0) return;
-    const ns = group.namespaceURI;
-    let prevT=0, ftSeen=0;
-    items.forEach(seg=>{
-      const frac = (seg.lengthFt||0) / totalFt;
-      const t = prevT + frac;
-      const path = document.createElementNS(ns,'path');
-      path.setAttribute('class', clsFor(seg.size));
-      path.setAttribute('d', basePath.getAttribute('d'));
-      path.setAttribute('pathLength','1'); // allows stroke-dasharray in fraction
-      path.style.strokeDasharray = `${prevT} ${t-prevT} ${1-t}`;
-      group.appendChild(path);
-      prevT = t;
-    });
+    return Math.max(TRUCK_H + supplySpace() + 10, TRUCK_H + maxUp + 40 + supplySpace());
   }
 
-  // Curves and branches
   function mainCurve(dir, totalPx, viewH){
     const {x:sx,y:sy} = pumpXY(viewH);
     const ex = dir===-1 ? sx - 110 : dir===1 ? sx + 110 : sx;
@@ -183,10 +232,10 @@ export async function render(container){
     const h = document.createElementNS(ns,'line'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y); h.setAttribute('stroke','#0b0f14');
     g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
   }
-  function addLabel(text, x, y, dy=0){
+  function addLabel(text, x, y){
     const ns='http://www.w3.org/2000/svg', pad=3;
     const g = document.createElementNS(ns,'g');
-    const t = document.createElementNS(ns,'text'); t.setAttribute('x', x); t.setAttribute('y', y+(dy||0)); t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#0b0f14'); t.textContent = text;
+    const t = document.createElementNS(ns,'text'); t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#0b0f14'); t.textContent = text;
     g.appendChild(t); G_labels.appendChild(g);
     const bb = t.getBBox();
     const bg = document.createElementNS(ns,'rect');
@@ -196,7 +245,20 @@ export async function render(container){
     g.insertBefore(bg, t);
   }
 
-  // Presets
+  // ---------- defaults (Line 1: 200′ 1¾″ @ 50 psi) ----------
+  if(!state.lines){
+    state.lines = {
+      left:  { label:'Line 1', visible:true,  itemsMain:[{size:'1.75', lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:NOZ.fog95_50 },
+      back:  { label:'Line 2', visible:false, itemsMain:[{size:'2.5',  lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:NOZ.fog150_75 },
+      right: { label:'Line 3', visible:false, itemsMain:[{size:'2.5',  lengthFt:100}], itemsLeft:[], itemsRight:[], hasWye:true,  elevFt:0, nozLeft:NOZ.fog95_50, nozRight:NOZ.fog95_50, wyeLoss:10 },
+    };
+  }
+  if(!state.supply) state.supply = 'pressurized';
+
+  // ---------- init water-supply module (uses your working waterSupply.js) ----------
+  const waterSupply = new WaterSupplyUI({ container, state, pumpXY, truckTopY, G_supply, TRUCK_H });
+
+  // ---------- PRESETS ----------
   const sheet = container.querySelector('#sheet');
   const sheetBackdrop = container.querySelector('#sheetBackdrop');
   const presetsBtn = container.querySelector('#presetsBtn');
@@ -246,26 +308,27 @@ export async function render(container){
     switch(preset){
       case 'standpipe': L.itemsMain=[{size:'2.5', lengthFt:0}];   L.nozRight=NOZ.fog150_75; L.hasWye=false; L.elevFt=60; break;
       case 'sprinkler': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:50}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; break;
-      case 'foam':      L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; L.elevFt=0; break;
+      case 'foam':      L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=NOZ.fog95_50;  L.hasWye=false; L.elevFt=0; break;
       case 'monitor':   L.itemsMain=[{size:'2.5', lengthFt:200}];  L.nozRight=NOZ.sb1_1_8;   L.hasWye=false; L.elevFt=0; break;
       case 'aerial':    state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=80; break;
     }
     drawAll();
   }
 
-  // Tip editor
+  // ---------- TIP “+” EDITOR ----------
   const tipEditor = container.querySelector('#tipEditor');
   const teTitle = container.querySelector('#teTitle');
   const teWhere = container.querySelector('#teWhere');
   const teSize  = container.querySelector('#teSize');
   const teLen   = container.querySelector('#teLen');
-  const teNoz   = container.querySelector('#teNoz');
   const teElev  = container.querySelector('#teElev');
   const teWye   = container.querySelector('#teWye');
   const teLenA  = container.querySelector('#teLenA');
   const teLenB  = container.querySelector('#teLenB');
+  const teNoz   = container.querySelector('#teNoz');
   const teNozA  = container.querySelector('#teNozA');
   const teNozB  = container.querySelector('#teNozB');
+  const branchBlock = container.querySelector('#branchBlock');
 
   [teNoz, teNozA, teNozB].forEach(sel=>{
     if(!sel) return;
@@ -273,6 +336,7 @@ export async function render(container){
   });
 
   let editorCtx = null; // { key, where }
+
   function openEditor(ctx){
     editorCtx = ctx;
     const L = state.lines[ctx.key];
@@ -324,7 +388,7 @@ export async function render(container){
       L.wyeLoss = L.wyeLoss || 10;
     } else {
       L.itemsLeft=[]; L.itemsRight=[];
-      const nz = NOZ_LIST.find(n => n.id === teNoz.value) || L.nozRight || NOZ.fog150_75;
+      const nz = NOZ_LIST.find(n => n.id === teNoz.value) || L.nozRight || NOZ.fog95_50;
       L.nozRight = nz;
     }
 
@@ -332,13 +396,13 @@ export async function render(container){
     drawAll();
   });
 
-  // hose-end "+" click
+  // Click a "+" tip to open editor
   G_tips.addEventListener('click', (e)=>{
     const g = e.target.closest('.hose-end'); if(!g) return;
     openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
   });
 
-  // Line buttons toggle visibility
+  // ---------- LINE BUTTONS ----------
   container.querySelectorAll('.linebtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const key = btn.getAttribute('data-line');
@@ -349,7 +413,7 @@ export async function render(container){
     });
   });
 
-  // Supply cycle
+  // ---------- SUPPLY cycle ----------
   container.querySelector('#supplyBtn').addEventListener('click', ()=>{
     if(state.supply==='pressurized') state.supply='static';
     else if(state.supply==='static') state.supply='relay';
@@ -357,122 +421,110 @@ export async function render(container){
     drawAll();
   });
 
-  let currentViewH = 260;
-
-  function drawSupply(viewH){
-    // delegated to WaterSupplyUI
-    waterSupply.draw(viewH);
-    // also ensure helper panels visibility (if present)
-    if (waterSupply.updatePanelsVisibility) waterSupply.updatePanelsVisibility();
-  }
+  // ---------- DRAW ----------
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
-    currentViewH = viewH; // remember current height for editor placement
     overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
-    const hpx = viewH + 'px';
-    stage.style.height = hpx;
+    stage.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
-    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? `Deployed: ${visibleKeys.map(k=>state.lines[k].label).join(' • ')}` : 'No lines deployed';
+    // Supply drawing & helper panel visibility (from waterSupply.js)
+    waterSupply.draw(viewH);
+    waterSupply.updatePanelsVisibility?.();
 
-    ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
+    // Lines rendering
+    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k]?.visible);
+    visibleKeys.forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
-      const mainFt = sumFt(L.itemsMain);
+      const mainFt = sumFt(L.itemsMain||[]);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, L.itemsMain);
+      // Main path
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); base.setAttribute('class', (L.itemsMain?.[0]?.size==='1.75'?'hose175':(L.itemsMain?.[0]?.size==='5'?'hose5':'hose25'))); G_hoses.appendChild(base);
+
       addTip(key,'main',geom.endX,geom.endY);
 
+      // Label for main (flow & NP)
       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-      const npLabel = usedNoz ? ` — Nozzle ${usedNoz.NP} psi` : (L.hasWye ? ' — via Wye' : ` — Nozzle ${L.nozRight.NP} psi`);
-      addLabel(`${mainFt}′ @ ${flowGpm} gpm${npLabel}`, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? ((L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
+      const npText  = usedNoz ? `NP ${usedNoz.NP}` : (L.hasWye ? 'Wye' : `NP ${L.nozRight?.NP||0}`);
+      addLabel(`${mainFt}′ @ ${flowGpm} gpm — ${npText}`, geom.endX, Math.max(12, geom.endY-8));
 
+      // Branches if wye
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); pathL.setAttribute('class', (L.itemsLeft?.[0]?.size==='1.75'?'hose175 branch':(L.itemsLeft?.[0]?.size==='5'?'hose5 branch':'hose25 branch'))); G_branches.appendChild(pathL);
           addTip(key,'L',gL.endX,gL.endY);
         } else addTip(key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); pathR.setAttribute('class', (L.itemsRight?.[0]?.size==='1.75'?'hose175 branch':(L.itemsRight?.[0]?.size==='5'?'hose5 branch':'hose25 branch'))); G_branches.appendChild(pathR);
           addTip(key,'R',gR.endX,gR.endY);
         } else addTip(key,'R',geom.endX+20,geom.endY-20);
       }
-      base.remove();
     });
 
-    drawSupply(viewH);
+    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label || ({left:'Line 1',back:'Line 2',right:'Line 3'}[k])).join(' • ')) : 'No lines deployed';
+
     refreshTotals();
-    renderLinesPanel();
   }
 
+  // ---------- TOTALS ----------
   function refreshTotals(){
-    const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
-    let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
+    const vis = Object.entries(state.lines||{}).filter(([_k,l])=>l.visible);
+    let totalGPM = 0, maxPDP = -Infinity;
     vis.forEach(([_key, L])=>{
       const single = isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
                  : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
                             : (L.nozRight?.gpm||0);
-      const mainFL = FL_total(flow, L.itemsMain);
+      const mainFL = FL_total(flow, L.itemsMain||[]);
       let PDP=0;
       if(single){
         const side = activeSide(L);
-        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
+        const bnSegs = side==='L' ? (L.itemsLeft||[]) : (L.itemsRight||[]);
         const bnNoz  = activeNozzle(L);
-        const branchFL = FL_total(bnNoz.gpm, bnSegs);
-        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        const branchFL = FL_total(bnNoz?.gpm||0, bnSegs);
+        PDP = (bnNoz?.NP||0) + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
-        const lNeed = FL_total(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
-        const rNeed = FL_total(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||0) + (L.elevFt * PSI_PER_FT);
+        const lNeed = (L.nozLeft?.NP||0) + FL_total(L.nozLeft?.gpm||0, L.itemsLeft||[]);
+        const rNeed = (L.nozRight?.NP||0) + FL_total(L.nozRight?.gpm||0, L.itemsRight||[]);
+        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
       }else{
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
       totalGPM += flow;
-      if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
+      if(PDP > maxPDP) maxPDP = PDP;
     });
 
-    GPM.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
+    GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.textContent = vis.length? (Math.round(maxPDP)+' psi') : '— psi';
-    state.lastMaxKey = maxKey;
   }
 
-  function renderLinesPanel(){
-    // (kept as in your file; omitted here for brevity if it was large)
-    // This function remains unchanged and continues to read from state.lines
-    // to render the detailed hose table and PP breakdown, including the
-    // expandable "Why?" math panel.
-  }
-
-  // Why? (reveal math)
-  whyBtn.addEventListener('click', ()=>{
-    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
-    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
-    if(!state.showMath){ state.showMath = true; renderLinesPanel(); }
-    if(!state.lastMaxKey) return;
-    const target = container.querySelector(`#pp_simple_${state.lastMaxKey}`);
-    if(target){
-      target.scrollIntoView({behavior:'smooth', block:'center'});
-      target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
-      const details = target.closest('details'); if(details && !details.open){ details.open = true; }
-    }
+  // ---------- LINE BUTTONS (toggle visibility) ----------
+  container.querySelectorAll('.linebtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.getAttribute('data-line');
+      const L = state.lines[key];
+      if(!L) return;
+      L.visible = !L.visible;
+      drawAll();
+    });
   });
 
-  // boot
+  // ---------- SUPPLY cycle ----------
+  container.querySelector('#supplyBtn').addEventListener('click', ()=>{
+    if(state.supply==='pressurized') state.supply='static';
+    else if(state.supply==='static') state.supply='relay';
+    else state.supply='pressurized';
+    drawAll();
+  });
+
+  // ---------- initial draw ----------
   drawAll();
-
-  return { dispose(){} };
 }
-
-export default { render };
