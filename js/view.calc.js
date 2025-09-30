@@ -173,7 +173,7 @@ export async function render(container){
     .tTable tbody td { padding:8px 10px; }
     .tTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
     .tTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
-    .tBadge { background:#0e151e; border:1px solid rgba(255,255,255,.15); padding:2px 8px; border-radius:999px; font-weight:700; }
+    .tBadge { background:#0e151e; border:1px solid rgba(255,255,255,.15); padding:2px 8px; border-radius:999px; font-weight:700; color:#eaf2ff; }
     .tTimer { font-family: ui-monospace, Menlo, Consolas, monospace; }
     .btnIcon { min-width:44px; }
     .tInfoBtn{background:none;border:none;padding:0;margin:0;cursor:pointer;}
@@ -627,45 +627,45 @@ export async function render(container){
   // === UPDATED: compact phone-friendly layout (Capacity/Effective removed; Set Time removed) ===
   function injectTenderTable(){
     if(!staticHelper || staticHelper.style.display==='none'){
-  return;
-}
-if(!tenders.length){
-  tenderList.innerHTML = '<div class="status" style="color:#cfe6ff">No tenders added yet.</div>';
-  if(shuttleTotalGpm) shuttleTotalGpm.textContent='0';
-  return;
-}
+      return;
+    }
+    if(!tenders.length){
+      tenderList.innerHTML = '<div class="status" style="color:#cfe6ff">No tenders added yet.</div>';
+      if(shuttleTotalGpm) shuttleTotalGpm.textContent='0';
+      return;
+    }
 
-let rows = '';
-for(let i=0;i<tenders.length;i++){
-  const t = tenders[i];
-  const dispSec = t.running ? (t.sec + runningDelta(t)) : t.sec;
-  rows += '<tr data-i="'+i+'">'
-        + '<td><button class="tInfoBtn" data-act="info" title="Show details for '+escapeHTML(t.id)+'">'
-        + '<span class="tBadge">'+escapeHTML(t.id)+'</span>'
-        + '</button></td>'
-        + '<td class="tTimer">'+formatTime(dispSec)+'</td>'
-        + '<td><b>'+fmt1(gpmForTender(t))+'</b></td>'
-        + '<td><div style="display:flex; gap:6px; flex-wrap:wrap">'
-        + '<button class="btn btnIcon" data-act="startstop">'+(t.running?'Stop':'Start')+'</button>'
-        + '<button class="btn" data-act="reset">Reset</button>'
-        + '<button class="btn" data-act="del">Delete</button>'
-        + '</div></td>'
-        + '</tr>';
-}
+    let rows = '';
+    for(let i=0;i<tenders.length;i++){
+      const t = tenders[i];
+      const dispSec = t.running ? (t.sec + runningDelta(t)) : t.sec;
+      rows += '<tr data-i="'+i+'">'
+            + '<td><button class="tInfoBtn" data-act="info" title="Show details for '+escapeHTML(t.id)+'">'
+            + '<span class="tBadge">'+escapeHTML(t.id)+'</span>'
+            + '</button></td>'
+            + '<td class="tTimer">'+formatTime(dispSec)+'</td>'
+            + '<td><b>'+fmt1(gpmForTender(t))+'</b></td>'
+            + '<td><div style="display:flex; gap:6px; flex-wrap:wrap">'
+            + '<button class="btn btnIcon" data-act="startstop">'+(t.running?'Stop':'Start')+'</button>'
+            + '<button class="btn" data-act="reset">Reset</button>'
+            + '<button class="btn" data-act="del">Delete</button>'
+            + '</div></td>'
+            + '</tr>';
+    }
 
-tenderList.innerHTML =
-  '<table class="tTable" role="table" aria-label="Tender Shuttle (compact)">' +
-  '<thead><tr><th>Tender</th><th>Round Trip</th><th>GPM</th><th>Controls</th></tr></thead>' +
-  '<tbody>'+rows+'</tbody></table>';
+    tenderList.innerHTML =
+      '<table class="tTable" role="table" aria-label="Tender Shuttle (compact)">'
+      + '<thead><tr><th>Tender</th><th>Round Trip</th><th>GPM</th><th>Controls</th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table>';
 
-updateTotalsShuttle();
+    updateTotalsShuttle();
 
-// Ensure compact info button style exists once
-if(!document.getElementById('tInfoBtnStyle')){
-  const s=document.createElement('style'); s.id='tInfoBtnStyle';
-  s.textContent = '.tInfoBtn{background:none;border:none;padding:0;margin:0;cursor:pointer;} .tInfoBtn:focus-visible{outline:2px solid var(--accent,#6ecbff);border-radius:8px;}';
-  document.head.appendChild(s);
-}
+    // Ensure compact info button style exists once
+    if(!document.getElementById('tInfoBtnStyle')){
+      const s=document.createElement('style'); s.id='tInfoBtnStyle';
+      s.textContent = '.tInfoBtn{background:none;border:none;padding:0;margin:0;cursor:pointer;} .tInfoBtn:focus-visible{outline:2px solid var(--accent,#6ecbff);border-radius:8px;}';
+      document.head.appendChild(s);
+    }
   }
 
   function addTender(id, cap){
@@ -707,6 +707,13 @@ if(!document.getElementById('tInfoBtnStyle')){
       }
     });
   }
+
+  // Live tick to update timer + GPM while running
+  const shuttleTick = setInterval(()=>{ 
+    if(staticHelper && staticHelper.style.display!=='none' && tenders.some(t=>t.running)){ 
+      injectTenderTable(); 
+    }
+  }, 500);
 
   function updateSupplyHelpers(){
     // show helper panels based on supply type (pressurized / drafting / relay)
