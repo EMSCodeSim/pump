@@ -11,6 +11,19 @@ import { WaterSupplyUI } from './waterSupply.js';
 
 const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
 
+// -------- helpers to find a nozzle close to target specs (keeps your store.js data authoritative)
+function findNozzleBy(targetGpm, targetNP){
+  if(!NOZ_LIST?.length) return null;
+  let best=null, bestErr=Infinity;
+  for(const n of NOZ_LIST){
+    const dg = Math.abs((n.gpm||0) - targetGpm);
+    const dn = Math.abs((n.NP||0) - targetNP);
+    const err = dg*1.0 + dn*2.0; // weight NP a bit more
+    if(err < bestErr){ best=n; bestErr=err; }
+  }
+  return best;
+}
+
 export async function render(container){
   // ---------- DOM ----------
   container.innerHTML = `
@@ -57,7 +70,7 @@ export async function render(container){
           <div class="info" id="topInfo">No lines deployed</div>
           <div class="linebar">
             <button class="linebtn" data-line="left"  type="button" aria-pressed="true">Line 1</button>
-            <button class="linebtn" data-line="back"  type="button" aria-pressed="false">Line 2</button>
+            <button class="linebtn" data-line="back"  type="button" aria-pressed="true">Line 2</button>
             <button class="linebtn" data-line="right" type="button" aria-pressed="false">Line 3</button>
             <button class="supplybtn" id="supplyBtn" type="button">Supply</button>
             <button class="presetsbtn" id="presetsBtn" type="button">Presets</button>
@@ -122,7 +135,7 @@ export async function render(container){
       </section>
     </section>
 
-    <!-- Presets -->
+    <!-- Preset bottom sheet -->
     <div id="sheet" class="sheet" aria-modal="true" role="dialog">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="title">Presets</div>
@@ -149,20 +162,30 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ---------- styles (restore deployed look + color coding) ----------
+  // ---------- styles (restore deployed look + NEW color coding) ----------
   injectStyle(container, `
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1a2738;color:#fff;border:1px solid rgba(255,255,255,.2);font-weight:800}
     .sheet.open{transform:translateY(0)}
     #presetGrid .preset.selected, #linePick .preset.selected{outline:2px solid var(--accent,#6ecbff);border-radius:10px}
-    /* Hose colors */
-    .hose175{stroke:#ff5d5d;stroke-width:10;fill:none;stroke-linecap:round}
-    .hose25{stroke:#4ecb6f;stroke-width:12;fill:none;stroke-linecap:round}
-    .hose5{stroke:#6ecbff;stroke-width:16;fill:none;stroke-linecap:round}
+
+    /* Hose colors (as requested) */
+    .hose175{stroke:#ff4a4a;stroke-width:10;fill:none;stroke-linecap:round} /* red */
+    .hose25{stroke:#2e7dff;stroke-width:12;fill:none;stroke-linecap:round}  /* blue */
+    .hose5{stroke:#ffd84a;stroke-width:16;fill:none;stroke-linecap:round}   /* yellow */
     .branch{stroke-width:8}
     .lbl{fill:#0b0f14;font-size:12px}
+
     /* Deployed look for buttons */
     .linebtn{border:1px solid rgba(255,255,255,.25);background:#0f1723;color:#e8f1ff;padding:6px 10px;border-radius:10px}
     .linebtn[aria-pressed="true"]{background:#173252;border-color:#6ecbff;box-shadow:0 0 0 2px rgba(110,203,255,.25) inset}
+    /* Lines table / math panel */
+    .linesTable{margin-top:10px}
+    .ppRow{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;margin:8px 0;background:#0f1723;color:#dfe9ff}
+    .ppRow .hdr{font-weight:800;margin-bottom:6px}
+    .ppRow .tiny{opacity:.9}
+    .ppRow details{margin-top:6px}
+    .flash{animation:hl 1.2s ease 1}
+    @keyframes hl{0%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}40%{box-shadow:0 0 0 3px rgba(110,203,255,.35)}100%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}}
   `);
 
   // ---------- refs ----------
@@ -177,6 +200,8 @@ export async function render(container){
   const topInfo   = container.querySelector('#topInfo');
   const PDPel     = container.querySelector('#PDP');
   const GPMel     = container.querySelector('#GPM');
+  const linesTable= container.querySelector('#linesTable');
+  const whyBtn    = container.querySelector('#whyBtn');
 
   // ---------- firetruck image (href + xlink:href fallback) ----------
   (function fixTruckImageNS(){
@@ -248,12 +273,17 @@ export async function render(container){
     g.insertBefore(bg, t);
   }
 
-  // ---------- defaults (Line 1: 200′ 1¾″ @ 50 psi) ----------
+  // ---------- DEFAULTS (as requested)
+  // Line 1: 200′ of 1¾″, 185 GPM @ 50 psi
+  // Line 2: 200′ of 1¾″, 185 GPM @ 50 psi
+  // Line 3: 250′ of 2½″, 265 GPM @ 50 psi
   if(!state.lines){
+    const noz185_50 = findNozzleBy(185,50) || NOZ.fog95_50 || NOZ.fog150_75 || NOZ_LIST?.[0];
+    const noz265_50 = findNozzleBy(265,50) || NOZ.sb1_1_8 || NOZ_LIST?.[0];
     state.lines = {
-      left:  { label:'Line 1', visible:true,  itemsMain:[{size:'1.75', lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:NOZ.fog95_50 },
-      back:  { label:'Line 2', visible:false, itemsMain:[{size:'2.5',  lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:NOZ.fog150_75 },
-      right: { label:'Line 3', visible:false, itemsMain:[{size:'2.5',  lengthFt:100}], itemsLeft:[], itemsRight:[], hasWye:true,  elevFt:0, nozLeft:NOZ.fog95_50, nozRight:NOZ.fog95_50, wyeLoss:10 },
+      left:  { label:'Line 1', visible:true,  itemsMain:[{size:'1.75', lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:noz185_50 },
+      back:  { label:'Line 2', visible:true,  itemsMain:[{size:'1.75', lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:noz185_50 },
+      right: { label:'Line 3', visible:false, itemsMain:[{size:'2.5',  lengthFt:250}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:noz265_50 },
     };
   }
   if(!state.supply) state.supply = 'pressurized';
@@ -309,11 +339,11 @@ export async function render(container){
     const L = state.lines[key]; if(!L) return;
     clearLine(L); L.visible = true;
     switch(preset){
-      case 'standpipe': L.itemsMain=[{size:'2.5', lengthFt:0}];   L.nozRight=NOZ.fog150_75; L.hasWye=false; L.elevFt=60; break;
-      case 'sprinkler': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:50}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; break;
-      case 'foam':      L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=NOZ.fog95_50;  L.hasWye=false; L.elevFt=0; break;
-      case 'monitor':   L.itemsMain=[{size:'2.5', lengthFt:200}];  L.nozRight=NOZ.sb1_1_8;   L.hasWye=false; L.elevFt=0; break;
-      case 'aerial':    state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=80; break;
+      case 'standpipe': L.itemsMain=[{size:'2.5', lengthFt:0}];   L.nozRight=findNozzleBy(150,75) || L.nozRight; L.hasWye=false; L.elevFt=60; break;
+      case 'sprinkler': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:50}]; L.nozRight=findNozzleBy(150,75)||L.nozRight; L.hasWye=false; break;
+      case 'foam':      L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=findNozzleBy(185,50)||L.nozRight; L.hasWye=false; L.elevFt=0; break;
+      case 'monitor':   L.itemsMain=[{size:'2.5', lengthFt:200}];  L.nozRight=findNozzleBy(265,50)||L.nozRight; L.hasWye=false; L.elevFt=0; break;
+      case 'aerial':    state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=findNozzleBy(265,50)||L.nozRight; L.hasWye=false; L.elevFt=80; break;
     }
     drawAll();
   }
@@ -384,14 +414,14 @@ export async function render(container){
       const rLen = Math.max(0, Number(teLenB.value)||0);
       L.itemsLeft  = lLen ? [{ size:newSize, lengthFt:lLen }] : [];
       L.itemsRight = rLen ? [{ size:newSize, lengthFt:rLen }] : [];
-      const nzA = NOZ_LIST.find(n => n.id === teNozA.value) || L.nozLeft || NOZ.fog95_50;
-      const nzB = NOZ_LIST.find(n => n.id === teNozB.value) || L.nozRight || NOZ.fog95_50;
+      const nzA = NOZ_LIST.find(n => n.id === teNozA.value) || L.nozLeft || findNozzleBy(185,50) || NOZ_LIST?.[0];
+      const nzB = NOZ_LIST.find(n => n.id === teNozB.value) || L.nozRight || findNozzleBy(185,50) || NOZ_LIST?.[0];
       L.nozLeft  = nzA;
       L.nozRight = nzB;
       L.wyeLoss = L.wyeLoss || 10;
     } else {
       L.itemsLeft=[]; L.itemsRight=[];
-      const nz = NOZ_LIST.find(n => n.id === teNoz.value) || L.nozRight || NOZ.fog95_50;
+      const nz = NOZ_LIST.find(n => n.id === teNoz.value) || L.nozRight || findNozzleBy(185,50) || NOZ_LIST?.[0];
       L.nozRight = nz;
     }
 
@@ -405,7 +435,7 @@ export async function render(container){
     openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
   });
 
-  // ---------- LINE BUTTONS (deployed look restored) ----------
+  // ---------- LINE BUTTONS (deployed look) ----------
   const lineBtns = Array.from(container.querySelectorAll('.linebtn'));
   function syncLineButtons(){
     lineBtns.forEach(btn=>{
@@ -419,7 +449,7 @@ export async function render(container){
       const L = state.lines[key];
       if(!L) return;
       L.visible = !L.visible;
-      syncLineButtons();   // immediately reflect deployed latch
+      syncLineButtons();
       drawAll();
     });
   });
@@ -499,13 +529,14 @@ export async function render(container){
 
     refreshTotals();
     syncLineButtons(); // keep button latch in sync if state changes elsewhere
+    if(state.showMath) renderLinesPanel(); else linesTable.classList.add('is-hidden');
   }
 
   // ---------- TOTALS ----------
   function refreshTotals(){
     const vis = Object.entries(state.lines||{}).filter(([_k,l])=>l.visible);
-    let totalGPM = 0, maxPDP = -Infinity;
-    vis.forEach(([_key, L])=>{
+    let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
+    vis.forEach(([key, L])=>{
       const single = isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
                  : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
@@ -526,14 +557,91 @@ export async function render(container){
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
       totalGPM += flow;
-      if(PDP > maxPDP) maxPDP = PDP;
+      if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
     });
 
     GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.textContent = vis.length? (Math.round(maxPDP)+' psi') : '— psi';
+    state.lastMaxKey = maxKey;
   }
 
+  // ---------- WHY? MATH PANEL ----------
+  function renderLinesPanel(){
+    const keys = ['left','back','right'].filter(k=>state.lines[k]?.visible);
+    if(!keys.length){ linesTable.classList.add('is-hidden'); linesTable.innerHTML=''; return; }
+
+    let html = '';
+    keys.forEach(k=>{
+      const L = state.lines[k];
+      const single = isSingleWye(L);
+      const flow = single ? (activeNozzle(L)?.gpm||0)
+                 : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
+                            : (L.nozRight?.gpm||0);
+      const mainFL = FL_total(flow, L.itemsMain||[]);
+      let PDP=0, rows=[];
+      if(single){
+        const side = activeSide(L);
+        const bnSegs = side==='L' ? (L.itemsLeft||[]) : (L.itemsRight||[]);
+        const bnNoz  = activeNozzle(L);
+        const branchFL = FL_total(bnNoz?.gpm||0, bnSegs);
+        PDP = (bnNoz?.NP||0) + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        rows.push(`Nozzle (${bnNoz?.name||'—'}) NP = <b>${bnNoz?.NP||0}</b> psi`);
+        rows.push(`Branch FL (${bnNoz?.gpm||0} gpm) = <b>${Math.round(branchFL)}</b> psi`);
+        rows.push(`Main FL (${flow} gpm) = <b>${Math.round(mainFL)}</b> psi`);
+        rows.push(`Elevation (${L.elevFt||0}′) = <b>${Math.round(L.elevFt*PSI_PER_FT)}</b> psi`);
+      }else if(L.hasWye){
+        const lFlow=L.nozLeft?.gpm||0, rFlow=L.nozRight?.gpm||0;
+        const lNeed = (L.nozLeft?.NP||0) + FL_total(lFlow, L.itemsLeft||[]);
+        const rNeed = (L.nozRight?.NP||0) + FL_total(rFlow, L.itemsRight||[]);
+        const controlling = (lNeed>=rNeed)?'Left':'Right';
+        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        rows.push(`Left: NP ${L.nozLeft?.NP||0} + FL(${lFlow} gpm) ${Math.round(FL_total(lFlow, L.itemsLeft||[]))} = <b>${Math.round(lNeed)}</b> psi`);
+        rows.push(`Right: NP ${L.nozRight?.NP||0} + FL(${rFlow} gpm) ${Math.round(FL_total(rFlow, L.itemsRight||[]))} = <b>${Math.round(rNeed)}</b> psi`);
+        rows.push(`Main FL (${flow} gpm) = <b>${Math.round(mainFL)}</b> psi`);
+        rows.push(`Wye appliance loss = <b>${Math.round(L.wyeLoss||10)}</b> psi`);
+        rows.push(`Elevation (${L.elevFt||0}′) = <b>${Math.round(L.elevFt*PSI_PER_FT)}</b> psi`);
+        rows.push(`<i>Controlling side:</i> <b>${controlling}</b>`);
+      }else{
+        PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+        rows.push(`Nozzle (${L.nozRight?.name||'—'}) NP = <b>${L.nozRight?.NP||0}</b> psi`);
+        rows.push(`Main FL (${L.nozRight?.gpm||0} gpm) = <b>${Math.round(mainFL)}</b> psi`);
+        rows.push(`Elevation (${L.elevFt||0}′) = <b>${Math.round(L.elevFt*PSI_PER_FT)}</b> psi`);
+      }
+
+      html += `
+        <div class="ppRow" id="pp_simple_${k}">
+          <div class="hdr">${L.label} — PDP <b>${Math.round(PDP)}</b> psi</div>
+          <div class="tiny">Length: ${sumFt(L.itemsMain||[])}′ ${L.hasWye? '• Wye' : ''} ${L.elevFt? `• Elev ${L.elevFt}′` : ''}</div>
+          <details>
+            <summary>Show math</summary>
+            <ul>${rows.map(r=>`<li>${r}</li>`).join('')}</ul>
+          </details>
+        </div>
+      `;
+    });
+
+    linesTable.innerHTML = html;
+    linesTable.classList.remove('is-hidden');
+  }
+
+  // Why? (reveal math and focus controlling line)
+  whyBtn.addEventListener('click', ()=>{
+    const anyDeployed = Object.values(state.lines||{}).some(l=>l.visible);
+    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
+    state.showMath = true;
+    renderLinesPanel();
+    const target = state.lastMaxKey ? container.querySelector(`#pp_simple_${state.lastMaxKey}`) : null;
+    if(target){
+      target.scrollIntoView({behavior:'smooth', block:'center'});
+      target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
+      const details = target.querySelector('details'); if(details && !details.open) details.open = true;
+    }
+  });
+
   // ---------- initial draw ----------
+  // Ensure default buttons show deployed for Line 1 & 2 per request
+  state.lines.left.visible = (state.lines.left.visible!==false);
+  state.lines.back.visible = (state.lines.back.visible!==false);
   syncLineButtons();
   drawAll();
 }
