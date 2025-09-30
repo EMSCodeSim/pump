@@ -1,15 +1,16 @@
 // view.calc.js
 // Main calc & UI (lines, presets, drawing, tip “+” editor).
-// Water-supply graphics & helper panels are delegated to waterSupply.js.
+// Water supply (graphics + helper panels) is delegated to waterSupply.js (already working).
 
 import {
-  state, NOZ, NOZ_LIST, COLORS,
+  state, NOZ, NOZ_LIST,
   FL_total, sumFt, PSI_PER_FT,
   isSingleWye, activeNozzle, activeSide
 } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 
-const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
+const TRUCK_W = 390, TRUCK_H = 260;
+const PX_PER_50FT = 45, CURVE_PULL = 36, BRANCH_LIFT = 10;
 
 export async function render(container){
   // ---------- DOM ----------
@@ -22,13 +23,12 @@ export async function render(container){
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
-          <!-- Inline tip editor -->
+          <!-- Tip editor -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
                style="position:absolute; z-index:4; left:8px; top:8px; max-width:320px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
             <div class="te-row"><label>Line</label><input id="teWhere" readonly></div>
-            <div class="te-row">
-              <label>Diameter</label>
+            <div class="te-row"><label>Diameter</label>
               <select id="teSize">
                 <option value="1.75">1¾″</option>
                 <option value="2.5">2½″</option>
@@ -37,8 +37,7 @@ export async function render(container){
             </div>
             <div class="te-row"><label>Main Length (ft)</label><input type="number" id="teLen" min="0" step="25"></div>
             <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5"></div>
-            <div class="te-row">
-              <label>Wye</label>
+            <div class="te-row"><label>Wye</label>
               <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
             </div>
             <div id="branchBlock" class="is-hidden">
@@ -49,18 +48,18 @@ export async function render(container){
             </div>
             <div class="te-row"><label>Nozzle (single)</label><select id="teNoz"></select></div>
             <div class="te-actions" style="display:flex;gap:8px;margin-top:6px">
-              <button class="btn" id="teCancel">Cancel</button>
-              <button class="btn primary" id="teApply">Apply</button>
+              <button class="btn" id="teCancel" type="button">Cancel</button>
+              <button class="btn primary" id="teApply" type="button">Apply</button>
             </div>
           </div>
 
           <div class="info" id="topInfo">No lines deployed</div>
           <div class="linebar">
-            <button class="linebtn" data-line="left">Line 1</button>
-            <button class="linebtn" data-line="back">Line 2</button>
-            <button class="linebtn" data-line="right">Line 3</button>
-            <button class="supplybtn" id="supplyBtn">Supply</button>
-            <button class="presetsbtn" id="presetsBtn">Presets</button>
+            <button class="linebtn" data-line="left"  type="button" aria-pressed="true">Line 1</button>
+            <button class="linebtn" data-line="back"  type="button" aria-pressed="false">Line 2</button>
+            <button class="linebtn" data-line="right" type="button" aria-pressed="false">Line 3</button>
+            <button class="supplybtn" id="supplyBtn" type="button">Supply</button>
+            <button class="presetsbtn" id="presetsBtn" type="button">Presets</button>
           </div>
         </div>
       </section>
@@ -68,7 +67,7 @@ export async function render(container){
       <section class="card">
         <div class="kpis">
           <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
-          <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
+          <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn" type="button">Why?</button></div>
         </div>
 
         <!-- HYDRANT %DROP (markup only; logic in waterSupply.js) -->
@@ -126,7 +125,7 @@ export async function render(container){
     <div id="sheet" class="sheet" aria-modal="true" role="dialog">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="title">Presets</div>
-        <button class="btn" id="sheetClose">Close</button>
+        <button class="btn" id="sheetClose" type="button">Close</button>
       </div>
       <div class="mini" style="opacity:.85;margin-top:4px">Pick a preset and a line, then Apply.</div>
 
@@ -144,22 +143,23 @@ export async function render(container){
         <div class="preset" data-applyline="back">Line 2</div>
         <div class="preset" data-applyline="right">Line 3</div>
       </div>
-      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
+      <div class="te-actions"><button class="btn primary" id="sheetApply" type="button" disabled>Apply Preset</button></div>
     </div>
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ---------- styles (hose color coding, etc.) ----------
+  // ---------- styles ----------
   injectStyle(container, `
-    .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.2); font-weight:800; }
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1a2738;color:#fff;border:1px solid rgba(255,255,255,.2);font-weight:800}
     .sheet.open{transform:translateY(0)}
-    #presetGrid .preset.selected, #linePick .preset.selected { outline:2px solid var(--accent,#6ecbff); border-radius:10px; }
+    #presetGrid .preset.selected, #linePick .preset.selected{outline:2px solid var(--accent,#6ecbff);border-radius:10px}
     /* Hose color coding */
-    .hose175 { stroke:#ff5d5d; stroke-width:10; fill:none; stroke-linecap:round; } /* red-ish */
-    .hose25  { stroke:#4ecb6f; stroke-width:12; fill:none; stroke-linecap:round; } /* green */
-    .hose5   { stroke:#6ecbff; stroke-width:16; fill:none; stroke-linecap:round; } /* LDH blue */
-    .branch  { stroke-width:8; }
-    .lbl{fill:#0b0f14; font-size:12px}
+    .hose175{stroke:#ff5d5d;stroke-width:10;fill:none;stroke-linecap:round}
+    .hose25{stroke:#4ecb6f;stroke-width:12;fill:none;stroke-linecap:round}
+    .hose5{stroke:#6ecbff;stroke-width:16;fill:none;stroke-linecap:round}
+    .branch{stroke-width:8}
+    .lbl{fill:#0b0f14;font-size:12px}
+    .linebtn[aria-pressed="true"]{outline:2px solid var(--accent,#6ecbff)}
   `);
 
   // ---------- refs ----------
@@ -336,7 +336,6 @@ export async function render(container){
   });
 
   let editorCtx = null; // { key, where }
-
   function openEditor(ctx){
     editorCtx = ctx;
     const L = state.lines[ctx.key];
@@ -402,13 +401,20 @@ export async function render(container){
     openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
   });
 
-  // ---------- LINE BUTTONS ----------
+  // ---------- LINE BUTTONS (robust wiring) ----------
+  // Ensure default labels exist
+  state.lines.left.label  = state.lines.left.label  || 'Line 1';
+  state.lines.back.label  = state.lines.back.label  || 'Line 2';
+  state.lines.right.label = state.lines.right.label || 'Line 3';
+
   container.querySelectorAll('.linebtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const key = btn.getAttribute('data-line');
-      const L = state.lines[key];
+      const L = state.lines?.[key];
       if(!L) return;
       L.visible = !L.visible;
+      // reflect pressed state for a11y and visual feedback
+      btn.setAttribute('aria-pressed', String(!!L.visible));
       drawAll();
     });
   });
@@ -428,25 +434,30 @@ export async function render(container){
     stage.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
+    // Clear layers
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
-    // Supply drawing & helper panel visibility (from waterSupply.js)
+    // Supply (delegated)
     waterSupply.draw(viewH);
     waterSupply.updatePanelsVisibility?.();
 
-    // Lines rendering
+    // Lines
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k]?.visible);
     visibleKeys.forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
       const mainFt = sumFt(L.itemsMain||[]);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
-      // Main path
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); base.setAttribute('class', (L.itemsMain?.[0]?.size==='1.75'?'hose175':(L.itemsMain?.[0]?.size==='5'?'hose5':'hose25'))); G_hoses.appendChild(base);
+      // Main path w/ size-based color
+      const mainSize = L.itemsMain?.[0]?.size || '2.5';
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', geom.d);
+      path.setAttribute('class', mainSize==='1.75'?'hose175':(mainSize==='5'?'hose5':'hose25'));
+      G_hoses.appendChild(path);
 
       addTip(key,'main',geom.endX,geom.endY);
 
-      // Label for main (flow & NP)
+      // Label (flow + NP)
       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? ((L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
@@ -457,21 +468,37 @@ export async function render(container){
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); pathL.setAttribute('class', (L.itemsLeft?.[0]?.size==='1.75'?'hose175 branch':(L.itemsLeft?.[0]?.size==='5'?'hose5 branch':'hose25 branch'))); G_branches.appendChild(pathL);
+          const pL = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pL.setAttribute('d', gL.d);
+          const sizeL = L.itemsLeft?.[0]?.size || mainSize;
+          pL.setAttribute('class', (sizeL==='1.75'?'hose175':(sizeL==='5'?'hose5':'hose25')) + ' branch');
+          G_branches.appendChild(pL);
           addTip(key,'L',gL.endX,gL.endY);
         } else addTip(key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); pathR.setAttribute('class', (L.itemsRight?.[0]?.size==='1.75'?'hose175 branch':(L.itemsRight?.[0]?.size==='5'?'hose5 branch':'hose25 branch'))); G_branches.appendChild(pathR);
+          const pR = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pR.setAttribute('d', gR.d);
+          const sizeR = L.itemsRight?.[0]?.size || mainSize;
+          pR.setAttribute('class', (sizeR==='1.75'?'hose175':(sizeR==='5'?'hose5':'hose25')) + ' branch');
+          G_branches.appendChild(pR);
           addTip(key,'R',gR.endX,gR.endY);
         } else addTip(key,'R',geom.endX+20,geom.endY-20);
       }
     });
 
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label || ({left:'Line 1',back:'Line 2',right:'Line 3'}[k])).join(' • ')) : 'No lines deployed';
+    topInfo.textContent = visibleKeys.length
+      ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label || ({left:'Line 1',back:'Line 2',right:'Line 3'}[k])).join(' • '))
+      : 'No lines deployed';
 
     refreshTotals();
+
+    // reflect button pressed states after any programmatic change
+    container.querySelectorAll('.linebtn').forEach(btn=>{
+      const key = btn.getAttribute('data-line');
+      btn.setAttribute('aria-pressed', String(!!state.lines[key]?.visible));
+    });
   }
 
   // ---------- TOTALS ----------
@@ -506,25 +533,8 @@ export async function render(container){
     PDPel.textContent = vis.length? (Math.round(maxPDP)+' psi') : '— psi';
   }
 
-  // ---------- LINE BUTTONS (toggle visibility) ----------
-  container.querySelectorAll('.linebtn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const key = btn.getAttribute('data-line');
-      const L = state.lines[key];
-      if(!L) return;
-      L.visible = !L.visible;
-      drawAll();
-    });
-  });
-
-  // ---------- SUPPLY cycle ----------
-  container.querySelector('#supplyBtn').addEventListener('click', ()=>{
-    if(state.supply==='pressurized') state.supply='static';
-    else if(state.supply==='static') state.supply='relay';
-    else state.supply='pressurized';
-    drawAll();
-  });
-
   // ---------- initial draw ----------
   drawAll();
 }
+
+export default { render };
