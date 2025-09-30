@@ -1,6 +1,6 @@
 // view.calc.js
-// Lines UI (drawing, presets, “+” tip editor, Why? math + mini graphics).
-// Water-supply graphics & helper panels are delegated to waterSupply.js.
+// Lines UI (drawing, presets, “+” editor, Why? math w/ graphic in the bottom box).
+// Water-supply visuals & helper panels are delegated to waterSupply.js.
 
 import {
   state, NOZ, NOZ_LIST,
@@ -12,24 +12,13 @@ import { WaterSupplyUI } from './waterSupply.js';
 const TRUCK_W = 390, TRUCK_H = 260;
 const PX_PER_50FT = 45, CURVE_PULL = 36, BRANCH_LIFT = 10;
 
-/* ========== helpers ========== */
+/* ---------------- helpers ---------------- */
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
 function supplySpace(){ return (state.supply==='drafting'||state.supply==='pressurized')?150:(state.supply==='relay'?170:0); }
 function truckTopY(viewH){ return viewH - TRUCK_H - supplySpace(); }
 function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
 function clsForSize(size){ return size==='1.75'?'hose175':(size==='5'?'hose5':'hose25'); }
-
-/* Size-based color tokens for mini math graphic */
-const SEG_COLOR = {
-  np:   '#88e1ff',
-  flm:  '#6fbf73',
-  flb:  '#a0d8a7',
-  elev: '#f6b26b',
-  wye:  '#d69efc',
-  total:'#cfe6ff',
-  frame:'#0f1723'
-};
 
 function computeNeededHeightPx(){
   const needs = Object.values(state.lines||{}).filter(l=>l.visible);
@@ -44,7 +33,7 @@ function computeNeededHeightPx(){
     }
     maxUp = Math.max(maxUp, mainPx + branchPx);
   });
-  return Math.max(TRUCK_H + supplySpace() + 10, TRUCK_H + maxUp + 60 + supplySpace());
+  return Math.max(TRUCK_H + supplySpace() + 10, TRUCK_H + maxUp + 40 + supplySpace());
 }
 
 function mainCurve(dir, totalPx, viewH){
@@ -82,11 +71,42 @@ function addLabel(G_labels, text, x, y){
   g.insertBefore(bg, t);
 }
 
-/* ========== Defaults (requested)
+/* mini math graphic — SVG string rendered inside the bottom math box */
+const SEG_COLOR = { np:'#88e1ff', flm:'#6fbf73', flb:'#a0d8a7', elev:'#f6b26b', wye:'#d69efc', total:'#cfe6ff', frame:'#0f1723' };
+function miniGraphicSVG(c){
+  const W = 180, H = 50, pad = 6, bh = 10;
+  const total = Math.max(1, c.PDP);
+  const parts = [];
+  if(c.NP)   parts.push({label:'NP',   v:c.NP,   col:SEG_COLOR.np});
+  if(c.FLm)  parts.push({label:'FLm',  v:c.FLm,  col:SEG_COLOR.flm});
+  if(c.FLb)  parts.push({label:'FLb',  v:c.FLb,  col:SEG_COLOR.flb});
+  if(c.WYE)  parts.push({label:'Wye',  v:c.WYE,  col:SEG_COLOR.wye});
+  if(c.ELEV) parts.push({label:'Elev', v:c.ELEV, col:SEG_COLOR.elev});
+  let cx = pad, bw = W - pad*2, ty = pad + 2;
+
+  const bars = parts.map(p=>{
+    const w = Math.max(2, Math.round((p.v/total) * bw));
+    const out = `<rect x="${cx}" y="${ty}" width="${w}" height="${bh}" fill="${p.col}"></rect>`;
+    cx += w + 1;
+    return out;
+  }).join('');
+
+  const legend = parts.map(p=>p.label).join(' • ');
+  return `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PDP breakdown">
+      <rect x="0" y="0" width="${W}" height="${H}" rx="6" ry="6" fill="${SEG_COLOR.frame}" stroke="#1f2b3a" opacity="0.96"></rect>
+      ${bars}
+      <text x="${W/2}" y="${H-12}" text-anchor="middle" fill="${SEG_COLOR.total}" font-size="12" font-weight="700">PDP ${Math.round(c.PDP)} psi</text>
+      <text x="${W/2}" y="${ty + bh + 14}" text-anchor="middle" fill="#b9cfe6" font-size="10">${legend}</text>
+    </svg>
+  `;
+}
+
+/* -------------- defaults (requested) --------------
    L1: 200′ of 1¾″, 185 GPM @ 50 psi
    L2: 200′ of 1¾″, 185 GPM @ 50 psi
    L3: 250′ of 2½″, 265 GPM @ 50 psi
-========== */
+--------------------------------------------------- */
 function findNozzle(targetGpm, targetNP){
   if(!NOZ_LIST?.length) return null;
   let best=null, err=Infinity;
@@ -96,16 +116,28 @@ function findNozzle(targetGpm, targetNP){
   }
   return best;
 }
+function ensureDefaultLineIfEmpty(key){
+  const L = state.lines[key]; if(!L) return;
+  const len = sumFt(L.itemsMain||[]);
+  if(len>0) return;
+  if(key==='left' || key==='back'){
+    L.itemsMain = [{ size:'1.75', lengthFt:200 }];
+    L.nozRight = L.nozRight || findNozzle(185,50) || NOZ.fog150_75 || NOZ.fog95_50 || NOZ_LIST?.[0];
+  } else if(key==='right'){
+    L.itemsMain = [{ size:'2.5', lengthFt:250 }];
+    L.nozRight = L.nozRight || findNozzle(265,50) || NOZ.sb1_1_8 || NOZ_LIST?.[0];
+  }
+}
 
+/* -------------------- render -------------------- */
 export async function render(container){
-  /* ---------- DOM ---------- */
   container.innerHTML = `
     <section class="stack">
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
             <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
-            <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="mathg"></g><g id="supplyG"></g>
+            <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
           <!-- Tip editor -->
@@ -155,7 +187,7 @@ export async function render(container){
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn" type="button">Why?</button></div>
         </div>
 
-        <!-- Panels (markup only; logic is in waterSupply.js) -->
+        <!-- Hydrant / Static helper panels (logic in waterSupply.js) -->
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">0–10% → 3× • 11–15% → 2× • 16–25% → 1× • &gt;25% → 0×</div>
@@ -211,7 +243,7 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  /* ---------- styles ---------- */
+  /* ---------------- styles ---------------- */
   injectStyle(container, `
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1a2738;color:#fff;border:1px solid rgba(255,255,255,.2);font-weight:800}
     .sheet.open{transform:translateY(0)}
@@ -230,21 +262,21 @@ export async function render(container){
 
     .linesTable{margin-top:10px}
     .ppRow{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px;margin:8px 0;background:#0f1723;color:#dfe9ff}
-    .ppRow .hdr{font-weight:800;margin-bottom:6px}
+    .ppRow .hdr{font-weight:800;margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap}
     .ppRow .tiny{opacity:.9}
     .ppRow details{margin-top:6px}
     .flash{animation:hl 1.2s ease 1}
     @keyframes hl{0%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}40%{box-shadow:0 0 0 3px rgba(110,203,255,.35)}100%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}}
+    .ppBadge{display:inline-flex;align-items:center;gap:6px}
   `);
 
-  /* ---------- refs ---------- */
+  /* ---------------- refs ---------------- */
   const overlay   = container.querySelector('#overlay');
   const stage     = container.querySelector('#stage');
   const G_hoses   = container.querySelector('#hoses');
   const G_branches= container.querySelector('#branches');
   const G_labels  = container.querySelector('#labels');
   const G_tips    = container.querySelector('#tips');
-  const G_math    = container.querySelector('#mathg');
   const G_supply  = container.querySelector('#supplyG');
   const truckImg  = container.querySelector('#truckImg');
   const topInfo   = container.querySelector('#topInfo');
@@ -253,7 +285,7 @@ export async function render(container){
   const linesTable= container.querySelector('#linesTable');
   const whyBtn    = container.querySelector('#whyBtn');
 
-  /* ---------- image fallback ---------- */
+  /* ------------- truck image fallback ------------- */
   (function fixTruckImageNS(){
     const XLINK = 'http://www.w3.org/1999/xlink';
     const url = truckImg.getAttribute('href') || truckImg.getAttribute('xlink:href') || '/assets/images/engine181.png';
@@ -266,7 +298,7 @@ export async function render(container){
     }, { once:true });
   })();
 
-  /* ---------- defaults (only if not already set) ---------- */
+  /* ------------- defaults (only if not set) ------------- */
   if(!state.lines){
     const noz185_50 = findNozzle(185,50) || NOZ.fog150_75 || NOZ.fog95_50 || NOZ_LIST?.[0];
     const noz265_50 = findNozzle(265,50) || NOZ.sb1_1_8 || NOZ_LIST?.[0];
@@ -278,10 +310,10 @@ export async function render(container){
   }
   if(!state.supply) state.supply = 'pressurized';
 
-  /* ---------- water-supply (delegated) ---------- */
+  /* ------------- water-supply (delegated) ------------- */
   const waterSupply = new WaterSupplyUI({ container, state, pumpXY, truckTopY, G_supply, TRUCK_H });
 
-  /* ---------- PRESETS ---------- */
+  /* ---------------- PRESETS ---------------- */
   const sheet = container.querySelector('#sheet');
   const sheetBackdrop = container.querySelector('#sheetBackdrop');
   const presetsBtn = container.querySelector('#presetsBtn');
@@ -338,7 +370,7 @@ export async function render(container){
     drawAll();
   }
 
-  /* ---------- TIP “+” EDITOR ---------- */
+  /* ---------------- TIP “+” EDITOR ---------------- */
   const tipEditor = container.querySelector('#tipEditor');
   const teTitle = container.querySelector('#teTitle');
   const teWhere = container.querySelector('#teWhere');
@@ -415,13 +447,7 @@ export async function render(container){
     drawAll();
   });
 
-  /* ---------- tip “+” click ---------- */
-  G_tips.addEventListener('click', (e)=>{
-    const g = e.target.closest('.hose-end'); if(!g) return;
-    openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
-  });
-
-  /* ---------- line buttons ---------- */
+  /* ---------------- line buttons ---------------- */
   const lineBtns = Array.from(container.querySelectorAll('.linebtn'));
   function syncLineButtons(){
     lineBtns.forEach(btn=>{
@@ -434,13 +460,15 @@ export async function render(container){
       const key = btn.getAttribute('data-line');
       const L = state.lines[key];
       if(!L) return;
-      L.visible = !L.visible;
+      const willShow = !L.visible;
+      L.visible = willShow;
+      if(willShow){ ensureDefaultLineIfEmpty(key); }
       syncLineButtons();
       drawAll();
     });
   });
 
-  /* ---------- supply cycle ---------- */
+  /* ---------------- supply cycle ---------------- */
   container.querySelector('#supplyBtn').addEventListener('click', ()=>{
     if(state.supply==='pressurized') state.supply='static';
     else if(state.supply==='static') state.supply='relay';
@@ -448,7 +476,7 @@ export async function render(container){
     drawAll();
   });
 
-  /* ---------- totals & WHY panel (legacy math) ---------- */
+  /* ---------------- math core ---------------- */
   function calcLine(L){
     const single = isSingleWye(L);
     const flow = single ? (activeNozzle(L)?.gpm||0)
@@ -468,7 +496,7 @@ export async function render(container){
       const lNeed = (L.nozLeft?.NP||0) + FL_total(L.nozLeft?.gpm||0, L.itemsLeft||[]);
       const rNeed = (L.nozRight?.NP||0) + FL_total(L.nozRight?.gpm||0, L.itemsRight||[]);
       WYE = (L.wyeLoss||10);
-      NP = Math.max(lNeed, rNeed); // treat controlling side total as “NP” component in stack
+      NP = Math.max(lNeed, rNeed); // controlling side requirement
       PDP = NP + mainFL + WYE + ELEV;
     } else {
       NP = (L.nozRight?.NP||0);
@@ -499,8 +527,8 @@ export async function render(container){
     keys.forEach(k=>{
       const L = state.lines[k];
       const c = calcLine(L);
-      const rows = [];
 
+      const rows = [];
       if(L.hasWye){
         const lFlow=L.nozLeft?.gpm||0, rFlow=L.nozRight?.gpm||0;
         const lNeed = (L.nozLeft?.NP||0) + FL_total(lFlow, L.itemsLeft||[]);
@@ -513,8 +541,8 @@ export async function render(container){
         rows.push(`Elevation (${(L.elevFt||0)}′) = <b>${Math.round(c.ELEV)}</b> psi`);
         rows.push(`<i>Controlling side:</i> <b>${controlling}</b>`);
       } else if(isSingleWye(L)){
-        const side = activeSide(L);
         const bnNoz  = activeNozzle(L);
+        const side = activeSide(L);
         rows.push(`Nozzle (${bnNoz?.name||'—'}) NP = <b>${bnNoz?.NP||0}</b> psi`);
         rows.push(`Branch FL (${bnNoz?.gpm||0} gpm) = <b>${Math.round(c.FLb)}</b> psi`);
         rows.push(`Main FL (${c.flow} gpm) = <b>${Math.round(c.FLm)}</b> psi`);
@@ -526,9 +554,15 @@ export async function render(container){
         rows.push(`Elevation (${(L.elevFt||0)}′) = <b>${Math.round(c.ELEV)}</b> psi`);
       }
 
+      // include the mini graphic INSIDE the header of the row
+      const badge = `<span class="ppBadge">${miniGraphicSVG(c)}</span>`;
+
       html += `
         <div class="ppRow" id="pp_simple_${k}">
-          <div class="hdr">${L.label} — PDP <b>${Math.round(c.PDP)}</b> psi</div>
+          <div class="hdr">
+            <span>${L.label} — PDP <b>${Math.round(c.PDP)}</b> psi</span>
+            ${badge}
+          </div>
           <div class="tiny">Length: ${sumFt(L.itemsMain||[])}′${L.hasWye? ' • Wye' : ''}${L.elevFt? ' • Elev '+L.elevFt+'′' : ''}</div>
           <details><summary>Show math</summary><ul>${rows.map(r=>`<li>${r}</li>`).join('')}</ul></details>
         </div>`;
@@ -538,74 +572,14 @@ export async function render(container){
     linesTable.classList.remove('is-hidden');
   }
 
-  /* ---------- mini math graphics near line ends ---------- */
-  function drawMathGraphic(gRoot, x, y, c){
-    const ns='http://www.w3.org/2000/svg';
-    const W = 118, H = 44, pad = 6; // compact badge
-    const g = document.createElementNS(ns,'g');
-    g.setAttribute('transform', `translate(${x - W/2}, ${y + 10})`);
-
-    // frame
-    const frame = document.createElementNS(ns,'rect');
-    frame.setAttribute('x','0'); frame.setAttribute('y','0');
-    frame.setAttribute('rx','6'); frame.setAttribute('ry','6');
-    frame.setAttribute('width', String(W)); frame.setAttribute('height', String(H));
-    frame.setAttribute('fill', SEG_COLOR.frame); frame.setAttribute('stroke', '#1f2b3a'); frame.setAttribute('opacity','0.96');
-    g.appendChild(frame);
-
-    // stacked bars (horizontal)
-    const total = Math.max(1, c.PDP);
-    const parts = [];
-    if(c.NP)   parts.push({k:'NP',   v:c.NP,   col:SEG_COLOR.np});
-    if(c.FLm)  parts.push({k:'FLm',  v:c.FLm,  col:SEG_COLOR.flm});
-    if(c.FLb)  parts.push({k:'FLb',  v:c.FLb,  col:SEG_COLOR.flb});
-    if(c.WYE)  parts.push({k:'Wye',  v:c.WYE,  col:SEG_COLOR.wye});
-    if(c.ELEV) parts.push({k:'Elev', v:c.ELEV, col:SEG_COLOR.elev});
-
-    let cx = pad, bw = W - pad*2, bh = 10, ty = pad+2;
-    parts.forEach(p=>{
-      const w = Math.max(2, Math.round((p.v/total) * bw));
-      const r = document.createElementNS(ns,'rect');
-      r.setAttribute('x', String(cx)); r.setAttribute('y', String(ty));
-      r.setAttribute('width', String(w)); r.setAttribute('height', String(bh));
-      r.setAttribute('fill', p.col);
-      g.appendChild(r);
-      cx += w + 1;
-    });
-
-    // total label
-    const t = document.createElementNS(ns,'text');
-    t.setAttribute('x', String(W/2)); t.setAttribute('y', String(H - 10));
-    t.setAttribute('text-anchor','middle'); t.setAttribute('fill', SEG_COLOR.total);
-    t.setAttribute('font-size','11'); t.setAttribute('font-weight','700');
-    t.textContent = `PDP ${Math.round(c.PDP)} psi`;
-    g.appendChild(t);
-
-    // legend (tiny) – NP/FL/Elev/Wye shorthand
-    const leg = document.createElementNS(ns,'text');
-    leg.setAttribute('x', String(W/2)); leg.setAttribute('y', String(ty + bh + 12));
-    leg.setAttribute('text-anchor','middle'); leg.setAttribute('fill', '#b9cfe6');
-    leg.setAttribute('font-size','9');
-    const labels = [];
-    if(c.NP) labels.push('NP');
-    if(c.FLm) labels.push('FLm');
-    if(c.FLb) labels.push('FLb');
-    if(c.WYE) labels.push('Wye');
-    if(c.ELEV) labels.push('Elev');
-    leg.textContent = labels.join(' • ');
-    g.appendChild(leg);
-
-    gRoot.appendChild(g);
-  }
-
-  /* ---------- draw ---------- */
+  /* ---------------- drawing ---------------- */
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
     overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stage.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_math); clearGroup(G_supply);
+    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     // Water supply (delegated)
     waterSupply.draw(viewH);
@@ -615,6 +589,9 @@ export async function render(container){
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k]?.visible);
     visibleKeys.forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
+      // Guarantee defaults if the user just turned the line on and it is empty
+      ensureDefaultLineIfEmpty(key);
+
       const mainFt = sumFt(L.itemsMain||[]);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
@@ -626,14 +603,12 @@ export async function render(container){
 
       addTip(G_tips, key, 'main', geom.endX, geom.endY);
 
-      // label shows LENGTH and flow/NP
       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? ((L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
       const npText  = usedNoz ? `NP ${usedNoz.NP}` : (L.hasWye ? 'Wye' : `NP ${L.nozRight?.NP||0}`);
       addLabel(G_labels, `${mainFt}′ @ ${flowGpm} gpm — ${npText}`, geom.endX, Math.max(12, geom.endY-8));
 
-      // branches (if any)
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
@@ -655,12 +630,6 @@ export async function render(container){
           addTip(G_tips, key, 'R', gR.endX, gR.endY);
         } else addTip(G_tips, key, 'R', geom.endX+20, geom.endY-20);
       }
-
-      // mini graphic if Why? is on
-      if(state.showMath){
-        const c = calcLine(L);
-        drawMathGraphic(G_math, geom.endX, geom.endY, c);
-      }
     });
 
     topInfo.textContent = visibleKeys.length
@@ -670,31 +639,10 @@ export async function render(container){
     refreshTotals();
     if(state.showMath) renderLinesPanel(); else linesTable.classList.add('is-hidden');
 
-    // keep button latch in sync
     syncLineButtons();
   }
 
-  /* ---------- Why? button ---------- */
+  /* ---------------- Why? button ---------------- */
   whyBtn.addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines||{}).some(l=>l.visible);
-    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
-    state.showMath = !state.showMath;   // toggle graphics/table
-    drawAll();
-    if(state.showMath && state.lastMaxKey){
-      const target = container.querySelector(`#pp_simple_${state.lastMaxKey}`);
-      if(target){
-        target.scrollIntoView({behavior:'smooth', block:'center'});
-        target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
-        const details = target.querySelector('details'); if(details && !details.open) details.open = true;
-      }
-    }
-  });
-
-  // initial draw (ensure L1/L2 on by default)
-  state.lines.left.visible = (state.lines.left.visible!==false);
-  state.lines.back.visible = (state.lines.back.visible!==false);
-  syncLineButtons();
-  drawAll();
-}
-
-export default { render };
+    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.');
