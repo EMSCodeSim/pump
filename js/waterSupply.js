@@ -1,13 +1,13 @@
 // waterSupply.js
 // Encapsulates: supply graphics (hydrant/static/relay), hydrant %drop panel,
 // tender shuttle (static supply) with compact phone layout,
-// and supply visibility + live updates.
+// and supply visibility + live updates (without re-rendering buttons while running).
 
 // Public API:
 //   const ws = new WaterSupplyUI(opts)
 //   ws.draw(viewHeight)                     // draw supply graphic under truck
 //   ws.updatePanelsVisibility()             // show/hide hydrant/static panels
-//   ws.getShuttleTotalGpm() : number        // current shuttle GPM total
+//   ws.getShuttleTotalGpm() : number        // current shuttle GPM total (completed trips only)
 //   ws.destroy()                            // cleanup intervals and listeners
 
 export class WaterSupplyUI {
@@ -44,23 +44,37 @@ export class WaterSupplyUI {
     this.shuttleTotalGpm = this.container.querySelector('#shuttleTotalGpm');
 
     // Local tender state
+    // sec = accumulated seconds for round trips already completed (i.e., after Stop)
+    // running/startTs handle the active timing session
     this.tenders = []; // { id, cap, eff, sec, running, startTs }
 
     // Wire up interactions if panels exist
     this.#wireHydrant();
     this.#wireTender();
 
-    // Live tick for shuttle timers
+    // Live tick for timers: update only the timer text + total (no full table re-render)
     this._tick = setInterval(() => {
-      if(!this.staticHelper) return;
-      if(this.staticHelper.style.display === 'none') return;
-      if(this.tenders.some(t => t.running)) this.#renderTenderTable();
+      if(!this.staticHelper || this.staticHelper.style.display === 'none') return;
+      if (!this.tenders.some(t => t.running)) return;
+
+      // Update visible timer cells in place (smoother; buttons stay tappable)
+      for (let i = 0; i < this.tenders.length; i++) {
+        const t = this.tenders[i];
+        const cell = this.tenderList?.querySelector(`#tTimer_${i}`);
+        if (!cell) continue;
+        const dispSec = t.running ? (t.sec + this.#runningDelta(t)) : t.sec;
+        cell.textContent = this.#fmtTime(dispSec);
+      }
+
+      // Update total using only completed (stopped) trips
+      if (this.shuttleTotalGpm) {
+        this.shuttleTotalGpm.textContent = this.getShuttleTotalGpm();
+      }
     }, 500);
   }
 
   destroy(){
     clearInterval(this._tick);
-    // remove any listeners if you added external ones (none left attached here)
   }
 
   // ==== Public: panels visibility ==================================================
@@ -145,9 +159,10 @@ export class WaterSupplyUI {
     }
   }
 
-  // ==== Public: read total shuttle gpm =============================================
+  // ==== Public: total shuttle gpm (completed trips only) ===========================
   getShuttleTotalGpm(){
-    const total = this.tenders.reduce((a,t)=> a + this.#gpmForTender(t), 0);
+    // Only include tenders that are NOT running and have >0 sec recorded
+    const total = this.tenders.reduce((a,t)=> a + (t.running || t.sec<=0 ? 0 : this.#gpmForTenderStopped(t)), 0);
     return Math.round(total * 10) / 10;
   }
 
@@ -196,9 +211,15 @@ export class WaterSupplyUI {
         const act = actEl.getAttribute('data-act');
 
         if(act === 'startstop'){
-          if(t.running){ t.sec += this.#runningDelta(t); t.running=false; t.startTs=0; }
-          else { t.running=true; t.startTs=Date.now(); }
-          this.#renderTenderTable();
+          if(t.running){
+            // STOP: fold running delta into sec; mark not running
+            t.sec += this.#runningDelta(t);
+            t.running=false; t.startTs=0;
+          } else {
+            // START: begin timing
+            t.running=true; t.startTs=Date.now();
+          }
+          this.#renderTenderTable(); // re-render once when state toggles
 
         } else if(act === 'reset'){
           t.running=false; t.startTs=0; t.sec=0; this.#renderTenderTable();
@@ -216,7 +237,7 @@ export class WaterSupplyUI {
       });
     }
 
-    // first render (empty)
+    // initial render (empty table message)
     this.#renderTenderTable();
   }
 
@@ -229,20 +250,31 @@ export class WaterSupplyUI {
       return;
     }
 
+    // Build rows; while a timer is running we will NOT re-render each tick,
+    // we only update the timer text node. That keeps the Start/Stop buttons
+    // stationary and easy to tap (esp. on the second/third rows).
     let rows = '';
     for(let i=0;i<this.tenders.length;i++){
       const t = this.tenders[i];
       const dispSec = t.running ? (t.sec + this.#runningDelta(t)) : t.sec;
+
+      // GPM display rule: only show GPM after a completed round trip (not running, sec>0)
+      const gpmCellText = (!t.running && t.sec > 0)
+        ? this.#fmt1(this.#gpmForTenderStopped(t))
+        : '—';
+
       rows += '<tr data-i="'+i+'">'
             + '<td><button class="tInfoBtn" data-act="info" title="Show details for '+this.#esc(t.id)+'">'
             + '<span class="tBadge">'+this.#esc(t.id)+'</span>'
             + '</button></td>'
-            + '<td class="tTimer">'+this.#fmtTime(dispSec)+'</td>'
-            + '<td><b>'+this.#fmt1(this.#gpmForTender(t))+'</b></td>'
-            + '<td><div style="display:flex; gap:6px; flex-wrap:wrap">'
-            + '<button class="btn btnIcon" data-act="startstop">'+(t.running?'Stop':'Start')+'</button>'
-            + '<button class="btn" data-act="reset">Reset</button>'
-            + '<button class="btn" data-act="del">Delete</button>'
+            + '<td class="tTimer"><span id="tTimer_'+i+'">'+this.#fmtTime(dispSec)+'</span></td>'
+            + '<td><b id="tGpm_'+i+'">'+gpmCellText+'</b></td>'
+            + '<td><div class="tCtrlWrap">'
+            +   '<button class="btn btnIcon tStartStop" data-act="startstop" title="'+(t.running?'Stop':'Start')+'">'
+            +     (t.running?'Stop':'Start')
+            +   '</button>'
+            +   '<button class="btn tReset" data-act="reset" title="Reset timer">Reset</button>'
+            +   '<button class="btn tDelete" data-act="del" title="Remove tender">Delete</button>'
             + '</div></td>'
             + '</tr>';
     }
@@ -252,13 +284,33 @@ export class WaterSupplyUI {
       + '<thead><tr><th>Tender</th><th>Round Trip</th><th>GPM</th><th>Controls</th></tr></thead>'
       + '<tbody>'+rows+'</tbody></table>';
 
-    // update total readout
+    // Update total (completed trips only)
     if(this.shuttleTotalGpm) this.shuttleTotalGpm.textContent = this.getShuttleTotalGpm();
 
-    // ensure styles for the little info button are in the page
-    if(!document.getElementById('tInfoBtnStyle')){
-      const s=document.createElement('style'); s.id='tInfoBtnStyle';
-      s.textContent = '.tInfoBtn{background:none;border:none;padding:0;margin:0;cursor:pointer;} .tInfoBtn:focus-visible{outline:2px solid var(--accent,#6ecbff);border-radius:8px;}';
+    // Ensure styles that improve tap targets / layout are present once
+    if(!document.getElementById('tenderShuttleStyle')){
+      const s=document.createElement('style'); s.id='tenderShuttleStyle';
+      s.textContent = `
+        .tTable { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; }
+        .tTable thead th { background:#162130; color:#fff; padding:10px; text-align:left; border-bottom:1px solid rgba(255,255,255,.1); }
+        .tTable tbody td { padding:10px; vertical-align:middle; }
+        .tTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
+        .tTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
+
+        .tBadge { background:#0e151e; border:1px solid rgba(255,255,255,.15); padding:4px 10px; border-radius:999px; font-weight:700; }
+        .tTimer { font-family: ui-monospace, Menlo, Consolas, monospace; min-width:86px; display:inline-block; text-align:left; }
+
+        /* Larger, easier tap targets */
+        .tCtrlWrap { display:flex; gap:8px; flex-wrap:wrap; }
+        .btnIcon, .tStartStop, .tReset, .tDelete {
+          min-width: 64px;
+          min-height: 36px;
+          padding: 8px 12px;
+        }
+        .tStartStop { font-weight:800; }
+        /* Prevent layout shift while running by keeping cells stable */
+        #tenderList b { display:inline-block; min-width: 40px; text-align:right; }
+      `;
       document.head.appendChild(s);
     }
   }
@@ -269,13 +321,16 @@ export class WaterSupplyUI {
     sec = Math.max(0, Math.floor(sec||0));
     const m = Math.floor(sec/60), s = sec%60;
     return m+'m '+(s<10?'0':'')+s+'s';
-    }
-  #gpmForTender(t){
-    const seconds = t.running ? (t.sec + this.#runningDelta(t)) : t.sec;
+  }
+
+  // While running we DO NOT compute/display GPM; only after Stop (completed trip)
+  #gpmForTenderStopped(t){
+    const seconds = t.sec; // completed trip time only
     if(seconds <= 0) return 0;
     const minutes = seconds / 60;
     return t.eff / minutes; // gal/min
   }
+
   #fmt1(n){ return Math.round(n*10)/10; }
   #esc(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 }
