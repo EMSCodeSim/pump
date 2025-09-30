@@ -97,7 +97,7 @@ function findNozzle(targetGpm, targetNP){
   return best;
 }
 
-/* Compact inline SVG for math graphic returned as a string (to embed in panel) */
+/* Inline SVG for math graphic, returned as string for insertion into math panel */
 function mathGraphicSVG(calc){
   const W = 118, H = 44, pad = 6, bw = W - pad*2, bh = 10;
   const total = Math.max(1, calc.PDP);
@@ -119,14 +119,14 @@ function mathGraphicSVG(calc){
     calc.NP?'NP':null, calc.FLm?'FLm':null, calc.FLb?'FLb':null, calc.WYE?'Wye':null, calc.ELEV?'Elev':null
   ].filter(Boolean).join(' • ');
 
-  return `
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-left:8px;">
+  return (
+    `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="vertical-align:middle;margin-left:8px;">
       <rect x="0" y="0" width="${W}" height="${H}" rx="6" ry="6" fill="${SEG_COLOR.frame}" stroke="${SEG_COLOR.stroke}" opacity="0.96"></rect>
       ${bars}
       <text x="${W/2}" y="${H-10}" fill="${SEG_COLOR.total}" font-size="11" font-weight="700" text-anchor="middle">PDP ${Math.round(calc.PDP)} psi</text>
       <text x="${W/2}" y="${pad+2+bh+12}" fill="#b9cfe6" font-size="9" text-anchor="middle">${labels}</text>
-    </svg>
-  `;
+    </svg>`
+  );
 }
 
 /* Main render */
@@ -242,7 +242,7 @@ export async function render(container){
       <div class="te-actions"><button class="btn primary" id="sheetApply" type="button" disabled>Apply Preset</button></div>
     </div>
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
-  `;
+  `; // <-- make sure this closing backtick stays intact
 
   /* ---------- styles ---------- */
   injectStyle(container, `
@@ -286,7 +286,7 @@ export async function render(container){
   const whyBtn    = container.querySelector('#whyBtn');
 
   /* ---------- image fallback ---------- */
-  (function fixTruckImageNS(){
+  ;(function fixTruckImageNS(){
     const XLINK = 'http://www.w3.org/1999/xlink';
     const url = truckImg.getAttribute('href') || truckImg.getAttribute('xlink:href') || '/assets/images/engine181.png';
     truckImg.setAttribute('href', url);
@@ -585,7 +585,7 @@ export async function render(container){
 
     // Supply (delegated)
     waterSupply.draw(viewH);
-    waterSupply.updatePanelsVisibility?.();
+    if (typeof waterSupply.updatePanelsVisibility === 'function') { waterSupply.updatePanelsVisibility(); }
 
     // Lines
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k]?.visible);
@@ -647,7 +647,7 @@ export async function render(container){
   whyBtn.addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines||{}).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
-    state.showMath = !state.showMath;   // toggles panel (graphics are inside panel now)
+    state.showMath = !state.showMath;   // toggles math panel (graphics are inside panel)
     drawAll();
     if(state.showMath && state.lastMaxKey){
       const target = container.querySelector(`#pp_simple_${state.lastMaxKey}`);
@@ -667,3 +667,4 @@ export async function render(container){
 }
 
 export default { render };
+// EOF
