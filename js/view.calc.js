@@ -1,5 +1,5 @@
 // view.calc.js
-// Lines UI (drawing, presets, tip “+” editor, Why? math).
+// Lines UI (drawing, presets, “+” tip editor, Why? math).
 // Water-supply graphics & helper panels are delegated to waterSupply.js.
 
 import {
@@ -12,7 +12,7 @@ import { WaterSupplyUI } from './waterSupply.js';
 const TRUCK_W = 390, TRUCK_H = 260;
 const PX_PER_50FT = 45, CURVE_PULL = 36, BRANCH_LIFT = 10;
 
-/* ---- helpers ---- */
+/* ========== small helpers ========== */
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
 function supplySpace(){ return (state.supply==='drafting'||state.supply==='pressurized')?150:(state.supply==='relay'?170:0); }
@@ -71,11 +71,11 @@ function addLabel(G_labels, text, x, y){
   g.insertBefore(bg, t);
 }
 
-/* ---- defaults requested ----
-  Line 1: 200′ of 1¾″, 185 GPM @ 50 psi
-  Line 2: 200′ of 1¾″, 185 GPM @ 50 psi
-  Line 3: 250′ of 2½″, 265 GPM @ 50 psi
-*/
+/* ========== Defaults (requested)
+   L1: 200′ of 1¾″, 185 GPM @ 50 psi
+   L2: 200′ of 1¾″, 185 GPM @ 50 psi
+   L3: 250′ of 2½″, 265 GPM @ 50 psi
+========== */
 function findNozzle(targetGpm, targetNP){
   if(!NOZ_LIST?.length) return null;
   let best=null, err=Infinity;
@@ -87,6 +87,7 @@ function findNozzle(targetGpm, targetNP){
 }
 
 export async function render(container){
+  /* ---------- DOM ---------- */
   container.innerHTML = `
     <section class="stack">
       <section class="wrapper card">
@@ -143,7 +144,7 @@ export async function render(container){
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn" type="button">Why?</button></div>
         </div>
 
-        <!-- Hydrant / Static helper panels: markup only; logic inside waterSupply.js -->
+        <!-- Panels (markup only; logic is in waterSupply.js) -->
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">0–10% → 3× • 11–15% → 2× • 16–25% → 1× • &gt;25% → 0×</div>
@@ -199,13 +200,13 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  /* ---- styles (deployed look + color coding) ---- */
+  /* ---------- styles ---------- */
   injectStyle(container, `
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1a2738;color:#fff;border:1px solid rgba(255,255,255,.2);font-weight:800}
     .sheet.open{transform:translateY(0)}
     #presetGrid .preset.selected, #linePick .preset.selected{outline:2px solid var(--accent,#6ecbff);border-radius:10px}
 
-    /* Hose colors requested: red=1¾, blue=2½, yellow=5 */
+    /* Hose colors: red=1¾, blue=2½, yellow=5 */
     .hose175{stroke:#ff4545;stroke-width:10;fill:none;stroke-linecap:round}
     .hose25{stroke:#2e6cff;stroke-width:12;fill:none;stroke-linecap:round}
     .hose5{stroke:#ffd23a;stroke-width:16;fill:none;stroke-linecap:round}
@@ -225,7 +226,7 @@ export async function render(container){
     @keyframes hl{0%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}40%{box-shadow:0 0 0 3px rgba(110,203,255,.35)}100%{box-shadow:0 0 0 0 rgba(110,203,255,.0)}}
   `);
 
-  /* ---- refs ---- */
+  /* ---------- refs ---------- */
   const overlay   = container.querySelector('#overlay');
   const stage     = container.querySelector('#stage');
   const G_hoses   = container.querySelector('#hoses');
@@ -240,7 +241,7 @@ export async function render(container){
   const linesTable= container.querySelector('#linesTable');
   const whyBtn    = container.querySelector('#whyBtn');
 
-  /* ---- image fallback ---- */
+  /* ---------- image fallback ---------- */
   (function fixTruckImageNS(){
     const XLINK = 'http://www.w3.org/1999/xlink';
     const url = truckImg.getAttribute('href') || truckImg.getAttribute('xlink:href') || '/assets/images/engine181.png';
@@ -253,9 +254,9 @@ export async function render(container){
     }, { once:true });
   })();
 
-  /* ---- defaults (only if not already set) ---- */
+  /* ---------- defaults (only if not already set) ---------- */
   if(!state.lines){
-    const noz185_50 = findNozzle(185,50) || NOZ.fog95_50 || NOZ.fog150_75 || NOZ_LIST?.[0];
+    const noz185_50 = findNozzle(185,50) || NOZ.fog150_75 || NOZ.fog95_50 || NOZ_LIST?.[0];
     const noz265_50 = findNozzle(265,50) || NOZ.sb1_1_8 || NOZ_LIST?.[0];
     state.lines = {
       left:  { label:'Line 1', visible:true,  itemsMain:[{size:'1.75', lengthFt:200}], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:noz185_50 },
@@ -265,10 +266,10 @@ export async function render(container){
   }
   if(!state.supply) state.supply = 'pressurized';
 
-  /* ---- water-supply (delegated) ---- */
+  /* ---------- water-supply (delegated) ---------- */
   const waterSupply = new WaterSupplyUI({ container, state, pumpXY, truckTopY, G_supply, TRUCK_H });
 
-  /* ---- presets ---- */
+  /* ---------- PRESETS ---------- */
   const sheet = container.querySelector('#sheet');
   const sheetBackdrop = container.querySelector('#sheetBackdrop');
   const presetsBtn = container.querySelector('#presetsBtn');
@@ -325,7 +326,7 @@ export async function render(container){
     drawAll();
   }
 
-  /* ---- tip “+” editor ---- */
+  /* ---------- TIP “+” EDITOR ---------- */
   const tipEditor = container.querySelector('#tipEditor');
   const teTitle = container.querySelector('#teTitle');
   const teWhere = container.querySelector('#teWhere');
@@ -402,13 +403,13 @@ export async function render(container){
     drawAll();
   });
 
-  /* open editor from tip “+” */
+  /* ---------- tip “+” click ---------- */
   G_tips.addEventListener('click', (e)=>{
     const g = e.target.closest('.hose-end'); if(!g) return;
     openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
   });
 
-  /* ---- line buttons (toggle visibility + deployed look) ---- */
+  /* ---------- line buttons ---------- */
   const lineBtns = Array.from(container.querySelectorAll('.linebtn'));
   function syncLineButtons(){
     lineBtns.forEach(btn=>{
@@ -427,7 +428,7 @@ export async function render(container){
     });
   });
 
-  /* ---- supply cycle ---- */
+  /* ---------- supply cycle ---------- */
   container.querySelector('#supplyBtn').addEventListener('click', ()=>{
     if(state.supply==='pressurized') state.supply='static';
     else if(state.supply==='static') state.supply='relay';
@@ -435,7 +436,7 @@ export async function render(container){
     drawAll();
   });
 
-  /* ---- math & totals (keeps legacy logic) ---- */
+  /* ---------- totals & WHY panel (same math as previous) ---------- */
   function refreshTotals(){
     const vis = Object.entries(state.lines||{}).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
@@ -522,7 +523,7 @@ export async function render(container){
     linesTable.classList.remove('is-hidden');
   }
 
-  /* ---- draw everything ---- */
+  /* ---------- draw ---------- */
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
     overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
@@ -590,7 +591,7 @@ export async function render(container){
     syncLineButtons();
   }
 
-  /* ---- Why? button ---- */
+  /* ---------- Why? button ---------- */
   whyBtn.addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines||{}).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
@@ -604,7 +605,7 @@ export async function render(container){
     }
   });
 
-  // initial draw
+  // initial draw (ensure L1/L2 are on by default)
   state.lines.left.visible = (state.lines.left.visible!==false);
   state.lines.back.visible = (state.lines.back.visible!==false);
   syncLineButtons();
