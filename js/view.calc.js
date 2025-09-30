@@ -1,6 +1,6 @@
 // view.calc.js
 // Main calc & UI (lines, presets, drawing, tip “+” editor).
-// Water supply (graphics + helper panels) is delegated to waterSupply.js (already working).
+// Water-supply graphics & helper panels are delegated to waterSupply.js.
 
 import {
   state, NOZ, NOZ_LIST,
@@ -9,8 +9,7 @@ import {
 } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 
-const TRUCK_W = 390, TRUCK_H = 260;
-const PX_PER_50FT = 45, CURVE_PULL = 36, BRANCH_LIFT = 10;
+const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
 
 export async function render(container){
   // ---------- DOM ----------
@@ -23,12 +22,13 @@ export async function render(container){
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
-          <!-- Tip editor -->
+          <!-- Inline tip editor -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
                style="position:absolute; z-index:4; left:8px; top:8px; max-width:320px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
             <div class="te-row"><label>Line</label><input id="teWhere" readonly></div>
-            <div class="te-row"><label>Diameter</label>
+            <div class="te-row">
+              <label>Diameter</label>
               <select id="teSize">
                 <option value="1.75">1¾″</option>
                 <option value="2.5">2½″</option>
@@ -37,7 +37,8 @@ export async function render(container){
             </div>
             <div class="te-row"><label>Main Length (ft)</label><input type="number" id="teLen" min="0" step="25"></div>
             <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5"></div>
-            <div class="te-row"><label>Wye</label>
+            <div class="te-row">
+              <label>Wye</label>
               <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
             </div>
             <div id="branchBlock" class="is-hidden">
@@ -121,7 +122,7 @@ export async function render(container){
       </section>
     </section>
 
-    <!-- Preset bottom sheet -->
+    <!-- Presets -->
     <div id="sheet" class="sheet" aria-modal="true" role="dialog">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="title">Presets</div>
@@ -148,18 +149,20 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ---------- styles ----------
+  // ---------- styles (restore deployed look + color coding) ----------
   injectStyle(container, `
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#1a2738;color:#fff;border:1px solid rgba(255,255,255,.2);font-weight:800}
     .sheet.open{transform:translateY(0)}
     #presetGrid .preset.selected, #linePick .preset.selected{outline:2px solid var(--accent,#6ecbff);border-radius:10px}
-    /* Hose color coding */
+    /* Hose colors */
     .hose175{stroke:#ff5d5d;stroke-width:10;fill:none;stroke-linecap:round}
     .hose25{stroke:#4ecb6f;stroke-width:12;fill:none;stroke-linecap:round}
     .hose5{stroke:#6ecbff;stroke-width:16;fill:none;stroke-linecap:round}
     .branch{stroke-width:8}
     .lbl{fill:#0b0f14;font-size:12px}
-    .linebtn[aria-pressed="true"]{outline:2px solid var(--accent,#6ecbff)}
+    /* Deployed look for buttons */
+    .linebtn{border:1px solid rgba(255,255,255,.25);background:#0f1723;color:#e8f1ff;padding:6px 10px;border-radius:10px}
+    .linebtn[aria-pressed="true"]{background:#173252;border-color:#6ecbff;box-shadow:0 0 0 2px rgba(110,203,255,.25) inset}
   `);
 
   // ---------- refs ----------
@@ -175,7 +178,7 @@ export async function render(container){
   const PDPel     = container.querySelector('#PDP');
   const GPMel     = container.querySelector('#GPM');
 
-  // ---------- image href/xlink fallback ----------
+  // ---------- firetruck image (href + xlink:href fallback) ----------
   (function fixTruckImageNS(){
     const XLINK = 'http://www.w3.org/1999/xlink';
     const url = truckImg.getAttribute('href') || truckImg.getAttribute('xlink:href') || '/assets/images/engine181.png';
@@ -255,7 +258,7 @@ export async function render(container){
   }
   if(!state.supply) state.supply = 'pressurized';
 
-  // ---------- init water-supply module (uses your working waterSupply.js) ----------
+  // ---------- init water-supply (from working waterSupply.js) ----------
   const waterSupply = new WaterSupplyUI({ container, state, pumpXY, truckTopY, G_supply, TRUCK_H });
 
   // ---------- PRESETS ----------
@@ -336,6 +339,7 @@ export async function render(container){
   });
 
   let editorCtx = null; // { key, where }
+
   function openEditor(ctx){
     editorCtx = ctx;
     const L = state.lines[ctx.key];
@@ -401,20 +405,21 @@ export async function render(container){
     openEditor({ key: g.getAttribute('data-line'), where: g.getAttribute('data-where') });
   });
 
-  // ---------- LINE BUTTONS (robust wiring) ----------
-  // Ensure default labels exist
-  state.lines.left.label  = state.lines.left.label  || 'Line 1';
-  state.lines.back.label  = state.lines.back.label  || 'Line 2';
-  state.lines.right.label = state.lines.right.label || 'Line 3';
-
-  container.querySelectorAll('.linebtn').forEach(btn=>{
+  // ---------- LINE BUTTONS (deployed look restored) ----------
+  const lineBtns = Array.from(container.querySelectorAll('.linebtn'));
+  function syncLineButtons(){
+    lineBtns.forEach(btn=>{
+      const key = btn.getAttribute('data-line');
+      btn.setAttribute('aria-pressed', String(!!state.lines[key]?.visible));
+    });
+  }
+  lineBtns.forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const key = btn.getAttribute('data-line');
-      const L = state.lines?.[key];
+      const L = state.lines[key];
       if(!L) return;
       L.visible = !L.visible;
-      // reflect pressed state for a11y and visual feedback
-      btn.setAttribute('aria-pressed', String(!!L.visible));
+      syncLineButtons();   // immediately reflect deployed latch
       drawAll();
     });
   });
@@ -434,7 +439,7 @@ export async function render(container){
     stage.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    // Clear layers
+    // Clear
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     // Supply (delegated)
@@ -493,12 +498,7 @@ export async function render(container){
       : 'No lines deployed';
 
     refreshTotals();
-
-    // reflect button pressed states after any programmatic change
-    container.querySelectorAll('.linebtn').forEach(btn=>{
-      const key = btn.getAttribute('data-line');
-      btn.setAttribute('aria-pressed', String(!!state.lines[key]?.visible));
-    });
+    syncLineButtons(); // keep button latch in sync if state changes elsewhere
   }
 
   // ---------- TOTALS ----------
@@ -534,6 +534,7 @@ export async function render(container){
   }
 
   // ---------- initial draw ----------
+  syncLineButtons();
   drawAll();
 }
 
