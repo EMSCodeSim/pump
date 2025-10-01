@@ -1,4 +1,7 @@
 // ./js/view.practice.js
+// Source: your working Practice page logic, preserved.
+// Tweaks: mobile-friendly styles, ppGuess numeric UX, and NFPA elevation text (0.05 psi/ft).
+
 import { COEFF, FL_total, PSI_PER_FT } from './store.js';
 
 const TRUCK_W = 390;
@@ -14,6 +17,12 @@ const MS_CHOICES = [
   { gpm: 750, NP: 80, appliance: 25 },
   { gpm: 1000, NP: 80, appliance: 25 }
 ];
+
+function injectStyle(root, cssText){
+  const s = document.createElement('style');
+  s.textContent = cssText;
+  root.appendChild(s);
+}
 
 export async function render(container){
   container.innerHTML = `
@@ -57,7 +66,7 @@ export async function render(container){
         <div class="row" style="align-items:flex-end">
           <div class="field" style="max-width:220px">
             <label>Your PP answer (psi)</label>
-            <input type="number" id="ppGuess" placeholder="e.g., 145">
+            <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1">
           </div>
           <div class="field" style="max-width:160px">
             <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL})</button>
@@ -67,6 +76,26 @@ export async function render(container){
       </section>
     </section>
   `;
+
+  // --- Phone-friendly polish (no zoom-on-focus, larger taps)
+  injectStyle(container, `
+    :root { --tap: 44px; --tapS: 40px; --fieldPad: 10px; --radius: 12px; }
+    input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
+    .btn, .linebtn, .presetsbtn, .whyBtn { min-height: var(--tap); min-width: var(--tapS); padding: 10px 14px; border-radius: var(--radius); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
+    .field input[type="text"], .field input[type="number"], .field select, .field textarea {
+      width:100%; padding: var(--fieldPad) calc(var(--fieldPad) + 2px);
+      border:1px solid rgba(255,255,255,.22); border-radius: var(--radius);
+      background:#0b1420; color:#eaf2ff; outline:none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
+    }
+    .kpi b { font-size: 20px; }
+    #segList .seg { border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:8px; }
+    hr { border:0; border-top:1px solid rgba(255,255,255,.12); }
+  `);
 
   // ===== DOM refs
   const stageEl = container.querySelector('#stageP');
@@ -322,7 +351,7 @@ export async function render(container){
     // Base formulas (always useful)
     const base = `
       <div><b>Friction Loss (per section):</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
-      <div style="margin-top:2px"><b>Elevation (psi):</b> <code>Elev = 0.434 × height(ft)</code></div>
+      <div style="margin-top:2px"><b>Elevation (psi):</b> <code>Elev = 0.05 × height(ft)</code></div>
       <div style="margin-top:4px"><b>C Coefficients (reference):</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
     `;
 
