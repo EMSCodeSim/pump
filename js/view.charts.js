@@ -20,7 +20,7 @@ export async function render(container){
       <section class="card">
         <div class="controls" style="display:flex; gap:10px; flex-wrap:wrap">
           <button class="btn primary" id="btnShowNozzles" type="button">Nozzles</button>
-          <button class="btn" id="btnShowFL" type="button">Hose Friction Loss</button>
+          <button class="btn" id="btnShowFL" type="button">Hose Friction</button>
           <button class="btn" id="btnShowRules" type="button">Rules of Thumb</button>
         </div>
         <div class="status" style="margin-top:8px">Pick a topic to view details.</div>
