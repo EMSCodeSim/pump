@@ -1,4 +1,4 @@
-// view.practice.js
+// /js/view.practice.js
 // Phone-friendly Practice page for hydraulics drills.
 // Uses your shared store helpers (NFPA 0.05 psi/ft + appliance loss: +10 psi only if total GPM > 350).
 //
@@ -60,7 +60,7 @@ function renderSegmentRow(idx, seg = { size: '1.75', lengthFt: 200 }) {
       </div>
       <div class="field" style="min-width:140px">
         <label>Length (ft)</label>
-        <input class="segLen" type="number" inputmode="decimal" step="25" min="0" value="${Number(seg.lengthFt)||0}">
+        <input class="segLen" type="number" inputmode="decimal" step="25" min="0" value="\${Number(seg.lengthFt)||0}">
       </div>
       <div class="field" style="min-width:120px; display:flex; align-items:flex-end">
         <button class="btn segDel" type="button" title="Remove segment">Remove</button>
@@ -116,10 +116,11 @@ export async function render(container) {
             <b>Practice Mode</b>
             <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="newScenarioBtn">New Problem</button>
+          <!-- BUTTON ORDER & LABELS UPDATED: New Question → Equations → Reveal -->
+          <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="newScenarioBtn">New Question</button>
+            <button class="btn" id="eqToggleBtn">Equations</button>
             <button class="btn" id="revealBtn">Reveal</button>
-            <button class="btn" id="eqToggleBtn">Show Equations</button>
           </div>
         </div>
       </section>
@@ -141,7 +142,7 @@ export async function render(container) {
         <!-- Scenario-aware equations (hidden by default) -->
         <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none"></div>
 
-        <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Problem</b> to generate a scenario.</div>
+        <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
         <div id="work" class="math" style="margin-top:8px"></div>
       </section>
 
@@ -166,6 +167,9 @@ export async function render(container) {
     input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
     .btn, .linebtn, .presetsbtn, .whyBtn { min-height: var(--tap); min-width: var(--tapS); padding: 10px 14px; border-radius: var(--radius); }
     .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .practice-actions { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+    .practice-actions button { min-height: var(--tap); padding: 10px 14px; border-radius: var(--radius); font-size: 16px; }
+    @media (min-width: 420px){ .practice-actions { flex-wrap: nowrap; } }
     .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
       width:100%; padding: var(--fieldPad) calc(var(--fieldPad) + 2px);
@@ -633,11 +637,11 @@ export async function render(container) {
       eqToggleBtn.textContent = 'Hide Equations';
     }else{
       eqBox.style.display = 'none';
-      eqToggleBtn.textContent = 'Show Equations';
+      eqToggleBtn.textContent = 'Equations';
     }
   });
 
-  // Header quick buttons (optional)
+  // Header quick buttons (optional external events)
   const onNew = ()=> makePractice();
   const onEq  = ()=>{
     eqVisible = !eqVisible;
@@ -647,7 +651,7 @@ export async function render(container) {
       const btn = container.querySelector('#eqToggleBtn'); if(btn) btn.textContent = 'Hide Equations';
     }else{
       eqBox.style.display = 'none';
-      const btn = container.querySelector('#eqToggleBtn'); if(btn) btn.textContent = 'Show Equations';
+      const btn = container.querySelector('#eqToggleBtn'); if(btn) btn.textContent = 'Equations';
     }
   };
   window.addEventListener('practice:newProblem', onNew);
