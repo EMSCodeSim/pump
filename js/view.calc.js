@@ -1,12 +1,11 @@
 // /js/view.calc.js
-// Working calc UI & math (your original logic), with Supply visuals/helpers delegated to waterSupply.js.
-// Changes requested:
-//  • Removed top banner (no "FireOps Calc", no cog).
-//  • Line 1 / 2 / 3 buttons moved so they DO NOT cover the firetruck graphic.
-//  • "Presets" and "Supply" buttons repositioned next to line buttons (under the truck).
-//  • Added a clear Supply Summary box right under Total Flow / Max PP (tender shuttle GPM + “lines that can be added” style note).
-//  • Removed any Settings button from the layout.
-//  • Mobile-friendly: 16px control fonts (prevents iOS zoom), ≥44px tap targets, wrapping rows.
+// Calculations view with original hose/math logic preserved.
+// Update per request:
+//  • Under the fire truck: "Line 1", "Line 2", "Line 3", and "Presets" buttons (single row).
+//  • Below that: replace Supply with two buttons: "Hydrant" and "Tender".
+//      - Hydrant → shows hydrant graphics & math (pressurized mode)
+//      - Tender  → shows tender shuttle graphics & math (static mode)
+//  • Hydrant/Tender switch state.supply without cycling, and WaterSupplyUI handles panels/graphics.
 
 import {
   state, NOZ, NOZ_LIST, COLORS,
@@ -28,7 +27,7 @@ export async function render(container){
             <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
           </svg>
 
-          <!-- Tip editor (plus button editor) -->
+          <!-- Tip editor -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
                style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
@@ -57,16 +56,25 @@ export async function render(container){
           <div class="info" id="topInfo">No lines deployed</div>
         </div>
 
-        <!-- Controls moved BELOW the truck so they never cover the graphic -->
-        <div class="controlRow">
-          <div class="lineGroup">
-            <button class="linebtn" data-line="left">Line 1</button>
-            <button class="linebtn" data-line="back">Line 2</button>
-            <button class="linebtn" data-line="right">Line 3</button>
+        <!-- Controls (never cover the truck) -->
+        <div class="controlBlock">
+          <!-- Row 1: Line buttons + Presets -->
+          <div class="controlRow">
+            <div class="lineGroup">
+              <button class="linebtn" data-line="left">Line 1</button>
+              <button class="linebtn" data-line="back">Line 2</button>
+              <button class="linebtn" data-line="right">Line 3</button>
+            </div>
+            <div class="actionGroup">
+              <button class="presetsbtn" id="presetsBtn">Presets</button>
+            </div>
           </div>
-          <div class="actionGroup">
-            <button class="supplybtn" id="supplyBtn">Supply</button>
-            <button class="presetsbtn" id="presetsBtn">Presets</button>
+          <!-- Row 2: Hydrant and Tender (replaces Supply cycle) -->
+          <div class="controlRow">
+            <div class="actionGroup">
+              <button class="supplybtn" id="hydrantBtn" title="Pressurized (Hydrant)">Hydrant</button>
+              <button class="supplybtn" id="tenderBtn"  title="Static (Tender Shuttle)">Tender</button>
+            </div>
           </div>
         </div>
       </section>
@@ -78,12 +86,10 @@ export async function render(container){
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
 
-        <!-- NEW: Supply Summary (phone-friendly, easy to read) -->
-        <div id="supplySummary" class="supplySummary" style="margin-top:10px; display:none;">
-          <!-- Filled by refreshSupplySummary() -->
-        </div>
+        <!-- Supply Summary -->
+        <div id="supplySummary" class="supplySummary" style="margin-top:10px; display:none;"></div>
 
-        <!-- HYDRANT %DROP HELPER (pressurized only) -->
+        <!-- Hydrant panel (pressurized) -->
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
@@ -117,7 +123,7 @@ export async function render(container){
           <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
         </div>
 
-        <!-- STATIC / DRAFTING: TENDER SHUTTLE -->
+        <!-- Tender Shuttle panel (static) -->
         <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
             <div>
@@ -181,11 +187,12 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ===== Mobile polish – prevent iOS zoom, bigger tap targets, wrapping rows =====
+  // ===== Mobile polish
   injectStyle(container, `
     input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
-    .controlRow { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .controlRow { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
     .lineGroup, .actionGroup { display:flex; gap:8px; flex-wrap:wrap; }
     .kpis { display:flex; gap:12px; flex-wrap:wrap; }
     .kpi b { font-size:20px; }
@@ -242,7 +249,7 @@ export async function render(container){
   const GPMel   = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
 
-  // Hydrant / Static helper panels (markup exists; interactions handled by waterSupply.js)
+  // Panels for supply
   const hydrantHelper = container.querySelector('#hydrantHelper');
   const staticHelper  = container.querySelector('#staticHelper');
 
@@ -257,7 +264,7 @@ export async function render(container){
   function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
   function supplyHeight(){
-    return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: 0;
+    return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
   }
   function computeNeededHeightPx(){
     const needs = Object.values(state.lines).filter(l=>l.visible);
@@ -333,7 +340,7 @@ export async function render(container){
     });
   }
 
-  // ===== Lines math & Why? panel (unchanged)
+  // ===== Lines totals & Why
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
@@ -469,16 +476,17 @@ export async function render(container){
       `;
     } else if(single){
       const noz = activeNozzle(L);
-      const brSecs = splitIntoSections(side==='L'?L.itemsLeft:L.itemsRight);
-      const brFLs  = brSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
-      const brParts= brSecs.map((s,i)=>fmt(brFLs[i])+' ('+fmtSegLabel(s.lengthFt, s.size)+')');
+      const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+      const bnSecs = splitIntoSections(bnSegs);
+      const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
+      const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+fmtSegLabel(s.lengthFt, s.size)+')');
       const brSum  = brFLs.reduce((x,y)=>x+y,0);
       const total  = noz.NP + brSum + mainSum + elevPsi;
       return `
         <div><b>Simple PP (Single branch via wye):</b>
           <ul class="simpleList">
             <li><b>Nozzle Pressure</b> = ${fmt(noz.NP)} psi</li>
-            <li><b>Branch FL</b> = ${brSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
+            <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
             <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
             <li><b>Elevation</b> = ${elevStr}</li>
           </ul>
@@ -684,7 +692,9 @@ export async function render(container){
   });
 
   teWye.addEventListener('change', ()=>{ branchBlock.classList.toggle('is-hidden', teWye.value==='off'); });
-  container.querySelector('#teCancel').addEventListener('click', ()=> tipEditor.classList.add('is-hidden'));
+  container.querySelector('#teCancel').addEventListener('click', ()=>{
+    tipEditor.classList.add('is-hidden');
+  });
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
@@ -741,15 +751,15 @@ export async function render(container){
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult'
     }
-    // If your waterSupply.js supports a summary callback, you can add:
-    // , onSummary: (html) => { supplySummaryEl.style.display='block'; supplySummaryEl.innerHTML = html; }
   });
 
-  // Supply button cycles mode; visuals/panels come from waterSupply.js
-  container.querySelector('#supplyBtn').addEventListener('click', ()=>{
-    const order = ['pressurized','static','relay']; // cycle supported modes
-    const idx = order.indexOf(state.supply);
-    state.supply = order[(idx+1) % order.length];
+  // New explicit buttons for Hydrant/Tender
+  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
+    state.supply = 'pressurized'; // hydrant mode
+    drawAll();
+  });
+  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
+    state.supply = 'static'; // tender shuttle mode
     drawAll();
   });
 
@@ -803,7 +813,6 @@ export async function render(container){
 
   // ===== Supply Summary (simple, readable) =====
   function refreshSupplySummary(){
-    // Default hidden
     supplySummaryEl.style.display = 'none';
     let html = '';
 
@@ -880,21 +889,26 @@ export async function render(container){
       base.remove();
     });
 
-    // Supply visuals & helper panel visibility handled by waterSupply.js
+    // Supply visuals & panel visibility handled by waterSupply.js
     waterSupply.draw(viewH);
     if (typeof waterSupply.updatePanelsVisibility === 'function') {
-      waterSupply.updatePanelsVisibility();
+      waterSupply.updatePanelsVisibility(); // should show hydrantHelper when pressurized, staticHelper when static
     }
 
     refreshTotals();
     renderLinesPanel();
     refreshSupplySummary();
+
+    // Button active states for Hydrant/Tender
+    const hb = container.querySelector('#hydrantBtn');
+    const tb = container.querySelector('#tenderBtn');
+    hb?.classList.toggle('active', state.supply==='pressurized');
+    tb?.classList.toggle('active', state.supply==='static');
   }
 
   // boot
   drawAll();
 
-  // return disposable if your app expects it
   return { dispose(){ /* WaterSupplyUI may clean up timers internally */ } };
 }
 
