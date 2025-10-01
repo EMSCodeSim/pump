@@ -1,16 +1,17 @@
 // store.js
-// Central app state, nozzle catalog, and fluid calc helpers.
-// Updated: NFPA elevation loss (0.5 psi / 10 ft), appliance loss (10 psi only if GPM > 350).
+// Central app state, nozzle catalog, and hydraulic helpers.
+// Fix: initialize state.lines to avoid "Cannot convert undefined or null to object" in views.
+// Updates: NFPA elevation (0.05 psi/ft) and appliance loss (10 psi only if total GPM > 350).
 
 /* =========================
  * Global shared state
  * ========================= */
 export const state = {
   supply: 'pressurized',
-  // Lines are seeded lazily by seedDefaultsForKey to avoid overwriting any saved state.
-  lines: null,
   showMath: false,
   lastMaxKey: null,
+  // Pre-seed lines so any Object.values/entries calls are safe before a view seeds.
+  lines: null, // will be populated immediately below by seedInitialDefaults()
 };
 
 /* =========================
@@ -24,22 +25,15 @@ export const COLORS = {
 
 /* =========================
  * Nozzle catalog
- *   id: stable key used in UI
- *   name: human label
- *   gpm: flow at rated NP
- *   NP:  rated nozzle pressure
  * ========================= */
 export const NOZ = {
-  // Common fogs
   fog95_50:      { id:'fog95_50',      name:'Fog 95 @ 50',   gpm:95,  NP:50 },
   fog150_75:     { id:'fog150_75',     name:'Fog 150 @ 75',  gpm:150, NP:75 },
 
-  // Department “Chief” pattern often used in your files
   chief185_50:   { id:'chief185_50',   name:'Fog 185 @ 50',  gpm:185, NP:50 },
-  chiefXD:       { id:'chiefXD',       name:'Fog 185 @ 50',  gpm:185, NP:50 },   // alias used in older views
+  chiefXD:       { id:'chiefXD',       name:'Fog 185 @ 50',  gpm:185, NP:50 },   // alias used in older files
   chiefXD265:    { id:'chiefXD265',    name:'Fog 265 @ 50',  gpm:265, NP:50 },
 
-  // Smooth bores
   sb7_8:         { id:'sb7_8',         name:'SB 7/8″ @ 50',  gpm:160, NP:50 },
   sb1_1_8:       { id:'sb1_1_8',       name:'SB 1 1/8″ @ 50',gpm:265, NP:50 },
 };
@@ -61,7 +55,6 @@ export const PSI_PER_FT = 0.05;
  * Appliance loss rule:
  *  - 10 psi ONLY when total GPM > 350
  *  - otherwise 0 psi
- * (Use for wyes, manifolds, monitors, etc. where a flat rule is acceptable.)
  */
 export function applianceLoss(totalGpm){
   return totalGpm > 350 ? 10 : 0;
@@ -71,7 +64,7 @@ export function applianceLoss(totalGpm){
  * Friction loss per 100 ft using common fire-service shorthand:
  *   FL_100 = C * (GPM/100)^2
  * Typical C-values:
- *   1¾″ -> 15   (close to many field cheat-sheets)
+ *   1¾″ -> 15
  *   2½″ -> 2
  *   5″   -> 0.08
  */
@@ -81,24 +74,18 @@ function flPer100(size, gpm){
     size === '1.75' ? 15 :
     size === '2.5'  ? 2  :
     size === '5'    ? 0.08 :
-    10; // default catch-all
+    10; // default fallback
   return C * q * q;
 }
 
-/**
- * Friction loss for a single segment (lengthFt of a given size) at gpm.
- * Returns psi.
- */
+/** Friction loss for a single segment (psi). */
 export function FL(gpm, size, lengthFt){
   if(!size || !lengthFt || !gpm) return 0;
   const per100 = flPer100(size, gpm);
   return per100 * (lengthFt/100);
 }
 
-/**
- * Sum friction loss over an array of hose items: [{size, lengthFt}, ...]
- * Items may be mixed sizes.
- */
+/** Sum friction loss across segments. */
 export function FL_total(gpm, items){
   if(!Array.isArray(items) || !items.length || !gpm) return 0;
   let sum = 0;
@@ -108,20 +95,15 @@ export function FL_total(gpm, items){
   return sum;
 }
 
-/** Sum length (ft) for array of items. */
+/** Sum length (ft). */
 export function sumFt(items){
   if(!Array.isArray(items)) return 0;
   return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
 }
 
-/**
- * Optionally normalize/merge segments; for now we keep simple passthrough so
- * downstream UI shows each authored segment. Shape: [{size, lengthFt}, ...]
- */
+/** Keep section list stable for UI (optionally merge in future). */
 export function splitIntoSections(items){
   if(!Array.isArray(items)) return [];
-  // Could merge adjacent same-size segments here if you want:
-  // For now, return a shallow copy.
   return items.map(s => ({ size: String(s.size), lengthFt: Number(s.lengthFt)||0 }));
 }
 
@@ -130,20 +112,58 @@ export function splitIntoSections(items){
  * ========================= */
 
 /**
- * Ensure state.lines[key] exists with your preferred defaults:
+ * Seed initial defaults once so any view can safely access state.lines immediately.
  *   L1: 200′ of 1¾″, 185 GPM @ 50 psi
  *   L2: 200′ of 1¾″, 185 GPM @ 50 psi
- *   L3: 250′ of 2½″, 265 GPM @ 50 psi (initially hidden)
+ *   L3: 250′ of 2½″, 265 GPM @ 50 psi (hidden)
  */
-export function seedDefaultsForKey(key){
-  if(!state.lines){
-    state.lines = {};
-  }
-  if(state.lines[key]) return state.lines[key];
-
-  // defaults
+function seedInitialDefaults(){
+  if (state.lines) return;
   const L1N = NOZ.chief185_50;
   const L3N = NOZ.sb1_1_8; // ~265 gpm @ 50 psi
+  state.lines = {
+    left:  {
+      label: 'Line 1',
+      visible: true,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    },
+    back:  {
+      label: 'Line 2',
+      visible: true,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    },
+    right: {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [{ size:'2.5', lengthFt:250 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L3N,
+    }
+  };
+}
+// seed immediately so callers never see null
+seedInitialDefaults();
+
+/** Ensures a key exists and returns it (won’t overwrite existing). */
+export function seedDefaultsForKey(key){
+  if(!state.lines) state.lines = {};
+  if(state.lines[key]) return state.lines[key];
+
+  const L1N = NOZ.chief185_50;
+  const L3N = NOZ.sb1_1_8;
 
   if(key === 'left'){
     state.lines.left = {
@@ -179,7 +199,6 @@ export function seedDefaultsForKey(key){
       nozRight: L3N,
     };
   } else {
-    // generic placeholder for any other keys if used
     state.lines[key] = {
       label: key,
       visible: false,
@@ -195,8 +214,7 @@ export function seedDefaultsForKey(key){
 }
 
 /**
- * Determine if a “single branch via wye” scenario is active.
- * This is true when L.hasWye is true and exactly ONE branch has any hose/nozzle.
+ * True when Wye is present and exactly one branch is active.
  */
 export function isSingleWye(L){
   if(!L || !L.hasWye) return false;
@@ -214,7 +232,6 @@ export function activeSide(L){
   const r = sumFt(L.itemsRight || []);
   if(l > 0 && r <= 0) return 'L';
   if(r > 0 && l <= 0) return 'R';
-  // If both present, pick right as default controlling side in single-branch calc; true wye should not call this.
   return 'R';
 }
 
@@ -227,15 +244,10 @@ export function activeNozzle(L){
   return L.nozRight || L.nozLeft || null;
 }
 
-/* =========================
- * Convenience: compute Wye/appliance loss using the rule above
- *   - When used, pass the TOTAL line flow feeding the appliance.
- * ========================= */
+/* Convenience: compute appliance loss for a given total flow. */
 export function computeApplianceLoss(totalGpm){
   return applianceLoss(totalGpm);
 }
 
-/* =========================
- * (Optional) small util: clamp, round to 1 decimal, etc., if you need them later
- * ========================= */
+/* Small utils */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
