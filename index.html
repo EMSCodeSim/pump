@@ -14,7 +14,7 @@
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
 
-    /* ===== Pro top banner ===== */
+    /* ===== Professional top banner ===== */
     header{
       position:sticky; top:0; z-index:100;
       background:linear-gradient(180deg,#0d1524 0%, #0a0f16 100%);
@@ -47,29 +47,6 @@
 
     /* ===== Page shell ===== */
     main{padding:10px; padding-bottom:96px; max-width:1000px; margin:0 auto}
-    .stack{display:flex;flex-direction:column;gap:10px}
-    .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
-
-    /* Stage + controls (unchanged layout hooks) */
-    .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
-    .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
-    #overlay{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
-    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:rgba(15,22,36,.9);border:1px solid var(--edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
-
-    .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
-    .linebtn,.supplybtn,.presetsbtn{
-      background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
-      padding:10px 12px;font-size:16px; /* prevent iOS zoom */ min-height:44px;
-      cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap;
-    }
-    .linebtn.active{outline:2px solid var(--accent)}
-
-    /* KPIs, tables, etc. (kept from your app) */
-    .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:10px 12px;font-size:14px;color:#cfe4ff;flex:1;min-width:160px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .kpi b{font-size:20px}
-    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:8px 10px;font-size:14px;cursor:pointer; min-height:44px}
-    .whyBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
 
     /* Bottom nav (Settings REMOVED) */
     .bottom-nav{
@@ -81,14 +58,19 @@
       background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:12px 10px;font-size:14px;text-align:center;cursor:pointer; min-height:44px
     }
     .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
+
+    /* Safety: ensure any tip editor & sheets default hidden to prevent flash on mobile */
+    .tip-editor{ display:none !important; }
+    #sheet{ transform:translateY(100%); }
+    .sheet.show{ transform:translateY(0); }
   </style>
 </head>
 <body>
   <header>
     <div class="hdr">
       <div class="brand">
-        <!-- Replace src with your final logo asset path -->
-        <img src="/assets/logo-fireops-calc.svg" alt="FireOps Calc logo"
+        <!-- Your logo lives at the root as fireopscalc.png -->
+        <img src="/fireopscalc.png" alt="FireOps Calc logo"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block'">
         <div class="brandName" style="display:none">FireOps Calc</div>
       </div>
@@ -115,7 +97,7 @@
   <!-- App router -->
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal wiring so the header cog and bottom tabs work even if app.js hasn't attached yet -->
+  <!-- Minimal wiring + safety hide to avoid panels visible on load -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -124,7 +106,11 @@
         if (view) location.hash = '#' + view;
         window.dispatchEvent(new CustomEvent('nav:'+view));
       };
+
+      // Header cog → Settings view
       document.getElementById('settingsBtn')?.addEventListener('click', () => navTo('settings'));
+
+      // Bottom nav tabs
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
@@ -132,6 +118,28 @@
           navTo(btn.dataset.view);
         });
       });
+
+      // Safety: hide tip editor + presets sheet if injected before styles apply
+      function safetyHidePanels(){
+        const tip = document.querySelector('.tip-editor');
+        if (tip) { tip.classList.add('is-hidden'); tip.style.display='none'; }
+        const sheet = document.getElementById('sheet');
+        const backdrop = document.getElementById('sheetBackdrop');
+        if (sheet) sheet.classList.remove('show');
+        if (backdrop) backdrop.style.display='none';
+      }
+
+      // Run on load + after each view change
+      document.addEventListener('DOMContentLoaded', safetyHidePanels);
+      window.addEventListener('hashchange', safetyHidePanels);
+      window.addEventListener('nav:calc', safetyHidePanels);
+      window.addEventListener('nav:practice', safetyHidePanels);
+      window.addEventListener('nav:charts', safetyHidePanels);
+      window.addEventListener('nav:settings', safetyHidePanels);
+
+      // Also observe late-inserted nodes (in case the view mounts after)
+      const mo = new MutationObserver(() => safetyHidePanels());
+      mo.observe(document.documentElement, {subtree:true, childList:true});
     })();
   </script>
 </body>
