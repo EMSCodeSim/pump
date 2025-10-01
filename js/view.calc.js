@@ -1,52 +1,101 @@
 // /js/view.calc.js
-// Calculations view with original hose/math logic preserved.
-// Update per request:
-//  • Under the fire truck: "Line 1", "Line 2", "Line 3", and "Presets" buttons (single row).
-//  • Below that: replace Supply with two buttons: "Hydrant" and "Tender".
-//      - Hydrant → shows hydrant graphics & math (pressurized mode)
-//      - Tender  → shows tender shuttle graphics & math (static mode)
-//  • Hydrant/Tender switch state.supply without cycling, and WaterSupplyUI handles panels/graphics.
+// Calculations View — phone-friendly, preserves original hose/math logic,
+// adds explicit Hydrant/Tender buttons, and shows supply answers directly
+// under the "Total Flow / Max PP" KPIs.
+//
+// What’s in this file:
+//  • Buttons under the truck: Line 1, Line 2, Line 3, Presets
+//  • Below that: Hydrant and Tender (replaces old Supply cycle button)
+//  • Hydrant box under KPIs: “Drop = X% — add approximately N more of the same line”
+//  • Tender box under KPIs: “Total Shuttle GPM = Y”
+//  • Tender number/name made easier to read in the tender list
+//
+// Depends on:
+//  - ./store.js (state, friction loss, hose utilities, nozzle catalog)
+//  - ./waterSupply.js (WaterSupplyUI class for graphics + tender/hydrant panels)
 
 import {
-  state, NOZ, NOZ_LIST, COLORS,
-  FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT,
-  seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel
+  state,
+  NOZ,
+  NOZ_LIST,
+  COLORS,
+  FL,
+  FL_total,
+  sumFt,
+  splitIntoSections,
+  PSI_PER_FT,
+  seedDefaultsForKey,
+  isSingleWye,
+  activeNozzle,
+  activeSide,
+  sizeLabel
 } from './store.js';
+
 import { WaterSupplyUI } from './waterSupply.js';
 
-const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
+// ---- Layout and drawing constants
+const TRUCK_W = 390;
+const TRUCK_H = 260;
+const PX_PER_50FT = 45;
+const CURVE_PULL = 36;
+const BRANCH_LIFT = 10;
 
+// ---- Entry point
 export async function render(container){
   container.innerHTML = `
     <section class="stack">
 
+      <!-- ====== Visual Stage ====== -->
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet" onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
-            <g id="hoses"></g><g id="branches"></g><g id="labels"></g><g id="tips"></g><g id="supplyG"></g>
+          <svg id="overlay" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
+              onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
+            <g id="hoses"></g>
+            <g id="branches"></g>
+            <g id="labels"></g>
+            <g id="tips"></g>
+            <g id="supplyG"></g>
           </svg>
 
           <!-- Tip editor -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
                style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
+
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
+
             <div class="te-row"><label>Diameter</label>
-              <select id="teSize"><option value="1.75">1¾″</option><option value="2.5">2½″</option><option value="5">5″</option></select>
+              <select id="teSize">
+                <option value="1.75">1¾″</option>
+                <option value="2.5">2½″</option>
+                <option value="5">5″</option>
+              </select>
             </div>
-            <div class="te-row"><label>Length (ft)</label><input type="number" id="teLen" min="0" step="25" value="200"></div>
-            <div class="te-row"><label>Nozzle</label><select id="teNoz"></select></div>
-            <div class="te-row"><label>Elevation (ft)</label><input type="number" id="teElev" step="5" value="0"></div>
+
+            <div class="te-row"><label>Length (ft)</label>
+              <input type="number" id="teLen" min="0" step="25" value="200">
+            </div>
+
+            <div class="te-row"><label>Nozzle</label>
+              <select id="teNoz"></select>
+            </div>
+
+            <div class="te-row"><label>Elevation (ft)</label>
+              <input type="number" id="teElev" step="5" value="0">
+            </div>
+
             <div class="te-row"><label>Wye</label>
               <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
             </div>
+
             <div id="branchBlock" class="is-hidden">
               <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
               <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
               <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
               <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
             </div>
+
             <div class="te-actions">
               <button class="btn" id="teCancel">Cancel</button>
               <button class="btn primary" id="teApply">Apply</button>
@@ -56,7 +105,7 @@ export async function render(container){
           <div class="info" id="topInfo">No lines deployed</div>
         </div>
 
-        <!-- Controls (never cover the truck) -->
+        <!-- ====== Controls (never cover the truck) ====== -->
         <div class="controlBlock">
           <!-- Row 1: Line buttons + Presets -->
           <div class="controlRow">
@@ -69,7 +118,8 @@ export async function render(container){
               <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
-          <!-- Row 2: Hydrant and Tender (replaces Supply cycle) -->
+
+          <!-- Row 2: Hydrant and Tender (supply mode buttons) -->
           <div class="controlRow">
             <div class="actionGroup">
               <button class="supplybtn" id="hydrantBtn" title="Pressurized (Hydrant)">Hydrant</button>
@@ -79,17 +129,17 @@ export async function render(container){
         </div>
       </section>
 
-      <!-- KPIs -->
+      <!-- ====== KPIs & Supply Answer Box ====== -->
       <section class="card">
         <div class="kpis">
           <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
           <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
 
-        <!-- Supply Summary -->
+        <!-- Answer box placed directly under KPIs -->
         <div id="supplySummary" class="supplySummary" style="margin-top:10px; display:none;"></div>
 
-        <!-- Hydrant panel (pressurized) -->
+        <!-- Hydrant helper (pressurized) -->
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
@@ -123,7 +173,7 @@ export async function render(container){
           <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
         </div>
 
-        <!-- Tender Shuttle panel (static) -->
+        <!-- Tender Shuttle (static) -->
         <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
             <div>
@@ -160,7 +210,7 @@ export async function render(container){
       </section>
     </section>
 
-    <!-- Preset bottom sheet -->
+    <!-- ====== Preset bottom sheet ====== -->
     <div id="sheet" class="sheet" aria-modal="true" role="dialog">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div class="title">Presets</div>
@@ -187,9 +237,9 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ===== Mobile polish
+  // ---- Phone-friendly polish (prevent iOS zoom; larger touch targets)
   injectStyle(container, `
-    input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
+    input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
     .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
     .controlRow { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; }
@@ -206,16 +256,53 @@ export async function render(container){
       border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
     }
     .supplySummary {
-      background:#0e151e; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px;
-      color:#eaf2ff;
+      background:#0e151e; border:1px solid rgba(255,255,255,.12);
+      border-radius:12px; padding:12px; color:#eaf2ff;
     }
     .supplySummary .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .supplySummary .k { color:#a9bed9; min-width:150px; }
+    .supplySummary .k { color:#a9bed9; min-width:160px; }
     .supplySummary .v { font-weight:800; }
+
+    /* Hose look (original) */
+    .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .hose5{stroke:#ecd464;stroke-width:12}
+    .hose25{stroke:#6ecbff;stroke-width:9}
+    .hose175{stroke:#ff6b6b;stroke-width:6}
+    .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
+
+    .hose-end{cursor:pointer;pointer-events:all}
+    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
+    .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+    .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
+
+    .hoseLegend{display:flex;gap:8px;align-items:center;font-size:11px;color:#cfe4ff;margin:2px 0 6px}
+    .legSwatch{width:14px;height:8px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.35)}
+    .sw175{background:#ff6b6b} .sw25{background:#6ecbff} .sw5{background:#ecd464}
+
+    details.math{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:6px 8px;margin-top:6px}
+    details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
+    .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
+    .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
+    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
+    .simpleBox b{color:#eaf2ff}
+    .lbl{font-size:10px;fill:#0b0f14}
+    .is-hidden{display:none!important}
+
+    /* Make tender IDs easier to read */
+    #tenderList .tender-emph,
+    #tenderList b,
+    #tenderList .title,
+    #tenderList .name,
+    #tenderList .tenderName,
+    #tenderList .tender-id {
+      color:#ffe082 !important;
+      font-weight:800;
+      letter-spacing:.2px;
+    }
   `);
 
-  // init nozzle selects in editor
-  const teNoz = container.querySelector('#teNoz');
+  // ---- Nozzle selects in editor
+  const teNoz  = container.querySelector('#teNoz');
   const teNozA = container.querySelector('#teNozA');
   const teNozB = container.querySelector('#teNozB');
   [teNoz, teNozA, teNozB].forEach(sel=>{
@@ -223,46 +310,44 @@ export async function render(container){
     sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name}</option>`).join('');
   });
 
-  // DOM refs
-  const overlay   = container.querySelector('#overlay');
-  const stage     = container.querySelector('#stage');
-  const G_hoses   = container.querySelector('#hoses');
-  const G_branches= container.querySelector('#branches');
-  const G_labels  = container.querySelector('#labels');
-  const G_tips    = container.querySelector('#tips');
-  const G_supply  = container.querySelector('#supplyG');
-  const truckImg  = container.querySelector('#truckImg');
-  const topInfo   = container.querySelector('#topInfo');
-  const linesTable= container.querySelector('#linesTable');
-  const PDPel     = container.querySelector('#PDP');
-  const whyBtn    = container.querySelector('#whyBtn');
+  // ---- DOM references
+  const overlay     = container.querySelector('#overlay');
+  const stage       = container.querySelector('#stage');
+  const G_hoses     = container.querySelector('#hoses');
+  const G_branches  = container.querySelector('#branches');
+  const G_labels    = container.querySelector('#labels');
+  const G_tips      = container.querySelector('#tips');
+  const G_supply    = container.querySelector('#supplyG');
+  const truckImg    = container.querySelector('#truckImg');
+  const topInfo     = container.querySelector('#topInfo');
+  const linesTable  = container.querySelector('#linesTable');
+  const PDPel       = container.querySelector('#PDP');
+  const whyBtn      = container.querySelector('#whyBtn');
   const branchBlock = container.querySelector('#branchBlock');
-  const tipEditor = container.querySelector('#tipEditor');
-  const teTitle = container.querySelector('#teTitle');
-  const teWhere = container.querySelector('#teWhere');
-  const teSize  = container.querySelector('#teSize');
-  const teLen   = container.querySelector('#teLen');
-  const teElev  = container.querySelector('#teElev');
-  const teWye   = container.querySelector('#teWye');
-  const teLenA  = container.querySelector('#teLenA');
-  const teLenB  = container.querySelector('#teLenB');
-  const GPMel   = container.querySelector('#GPM');
+  const tipEditor   = container.querySelector('#tipEditor');
+  const teTitle     = container.querySelector('#teTitle');
+  const teWhere     = container.querySelector('#teWhere');
+  const teSize      = container.querySelector('#teSize');
+  const teLen       = container.querySelector('#teLen');
+  const teElev      = container.querySelector('#teElev');
+  const teWye       = container.querySelector('#teWye');
+  const teLenA      = container.querySelector('#teLenA');
+  const teLenB      = container.querySelector('#teLenB');
+  const GPMel       = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
 
-  // Panels for supply
+  // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
   const staticHelper  = container.querySelector('#staticHelper');
 
-  // remember current SVG height for editor positioning
-  let currentViewH = null;
-  let chosenPreset=null, chosenLine=null, editorContext=null;
-
+  // ---- Style utils
   function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
   function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
   function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
-  function fmt0(n){ return Math.round(n); }
+  function fmt(n){ return Math.round(n); }
   function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
+  // ---- Vertical sizing
   function supplyHeight(){
     return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
   }
@@ -284,6 +369,7 @@ export async function render(container){
   function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
   function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
 
+  // ---- Hose geometry
   function mainCurve(dir, totalPx, viewH){
     const {x:sx,y:sy} = pumpXY(viewH);
     const ex = dir===-1 ? sx - 110 : dir===1 ? sx + 110 : sx;
@@ -320,7 +406,6 @@ export async function render(container){
     const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y);
     g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
   }
-
   function drawSegmentedPath(group, basePath, segs){
     const ns = 'http://www.w3.org/2000/svg';
     const sh = document.createElementNS(ns,'path');
@@ -340,7 +425,7 @@ export async function render(container){
     });
   }
 
-  // ===== Lines totals & Why
+  // ---- Totals & KPI coloring
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
@@ -380,9 +465,7 @@ export async function render(container){
     }
   }
 
-  function fmt(n){ return Math.round(n); }
-  function fmtSegLabel(lenFt, size){ return lenFt+'′ '+sizeLabel(size); }
-
+  // ---- Hose bar visualization in math panel
   function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
     const totalLen = sumFt(sections);
     containerEl.innerHTML='';
@@ -424,12 +507,12 @@ export async function render(container){
       svg.appendChild(r);
 
       const fl=FL(gpm,seg.size,seg.lengthFt);
-      const t=document.createElementNS(svgNS,'text');
-      t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','11');
-      t.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
-      t.setAttribute('text-anchor','middle'); t.setAttribute('x',x+segW/2); t.setAttribute('y',34);
-      t.textContent=''+seg.lengthFt+'′ • '+Math.round(fl)+' psi';
-      svg.appendChild(t);
+      const tx=document.createElementNS(svgNS,'text');
+      tx.setAttribute('fill','#0b0f14'); tx.setAttribute('font-size','11');
+      tx.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
+      tx.setAttribute('text-anchor','middle'); tx.setAttribute('x',x+segW/2); tx.setAttribute('y',34);
+      tx.textContent=''+seg.lengthFt+'′ • '+Math.round(fl)+' psi';
+      svg.appendChild(tx);
 
       x+=segW;
     });
@@ -450,6 +533,7 @@ export async function render(container){
     containerEl.appendChild(svg);
   }
 
+  // ---- “Why?” (simple PP explanation)
   function ppExplainHTML(L){
     const single = isSingleWye(L);
     const side = activeSide(L);
@@ -458,7 +542,7 @@ export async function render(container){
                           : (L.nozRight?.gpm||0);
     const mainSecs = splitIntoSections(L.itemsMain);
     const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
-    const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+fmtSegLabel(s.lengthFt, s.size)+')');
+    const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const mainSum = mainFLs.reduce((a,c)=>a+c,0);
     const elevPsi = (L.elevFt||0) * PSI_PER_FT;
     const elevStr = (elevPsi>=0? '+':'')+fmt(elevPsi)+' psi';
@@ -471,7 +555,7 @@ export async function render(container){
             <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
             <li><b>Elevation</b> = ${elevStr}</li>
           </ul>
-          <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:var(--ok)">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
+          <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
         </div>
       `;
     } else if(single){
@@ -479,7 +563,7 @@ export async function render(container){
       const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
       const bnSecs = splitIntoSections(bnSegs);
       const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
-      const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+fmtSegLabel(s.lengthFt, s.size)+')');
+      const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
       const brSum  = brFLs.reduce((x,y)=>x+y,0);
       const total  = noz.NP + brSum + mainSum + elevPsi;
       return `
@@ -490,7 +574,7 @@ export async function render(container){
             <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
             <li><b>Elevation</b> = ${elevStr}</li>
           </ul>
-          <div style="margin-top:6px"><b>PP = NP + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:var(--ok)">${fmt(total)} psi</span></b></div>
+          <div style="margin-top:6px"><b>PP = NP + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
         </div>
       `;
     } else {
@@ -513,12 +597,13 @@ export async function render(container){
             <li><b>Wye</b> = +${wyeLoss} psi</li>
             <li><b>Elevation</b> = ${elevStr}</li>
           </ul>
-          <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:var(--ok)">${fmt(total)} psi</span></b></div>
+          <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
         </div>
       `;
     }
   }
 
+  // ---- Lines math section
   function renderLinesPanel(){
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed || !state.showMath){ linesTable.innerHTML=''; linesTable.classList.add('is-hidden'); return; }
@@ -543,11 +628,11 @@ export async function render(container){
 
       if(L.visible){
         const bflow = flow;
-        const mathWrap = document.createElement('div');
+        const wrap = document.createElement('div');
 
         if(L.hasWye && !single){
           const wye = (L.wyeLoss ?? 10);
-          mathWrap.innerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -572,7 +657,7 @@ export async function render(container){
               </div>
             </details>
           `;
-          linesTable.appendChild(mathWrap);
+          linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm', 'Wye '+wye);
           drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+(sumFt(L.itemsLeft)||0)+'′');
@@ -585,7 +670,7 @@ export async function render(container){
           const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
           const noz = activeNozzle(L);
 
-          mathWrap.innerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -606,14 +691,14 @@ export async function render(container){
               </div>
             </details>
           `;
-          linesTable.appendChild(mathWrap);
+          linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (noz?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm');
           drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), bflow, (noz?.NP||0), bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
-          mathWrap.innerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -630,7 +715,7 @@ export async function render(container){
               </div>
             </details>
           `;
-          linesTable.appendChild(mathWrap);
+          linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
@@ -639,7 +724,10 @@ export async function render(container){
     });
   }
 
-  // ===== Interactions =====
+  // ---- Tip editor interactions
+  let currentViewH = null;
+  let chosenPreset=null, chosenLine=null, editorContext=null;
+
   overlay.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
@@ -723,7 +811,7 @@ export async function render(container){
     L.visible = true; tipEditor.classList.add('is-hidden'); drawAll();
   });
 
-  // Line toggle buttons
+  // ---- Line toggle buttons
   container.querySelectorAll('.linebtn').forEach(b=>{
     b.addEventListener('click', ()=>{
       const key=b.dataset.line; const L=seedDefaultsForKey(key);
@@ -732,7 +820,7 @@ export async function render(container){
     });
   });
 
-  // ===== Water Supply (delegated) =====
+  // ---- Water Supply UI integration
   const waterSupply = new WaterSupplyUI({
     container, state,
     pumpXY, truckTopY,
@@ -753,17 +841,17 @@ export async function render(container){
     }
   });
 
-  // New explicit buttons for Hydrant/Tender
+  // Explicit Hydrant/Tender buttons
   container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
-    state.supply = 'pressurized'; // hydrant mode
+    state.supply = 'pressurized';
     drawAll();
   });
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
-    state.supply = 'static'; // tender shuttle mode
+    state.supply = 'static';
     drawAll();
   });
 
-  // Presets sheet
+  // ---- Presets
   const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
   function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
   function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
@@ -797,7 +885,7 @@ export async function render(container){
     drawAll();
   }
 
-  // Why? (reveal math)
+  // ---- Why? button
   whyBtn.addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
@@ -811,39 +899,119 @@ export async function render(container){
     }
   });
 
-  // ===== Supply Summary (simple, readable) =====
-  function refreshSupplySummary(){
-    supplySummaryEl.style.display = 'none';
-    let html = '';
+  // ===== Hydrant/Tender “answers” box under KPIs =====
 
-    if(state.supply === 'static'){ // tender shuttle
+  // Compute hydrant advice: %drop and how many more same-size lines
+  function computeHydrantAdvice() {
+    const staticEl   = container.querySelector('#hydrantStatic');
+    const residualEl = container.querySelector('#hydrantResidual');
+    const sizeSel    = container.querySelector('#hydrantLineSize');
+
+    if (!staticEl || !residualEl || !sizeSel) return null;
+
+    const s  = +staticEl.value || 0;
+    const r  = +residualEl.value || 0;
+    if (s <= 0 || r <= 0 || r > s) return null;
+
+    const pct = ((s - r) / s) * 100;               // % drop
+    let more = 0;
+    if (pct <= 10) more = 3;
+    else if (pct <= 15) more = 2;
+    else if (pct <= 25) more = 1;
+    else more = 0;
+
+    const sizeText = sizeSel.value === '2.5' ? '2½″'
+                    : sizeSel.value === '5'   ? '5″'
+                    : '1¾″';
+
+    return { pct: Math.round(pct), more, sizeText };
+  }
+
+  // Make tender number/name more readable without depending on internals
+  function enhanceTenderListStyle() {
+    const root = container.querySelector('#tenderList');
+    if (!root) return;
+    root.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
+      el.classList.add('tender-emph');
+    });
+  }
+
+  // Show the requested info in the box just under KPIs
+  function refreshSupplySummary(){
+    const box = supplySummaryEl;
+    if (!box) return;
+
+    let html = '';
+    if (state.supply === 'pressurized') {
+      const adv = computeHydrantAdvice();
+      if (adv) {
+        html = `
+          <div class="row">
+            <span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span>
+          </div>
+          <div class="row">
+            <span class="k">Drop</span><span class="v">${adv.pct}%</span>
+          </div>
+          <div class="row">
+            <span class="k">Guidance</span>
+            <span class="v">Add approximately <b>${adv.more}</b> more of the same ${adv.sizeText} line</span>
+          </div>
+        `;
+      } else {
+        html = `
+          <div class="row">
+            <span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span>
+          </div>
+          <div class="mini" style="margin-top:6px;color:#cfe6ff">
+            Enter <b>Static</b> and <b>Residual w/ 1 line</b>, then tap <b>Evaluate %Drop</b>.
+          </div>
+        `;
+      }
+    } else if (state.supply === 'static') {
       const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
       html = `
-        <div class="row"><span class="k">Supply Mode</span><span class="v">Tender shuttle</span></div>
-        <div class="row"><span class="k">Shuttle GPM</span><span class="v">${Math.round(g)} gpm</span></div>
-        <div class="mini" style="margin-top:6px;color:#cfe6ff">Shuttle GPM updates after each full round trip is recorded.</div>
+        <div class="row">
+          <span class="k">Supply Mode</span><span class="v">Tender shuttle</span>
+        </div>
+        <div class="row">
+          <span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span>
+        </div>
+        <div class="mini" style="margin-top:6px;color:#cfe6ff">
+          Shuttle GPM updates after each full round trip.
+        </div>
       `;
-    } else if(state.supply === 'pressurized'){ // hydrant
-      const res = container.querySelector('#hydrantResult')?.textContent?.trim() || 'Use % drop method to estimate additional same-size lines.';
-      html = `
-        <div class="row"><span class="k">Supply Mode</span><span class="v">Pressurized (Hydrant)</span></div>
-        <div class="row"><span class="k">Guide</span><span class="v">Residual % Drop method</span></div>
-        <div class="mini" style="margin-top:6px;color:#cfe6ff">${escapeHTML(res)}</div>
-      `;
-    } else if(state.supply === 'relay'){
-      html = `
-        <div class="row"><span class="k">Supply Mode</span><span class="v">Relay</span></div>
-        <div class="mini" style="margin-top:6px;color:#cfe6ff">Maintain 20–50 psi residual at receiving engine; add/adjust engines based on distance and desired flow.</div>
-      `;
+    } else {
+      html = '';
     }
 
-    if(html){
-      supplySummaryEl.innerHTML = html;
-      supplySummaryEl.style.display = 'block';
+    if (html) {
+      box.innerHTML = html;
+      box.style.display = 'block';
+    } else {
+      box.innerHTML = '';
+      box.style.display = 'none';
     }
   }
 
-  // ===== Draw (supply via waterSupply) =====
+  // Observe tender list and hydrant inputs so the box stays current
+  const tenderListEl = container.querySelector('#tenderList');
+  const shuttleEl    = container.querySelector('#shuttleTotalGpm');
+  const hydCalcBtn   = container.querySelector('#hydrantCalcBtn');
+  const hydInputs    = [ '#hydrantStatic', '#hydrantResidual', '#hydrantLineSize' ]
+    .map(sel => container.querySelector(sel))
+    .filter(Boolean);
+
+  hydCalcBtn?.addEventListener('click', () => setTimeout(refreshSupplySummary, 0));
+  hydInputs.forEach(inp => inp.addEventListener('input', refreshSupplySummary));
+
+  const mo = new MutationObserver(() => {
+    enhanceTenderListStyle();
+    refreshSupplySummary();
+  });
+  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
+  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
+
+  // ---- Main draw
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
     currentViewH = viewH;
@@ -892,11 +1060,13 @@ export async function render(container){
     // Supply visuals & panel visibility handled by waterSupply.js
     waterSupply.draw(viewH);
     if (typeof waterSupply.updatePanelsVisibility === 'function') {
-      waterSupply.updatePanelsVisibility(); // should show hydrantHelper when pressurized, staticHelper when static
+      waterSupply.updatePanelsVisibility(); // show hydrantHelper/staticHelper appropriately
     }
 
+    // KPIs, math, and answer box refresh
     refreshTotals();
     renderLinesPanel();
+    enhanceTenderListStyle();
     refreshSupplySummary();
 
     // Button active states for Hydrant/Tender
@@ -906,10 +1076,12 @@ export async function render(container){
     tb?.classList.toggle('active', state.supply==='static');
   }
 
-  // boot
+  // ---- Initial draw
   drawAll();
 
+  // Done
   return { dispose(){ /* WaterSupplyUI may clean up timers internally */ } };
 }
 
+// Default export
 export default { render };
