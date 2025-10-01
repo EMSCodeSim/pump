@@ -2,8 +2,7 @@
 // Working calc UI & math you like, with Supply visuals/helpers delegated to waterSupply.js.
 // Keeps: line math (incl. Wye logic), presets, tip (“+”) editor, colors, defaults, Why? panel.
 // Uses: WaterSupplyUI for hydrant/static/relay drawings & helper panels and supply button handling.
-//
-// Source baseline retained from your uploaded file. (Supply-only refactor)
+// Phone-friendly tweaks + top banner with cog Settings; banner title "FireOps Calc".
 
 import {
   state, NOZ, NOZ_LIST, COLORS,
@@ -17,6 +16,22 @@ const TRUCK_W=390, TRUCK_H=260, PX_PER_50FT=45, CURVE_PULL=36, BRANCH_LIFT=10;
 export async function render(container){
   container.innerHTML = `
     <section class="stack">
+
+      <!-- Top banner -->
+      <section class="card headerCard" style="padding:10px 12px">
+        <div class="hdrRow" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap">
+          <div class="hdrTitle" style="display:flex; align-items:center; gap:10px">
+            <span class="appMark" aria-hidden="true">🚒</span>
+            <b>FireOps Calc</b>
+          </div>
+          <div class="hdrActions" style="display:flex; gap:8px; align-items:center">
+            <button class="btn btnIcon" id="settingsBtn" title="Settings" aria-label="Settings">
+              ⚙️
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="overlay" viewBox="0 0 390 260" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
@@ -166,17 +181,25 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ===== Style helpers (compact local CSS bits for pills/table) =====
+  // ===== Mobile polish – prevent iOS zoom, bigger tap targets, wrapping rows =====
   injectStyle(container, `
-    .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.2); font-weight:800; }
-    .tTable { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; }
-    .tTable thead th { background:#162130; color:#fff; padding:8px 10px; text-align:left; border-bottom:1px solid rgba(255,255,255,.1); }
-    .tTable tbody td { padding:8px 10px; }
-    .tTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
-    .tTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
-    .tBadge { background:#0e151e; border:1px solid rgba(255,255,255,.15); padding:2px 8px; border-radius:999px; font-weight:700; }
-    .tTimer { font-family: ui-monospace, Menlo, Consolas, monospace; }
-    .btnIcon { min-width:44px; }
+    input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
+    .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn, .btnIcon { min-height:44px; padding:10px 14px; border-radius:12px; }
+    .linebar { display:flex; flex-wrap:wrap; gap:8px; }
+    .kpis { display:flex; gap:12px; flex-wrap:wrap; }
+    .kpi b { font-size:20px; }
+    .hdrTitle b { font-size:18px; }
+    .appMark { font-size:18px; }
+    .btnIcon { width:44px; display:inline-flex; align-items:center; justify-content:center; }
+    .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
+    .field input[type="text"], .field input[type="number"], .field select, .field textarea {
+      width:100%; padding:10px 12px;
+      border:1px solid rgba(255,255,255,.22); border-radius:12px;
+      background:#0b1420; color:#eaf2ff; outline:none;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
+    }
   `);
 
   // init nozzle selects in editor
@@ -212,6 +235,15 @@ export async function render(container){
   const teLenA  = container.querySelector('#teLenA');
   const teLenB  = container.querySelector('#teLenB');
   const GPMel   = container.querySelector('#GPM');
+
+  // Header: Settings (navigate safely without breaking older routers)
+  const settingsBtn = container.querySelector('#settingsBtn');
+  settingsBtn.addEventListener('click', ()=>{
+    if (typeof window.loadView === 'function') { window.loadView('settings'); return; }
+    if (typeof window.navigate === 'function') { window.navigate('settings'); return; }
+    location.hash = '#settings';
+    window.dispatchEvent(new CustomEvent('nav:settings'));
+  });
 
   // Hydrant / Static helper panels (markup exists; interactions now handled by WaterSupplyUI)
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -309,7 +341,7 @@ export async function render(container){
     });
   }
 
-  // ===== Lines math & Why? panel (unchanged) =====
+  // ===== Lines math & Why? panel (unchanged)
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
