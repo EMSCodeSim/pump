@@ -7,14 +7,16 @@
   <link rel="preload" href="/js/store.js" as="script" type="module">
   <style>
     :root{
+      /* Keep global base tokens only—avoid overriding view styles so the OLD LOOK remains */
       --bg:#0a0f16; --ink:#eaf2ff; --muted:#a9bed9; --edge:rgba(255,255,255,.12);
-      --panel:#0f1624; --btn:#0b1320; --btnEdge:#1f304d; --accent:#3aa7ff;
+      --btn:#0b1320; --btnEdge:#1f304d; --accent:#3aa7ff;
       --nav:#0a111d; --navEdge:#1b2a44;
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
 
-    /* ===== Professional top banner ===== */
+    /* ===== Professional Top Banner (LOGO LEFT, COG RIGHT) =====
+       Does NOT touch hose or KPI styles → preserves old look from view code */
     header{
       position:sticky; top:0; z-index:100;
       background:linear-gradient(180deg,#0d1524 0%, #0a0f16 100%);
@@ -45,7 +47,7 @@
     }
     .iconBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
 
-    /* ===== Page shell ===== */
+    /* ===== Page shell (no custom styles for hoses/KPIs here to keep OLD LOOK) ===== */
     main{padding:10px; padding-bottom:96px; max-width:1000px; margin:0 auto}
 
     /* Bottom nav (Settings REMOVED) */
@@ -59,10 +61,12 @@
     }
     .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
 
-    /* Safety: ensure any tip editor & sheets default hidden to prevent flash on mobile */
-    .tip-editor{ display:none !important; }
-    #sheet{ transform:translateY(100%); }
-    .sheet.show{ transform:translateY(0); }
+    /* ===== Strong defaults to prevent Presets/Editor flash ===== */
+    /* If these elements exist anywhere in DOM, keep them hidden unless explicitly "opened" */
+    #sheet{ display:none; }               /* hidden until .show is added by view code */
+    #sheet.show{ display:block; }
+    #sheetBackdrop{ display:none; }       /* only visible when sheet is open */
+    .tip-editor{ display:none !important; } /* editor stays hidden until view toggles it */
   </style>
 </head>
 <body>
@@ -97,7 +101,7 @@
   <!-- App router -->
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal wiring + safety hide to avoid panels visible on load -->
+  <!-- Minimal wiring + robust safety-hide so Presets/Editor never appear randomly -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -119,26 +123,39 @@
         });
       });
 
-      // Safety: hide tip editor + presets sheet if injected before styles apply
+      // --- Robust suppression of Presets sheet & Line editor on initial paint and after view mounts
       function safetyHidePanels(){
-        const tip = document.querySelector('.tip-editor');
-        if (tip) { tip.classList.add('is-hidden'); tip.style.display='none'; }
+        // Presets bottom sheet
         const sheet = document.getElementById('sheet');
         const backdrop = document.getElementById('sheetBackdrop');
-        if (sheet) sheet.classList.remove('show');
-        if (backdrop) backdrop.style.display='none';
+        if (sheet && !sheet.classList.contains('show')) {
+          sheet.style.display = 'none';
+        }
+        if (backdrop) {
+          backdrop.style.display = (sheet && sheet.classList.contains('show')) ? 'block' : 'none';
+        }
+        // Line tip editor
+        document.querySelectorAll('.tip-editor').forEach(ed=>{
+          // force hidden unless a view explicitly displays it
+          ed.classList.add('is-hidden');
+          ed.style.display = 'none';
+        });
       }
 
-      // Run on load + after each view change
+      // Run early and often
+      safetyHidePanels();
       document.addEventListener('DOMContentLoaded', safetyHidePanels);
+      window.addEventListener('load', safetyHidePanels);
       window.addEventListener('hashchange', safetyHidePanels);
-      window.addEventListener('nav:calc', safetyHidePanels);
-      window.addEventListener('nav:practice', safetyHidePanels);
-      window.addEventListener('nav:charts', safetyHidePanels);
-      window.addEventListener('nav:settings', safetyHidePanels);
+      ['calc','practice','charts','settings'].forEach(v=>{
+        window.addEventListener('nav:'+v, safetyHidePanels);
+      });
 
-      // Also observe late-inserted nodes (in case the view mounts after)
-      const mo = new MutationObserver(() => safetyHidePanels());
+      // Observe DOM mutations (views mounting async)
+      const mo = new MutationObserver((muts)=>{
+        // If sheet/editor gets injected without being "opened", suppress it
+        safetyHidePanels();
+      });
       mo.observe(document.documentElement, {subtree:true, childList:true});
     })();
   </script>
