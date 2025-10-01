@@ -1,30 +1,113 @@
-// ./js/view.practice.js
-// Source: your working Practice page logic, preserved.
-// Tweaks: mobile-friendly styles, ppGuess numeric UX, and NFPA elevation text (0.05 psi/ft).
+// view.practice.js
+// Phone-friendly Practice page for hydraulics drills.
+// Uses your shared store helpers (NFPA 0.05 psi/ft + appliance loss: +10 psi only if total GPM > 350).
+//
+// What this page lets you practice:
+//   • Pick hose size + segments (one or more), GPM, and elevation
+//   • Optional appliance at the line (auto 0/10 psi rule)
+//   • Optional nozzle NP (from your nozzle catalog) or manual NP override
+//   • See PDP and a clear “Why?” breakdown
+//
+// Mobile UX:
+//   • Prevents iOS zoom (16px inputs), bigger tap targets, clean spacing
+//   • Works without changing global app state (this page is sandboxed)
 
-import { COEFF, FL_total, PSI_PER_FT } from './store.js';
+import {
+  COEFF,
+  PSI_PER_FT,
+  FL,
+  FL_total,
+  sumFt,
+  sizeLabel,
+  NOZ,
+  NOZ_LIST,
+  computeApplianceLoss,
+} from './store.js';
 
-const TRUCK_W = 390;
-const TRUCK_H = 260;
-const PX_PER_50FT = 45;
-const CURVE_PULL = 36;
-const BRANCH_LIFT = 10;
-const TOL = 1;
+import {
+  applyMobileFormStyles,
+  enhanceNumericInputs,
+  padTouchTargets,
+} from './mobile-ui.js';
 
-// Master stream defaults (typical)
-const MS_CHOICES = [
-  { gpm: 500, NP: 80, appliance: 25 },
-  { gpm: 750, NP: 80, appliance: 25 },
-  { gpm: 1000, NP: 80, appliance: 25 }
-];
+const SIZES = ['1.75', '2.5', '5'];
 
-function injectStyle(root, cssText){
+function injectStyle(root, cssText) {
   const s = document.createElement('style');
   s.textContent = cssText;
   root.appendChild(s);
 }
 
-export async function render(container){
+function el(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+function option(v, text) {
+  const o = document.createElement('option');
+  o.value = v;
+  o.textContent = text ?? v;
+  return o;
+}
+
+function renderSegmentRow(idx, seg = { size: '1.75', lengthFt: 200 }) {
+  const row = el(`
+    <div class="row seg" data-i="${idx}">
+      <div class="field" style="min-width:140px">
+        <label>Diameter</label>
+        <select class="segSize"></select>
+      </div>
+      <div class="field" style="min-width:140px">
+        <label>Length (ft)</label>
+        <input class="segLen" type="number" inputmode="decimal" step="25" min="0" value="${Number(seg.lengthFt)||0}">
+      </div>
+      <div class="field" style="min-width:120px; display:flex; align-items:flex-end">
+        <button class="btn segDel" type="button" title="Remove segment">Remove</button>
+      </div>
+    </div>
+  `);
+  const sel = row.querySelector('.segSize');
+  SIZES.forEach(s => sel.appendChild(option(s, sizeLabel(s))));
+  sel.value = String(seg.size || '1.75');
+  return row;
+}
+
+function parseSegments(container) {
+  const rows = Array.from(container.querySelectorAll('.seg'));
+  return rows.map(r => {
+    const size = r.querySelector('.segSize').value;
+    const len = Number(r.querySelector('.segLen').value) || 0;
+    return { size, lengthFt: len };
+  }).filter(s => s.lengthFt > 0);
+}
+
+function currentNozzle(selection, manualNP) {
+  if (selection === 'manual') {
+    return { name: 'Manual', NP: Number(manualNP) || 0, gpm: null, id: 'manual' };
+  }
+  const n = NOZ[selection];
+  return n || { name: 'None', NP: 0, gpm: null, id: 'none' };
+}
+
+function calcPDP({ segs, gpm, elevFt, applianceOn, nozzleNP }) {
+  const NP = nozzleNP || 0;
+  const mainFL = FL_total(gpm, segs);
+  const elevPsi = (Number(elevFt) || 0) * PSI_PER_FT;
+  const appl = applianceOn ? computeApplianceLoss(gpm) : 0;
+  const PDP = NP + mainFL + elevPsi + appl;
+  return { NP, mainFL, elevPsi, appl, PDP };
+}
+
+function fmt(n, p=0) {
+  const num = Number(n)||0;
+  return p===0 ? String(Math.round(num)) : (Math.round(num*Math.pow(10,p))/Math.pow(10,p)).toFixed(p);
+}
+
+// Tolerance for answer checking
+const TOL = 5; // ±5 psi
+
+export async function render(container) {
   container.innerHTML = `
     <section class="stack">
       <section class="card" style="padding-bottom:6px">
@@ -121,6 +204,12 @@ export async function render(container){
     const branchPx = branchMaxFt ? (branchMaxFt/50)*PX_PER_50FT + BRANCH_LIFT : 0;
     return Math.max(TRUCK_H + 20 + mainPx + branchPx, TRUCK_H + 20);
   }
+  const TRUCK_W = 390;
+  const TRUCK_H = 260;
+  const PX_PER_50FT = 45;
+  const CURVE_PULL = 36;
+  const BRANCH_LIFT = 10;
+
   const truckTopY = viewH => viewH - TRUCK_H;
   function pumpXY(viewH){
     const top = truckTopY(viewH);
@@ -153,7 +242,7 @@ export async function render(container){
     for(const x of weightedArray){ if((r-=x.w)<=0) return x.v; }
     return weightedArray[weightedArray.length-1].v;
   }
-  const sizeLabel = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
+  const sizeLabelLocal = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
 
   // ===== scenario generator (no single-branch wye; master stream equal 2.5″ lines; hide per-line GPM on graphic)
   function makeScenario(){
@@ -211,7 +300,11 @@ export async function render(container){
 
     if(kind==='master'){
       const elevFt = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
-      const ms = pick(MS_CHOICES);
+      const ms = pick([
+        { gpm: 500, NP: 80, appliance: 25 },
+        { gpm: 750, NP: 80, appliance: 25 },
+        { gpm: 1000, NP: 80, appliance: 25 }
+      ]);
       const totalGPM = ms.gpm;
       const perLine = totalGPM/2;
       const lenChoices = [100,150,200,250,300];
@@ -338,11 +431,11 @@ export async function render(container){
       const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
       const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
 
-      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`);
+      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)}`);
       addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
       addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     } else {
-      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     }
   }
 
@@ -503,7 +596,7 @@ export async function render(container){
     const rev = buildReveal(S);
     practiceAnswer = rev.total;
     drawScenario(S);
-    practiceInfo.textContent = 'Scenario ready — enter your PP below (±1 psi).';
+    practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
     statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
   }
