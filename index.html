@@ -5,18 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>FireOps Calc</title>
   <link rel="preload" href="/js/store.js" as="script" type="module">
+  <!--
+    Minimal, SCOPED styles so we DO NOT override hose/KPI look coming from view.calc.js.
+    Header + bottom nav only, plus strong defaults to prevent Presets/Editor flashing on load.
+  -->
   <style>
     :root{
-      /* Keep global base tokens only—avoid overriding view styles so the OLD LOOK remains */
-      --bg:#0a0f16; --ink:#eaf2ff; --muted:#a9bed9; --edge:rgba(255,255,255,.12);
+      /* Minimal globals to avoid overriding the app’s internal styles */
+      --bg:#0a0f16; --ink:#eaf2ff; --edge:rgba(255,255,255,.12);
       --btn:#0b1320; --btnEdge:#1f304d; --accent:#3aa7ff;
       --nav:#0a111d; --navEdge:#1b2a44;
     }
     *{box-sizing:border-box}
-    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui, Segoe UI, Inter, Arial, sans-serif}
 
-    /* ===== Professional Top Banner (LOGO LEFT, COG RIGHT) =====
-       Does NOT touch hose or KPI styles → preserves old look from view code */
+    /* ===== Header (scoped) ===== */
     header{
       position:sticky; top:0; z-index:100;
       background:linear-gradient(180deg,#0d1524 0%, #0a0f16 100%);
@@ -24,56 +27,57 @@
       backdrop-filter:saturate(120%) blur(4px);
       padding: env(safe-area-inset-top) 0 0 0;
     }
-    .hdr{
+    header .hdr{
       max-width:1000px; margin:0 auto;
       padding:10px 14px;
       display:flex; align-items:center; justify-content:space-between; gap:12px;
     }
-    .brand{display:flex; align-items:center; gap:12px; min-width:0}
-    .brand img{
+    header .brand{display:flex; align-items:center; gap:12px; min-width:0}
+    header .brand img{
       height:30px; width:auto; display:block; object-fit:contain;
       filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
     }
-    .brandName{
+    header .brandName{
       font-weight:800; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       font-size:18px;
     }
-    .hdrBtns{display:flex; align-items:center; gap:8px}
-    .iconBtn{
+    header .hdrBtns{display:flex; align-items:center; gap:8px}
+    header .iconBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn);
       color:var(--ink); border-radius:12px; padding:10px; min-width:44px; min-height:44px;
       display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
       box-shadow:0 6px 16px rgba(0,0,0,.35);
     }
-    .iconBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
+    header .iconBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
 
-    /* ===== Page shell (no custom styles for hoses/KPIs here to keep OLD LOOK) ===== */
+    /* ===== Page shell (no card/kpi/hose styles here) ===== */
     main{padding:10px; padding-bottom:96px; max-width:1000px; margin:0 auto}
 
-    /* Bottom nav (Settings REMOVED) */
+    /* ===== Bottom nav (scoped) — Settings removed ===== */
     .bottom-nav{
-      position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--nav);border-top:1px solid var(--navEdge);
-      display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;
+      position:fixed; left:0; right:0; bottom:0; z-index:50;
+      background:var(--nav); border-top:1px solid var(--navEdge);
+      display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:8px;
       padding-bottom:calc(8px + env(safe-area-inset-bottom));
     }
-    .navbtn{
-      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:12px 10px;font-size:14px;text-align:center;cursor:pointer; min-height:44px
+    .bottom-nav .navbtn{
+      background:#0b1320; border:1px solid var(--navEdge); border-radius:12px;
+      color:#cfe4ff; padding:12px 10px; font-size:14px; text-align:center; cursor:pointer; min-height:44px;
     }
-    .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
+    .bottom-nav .navbtn.active{ outline:2px solid var(--accent); color:#eaf2ff }
 
-    /* ===== Strong defaults to prevent Presets/Editor flash ===== */
-    /* If these elements exist anywhere in DOM, keep them hidden unless explicitly "opened" */
-    #sheet{ display:none; }               /* hidden until .show is added by view code */
+    /* ===== Strong defaults to prevent Presets/Editor flash (scoped by ID/class) ===== */
+    #sheet{ display:none; }             /* hidden until .show is explicitly added by view code */
     #sheet.show{ display:block; }
-    #sheetBackdrop{ display:none; }       /* only visible when sheet is open */
-    .tip-editor{ display:none !important; } /* editor stays hidden until view toggles it */
+    #sheetBackdrop{ display:none; }     /* only visible when sheet is open */
+    .tip-editor{ display:none !important; } /* editor stays hidden until the view toggles it */
   </style>
 </head>
 <body>
   <header>
     <div class="hdr">
       <div class="brand">
-        <!-- Your logo lives at the root as fireopscalc.png -->
+        <!-- Your logo is at the root -->
         <img src="/fireopscalc.png" alt="FireOps Calc logo"
              onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block'">
         <div class="brandName" style="display:none">FireOps Calc</div>
@@ -136,7 +140,6 @@
         }
         // Line tip editor
         document.querySelectorAll('.tip-editor').forEach(ed=>{
-          // force hidden unless a view explicitly displays it
           ed.classList.add('is-hidden');
           ed.style.display = 'none';
         });
@@ -152,10 +155,7 @@
       });
 
       // Observe DOM mutations (views mounting async)
-      const mo = new MutationObserver((muts)=>{
-        // If sheet/editor gets injected without being "opened", suppress it
-        safetyHidePanels();
-      });
+      const mo = new MutationObserver(()=> safetyHidePanels());
       mo.observe(document.documentElement, {subtree:true, childList:true});
     })();
   </script>
