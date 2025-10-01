@@ -1,4 +1,6 @@
 // ./js/view.charts.js
+// Phone-friendly Charts view, with "Common GPM" bubbles removed.
+
 import { COEFF } from './store.js';
 
 /**
@@ -7,7 +9,7 @@ import { COEFF } from './store.js';
  *   1) Nozzles  (Smooth Bore | Fog)  ← SB first, default selected
  *   2) Hose Friction Loss (horizontal hose-size buttons; FL per 100')
  *   3) Rules of Thumb
- * - Each section shows "Common GPM" presets as chips for quick reference.
+ * - Mobile polish: bigger tap targets, 16px inputs to prevent iOS zoom, responsive grids.
  */
 
 export async function render(container){
@@ -47,9 +49,6 @@ export async function render(container){
         <!-- Horizontal hose-size buttons -->
         <div class="hoseRow" role="tablist" aria-label="Hose size"></div>
 
-        <!-- Common GPM presets for the selected hose -->
-        <div id="flPresetsWrap" class="chipsWrap" style="display:none; margin-top:8px"></div>
-
         <div id="flTableWrap" style="margin-top:8px"></div>
         <div class="mini" style="opacity:.95; margin-top:6px">
           FL equation: <code>FL_per100 = C × (GPM/100)²</code>
@@ -72,8 +71,8 @@ export async function render(container){
   injectLocalStyles(container, `
     /* Prevent iOS zoom; bigger tap targets + clearer focus */
     input, select, textarea, button { font-size:16px; }
-    .btn, .segBtn, .hoser, .chip { min-height:44px; padding:10px 14px; touch-action: manipulation; }
-    .btn:focus-visible, .segBtn:focus-visible, .hoser:focus-visible, .chip:focus-visible {
+    .btn, .segBtn, .hoser { min-height:44px; padding:10px 14px; touch-action: manipulation; }
+    .btn:focus-visible, .segBtn:focus-visible, .hoser:focus-visible {
       outline: 3px solid rgba(110,203,255,.85); outline-offset: 2px;
     }
 
@@ -101,15 +100,6 @@ export async function render(container){
     }
     .nozzTitle { color:#fff; font-weight:700; margin-bottom:4px; }
     .nozzSub { color:#cfe6ff; font-size:14px; }
-
-    /* Chips */
-    .chipsWrap { display:flex; gap:8px; flex-wrap:wrap; }
-    .chip {
-      background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.15);
-      border-radius:999px; padding:8px 12px; font-size:14px; font-weight:800;
-      user-select:none; cursor: pointer;
-    }
-    .chip.note { background:#0e151e; color:#a9bed9; border-style:dashed; cursor:default; }
 
     /* Hose row buttons */
     .hoseRow { display:flex; gap:8px; flex-wrap:wrap; }
@@ -216,13 +206,10 @@ export async function render(container){
     s==='2.5'  ? '2½″' :
     `${s}″`;
 
-  // FL ranges
+  // FL ranges (still used to populate the table; chips highlighting removed)
   const GPM_SETS = {
-    // 1¾″: focused common handline range
     '1.75': [100, 125, 150, 160, 175, 185],
-    // 2½″: 150–600 gpm (50 steps)
     '2.5':  buildRange(150, 600, 50),
-    // 5″: 500–1000 gpm (50 steps)
     '5':    buildRange(500, 1000, 50)
   };
 
@@ -238,7 +225,6 @@ export async function render(container){
   const fogWrap = container.querySelector('#nozzlesFog');
   const sbWrap  = container.querySelector('#nozzlesSB');
   const hoseRow = container.querySelector('.hoseRow');
-  const flPresetsWrap = container.querySelector('#flPresetsWrap');
   const flTableWrap = container.querySelector('#flTableWrap');
   const rulesList = container.querySelector('#rulesList');
 
@@ -249,23 +235,10 @@ export async function render(container){
     rulesCard.style.display = (card === rulesCard)? 'block' : 'none';
   }
 
-  // --- NOZZLES (with Common GPM chips under each group)
-  function chipsHTML(title, arr){
-    if(!arr?.length) return '';
-    return `
-      <div class="chipsWrap" style="grid-column:1/-1; margin:-2px 0 6px 0">
-        <span class="chip note" aria-hidden="true">${title}</span>
-        ${[...new Set(arr)].map(g=>`<button class="chip" type="button" data-chip="${g}">${g} gpm</button>`).join('')}
-      </div>
-    `;
-  }
-
+  // --- NOZZLES (chips removed)
   function renderNozzlesSB(){
-    const sbHandGPM   = SB_HANDLINE_50.map(n=>n.gpm);
-    const sbMasterGPM = SB_MASTER_80.map(n=>n.gpm);
     sbWrap.innerHTML = `
       <div class="groupHeader">Handline Smooth Bore (50 psi NP)</div>
-      ${chipsHTML('Common GPM', sbHandGPM)}
       ${SB_HANDLINE_50.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.tip)}</div>
@@ -273,7 +246,6 @@ export async function render(container){
         </div>
       `).join('')}
       <div class="groupHeader">Master Stream Smooth Bore (80 psi NP)</div>
-      ${chipsHTML('Common GPM', sbMasterGPM)}
       ${SB_MASTER_80.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.tip)}</div>
@@ -284,11 +256,8 @@ export async function render(container){
   }
 
   function renderNozzlesFog(){
-    const fogHandGPM   = FOG_HANDLINE.map(n=>n.gpm);
-    const fogMasterGPM = FOG_MASTER.map(n=>n.gpm);
     fogWrap.innerHTML = `
       <div class="groupHeader">Handline Fog</div>
-      ${chipsHTML('Common GPM', fogHandGPM)}
       ${FOG_HANDLINE.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.label)}</div>
@@ -296,7 +265,6 @@ export async function render(container){
         </div>
       `).join('')}
       <div class="groupHeader">Master Stream Fog (100 psi NP)</div>
-      ${chipsHTML('Common GPM', fogMasterGPM)}
       ${FOG_MASTER.map(n=>`
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.label)}</div>
@@ -306,7 +274,7 @@ export async function render(container){
     `;
   }
 
-  // --- FL (with Common GPM preset chips that highlight table rows)
+  // --- FL (Common GPM preset chips removed)
   function renderHoseButtons(){
     hoseRow.innerHTML = '';
     const available = HOSE_ORDER.filter(s => COEFF[s] != null);
@@ -334,31 +302,11 @@ export async function render(container){
     if(available.length){
       renderFLTable(available[0]);
     }else{
-      flPresetsWrap.style.display = 'none';
       flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found in store.js (expected keys: 1.75, 2.5, 5).</div>`;
     }
   }
 
-  function renderFLPresets(sizeKey){
-    const list = GPM_SETS[sizeKey] || [];
-    if(!list.length){ flPresetsWrap.style.display = 'none'; return; }
-    flPresetsWrap.style.display = 'flex';
-    flPresetsWrap.innerHTML = `
-      <div class="chipsWrap">
-        <span class="chip note" aria-hidden="true">Common GPM</span>
-        ${list.map(g=>`<button class="chip" data-g="${g}" type="button" aria-label="Highlight ${g} gallons per minute">${g} gpm</button>`).join('')}
-      </div>
-    `;
-    flPresetsWrap.querySelectorAll('[data-g]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const g = +btn.dataset.g;
-        highlightRowForGPM(g);
-      });
-    });
-  }
-
   function renderFLTable(sizeKey){
-    renderFLPresets(sizeKey);
     const C = COEFF[sizeKey];
     if(C == null){
       flTableWrap.innerHTML = `<div class="status alert">Missing C for ${HOSE_LABEL(sizeKey)} in store.js.</div>`;
@@ -374,21 +322,10 @@ export async function render(container){
       <div style="max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch">
         <table class="flTable" role="table" aria-label="Friction loss per 100 feet">
           <thead><tr><th>Flow</th><th class="muted">Coeff</th><th>FL per 100′</th></tr></thead>
-          <tbody>${rows || `<tr><td colspan="3" class="muted">No GPM presets.</td></tr>`}</tbody>
+          <tbody>${rows || `<tr><td colspan="3" class="muted">No GPM values.</td></tr>`}</tbody>
         </table>
       </div>
     `;
-  }
-
-  function highlightRowForGPM(g){
-    const tbody = flTableWrap.querySelector('tbody');
-    if(!tbody) return;
-    tbody.querySelectorAll('tr').forEach(tr=> tr.classList.remove('hi'));
-    const row = tbody.querySelector(`tr[data-g="${g}"]`);
-    if(row){
-      row.classList.add('hi');
-      row.scrollIntoView({ behavior:'smooth', block:'nearest' });
-    }
   }
 
   // --- RULES
