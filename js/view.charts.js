@@ -17,9 +17,9 @@ export async function render(container){
       <!-- Section launchers -->
       <section class="card">
         <div class="controls" style="display:flex; gap:10px; flex-wrap:wrap">
-          <button class="btn primary" id="btnShowNozzles">Nozzles</button>
-          <button class="btn" id="btnShowFL">Hose Friction Loss</button>
-          <button class="btn" id="btnShowRules">Rules of Thumb</button>
+          <button class="btn primary" id="btnShowNozzles" type="button">Nozzles</button>
+          <button class="btn" id="btnShowFL" type="button">Hose Friction Loss</button>
+          <button class="btn" id="btnShowRules" type="button">Rules of Thumb</button>
         </div>
         <div class="status" style="margin-top:8px">Pick a topic to view details.</div>
       </section>
@@ -29,8 +29,8 @@ export async function render(container){
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap">
           <div class="ink-strong" style="font-weight:700">Nozzles</div>
           <div class="seg" role="tablist" aria-label="Nozzle type">
-            <button class="segBtn segOn" data-type="sb" role="tab" aria-selected="true">Smooth Bore</button>
-            <button class="segBtn" data-type="fog" role="tab" aria-selected="false">Fog</button>
+            <button class="segBtn segOn" data-type="sb" role="tab" aria-selected="true" type="button">Smooth Bore</button>
+            <button class="segBtn" data-type="fog" role="tab" aria-selected="false" type="button">Fog</button>
           </div>
         </div>
 
@@ -68,18 +68,33 @@ export async function render(container){
     </section>
   `;
 
-  // ====== Local styles (high contrast, segmented control, layout, chips)
+  // ====== Local styles (original + mobile polish)
   injectLocalStyles(container, `
+    /* Prevent iOS zoom; bigger tap targets + clearer focus */
+    input, select, textarea, button { font-size:16px; }
+    .btn, .segBtn, .hoser, .chip { min-height:44px; padding:10px 14px; touch-action: manipulation; }
+    .btn:focus-visible, .segBtn:focus-visible, .hoser:focus-visible, .chip:focus-visible {
+      outline: 3px solid rgba(110,203,255,.85); outline-offset: 2px;
+    }
+
+    /* Layout */
     .ink-strong { color: #ffffff; }
     .seg { display:inline-flex; background:#0f141c; border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden }
     .segBtn {
-      appearance:none; background:transparent; color:#cfe6ff; border:0; padding:10px 14px;
-      font-weight:600; min-height:44px; cursor:pointer;
+      appearance:none; background:transparent; color:#cfe6ff; border:0;
+      font-weight:700; cursor:pointer;
     }
     .segBtn.segOn { background:#1a2738; color:#fff; }
 
-    .nozzWrap { display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
-    .nozzCard { background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:10px; }
+    /* Responsive nozzle card grid */
+    .nozzWrap {
+      display:grid; gap:10px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+    @media (max-width: 480px) {
+      .nozzWrap { grid-template-columns: 1fr; }
+    }
+    .nozzCard { background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; }
     .groupHeader {
       grid-column:1/-1; margin:2px 0 6px 0; color:#fff; font-weight:800; letter-spacing:.2px;
       padding-top:4px; border-top:1px dashed rgba(255,255,255,.12);
@@ -87,41 +102,51 @@ export async function render(container){
     .nozzTitle { color:#fff; font-weight:700; margin-bottom:4px; }
     .nozzSub { color:#cfe6ff; font-size:14px; }
 
+    /* Chips */
     .chipsWrap { display:flex; gap:8px; flex-wrap:wrap; }
     .chip {
       background:#1a2738; color:#fff; border:1px solid rgba(255,255,255,.15);
-      border-radius:999px; padding:6px 10px; font-size:13px; font-weight:700;
-      user-select:none;
+      border-radius:999px; padding:8px 12px; font-size:14px; font-weight:800;
+      user-select:none; cursor: pointer;
     }
-    .chip.note { background:#0e151e; color:#a9bed9; border-style:dashed; }
+    .chip.note { background:#0e151e; color:#a9bed9; border-style:dashed; cursor:default; }
 
+    /* Hose row buttons */
     .hoseRow { display:flex; gap:8px; flex-wrap:wrap; }
     .hoseRow .hoser {
       appearance:none; border:1px solid rgba(255,255,255,.14); background:#131b26; color:#fff;
-      border-radius:12px; padding:10px 12px; min-height:44px; font-weight:700; cursor:pointer;
+      border-radius:12px; font-weight:800; cursor:pointer;
     }
     .hoseRow .hoser.on { background:#2a8cff; }
 
+    /* FL table */
     .flTable { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; }
-    .flTable th, .flTable td { padding:10px 12px; text-align:left; }
-    .flTable thead th { background:#162130; color:#fff; border-bottom:1px solid rgba(255,255,255,.1); }
+    .flTable th, .flTable td { padding:12px; text-align:left; font-size:15px; }
+    .flTable thead th { background:#162130; color:#fff; border-bottom:1px solid rgba(255,255,255,.1); position:sticky; top:0; z-index:1; }
     .flTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
     .flTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
     .flTable .muted { color:#a9bed9; }
     .flTable tr.hi td { outline:2px solid #2a8cff; outline-offset:-2px; }
 
+    /* Rules list */
     .rulesList { display:grid; gap:8px; }
     .rule {
       background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;
       display:flex; gap:10px; align-items:flex-start;
     }
     .pill {
-      background:#2a8cff; color:#fff; font-weight:700;
-      padding:4px 8px; border-radius:999px; font-size:12px; white-space:nowrap;
+      background:#2a8cff; color:#fff; font-weight:800;
+      padding:6px 10px; border-radius:999px; font-size:12px; white-space:nowrap;
       align-self:flex-start;
     }
-    .ruleTitle { color:#fff; font-weight:700; margin:0 0 2px 0; }
-    .ruleText { color:#dfeaff; margin:0; }
+    .ruleTitle { color:#fff; font-weight:800; margin:0 0 2px 0; }
+    .ruleText { color:#dfeaff; margin:0; line-height:1.35; }
+
+    /* Reduce horizontal bounce on small screens */
+    @media (max-width: 420px) {
+      .controls { gap:6px; }
+      .btn.primary { flex: 1 1 auto; }
+    }
   `);
 
   // ====== Data
@@ -229,8 +254,8 @@ export async function render(container){
     if(!arr?.length) return '';
     return `
       <div class="chipsWrap" style="grid-column:1/-1; margin:-2px 0 6px 0">
-        <span class="chip note">${title}</span>
-        ${[...new Set(arr)].map(g=>`<span class="chip">${g} gpm</span>`).join('')}
+        <span class="chip note" aria-hidden="true">${title}</span>
+        ${[...new Set(arr)].map(g=>`<button class="chip" type="button" data-chip="${g}">${g} gpm</button>`).join('')}
       </div>
     `;
   }
@@ -290,6 +315,7 @@ export async function render(container){
       const hasC = COEFF[s] != null;
       b.className = 'hoser' + ((i===0 && hasC)?' on':'');
       b.dataset.size = s;
+      b.type = 'button';
       b.textContent = `${HOSE_LABEL(s)}`;
       if(hasC){
         b.addEventListener('click', ()=>{
@@ -319,8 +345,8 @@ export async function render(container){
     flPresetsWrap.style.display = 'flex';
     flPresetsWrap.innerHTML = `
       <div class="chipsWrap">
-        <span class="chip note">Common GPM</span>
-        ${list.map(g=>`<button class="chip" data-g="${g}" type="button">${g} gpm</button>`).join('')}
+        <span class="chip note" aria-hidden="true">Common GPM</span>
+        ${list.map(g=>`<button class="chip" data-g="${g}" type="button" aria-label="Highlight ${g} gallons per minute">${g} gpm</button>`).join('')}
       </div>
     `;
     flPresetsWrap.querySelectorAll('[data-g]').forEach(btn=>{
@@ -345,10 +371,12 @@ export async function render(container){
       return `<tr data-g="${g}"><td>${g} gpm</td><td class="muted">C=${C}</td><td><b>${val}</b> psi / 100′</td></tr>`;
     }).join('');
     flTableWrap.innerHTML = `
-      <table class="flTable" role="table" aria-label="Friction loss per 100 feet">
-        <thead><tr><th>Flow</th><th class="muted">Coeff</th><th>FL per 100′</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="3" class="muted">No GPM presets.</td></tr>`}</tbody>
-      </table>
+      <div style="max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch">
+        <table class="flTable" role="table" aria-label="Friction loss per 100 feet">
+          <thead><tr><th>Flow</th><th class="muted">Coeff</th><th>FL per 100′</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="3" class="muted">No GPM presets.</td></tr>`}</tbody>
+        </table>
+      </div>
     `;
   }
 
