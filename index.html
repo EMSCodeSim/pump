@@ -7,134 +7,80 @@
   <link rel="preload" href="/js/store.js" as="script" type="module">
   <style>
     :root{
-      --bg:#0b0f14; --panel:#0f1624; --ink:#eaf2ff; --muted:#9fb0c8; --edge:rgba(255,255,255,.14);
-      --hose5:#ecd464; --hose25:#6ecbff; --hose175:#ff6b6b;
-      --bubble:#172134; --bubble-edge:rgba(255,255,255,.15);
-      --btn:#0b1320; --btnEdge:#20324f;
-      --accent:#3aa7ff; --ok:#9fe879; --warn:#ffa726; --alert:#ef5350;
+      --bg:#0a0f16; --ink:#eaf2ff; --muted:#a9bed9; --edge:rgba(255,255,255,.12);
+      --panel:#0f1624; --btn:#0b1320; --btnEdge:#1f304d; --accent:#3aa7ff;
       --nav:#0a111d; --navEdge:#1b2a44;
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
 
-    /* ===== Header banner (logo left, settings cog right) ===== */
+    /* ===== Pro top banner ===== */
     header{
       position:sticky; top:0; z-index:100;
-      padding:10px 14px calc(10px + env(safe-area-inset-top));
-      background:linear-gradient(180deg,#0c1320,#0b0f14);
+      background:linear-gradient(180deg,#0d1524 0%, #0a0f16 100%);
       border-bottom:1px solid var(--edge);
+      backdrop-filter:saturate(120%) blur(4px);
+      padding: env(safe-area-inset-top) 0 0 0;
     }
     .hdr{
-      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
       max-width:1000px; margin:0 auto;
+      padding:10px 14px;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
     }
-    .brand{display:flex; align-items:center; gap:10px; min-width:0}
+    .brand{display:flex; align-items:center; gap:12px; min-width:0}
     .brand img{
-      height:28px; width:auto; display:block; object-fit:contain;
+      height:30px; width:auto; display:block; object-fit:contain;
       filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
     }
     .brandName{
       font-weight:800; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      font-size:18px;
     }
     .hdrBtns{display:flex; align-items:center; gap:8px}
     .iconBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn);
       color:var(--ink); border-radius:12px; padding:10px; min-width:44px; min-height:44px;
       display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+      box-shadow:0 6px 16px rgba(0,0,0,.35);
     }
     .iconBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
 
-    /* ===== Page layout ===== */
+    /* ===== Page shell ===== */
     main{padding:10px; padding-bottom:96px; max-width:1000px; margin:0 auto}
     .stack{display:flex;flex-direction:column;gap:10px}
     .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
-    /* Visual builder */
+    /* Stage + controls (unchanged layout hooks) */
     .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
     .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
-    #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
-    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--bubble);border:1px solid var(--bubble-edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
+    #overlay{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
+    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:rgba(15,22,36,.9);border:1px solid var(--edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
 
     .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
     .linebtn,.supplybtn,.presetsbtn{
       background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
-      padding:10px 12px;font-size:16px; /* 16px to prevent iOS zoom */
-      cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap; min-height:44px
+      padding:10px 12px;font-size:16px; /* prevent iOS zoom */ min-height:44px;
+      cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap;
     }
     .linebtn.active{outline:2px solid var(--accent)}
 
-    .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
-    .hose5{stroke:var(--hose5);stroke-width:12}
-    .hose25{stroke:var(--hose25);stroke-width:9}
-    .hose175{stroke:var(--hose175);stroke-width:6}
-    .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
-
-    .hose-end{cursor:pointer;pointer-events:all}
-    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
-    .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
-    .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
-
-    /* KPIs + math */
+    /* KPIs, tables, etc. (kept from your app) */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:10px 12px;font-size:14px;color:#cfe4ff;flex:1;min-width:160px;display:flex;align-items:center;justify-content:space-between;gap:8px}
     .kpi b{font-size:20px}
     .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:8px 10px;font-size:14px;cursor:pointer; min-height:44px}
     .whyBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
-    #PDP.orange{color:var(--warn)}
-    #PDP.red{color:var(--alert)}
 
-    .linesTable{margin-top:8px;border-top:1px solid var(--edge);padding-top:8px;display:grid;gap:8px}
-    .lineRow{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px}
-    .lineHeader{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px;font-size:12px;color:#cfe4ff}
-    .lineHeader .title{font-weight:700;color:#eaf2ff}
-    .lineHeader .tag{display:inline-block;background:#0b1a29;border:1px solid #1f3a57;border-radius:999px;padding:3px 7px;margin:2px 2px;font-size:11px}
-    details.math{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:6px 8px;margin-top:6px}
-    details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
-    .hoseviz{margin-top:6px}
-    .hoseLegend{display:flex;gap:8px;align-items:center;font-size:11px;color:#cfe4ff;margin:2px 0 6px}
-    .legSwatch{width:14px;height:8px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.35)}
-    .sw175{background:var(--hose175)} .sw25{background:var(--hose25)} .sw5{background:var(--hose5)}
-    .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
-    .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
-    .ppEq{font-size:14px;color:#eaf2ff;margin-top:6px;font-weight:700}
-    .lbl{font-size:10px;fill:#0b0f14}
-    .is-hidden{display:none!important}
-
-    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
-    .simpleBox b{color:#eaf2ff}
-    .simpleList{margin:6px 0 0 16px;padding:0}
-    .simpleList li{margin:2px 0}
-
-    @keyframes flashBox{0%{box-shadow:0 0 0 rgba(63,191,255,0)} 25%{box-shadow:0 0 0 4px rgba(58,167,255,.35)} 100%{box-shadow:0 0 0 rgba(63,191,255,0)}}
-    .flash{animation:flashBox 1200ms ease 1}
-
-    /* Preset bottom sheet */
-    .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:saturate(110%) blur(2px);z-index:40;display:none}
-    .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:#0e1726;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;padding:12px 12px 16px;transform:translateY(100%);transition:.28s ease}
-    .sheet.show + .sheet-backdrop{display:block}
-    .sheet.show{transform:translateY(0)}
-    .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
-    .preset{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:10px;text-align:center;font-size:13px;cursor:pointer}
-    .linepick{display:flex;gap:8px;margin-top:10px}
-    .linepick .preset{flex:1}
-
-    /* Bottom nav */
+    /* Bottom nav (Settings REMOVED) */
     .bottom-nav{
       position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--nav);border-top:1px solid var(--navEdge);
-      display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;
+      display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;
       padding-bottom:calc(8px + env(safe-area-inset-bottom));
     }
     .navbtn{
       background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:12px 10px;font-size:14px;text-align:center;cursor:pointer; min-height:44px
     }
     .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
-
-    .status{font-size:13px;color:#cfe4ff;margin-top:6px}
-    .ok{color:var(--ok)} .warn{color:var(--warn)} .alert{color:var(--alert)}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid var(--edge);padding:6px 8px;font-size:13px}
-    th{background:#0b1320;color:#cfe4ff;text-align:left}
-    caption{caption-side:top;text-align:left;color:#cfe4ff;font-weight:700;margin:6px 0}
   </style>
 </head>
 <body>
@@ -148,7 +94,7 @@
       </div>
       <div class="hdrBtns">
         <button class="iconBtn" id="settingsBtn" aria-label="Open Settings" title="Settings">
-          <!-- inline cog icon (accessible) -->
+          <!-- Cog icon -->
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
             <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0-2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
@@ -164,24 +110,21 @@
     <button class="navbtn active" data-view="calc">Calculations</button>
     <button class="navbtn" data-view="practice">Practice</button>
     <button class="navbtn" data-view="charts">Charts</button>
-    <button class="navbtn" data-view="settings">Settings</button>
   </nav>
 
   <!-- App router -->
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal nav wiring so the cog works even if app.js doesn't bind header -->
+  <!-- Minimal wiring so the header cog and bottom tabs work even if app.js hasn't attached yet -->
   <script>
     (function(){
       const navTo = (view) => {
         if (window.loadView) { window.loadView(view); return; }
         if (window.navigate) { window.navigate(view); return; }
-        // Fallback: set hash and dispatch a custom event many routers listen for
         if (view) location.hash = '#' + view;
         window.dispatchEvent(new CustomEvent('nav:'+view));
       };
       document.getElementById('settingsBtn')?.addEventListener('click', () => navTo('settings'));
-      // Bottom nav (in case app.js doesn’t attach)
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
