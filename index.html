@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>FireOps SIM</title>
+  <title>FireOps Calc</title>
   <link rel="preload" href="/js/store.js" as="script" type="module">
   <style>
     :root{
@@ -16,11 +16,36 @@
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
-    header{position:sticky;top:0;z-index:10;padding:10px 14px;background:linear-gradient(180deg,#0c1320,#0b0f14);border-bottom:1px solid var(--edge)}
-    .title{font-weight:700}
-    .sub{font-size:12px;color:#9fb0c8}
 
-    main{padding:10px;padding-bottom:84px}
+    /* ===== Header banner (logo left, settings cog right) ===== */
+    header{
+      position:sticky; top:0; z-index:100;
+      padding:10px 14px calc(10px + env(safe-area-inset-top));
+      background:linear-gradient(180deg,#0c1320,#0b0f14);
+      border-bottom:1px solid var(--edge);
+    }
+    .hdr{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:nowrap;
+      max-width:1000px; margin:0 auto;
+    }
+    .brand{display:flex; align-items:center; gap:10px; min-width:0}
+    .brand img{
+      height:28px; width:auto; display:block; object-fit:contain;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
+    }
+    .brandName{
+      font-weight:800; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .hdrBtns{display:flex; align-items:center; gap:8px}
+    .iconBtn{
+      appearance:none; border:1px solid var(--btnEdge); background:var(--btn);
+      color:var(--ink); border-radius:12px; padding:10px; min-width:44px; min-height:44px;
+      display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+    }
+    .iconBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
+
+    /* ===== Page layout ===== */
+    main{padding:10px; padding-bottom:96px; max-width:1000px; margin:0 auto}
     .stack{display:flex;flex-direction:column;gap:10px}
     .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
@@ -33,7 +58,8 @@
     .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
     .linebtn,.supplybtn,.presetsbtn{
       background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
-      padding:8px 10px;font-size:13px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap
+      padding:10px 12px;font-size:16px; /* 16px to prevent iOS zoom */
+      cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap; min-height:44px
     }
     .linebtn.active{outline:2px solid var(--accent)}
 
@@ -50,10 +76,10 @@
 
     /* KPIs + math */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .kpi b{font-size:18px}
-    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:6px 9px;font-size:12px;cursor:pointer}
-    .whyBtn:active{transform:translateY(1px)}
+    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:10px 12px;font-size:14px;color:#cfe4ff;flex:1;min-width:160px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .kpi b{font-size:20px}
+    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:8px 10px;font-size:14px;cursor:pointer; min-height:44px}
+    .whyBtn:focus-visible{outline:3px solid rgba(110,203,255,.85); outline-offset:2px}
     #PDP.orange{color:var(--warn)}
     #PDP.red{color:var(--alert)}
 
@@ -99,9 +125,10 @@
       padding-bottom:calc(8px + env(safe-area-inset-bottom));
     }
     .navbtn{
-      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer
+      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:12px 10px;font-size:14px;text-align:center;cursor:pointer; min-height:44px
     }
     .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
+
     .status{font-size:13px;color:#cfe4ff;margin-top:6px}
     .ok{color:var(--ok)} .warn{color:var(--warn)} .alert{color:var(--alert)}
     table{width:100%;border-collapse:collapse}
@@ -112,8 +139,23 @@
 </head>
 <body>
   <header>
-    <div class="title">FireOps Calc</div>
-    <div class="sub">Calculations • Practice • Charts</div>
+    <div class="hdr">
+      <div class="brand">
+        <!-- Replace src with your final logo asset path -->
+        <img src="/assets/logo-fireops-calc.svg" alt="FireOps Calc logo"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block'">
+        <div class="brandName" style="display:none">FireOps Calc</div>
+      </div>
+      <div class="hdrBtns">
+        <button class="iconBtn" id="settingsBtn" aria-label="Open Settings" title="Settings">
+          <!-- inline cog icon (accessible) -->
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0-2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   </header>
 
   <main id="app"></main>
@@ -122,9 +164,32 @@
     <button class="navbtn active" data-view="calc">Calculations</button>
     <button class="navbtn" data-view="practice">Practice</button>
     <button class="navbtn" data-view="charts">Charts</button>
-  
+    <button class="navbtn" data-view="settings">Settings</button>
   </nav>
 
+  <!-- App router -->
   <script type="module" src="/js/app.js"></script>
+
+  <!-- Minimal nav wiring so the cog works even if app.js doesn't bind header -->
+  <script>
+    (function(){
+      const navTo = (view) => {
+        if (window.loadView) { window.loadView(view); return; }
+        if (window.navigate) { window.navigate(view); return; }
+        // Fallback: set hash and dispatch a custom event many routers listen for
+        if (view) location.hash = '#' + view;
+        window.dispatchEvent(new CustomEvent('nav:'+view));
+      };
+      document.getElementById('settingsBtn')?.addEventListener('click', () => navTo('settings'));
+      // Bottom nav (in case app.js doesn’t attach)
+      document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          navTo(btn.dataset.view);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
