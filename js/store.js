@@ -66,7 +66,7 @@ export function sizeLabel(v){
  * ========================= */
 
 /** NFPA elevation: 0.5 psi per 10 ft -> 0.05 psi/ft */
-export const PSI_PER_FT = 0.05;
+export const PSI_PER_FT = 0.5;
 
 /** Appliance loss: +10 psi only when total flow exceeds 350 gpm */
 export function applianceLoss(totalGpm){
