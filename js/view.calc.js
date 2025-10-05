@@ -87,10 +87,10 @@ function addTip(G_tips, key, where, x, y){
   const ns='http://www.w3.org/2000/svg';
   const g = document.createElementNS(ns,'g');
   g.setAttribute('class','hose-end'); g.setAttribute('data-line',key); g.setAttribute('data-where',where);
-  const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-20); hit.setAttribute('y', y-20); hit.setAttribute('width', 40); hit.setAttribute('height', 40);
-  const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',14);
-  const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign'); v.setAttribute('x1',x); v.setAttribute('y1',y-6); v.setAttribute('x2',x); v.setAttribute('y2',y+6);
-  const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y);
+  const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-28); hit.setAttribute('y', y-28); hit.setAttribute('width', 56); hit.setAttribute('height', 56); hit.setAttribute('rx', 16); hit.setAttribute('ry', 16);
+  const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',16);
+  const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign'); v.setAttribute('x1',x); v.setAttribute('y1',y-7); v.setAttribute('x2',x); v.setAttribute('y2',y+7);
+  const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-7); h.setAttribute('y1',y); h.setAttribute('x2',x+7); h.setAttribute('y2',y);
   g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
 }
 function drawSegmentedPath(group, basePath, segs){
@@ -256,7 +256,8 @@ export async function render(container){
     <section class="stack">
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <svg id="overlay" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
+          <!-- NOTE: id changed from 'overlay' to 'stageSvg' to avoid pointer-events collision -->
+          <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
             <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
               onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
             <g id="hoses"></g>
@@ -471,7 +472,7 @@ export async function render(container){
     .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
 
     .hose-end{cursor:pointer;pointer-events:all}
-    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
+    .plus-hit{fill:transparent;stroke:transparent}
     .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
     .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
 
@@ -501,8 +502,7 @@ export async function render(container){
   `);
 
   // ---- DOM refs
-  const overlay     = container.querySelector('#overlay');
-  const stage       = container.querySelector('#stage');
+  const stageSvg    = container.querySelector('#stageSvg'); // <-- renamed from #overlay
   const G_hoses     = container.querySelector('#hoses');
   const G_branches  = container.querySelector('#branches');
   const G_labels    = container.querySelector('#labels');
@@ -823,11 +823,11 @@ export async function render(container){
   });
 
   // ---- Tip editor interactions
-  let currentViewH = null;
   let editorContext=null;
 
-  // Populate editor on '+'; DO NOT open/hide here (bottom-sheet-editor.js handles that)
-  overlay.addEventListener('click', (e)=>{
+  // Populate editor on '+'; DO NOT open/hide here (bottom-sheet-editor.js handles that).
+  // We also call BottomSheetEditor.open() explicitly if available.
+  stageSvg.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     const L = seedDefaultsForKey(key);
@@ -859,7 +859,6 @@ export async function render(container){
     if(teLenA) teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
     if(teLenB) teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
 
-    // Optional: explicitly open the bottom sheet if your add-on doesn't auto-open on .hose-end
     if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
       window.BottomSheetEditor.open();
     }
@@ -893,9 +892,6 @@ export async function render(container){
     }
     L.visible = true; drawAll();
   });
-
-  // Do NOT hide editor here; bottom-sheet-editor.js already wires Cancel to close the sheet
-  // container.querySelector('#teCancel') -> no-op
 
   // ---- Line toggle buttons
   container.querySelectorAll('.linebtn').forEach(b=>{
@@ -939,8 +935,8 @@ export async function render(container){
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
     // update layout
-    overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
-    stage.style.height = viewH + 'px';
+    stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
+    stageSvg.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
