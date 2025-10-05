@@ -1,10 +1,13 @@
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
-// practice-state persistence (including tender shuttle) across view switches,
-// and a header Settings (cog) with a link to the How-to page.
+// and a header (logo + "FireOps Calc" + cog Settings).
+// IMPORTANT: Fresh-load default — we DO NOT restore previous session on page load.
+//            We clear any prior session save and start with no hoses deployed
+//            and no water supply selected. (State still autosaves while the page
+//            is open, but is not restored on a brand-new load.)
 //
-// Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
+// Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; fallback included).
 
 import {
   state,
@@ -26,7 +29,7 @@ import {
 import { WaterSupplyUI } from './waterSupply.js';
 
 /* ========================================================================== */
-/*             Practice state persistence (incl. Tender Shuttle)              */
+/*             Fresh-load default + (optional) runtime persistence            */
 /* ========================================================================== */
 
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
@@ -34,15 +37,17 @@ const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 function safeClone(obj){
   try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
 }
-function loadSaved(){
-  try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
-  catch { return null; }
-}
 function saveNow(pack){
   try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
 }
+function buildSnapshot(waterSnapshot){
+  return safeClone({
+    state,                // entire sim state (lines, supply, etc.)
+    water: waterSnapshot || null
+  });
+}
 
-// mark edits “dirty” and flush every 1s
+// mark edits “dirty” and flush every 1s (runtime only)
 let __dirty = false;
 function markDirty(){ __dirty = true; }
 let __saveInterval = null;
@@ -60,23 +65,26 @@ function stopAutoSave(){
   __saveInterval = null;
 }
 
-// Build a combined snapshot: full sim state + optional water supply snapshot
-function buildSnapshot(waterSnapshot){
-  return safeClone({
-    state,                // entire sim state (lines, supply, etc.)
-    water: waterSnapshot || null
+/** Reset global state to app defaults for a clean start (no deployed hoses, no supply). */
+function resetToFreshDefaults(){
+  try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch {}
+  // Supply: nothing selected
+  state.supply = '';
+  // Lines cleared & hidden
+  ['left','back','right'].forEach(key=>{
+    const L = seedDefaultsForKey(key);     // keep labels etc.
+    L.visible   = false;
+    L.hasWye    = false;
+    L.elevFt    = 0;
+    L.itemsMain = [];
+    L.itemsLeft = [];
+    L.itemsRight= [];
+    L.nozLeft   = undefined;
+    L.nozRight  = undefined;
   });
-}
-
-// Applies saved.state into live state (preserving object identities)
-function restoreState(savedState){
-  if (!savedState) return;
-  if (savedState.supply) state.supply = savedState.supply;
-  if (savedState.lines) {
-    for (const k of Object.keys(state.lines)){
-      if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
-    }
-  }
+  // Hide math panel by default
+  state.showMath = false;
+  state.lastMaxKey = null;
 }
 
 /* ========================================================================== */
@@ -129,7 +137,6 @@ function defaultNozzleIdForSize(size){
   if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
-
 function ensureDefaultNozzleFor(L, where, size){
   const nozId = defaultNozzleIdForSize(size);
   if (where==='main'){
@@ -140,7 +147,6 @@ function ensureDefaultNozzleFor(L, where, size){
     L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
   }
 }
-
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
     const id = findNozzleId({gpm:185, NP:50, preferFog:true});
@@ -210,15 +216,15 @@ function addTip(G_tips, key, where, x, y){
   g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
 }
 function drawSegmentedPath(group, basePath, segs){
-  const ns = 'http://www.w3.org/2000/svg';
-  const sh = document.createElementNS(ns,'path');
+  const ns = 'http://www.w3.org/200/svg'; // typo-proof not used; real paths cloned below
+  const sh = document.createElementNS('http://www.w3.org/2000/svg','path');
   sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
   const total = basePath.getTotalLength(); let offset = 0;
   const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
   segs.forEach(seg=>{
     const px = (seg.lengthFt/50)*PX_PER_50FT;
     const portion = Math.min(total, (px/totalPx)*total);
-    const p = document.createElementNS(ns,'path');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
     p.setAttribute('class', 'hoseBase '+clsFor(seg.size));
     p.setAttribute('d', basePath.getAttribute('d'));
     p.setAttribute('stroke-dasharray', portion+' '+total);
@@ -379,11 +385,10 @@ function ppExplainHTML(L){
 
 export async function render(container){
 
-  // Restore saved practice state
-  const saved_at_mount = loadSaved();
-  if (saved_at_mount?.state) restoreState(saved_at_mount.state);
+  // Fresh-load reset: always start clean (no hoses, no supply), and clear prior session save.
+  resetToFreshDefaults();
 
-  // Persist on hide/close
+  // Persist on hide/close (runtime only; not restored next hard load)
   window.addEventListener('beforeunload', ()=>{
     const pack = buildSnapshot(pickWaterSnapshotSafe());
     if (pack) saveNow(pack);
@@ -398,9 +403,12 @@ export async function render(container){
   container.innerHTML = `
     <section class="stack" data-calc-root>
 
-      <!-- Header with Settings (cog) -->
+      <!-- Top header row: logo + title + cog -->
       <header class="topbar">
-        <div class="appTitle">Pump Calculator</div>
+        <div class="brand">
+          <img class="logo" alt="FireOps" src="/assets/images/logo.svg" onerror="this.style.display='none'">
+          <div class="appTitle">FireOps Calc</div>
+        </div>
         <button id="settingsBtn" class="iconbtn" aria-label="Settings" title="Settings">
           <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="currentColor" d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Zm8.94 2.62-.86-.5c.07-.6.07-1.21 0-1.81l.86-.5a.7.7 0 0 0 .26-.95l-1-1.73a.7.7 0 0 0-.9-.3l-.97.4c-.47-.38-.99-.7-1.55-.94l-.15-1.06a.7.7 0 0 0-.69-.6h-2a.7.7 0 0 0-.69.6l-.15 1.06c-.56.24-1.08.56-1.55.94l-.97-.4a.7.7 0 0 0-.9.3l-1 1.73a.7.7 0 0 0 .26.95l.86.5a7.6 7.6 0 0 0 0 1.81l-.86.5a.7.7 0 0 0-.26.95l1 1.73c.18.32.57.45.9.3l.97-.4c.47.38.99.7 1.55.94l.15 1.06c.06.35.35.6.69.6h2c.34 0 .63-.25.69-.6l.15-1.06c.56-.24 1.08-.56 1.55-.94l.97.4c.33.14.72.02.9-.3l1-1.73a.7.7 0 0 0-.26-.95Z"/>
@@ -594,13 +602,6 @@ export async function render(container){
           <span>How-to & Help</span>
           <span class="mini">Open the full guide</span>
         </a>
-
-        <!-- You can add more toggles later
-        <label class="settingsItem toggle">
-          <span>Show math panel by default</span>
-          <input id="setShowMath" type="checkbox">
-        </label>
-        -->
       </div>
     </div>
     <div id="settingsBackdrop" class="sheet-backdrop"></div>
@@ -638,6 +639,8 @@ export async function render(container){
       background:rgba(9,19,31,.85); backdrop-filter:saturate(160%) blur(6px);
       border-bottom:1px solid var(--border); border-radius:12px;
     }
+    .brand{ display:flex; align-items:center; gap:8px; min-height:28px; }
+    .logo{ width:22px; height:22px; object-fit:contain }
     .topbar .appTitle{ font-weight:800; color:#eaf2ff }
     .iconbtn{
       display:inline-flex; align-items:center; justify-content:center;
@@ -725,7 +728,6 @@ export async function render(container){
   const teNoz       = container.querySelector('#teNoz');
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
-  const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
   // Populate nozzle selects
@@ -781,20 +783,7 @@ export async function render(container){
     return null;
   }
 
-  try {
-    const snap = saved_at_mount?.water;
-    if (snap && typeof waterSupply.restoreSnapshot === 'function') {
-      waterSupply.restoreSnapshot(snap);
-    } else if (snap && typeof waterSupply.setSnapshot === 'function') {
-      waterSupply.setSnapshot(snap);
-    } else if (snap && typeof waterSupply.import === 'function') {
-      waterSupply.import(snap);
-    } else if (snap) {
-      if (snap.tenders) state.tenders = snap.tenders;
-      if (snap.shuttle) state.shuttle = snap.shuttle;
-    }
-  } catch {}
-
+  // Start autosave heartbeat (runtime only; won’t be restored on next hard load)
   startAutoSave(()=>{
     const waterSnap = pickWaterSnapshotSafe();
     return buildSnapshot(waterSnap);
@@ -958,7 +947,7 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight?.NP||0} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1067,16 +1056,10 @@ export async function render(container){
 
   let editorContext=null;
 
-  function setBranchABEditorDefaults(key){
-    if(teNozA) teNozA.value = (state.lines[key].nozLeft?.id) || teNozA.value;
-    if(teNozB) teNozB.value = (state.lines[key].nozRight?.id) || teNozB.value;
-    if(teLenA) teLenA.value = (state.lines[key].itemsLeft[0]?.lengthFt)||0;
-    if(teLenB) teLenB.value = (state.lines[key].itemsRight[0]?.lengthFt)||0;
-  }
-
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
     const wyeOn = teWye?.value==='on';
+    const rowNoz = container.querySelector('#rowNoz');
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
   }
 
@@ -1087,41 +1070,49 @@ export async function render(container){
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
-    teElev.value = L.elevFt||0;
-    teWye.value  = L.hasWye? 'on':'off';
+    container.querySelector('#teWhere').value = where.toUpperCase();
+    container.querySelector('#teElev').value  = L.elevFt||0;
+    container.querySelector('#teWye').value   = L.hasWye? 'on':'off';
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
-      if (L.hasWye) {
-        setBranchBDefaultIfEmpty(L);
-      } else {
+      if (!L.hasWye){
         ensureDefaultNozzleFor(L,'main',seg.size);
-        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
+        if (L.nozRight?.id) teNoz.value = L.nozRight.id;
+      } else {
+        setBranchBDefaultIfEmpty(L);
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
-      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
-    } else {
+      if(L.nozLeft?.id) teNoz.value = L.nozLeft.id;
+    } else { // R
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
-    setBranchABEditorDefaults(key);
+    // Populate branch selectors
+    const teNozA = container.querySelector('#teNozA');
+    const teNozB = container.querySelector('#teNozB');
+    const teLenA = container.querySelector('#teLenA');
+    const teLenB = container.querySelector('#teLenB');
+    if (teNozA && L.nozLeft?.id) teNozA.value = L.nozLeft.id;
+    if (teNozB && L.nozRight?.id) teNozB.value = L.nozRight.id;
+    if (teLenA) teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
+    if (teLenB) teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
+
     showHideMainNozzleRow();
   }
 
-  // diameter change → default nozzle (when applicable)
   teSize?.addEventListener('change', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext;
     const L = state.lines[key];
     const size = teSize.value;
-    if (where==='main' && teWye.value!=='on'){
+    if (where==='main' && container.querySelector('#teWye').value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
     } else if (where==='L'){
@@ -1153,6 +1144,7 @@ export async function render(container){
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
       setBranchBDefaultIfEmpty(L);
+      const teNozB = container.querySelector('#teNozB');
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
@@ -1174,6 +1166,11 @@ export async function render(container){
         else ensureDefaultNozzleFor(L,'main',size);
       }else{
         L.hasWye=true;
+        const teLenA = container.querySelector('#teLenA');
+        const teLenB = container.querySelector('#teLenB');
+        const teNozA = container.querySelector('#teNozA');
+        const teNozB = container.querySelector('#teNozB');
+
         const lenA = Math.max(0, +teLenA?.value||0);
         const lenB = Math.max(0, +teLenB?.value||0);
         L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
@@ -1319,10 +1316,10 @@ export async function render(container){
     markDirty();
   }
 
-  // Initial draw
+  // Initial draw (clean)
   drawAll();
 
-  // Dev helper to clear saved practice
+  // Dev helper to clear saved practice manually in console
   window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
 
   return { dispose(){
