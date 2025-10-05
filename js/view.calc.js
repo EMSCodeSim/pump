@@ -1,5 +1,8 @@
 // /js/view.calc.js
-// Stage view with bottom-sheet editor support, Wye-aware UI, and Branch-B default nozzle = Fog 185 @ 50.
+// Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
+// Branch-B default nozzle = Fog 185 @ 50, and practice-state persistence
+// (including tender shuttle) across view switches.
+//
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 
 import {
@@ -21,14 +24,66 @@ import {
 
 import { WaterSupplyUI } from './waterSupply.js';
 
-// ---- Layout and drawing constants
+// ---------- Practice state persistence (Charts <-> Practice) ----------
+const PRACTICE_SAVE_KEY = 'pump.practice.v2';
+
+// shallow-safe clone for JSON
+function cloneForSave(src){
+  try { return JSON.parse(JSON.stringify(src)); }
+  catch (_) { return null; }
+}
+
+function loadSavedPractice(){
+  try {
+    const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+
+function savePracticeNow(){
+  try {
+    // Save core sim state; include shuttle/tenders if your WaterSupplyUI stores them on state
+    const snap = cloneForSave({
+      supply: state.supply,
+      lines: state.lines,
+      shuttle: state.shuttle ?? null,   // if WaterSupplyUI creates this
+      tenders: state.tenders ?? null    // if WaterSupplyUI creates this
+    });
+    if (snap) sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(snap));
+  } catch (_) {}
+}
+
+// small debounce so rapid edits don’t spam storage
+let saveTimer = null;
+function queueSavePractice(){
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(savePracticeNow, 120);
+}
+
+// Merge saved snapshot back into live state (preserve references)
+function restorePracticeIntoLive(saved){
+  if(!saved) return;
+  if (saved.supply) state.supply = saved.supply;
+  if (saved.lines)  {
+    for (const key of Object.keys(state.lines)){
+      if (saved.lines[key]) {
+        Object.assign(state.lines[key], saved.lines[key]);
+      }
+    }
+  }
+  if (saved.shuttle) state.shuttle = saved.shuttle;
+  if (saved.tenders) state.tenders = saved.tenders;
+}
+
+// ---------- Layout and drawing constants ----------
 const TRUCK_W = 390;
 const TRUCK_H = 260;
 const PX_PER_50FT = 45;
 const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
-// ---- Utility helpers
+// ---------- Utility helpers ----------
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
 function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
@@ -59,7 +114,7 @@ function findNozzleId({ gpm=185, NP=50, preferFog=true }={}){
 
 function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-// ---- Vertical sizing & geometry (used by WaterSupplyUI too)
+// ---------- Vertical sizing & geometry ----------
 function supplyHeight(){
   return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
 }
@@ -136,7 +191,7 @@ function drawSegmentedPath(group, basePath, segs){
   });
 }
 
-// ---- Hose bar visualization in math panel
+// ---------- Hose bar visualization ----------
 function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
   const totalLen = sumFt(sections);
   containerEl.innerHTML='';
@@ -205,7 +260,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
   containerEl.appendChild(svg);
 }
 
-// ---- “Why?” explanation HTML
+// ---------- “Why?” explanation ----------
 function ppExplainHTML(L){
   const single = isSingleWye(L);
   const side = activeSide(L);
@@ -276,8 +331,19 @@ function ppExplainHTML(L){
   }
 }
 
-// ---- Main render
+// ---------- Main render ----------
 export async function render(container){
+
+  // Restore last practice session (so switching views doesn’t reset),
+  // including tender shuttle usage if stored in state.{shuttle|tenders}.
+  restorePracticeIntoLive(loadSavedPractice());
+
+  // Also persist before tab closes / hidden
+  window.addEventListener('beforeunload', savePracticeNow);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') savePracticeNow();
+  });
+
   container.innerHTML = `
     <section class="stack" data-calc-root>
       <section class="wrapper card">
@@ -455,7 +521,7 @@ export async function render(container){
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ---- Styles (UI polish & hose look)
+  // ---------- Styles (UI polish & hose look) ----------
   injectStyle(container, `
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
@@ -503,7 +569,7 @@ export async function render(container){
     .is-hidden{display:none!important}
   `);
 
-  // ---- DOM refs
+  // ---------- DOM refs ----------
   const stageSvg    = container.querySelector('#stageSvg');
   const G_hoses     = container.querySelector('#hoses');
   const G_branches  = container.querySelector('#branches');
@@ -540,7 +606,11 @@ export async function render(container){
     sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
   });
 
-  // ---- Helpers for editor behavior
+  // Panels controlled by waterSupply.js
+  const hydrantHelper = container.querySelector('#hydrantHelper');
+  const staticHelper  = container.querySelector('#staticHelper');
+
+  // ---------- Helpers for editor behavior ----------
   function setBranchBDefaultIfEmpty(L){
     // If no B nozzle, default to Fog 185 @ 50
     if(!(L?.nozRight?.id)){
@@ -561,11 +631,7 @@ export async function render(container){
     }
   }
 
-  // Panels controlled by waterSupply.js
-  const hydrantHelper = container.querySelector('#hydrantHelper');
-  const staticHelper  = container.querySelector('#staticHelper');
-
-  // ---- Totals & KPI coloring
+  // ---------- Totals & KPI coloring ----------
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
@@ -605,7 +671,7 @@ export async function render(container){
     }
   }
 
-  // ---- Lines math section
+  // ---------- Lines math panel ----------
   function renderLinesPanel(){
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed || !state.showMath){ linesTable.innerHTML=''; linesTable.classList.add('is-hidden'); return; }
@@ -729,7 +795,7 @@ export async function render(container){
     });
   }
 
-  // ---- Hydrant/tender summary (unchanged core)
+  // ---------- Hydrant/tender summary ----------
   function refreshSupplySummary(){
     const box = supplySummaryEl; if(!box) return;
     let html = '';
@@ -746,7 +812,7 @@ export async function render(container){
     else { box.innerHTML = ''; box.style.display = 'none'; }
   }
 
-  // ---- Presets (unchanged)
+  // ---------- Presets ----------
   const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
   let chosenPreset=null, chosenLine=null;
   function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
@@ -781,9 +847,10 @@ export async function render(container){
       case 'aerial': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=80; break;
     }
     drawAll();
+    queueSavePractice(); // persist after preset apply
   }
 
-  // ---- Why? button
+  // ---------- Why? button ----------
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
@@ -796,8 +863,15 @@ export async function render(container){
     }
   });
 
-  // ---- Tip editor interactions (populate only; open handled by bottom-sheet-editor.js)
+  // ---------- Tip editor interactions (populate only; open handled by bottom-sheet-editor.js) ----------
   let editorContext=null;
+
+  function setBranchABEditorDefaults(key){
+    if(teNozA) teNozA.value = (state.lines[key].nozLeft?.id) || teNozA.value;
+    if(teNozB) teNozB.value = (state.lines[key].nozRight?.id) || teNozB.value;
+    if(teLenA) teLenA.value = (state.lines[key].itemsLeft[0]?.lengthFt)||0;
+    if(teLenB) teLenB.value = (state.lines[key].itemsRight[0]?.lengthFt)||0;
+  }
 
   function onOpenPopulateEditor(key, where){
     const L = seedDefaultsForKey(key);
@@ -808,16 +882,13 @@ export async function render(container){
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
-    // DO NOT show main nozzle when Wye ON
     teWye.value  = L.hasWye? 'on':'off';
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
-      // When Wye is ON, hide the main nozzle row & do not set teNoz
       if (L.hasWye) {
-        // Ensure branch defaults exist
-        setBranchBDefaultIfEmpty(L);
+        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       } else {
         const nozId = (L.nozRight?.id) || (activeNozzle(L)?.id);
         if (nozId && teNoz) teNoz.value = nozId;
@@ -828,17 +899,10 @@ export async function render(container){
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      // Branch B default nozzle = Fog 185 @ 50
       setBranchBDefaultIfEmpty(L);
     }
 
-    // Apply branch A/B editor select defaults
-    if(teNozA) teNozA.value = (state.lines[key].nozLeft?.id) || teNozA.value;
-    if(teNozB) teNozB.value = (state.lines[key].nozRight?.id) || teNozB.value;
-    if(teLenA) teLenA.value = (state.lines[key].itemsLeft[0]?.lengthFt)||0;
-    if(teLenB) teLenB.value = (state.lines[key].itemsRight[0]?.lengthFt)||0;
-
-    // Sync visibility of main nozzle row
+    setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
   }
 
@@ -849,7 +913,6 @@ export async function render(container){
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
 
-    // Explicitly open via BottomSheetEditor if present
     if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
     } else {
@@ -871,7 +934,7 @@ export async function render(container){
     showHideMainNozzleRow();
   });
 
-  // Apply updates; close handled by bottom-sheet-editor.js
+  // Apply updates; close handled by bottom-sheet-editor.js (auto-close in your file)
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
@@ -883,7 +946,6 @@ export async function render(container){
       L.itemsMain = [{size, lengthFt:len}];
       if(!wyeOn){
         L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // keep/use the main nozzle only if Wye OFF
         if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
       }else{
         L.hasWye=true;
@@ -892,7 +954,6 @@ export async function render(container){
         L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
         L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
         if (!(L.nozRight?.id)){
           L.nozRight = NOZ[ findNozzleId({gpm:185, NP:50, preferFog:true}) ] || L.nozRight;
         }
@@ -903,7 +964,6 @@ export async function render(container){
       if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
     } else {
       L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
-      // Default Branch B if not set
       if (!(L.nozRight?.id)){
         L.nozRight = NOZ[ findNozzleId({gpm:185, NP:50, preferFog:true}) ] || L.nozRight;
       }
@@ -911,18 +971,20 @@ export async function render(container){
     }
 
     L.visible = true; drawAll();
+    queueSavePractice(); // persist after apply
   });
 
-  // ---- Line toggle buttons
+  // ---------- Line toggle buttons ----------
   container.querySelectorAll('.linebtn').forEach(b=>{
     b.addEventListener('click', ()=>{
       const key=b.dataset.line; const L=seedDefaultsForKey(key);
       L.visible = !L.visible; b.classList.toggle('active', L.visible);
       drawAll();
+      queueSavePractice(); // persist after line toggle
     });
   });
 
-  // ---- Water Supply UI
+  // ---------- Water Supply UI ----------
   const waterSupply = new WaterSupplyUI({
     container, state,
     pumpXY, truckTopY,
@@ -943,15 +1005,36 @@ export async function render(container){
     }
   });
 
+  // Listen for shuttle list / total GPM changes and persist them too
+  const tenderListEl = container.querySelector('#tenderList');
+  const shuttleEl    = container.querySelector('#shuttleTotalGpm');
+  const mo = new MutationObserver(() => {
+    // styling bumps
+    enhanceTenderListStyle();
+    refreshSupplySummary();
+    // persist any changes coming from the shuttle UI
+    queueSavePractice();
+  });
+  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
+  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
+
   // Explicit Hydrant/Tender buttons
   container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
-    state.supply = 'pressurized'; drawAll();
+    state.supply = 'pressurized'; drawAll(); queueSavePractice();
   });
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
-    state.supply = 'static'; drawAll();
+    state.supply = 'static'; drawAll(); queueSavePractice();
   });
 
-  // Ensure bottom-sheet-editor.js is present (optional)
+  function enhanceTenderListStyle() {
+    const rootEl = container.querySelector('#tenderList');
+    if (!rootEl) return;
+    rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
+      el.classList.add('tender-emph');
+    });
+  }
+
+  // ---------- Ensure bottom-sheet-editor.js is present (optional) ----------
   (function ensureBottomSheet(){
     if (window.BottomSheetEditor) return;
     try{
@@ -963,7 +1046,7 @@ export async function render(container){
     }catch(e){}
   })();
 
-  // ----- Main draw -----
+  // ---------- Main draw ----------
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
@@ -1023,10 +1106,16 @@ export async function render(container){
     // Button active states
     container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
     container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
+
+    // Persist after full draw (safety)
+    queueSavePractice();
   }
 
   // Initial draw
   drawAll();
+
+  // Dev helper to clear saved practice
+  window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
 
   return { dispose(){} };
 }
