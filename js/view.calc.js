@@ -1,6 +1,6 @@
 // /js/view.calc.js
-// Working view with truckTopY/pumpXY integration and bottom-sheet editor support.
-// Requires: ./store.js, ./waterSupply.js, and your bottom-sheet-editor.js (loaded after this).
+// Stage view with bottom-sheet editor support, Wye-aware UI, and Branch-B default nozzle = Fog 185 @ 50.
+// Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 
 import {
   state,
@@ -33,6 +33,30 @@ function injectStyle(root, cssText){ const s=document.createElement('style'); s.
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
 function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
 function fmt(n){ return Math.round(n); }
+
+// Find a nozzle by target (best-effort); used to pick Fog 185 @ 50 for Branch B
+function findNozzleId({ gpm=185, NP=50, preferFog=true }={}){
+  // exact match
+  const exact = NOZ_LIST.find(n => Number(n.gpm)===Number(gpm) && Number(n.NP)===Number(NP) && (!preferFog || /fog/i.test(n.name||n.label||'')));
+  if (exact) return exact.id;
+
+  // close match around gpm=185, NP=50, fog preferred
+  const near = NOZ_LIST
+    .filter(n => Math.abs(Number(n.gpm)-Number(gpm))<=10 && Math.abs(Number(n.NP)-Number(NP))<=5)
+    .sort((a,b)=>{
+      const af = /fog/i.test(a.name||a.label||'') ? 0 : 1;
+      const bf = /fog/i.test(b.name||b.label||'') ? 0 : 1;
+      const ad = Math.abs(a.gpm-gpm)+Math.abs(a.NP-NP);
+      const bd = Math.abs(b.gpm-gpm)+Math.abs(b.NP-NP);
+      return af-bf || ad-bd;
+    })[0];
+  if (near) return near.id;
+
+  // last resort: any fog ~185gpm @ ~50 NP, or the first item
+  const anyFog = NOZ_LIST.find(n => /fog/i.test(n.name||n.label||''));
+  return anyFog ? anyFog.id : (NOZ_LIST[0]?.id);
+}
+
 function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 // ---- Vertical sizing & geometry (used by WaterSupplyUI too)
@@ -144,7 +168,8 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
 
   let x=8;
   sections.forEach(seg=>{
-    const segW=(seg.lengthFt/sections.reduce((a,c)=>a+c.lengthFt,0))*innerW;
+    const totalFt = sections.reduce((a,c)=>a+c.lengthFt,0) || 1;
+    const segW=(seg.lengthFt/totalFt)*innerW;
     const r=document.createElementNS(svgNS,'rect');
     r.setAttribute('x',x); r.setAttribute('y',20);
     r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18);
@@ -206,6 +231,7 @@ function ppExplainHTML(L){
       </div>
     `;
   } else if(single){
+    // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
     const noz = activeNozzle(L);
     const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
     const bnSecs = splitIntoSections(bnSegs);
@@ -216,12 +242,12 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
           <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
           <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else {
@@ -256,7 +282,6 @@ export async function render(container){
     <section class="stack" data-calc-root>
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <!-- NOTE: id is 'stageSvg' to avoid pointer-events collisions -->
           <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
             <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
               onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
@@ -267,13 +292,13 @@ export async function render(container){
             <g id="supplyG"></g>
           </svg>
 
-          <!-- Editor markup (opening/closing handled by bottom-sheet-editor.js) -->
+          <!-- Editor (opened by bottom-sheet-editor.js or our fallback) -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
 
-            <div class="te-row"><label>Diameter</label>
+            <div class="te-row" id="rowSize"><label>Diameter</label>
               <select id="teSize">
                 <option value="1.75">1¾″</option>
                 <option value="2.5">2½″</option>
@@ -281,11 +306,11 @@ export async function render(container){
               </select>
             </div>
 
-            <div class="te-row"><label>Length (ft)</label>
+            <div class="te-row" id="rowLen"><label>Length (ft)</label>
               <input type="number" id="teLen" min="0" step="25" value="200">
             </div>
 
-            <div class="te-row"><label>Nozzle</label>
+            <div class="te-row" id="rowNoz"><label>Nozzle</label>
               <select id="teNoz"></select>
             </div>
 
@@ -348,11 +373,7 @@ export async function render(container){
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
-            Enter static & residual with one line flowing to estimate additional <b>same-size</b> lines:
-            <span class="pill" style="margin-left:6px">0–10% → 3×</span>
-            <span class="pill">11–15% → 2×</span>
-            <span class="pill">16–25% → 1×</span>
-            <span class="pill">&gt;25% → 0×</span>
+            0–10% → 3×, 11–15% → 2×, 16–25% → 1×, >25% → 0× of same-size lines
           </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
             <div class="field" style="min-width:150px">
@@ -383,7 +404,7 @@ export async function render(container){
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
             <div>
               <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
-              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full. Or enter minutes directly.</div>
+              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
             </div>
             <div class="pill">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
           </div>
@@ -401,14 +422,6 @@ export async function render(container){
             </div>
           </div>
           <div id="tenderList" style="margin-top:10px"></div>
-          <details style="margin-top:8px">
-            <summary>How shuttle GPM is calculated</summary>
-            <div class="mini" style="margin-top:6px">
-              Effective gal = <code>Capacity × 0.90</code><br>
-              Per-tender GPM = <code>Effective gal ÷ minutes per round trip</code><br>
-              Total Shuttle GPM is the sum across tenders.
-            </div>
-          </details>
         </div>
 
         <div class="linesTable is-hidden" id="linesTable"></div>
@@ -488,17 +501,6 @@ export async function render(container){
     .simpleBox b{color:#eaf2ff}
     .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
-
-    /* Make tender IDs stand out */
-    #tenderList .tender-emph,
-    #tenderList b, #tenderList .title, #tenderList .name, #tenderList .tenderName, #tenderList .tender-id {
-      color:#ffe082 !important; font-weight:800; letter-spacing:.2px;
-    }
-
-    /* Presets sheet */
-    .sheet{ position:fixed; inset:auto 0 0 0; background:#0e151e; border-top:1px solid rgba(255,255,255,.1); border-top-left-radius:16px; border-top-right-radius:16px; transform:translateY(100%); transition:transform .26s ease; z-index:1000; }
-    .sheet.show{ transform:translateY(0) }
-    .sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:999; display:none }
   `);
 
   // ---- DOM refs
@@ -516,7 +518,7 @@ export async function render(container){
   const GPMel       = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
 
-  // Editor fields (populated on '+' click; open/close handled by bottom-sheet-editor.js)
+  // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
   const teTitle     = container.querySelector('#teTitle');
   const teWhere     = container.querySelector('#teWhere');
@@ -530,12 +532,34 @@ export async function render(container){
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   const branchBlock = container.querySelector('#branchBlock');
+  const rowNoz      = container.querySelector('#rowNoz');
 
   // Populate nozzle selects
   [teNoz, teNozA, teNozB].forEach(sel=>{
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
   });
+
+  // ---- Helpers for editor behavior
+  function setBranchBDefaultIfEmpty(L){
+    // If no B nozzle, default to Fog 185 @ 50
+    if(!(L?.nozRight?.id)){
+      const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+      L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
+    }
+    if(teNozB){
+      const id = L?.nozRight?.id || findNozzleId({gpm:185, NP:50, preferFog:true});
+      teNozB.value = id;
+    }
+  }
+  function showHideMainNozzleRow(){
+    // If Wye is ON and editing "main", hide the main nozzle selector
+    const where = teWhere?.value?.toLowerCase();
+    const wyeOn = teWye?.value==='on';
+    if(rowNoz){
+      rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
+    }
+  }
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -637,7 +661,8 @@ export async function render(container){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm', 'Wye '+wye);
+          // Main bar: show Wye pill (no main nozzle)
+          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm', 'Wye '+wye);
           drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+(sumFt(L.itemsLeft)||0)+'′');
           drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+(sumFt(L.itemsRight)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
@@ -647,6 +672,7 @@ export async function render(container){
           const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
           const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
           const noz = activeNozzle(L);
+          const wye = (L.wyeLoss ?? 10);
 
           wrap.innerHTML = `
             <details class="math" open>
@@ -658,11 +684,11 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${noz.NP} psi</div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm</div>
+                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm — NP ${noz.NP} psi</div>
                   <div class="hosebar" id="viz_BR_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -671,8 +697,9 @@ export async function render(container){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (noz?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm');
-          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), bflow, (noz?.NP||0), bnTitle+' '+(sumFt(bnSegs)||0)+'′');
+          // Main bar: show Wye pill (no main nozzle), even in single-branch case
+          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -702,77 +729,24 @@ export async function render(container){
     });
   }
 
-  // ---- Hydrant/tender “answers” box
-  function computeHydrantAdvice() {
-    const staticEl   = container.querySelector('#hydrantStatic');
-    const residualEl = container.querySelector('#hydrantResidual');
-    const sizeSel    = container.querySelector('#hydrantLineSize');
-    if (!staticEl || !residualEl || !sizeSel) return null;
-    const s  = +staticEl.value || 0;
-    const r  = +residualEl.value || 0;
-    if (s <= 0 || r <= 0 || r > s) return null;
-    const pct = ((s - r) / s) * 100;
-    let more = 0;
-    if (pct <= 10) more = 3;
-    else if (pct <= 15) more = 2;
-    else if (pct <= 25) more = 1;
-    else more = 0;
-    const sizeText = sizeSel.value === '2.5' ? '2½″'
-                    : sizeSel.value === '5'   ? '5″'
-                    : '1¾″';
-    return { pct: Math.round(pct), more, sizeText };
-  }
-  function enhanceTenderListStyle() {
-    const root = container.querySelector('#tenderList');
-    if (!root) return;
-    root.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
-      el.classList.add('tender-emph');
-    });
-  }
+  // ---- Hydrant/tender summary (unchanged core)
   function refreshSupplySummary(){
     const box = supplySummaryEl; if(!box) return;
     let html = '';
     if (state.supply === 'pressurized') {
-      const adv = computeHydrantAdvice();
-      if (adv) {
-        html = `
-          <div class="row"><span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span></div>
-          <div class="row"><span class="k">Drop</span><span class="v">${adv.pct}%</span></div>
-          <div class="row"><span class="k">Guidance</span><span class="v">Add approximately <b>${adv.more}</b> more of the same ${adv.sizeText} line</span></div>
-        `;
-      } else {
-        html = `
-          <div class="row"><span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span></div>
-          <div class="mini" style="margin-top:6px;color:#cfe6ff">
-            Enter <b>Static</b> and <b>Residual w/ 1 line</b>, then tap <b>Evaluate %Drop</b>.
-          </div>
-        `;
-      }
+      html = `<div class="row"><span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span></div>`;
     } else if (state.supply === 'static') {
       const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
       html = `
         <div class="row"><span class="k">Supply Mode</span><span class="v">Tender shuttle</span></div>
         <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span></div>
-        <div class="mini" style="margin-top:6px;color:#cfe6ff">Shuttle GPM updates after each full round trip.</div>
       `;
     }
     if (html) { box.innerHTML = html; box.style.display = 'block'; }
     else { box.innerHTML = ''; box.style.display = 'none'; }
   }
 
-  const tenderListEl = container.querySelector('#tenderList');
-  const shuttleEl    = container.querySelector('#shuttleTotalGpm');
-  const hydCalcBtn   = container.querySelector('#hydrantCalcBtn');
-  const hydInputs    = [ '#hydrantStatic', '#hydrantResidual', '#hydrantLineSize' ]
-    .map(sel => container.querySelector(sel))
-    .filter(Boolean);
-  hydCalcBtn?.addEventListener('click', () => setTimeout(refreshSupplySummary, 0));
-  hydInputs.forEach(inp => inp.addEventListener('input', refreshSupplySummary));
-  const mo = new MutationObserver(() => { enhanceTenderListStyle(); refreshSupplySummary(); });
-  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
-  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
-
-  // ---- Presets
+  // ---- Presets (unchanged)
   const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
   let chosenPreset=null, chosenLine=null;
   function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
@@ -822,14 +796,10 @@ export async function render(container){
     }
   });
 
-  // ---- Tip editor interactions
+  // ---- Tip editor interactions (populate only; open handled by bottom-sheet-editor.js)
   let editorContext=null;
 
-  // Populate editor on '+'; DO NOT open/hide here (bottom-sheet-editor.js handles that).
-  // We also call BottomSheetEditor.open() explicitly; if missing, show a minimal fallback.
-  stageSvg.addEventListener('click', (e)=>{
-    const tip = e.target.closest('.hose-end'); if(!tip) return;
-    const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
+  function onOpenPopulateEditor(key, where){
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -838,71 +808,108 @@ export async function render(container){
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
+    // DO NOT show main nozzle when Wye ON
     teWye.value  = L.hasWye? 'on':'off';
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
-      const nozId = (isSingleWye(L)? (activeNozzle(L)?.id) : L.nozRight.id) || L.nozRight.id;
-      teNoz.value = nozId;
+      // When Wye is ON, hide the main nozzle row & do not set teNoz
+      if (L.hasWye) {
+        // Ensure branch defaults exist
+        setBranchBDefaultIfEmpty(L);
+      } else {
+        const nozId = (L.nozRight?.id) || (activeNozzle(L)?.id);
+        if (nozId && teNoz) teNoz.value = nozId;
+      }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozLeft?.id)||'chiefXD';
+      teSize.value = seg.size; teLen.value = seg.lengthFt; if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozRight?.id)||'chiefXD265';
+      teSize.value = seg.size; teLen.value = seg.lengthFt;
+      // Branch B default nozzle = Fog 185 @ 50
+      setBranchBDefaultIfEmpty(L);
     }
 
-    branchBlock.classList.toggle('is-hidden', teWye.value==='off');
-    if(teNozA) teNozA.value = (L.nozLeft?.id)||'chiefXD';
-    if(teNozB) teNozB.value = (L.nozRight?.id)||'chiefXD265';
-    if(teLenA) teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
-    if(teLenB) teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
+    // Apply branch A/B editor select defaults
+    if(teNozA) teNozA.value = (state.lines[key].nozLeft?.id) || teNozA.value;
+    if(teNozB) teNozB.value = (state.lines[key].nozRight?.id) || teNozB.value;
+    if(teLenA) teLenA.value = (state.lines[key].itemsLeft[0]?.lengthFt)||0;
+    if(teLenB) teLenB.value = (state.lines[key].itemsRight[0]?.lengthFt)||0;
 
-    if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
+    // Sync visibility of main nozzle row
+    showHideMainNozzleRow();
+  }
+
+  // Delegate click on "+"
+  stageSvg.addEventListener('click', (e)=>{
+    const tip = e.target.closest('.hose-end'); if(!tip) return;
+    e.preventDefault(); e.stopPropagation();
+    const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
+    onOpenPopulateEditor(key, where);
+
+    // Explicitly open via BottomSheetEditor if present
+    if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
     } else {
-      // Fallback: show the inline editor as a simple modal if the add-on isn't loaded yet
+      // Minimal fallback
       tipEditor.classList.remove('is-hidden');
       tipEditor.classList.add('is-open');
-      let tipBackdrop = container.querySelector('#tipBackdrop');
-      if(!tipBackdrop){
-        tipBackdrop = document.createElement('div');
-        tipBackdrop.id = 'tipBackdrop';
-        tipBackdrop.className = 'sheet-backdrop';
-        document.body.appendChild(tipBackdrop);
-      }
-      tipBackdrop.style.display = 'block';
-      tipBackdrop.onclick = () => { tipEditor.classList.add('is-hidden'); tipBackdrop.style.display='none'; };
     }
   });
 
-  // Apply updates state; bottom-sheet-editor.js will close the sheet afterwards
+  // Keep rowNoz visibility in sync when Wye changes in-editor
+  teWye?.addEventListener('change', ()=>{
+    const wyeOn = teWye.value==='on';
+    // If turning Wye on from main, ensure Branch B default
+    if (editorContext?.where==='main' && wyeOn){
+      const L = state.lines[editorContext.key];
+      setBranchBDefaultIfEmpty(L);
+      if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
+    }
+    showHideMainNozzleRow();
+  });
+
+  // Apply updates; close handled by bottom-sheet-editor.js
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
     const size = teSize.value; const len = Math.max(0, +teLen.value||0);
-    const noz = (NOZ[String(teNoz.value)]) || activeNozzle(L);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
+
     if(where==='main'){
       L.itemsMain = [{size, lengthFt:len}];
       if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[]; L.nozRight = noz;
+        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
+        // keep/use the main nozzle only if Wye OFF
+        if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
       }else{
         L.hasWye=true;
         const lenA = Math.max(0, +teLenA?.value||0);
         const lenB = Math.max(0, +teLenB?.value||0);
         L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
         L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
-        L.nozLeft  = NOZ[String(teNozA?.value)] || L.nozLeft;
-        L.nozRight = NOZ[String(teNozB?.value)] || L.nozRight;
+        if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
+        // Branch B default if empty
+        if (!(L.nozRight?.id)){
+          L.nozRight = NOZ[ findNozzleId({gpm:185, NP:50, preferFog:true}) ] || L.nozRight;
+        }
+        if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : []; L.nozLeft = noz;
+      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : [];
+      if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : []; L.nozRight = noz;
+      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
+      // Default Branch B if not set
+      if (!(L.nozRight?.id)){
+        L.nozRight = NOZ[ findNozzleId({gpm:185, NP:50, preferFog:true}) ] || L.nozRight;
+      }
+      if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
     }
+
     L.visible = true; drawAll();
   });
 
@@ -915,7 +922,7 @@ export async function render(container){
     });
   });
 
-  // ---- Water Supply UI integration (note we pass truckTopY & pumpXY as functions)
+  // ---- Water Supply UI
   const waterSupply = new WaterSupplyUI({
     container, state,
     pumpXY, truckTopY,
@@ -944,7 +951,7 @@ export async function render(container){
     state.supply = 'static'; drawAll();
   });
 
-  // ---- Ensure bottom-sheet-editor.js is loaded (in case index.html didn't include it)
+  // Ensure bottom-sheet-editor.js is present (optional)
   (function ensureBottomSheet(){
     if (window.BottomSheetEditor) return;
     try{
@@ -952,17 +959,13 @@ export async function render(container){
       if (already) return;
       const s = document.createElement('script');
       s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
-      s.onload = () => { /* ready */ };
       document.body.appendChild(s);
-    }catch(e){
-      // ignore
-    }
+    }catch(e){}
   })();
 
   // ----- Main draw -----
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
-    // update layout
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageSvg.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
@@ -981,10 +984,11 @@ export async function render(container){
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
+      // Main label: if Wye present, show 'via Wye' (no nozzle mention)
       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-      const npLabel = usedNoz ? (' — Nozzle '+usedNoz.NP+' psi') : (L.hasWye ? ' — via Wye' : (' — Nozzle '+L.nozRight.NP+' psi'));
+      const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
       addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
       if(L.hasWye){
@@ -1014,7 +1018,6 @@ export async function render(container){
     // KPIs, math, summary
     refreshTotals();
     renderLinesPanel();
-    enhanceTenderListStyle();
     refreshSupplySummary();
 
     // Button active states
@@ -1025,9 +1028,7 @@ export async function render(container){
   // Initial draw
   drawAll();
 
-  // Done
-  return { dispose(){ /* WaterSupplyUI may clean up timers internally */ } };
+  return { dispose(){} };
 }
 
-// Default export
 export default { render };
