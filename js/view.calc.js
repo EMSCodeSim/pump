@@ -1,66 +1,80 @@
-// /js/view.calc.js
-// Calculations View — phone-friendly, preserves original hose/math logic,
-// adds explicit Hydrant/Tender buttons, and shows supply answers directly
-// under the "Total Flow / Max PP" KPIs.
+// view.calc.js
+// Main calculations view (render + draw). Works with bottom-sheet-editor.js for
+// phone-friendly popup editing of line settings.
 //
-// What’s in this file:
-//  • Buttons under the truck: Line 1, Line 2, Line 3, Presets
-//  • Below that: Hydrant and Tender (replaces old Supply cycle button)
-//  • Hydrant box under KPIs: “Drop = X% — add approximately N more of the same line”
-//  • Tender box under KPIs: “Total Shuttle GPM = Y”
-//  • Tender number/name made easier to read in the tender list
-//
-// Depends on:
-//  - ./store.js (state, friction loss, hose utilities, nozzle catalog)
-//  - ./waterSupply.js (WaterSupplyUI class for graphics + tender/hydrant panels)
+// Load order:
+// <script type="module" src="/js/view.calc.js"></script>
+// <script src="/js/bottom-sheet-editor.js"></script>
 
 import {
   state,
   NOZ,
   NOZ_LIST,
-  COLORS,
   FL,
-  FL_total,
-  sumFt,
-  splitIntoSections,
-  PSI_PER_FT,
   seedDefaultsForKey,
-  isSingleWye,
   activeNozzle,
-  activeSide,
-  sizeLabel
+  isSingleWye
 } from './store.js';
 
 import { WaterSupplyUI } from './waterSupply.js';
 
-// ---- Layout and drawing constants
+// ---------- Tunables ----------
 const TRUCK_W = 390;
 const TRUCK_H = 260;
-const PX_PER_50FT = 45;
 const CURVE_PULL = 36;
-const BRANCH_LIFT = 10;
 
-// ---- Entry point
-export async function render(container){
+// ---------- Utilities ----------
+function injectStyle(root, css) {
+  const s = document.createElement('style');
+  s.textContent = css;
+  root.appendChild(s);
+}
+function clearGroup(g) { while (g.firstChild) g.removeChild(g.firstChild); }
+function clsFor(size) { return (size === '5' ? 'hose5' : (size === '2.5' ? 'hose25' : 'hose175')); }
+function fmt(n) { return Math.round(n); }
+function pumpXY(viewH) { return { x: TRUCK_W / 2, y: viewH - 36 }; }
+function pathBetween(x1, y1, x2, y2) {
+  const dx = (x2 - x1), dy = (y2 - y1); const d = Math.hypot(dx, dy);
+  const c = Math.max(20, Math.min(CURVE_PULL, d * .3));
+  return `M ${x1} ${y1} C ${x1 + c} ${y1}, ${x2 - c} ${y2}, ${x2} ${y2}`;
+}
+
+// ---------- Main render ----------
+export async function render(container) {
   container.innerHTML = `
-    <section class="stack">
-
-      <!-- ====== Visual Stage ====== -->
+    <section class="stack" data-calc-root>
       <section class="wrapper card">
-        <div class="stage" id="stage">
-          <svg id="overlay" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
-              onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
+        <div class="above">
+          <div class="hoseLegend">
+            <span class="legSwatch sw175"></span> 1¾″
+            <span class="legSwatch sw25"></span> 2½″
+            <span class="legSwatch sw5"></span> 5″
+          </div>
+        </div>
+
+        <div class="stageWrap">
+          <svg id="stage" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" role="img" aria-label="Pump panel, hose layout">
+            <defs>
+              <linearGradient id="ppGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#1c2836"/>
+                <stop offset="100%" stop-color="#0b1017"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Hoses and overlays -->
             <g id="hoses"></g>
             <g id="branches"></g>
             <g id="labels"></g>
             <g id="tips"></g>
             <g id="supplyG"></g>
+
+            <image id="truckImg" href="./img/pump_truck.svg"
+                   x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}"
+                   preserveAspectRatio="xMidYMid slice"/>
           </svg>
 
-          <!-- Tip editor -->
-          <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true"
-               style="position:absolute; z-index:4; left:8px; top:8px; max-width:300px;">
+          <!-- Inline tip editor markup (bottom-sheet-editor.js will make this a bottom sheet) -->
+          <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
@@ -97,94 +111,80 @@ export async function render(container){
             </div>
 
             <div class="te-actions">
-              <button class="btn" id="teCancel">Cancel</button>
-              <button class="btn primary" id="teApply">Apply</button>
+              <button class="btn" id="teCancel" type="button">Cancel</button>
+              <button class="btn primary" id="teApply" type="button">Apply</button>
             </div>
           </div>
 
           <div class="info" id="topInfo">No lines deployed</div>
         </div>
 
-        <!-- ====== Controls (never cover the truck) ====== -->
-        <div class="controlBlock">
-          <!-- Row 1: Line buttons + Presets -->
-          <div class="controlRow">
-            <div class="lineGroup">
-              <button class="linebtn" data-line="left">Line 1</button>
-              <button class="linebtn" data-line="back">Line 2</button>
-              <button class="linebtn" data-line="right">Line 3</button>
+        <!-- Controls below the truck -->
+        <div id="overlay">
+          <div class="controlBlock">
+            <div class="controlRow">
+              <div class="lineGroup">
+                <button class="linebtn" data-line="left">Line 1</button>
+                <button class="linebtn" data-line="back">Line 2</button>
+                <button class="linebtn" data-line="right">Line 3</button>
+              </div>
+              <button id="presetsBtn" class="presetsbtn">Presets</button>
             </div>
-            <div class="actionGroup">
-              <button class="presetsbtn" id="presetsBtn">Presets</button>
-            </div>
-          </div>
 
-          <!-- Row 2: Hydrant and Tender (supply mode buttons) -->
-          <div class="controlRow">
-            <div class="actionGroup">
-              <button class="supplybtn" id="hydrantBtn" title="Pressurized (Hydrant)">Hydrant</button>
-              <button class="supplybtn" id="tenderBtn"  title="Static (Tender Shuttle)">Tender</button>
+            <div class="controlRow">
+              <div class="actionGroup">
+                <button class="supplybtn" id="hydrantBtn" title="Pressurized (Hydrant)">Hydrant</button>
+                <button class="supplybtn" id="tenderBtn"  title="Static (Tender Shuttle)">Tender</button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- ====== KPIs & Supply Answer Box ====== -->
+      <!-- KPIs + Supply Summaries -->
       <section class="card">
         <div class="kpis">
-          <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
-          <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
+          <div class="kpi"><div class="mini">Total Flow</div><b id="GPM">0</b></div>
+          <div class="kpi"><div class="mini">PDP</div><b id="PDP">0</b></div>
+          <div class="kpi"><div class="mini">Why?</div><button id="whyBtn" class="btn">Show</button></div>
         </div>
 
-        <!-- Answer box placed directly under KPIs -->
-        <div id="supplySummary" class="supplySummary" style="margin-top:10px; display:none;"></div>
-
-        <!-- Hydrant helper (pressurized) -->
-        <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-          <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
-          <div class="mini" style="color:#a9bed9; margin-bottom:8px">
-            Enter static & residual with one line flowing to estimate additional <b>same-size</b> lines:
-            <span class="pill" style="margin-left:6px">0–10% → 3×</span>
-            <span class="pill">11–15% → 2×</span>
-            <span class="pill">16–25% → 1×</span>
-            <span class="pill">&gt;25% → 0×</span>
-          </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
-            <div class="field" style="min-width:150px">
-              <label>Line size</label>
-              <select id="hydrantLineSize">
-                <option value="1.75">1¾″ (attack)</option>
-                <option value="2.5">2½″</option>
-                <option value="5">5″ LDH</option>
-              </select>
-            </div>
-            <div class="field" style="min-width:140px">
-              <label>Static (psi)</label>
-              <input type="number" id="hydrantStatic" placeholder="e.g., 80" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:170px">
-              <label>Residual w/ 1 line (psi)</label>
-              <input type="number" id="hydrantResidual" placeholder="e.g., 72" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
-              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
-            </div>
-          </div>
-          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
+        <div id="supplySummary" class="supplySummary">
+          <div class="row"><span class="k">Supply Mode:</span> <span class="v" id="ssMode">—</span></div>
+          <div class="row" id="hydrantRow" style="display:none"><span class="k">Hydrant:</span> <span class="v" id="hydrantResult">—</span></div>
+          <div class="row" id="staticRow" style="display:none"><span class="k">Shuttle GPM:</span> <span class="v" id="shuttleTotalGpm">0</span></div>
         </div>
 
-        <!-- Tender Shuttle (static) -->
-        <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <div>
-              <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
-              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full. Or enter minutes directly.</div>
-            </div>
-            <div class="pill">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
+        <!-- Hydrant helper -->
+        <div id="hydrantHelper" class="helper is-hidden">
+          <div class="mini">Hydrant residual drop calculator</div>
+          <div class="row">
+            <label>Static (psi)</label>
+            <input id="hydrantStatic" type="number" inputmode="decimal" placeholder="e.g., 70">
           </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <div class="field" style="min-width:160px">
-              <label>Tender ID / Number</label>
+          <div class="row">
+            <label>Residual (psi)</label>
+            <input id="hydrantResidual" type="number" inputmode="decimal" placeholder="e.g., 60">
+          </div>
+          <div class="row">
+            <label>Largest flowing line size</label>
+            <select id="hydrantLineSize">
+              <option value="1.75">1¾″</option>
+              <option value="2.5">2½″</option>
+              <option value="5">5″</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="hydrantCalcBtn" class="btn primary">Calculate</button>
+          </div>
+        </div>
+
+        <!-- Tender/static helper -->
+        <div id="staticHelper" class="helper is-hidden">
+          <div class="mini">Tender shuttle calculator</div>
+          <div class="row">
+            <div class="field">
+              <label>Tender ID</label>
               <input id="tAddId" type="text" placeholder="e.g., Tender 2">
             </div>
             <div class="field" style="min-width:160px">
@@ -201,43 +201,34 @@ export async function render(container){
             <div class="mini" style="margin-top:6px">
               Effective gal = <code>Capacity × 0.90</code><br>
               Per-tender GPM = <code>Effective gal ÷ minutes per round trip</code><br>
-              Total Shuttle GPM is the sum across tenders.
+              Total shuttle GPM = sum of all tenders.
             </div>
           </details>
+          <div class="mini" style="margin-top:8px">Total Shuttle GPM: <b id="shuttleTotalGpm">0</b></div>
         </div>
-
-        <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
+
+      <!-- Presets -->
+      <section id="sheet" class="sheet is-hidden" aria-hidden="true" role="dialog" aria-label="Presets">
+        <div class="sheetHeader">
+          <div class="mini" style="opacity:.8">Choose a preset</div>
+          <button id="sheetClose" class="btn">Close</button>
+        </div>
+        <div class="linepick">
+          <div class="preset" data-preset="standpipe">Standpipe</div>
+          <div class="preset" data-preset="sprinkler">Sprinkler</div>
+          <div class="preset" data-preset="foam">Foam</div>
+          <div class="preset" data-preset="monitor">Monitor</div>
+          <div class="preset" data-preset="aerial">Aerial / Elevated</div>
+        </div>
+      </section>
+
+      <div id="sheetBackdrop" class="sheet-backdrop"></div>
+      <div id="tipBackdrop" class="sheet-backdrop"></div>
     </section>
-
-    <!-- ====== Preset bottom sheet ====== -->
-    <div id="sheet" class="sheet" aria-modal="true" role="dialog">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="title">Presets</div>
-        <button class="btn" id="sheetClose">Close</button>
-      </div>
-      <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
-
-      <div class="preset-grid" id="presetGrid">
-        <div class="preset" data-preset="standpipe">Standpipe</div>
-        <div class="preset" data-preset="sprinkler">Sprinkler</div>
-        <div class="preset" data-preset="foam">Foam</div>
-        <div class="preset" data-preset="monitor">Monitor</div>
-        <div class="preset" data-preset="aerial">Aerial</div>
-      </div>
-
-      <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
-      <div class="linepick">
-        <div class="preset" data-applyline="left">Line 1</div>
-        <div class="preset" data-applyline="back">Line 2</div>
-        <div class="preset" data-applyline="right">Line 3</div>
-      </div>
-      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
-    </div>
-    <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
-  // ---- Phone-friendly polish (prevent iOS zoom; larger touch targets)
+  // ---------- Styles ----------
   injectStyle(container, `
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
@@ -248,8 +239,7 @@ export async function render(container){
     .kpi b { font-size:20px; }
     .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
-      width:100%; padding:10px 12px;
-      border:1px solid rgba(255,255,255,.22); border-radius:12px;
+      width:100%; padding:10px 12px; border:1px solid rgba(255,255,255,.22); border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -258,20 +248,30 @@ export async function render(container){
     .supplySummary {
       background:#0e151e; border:1px solid rgba(255,255,255,.12);
       border-radius:12px; padding:12px; color:#eaf2ff;
+      margin-top:8px;
     }
     .supplySummary .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .supplySummary .k { color:#a9bed9; min-width:160px; }
     .supplySummary .v { font-weight:800; }
 
-    /* Hose look (original) */
+    .stageWrap{ position:relative }
+    #overlay{ position:absolute; inset:auto 0 0 0; padding:10px; pointer-events:none }
+    #overlay .controlBlock{ pointer-events:auto }
+
+    .info{ position:absolute; left:10px; top:10px; background:rgba(0,0,0,.45); color:#fff; padding:4px 6px; border-radius:6px; font-size:12px; }
+    #stage{ background:#0b1017; border-radius:12px; display:block; width:100%; height:auto }
+    #truckImg{ pointer-events:none; user-select:none }
+
+    /* Hose look */
     .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
     .hose5{stroke:#ecd464;stroke-width:12}
     .hose25{stroke:#6ecbff;stroke-width:9}
     .hose175{stroke:#ff6b6b;stroke-width:6}
     .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
 
+    /* + hit targets at line ends */
     .hose-end{cursor:pointer;pointer-events:all}
-    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
+    .plus-hit{fill:transparent;stroke:transparent;rx:16;ry:16;width:56px;height:56px}
     .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
     .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
 
@@ -283,548 +283,329 @@ export async function render(container){
     details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
     .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
     .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
-    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
-    .simpleBox b{color:#eaf2ff}
-    .lbl{font-size:10px;fill:#0b0f14}
-    .is-hidden{display:none!important}
+    .bar{height:10px;border-radius:999px;background:linear-gradient(90deg,#0f3050,#1a4e7d);position:relative;overflow:hidden}
+    .bar::after{content:"";position:absolute;inset:0;background:rgba(110,203,255,.18);mix-blend-mode:screen}
 
-    /* Make tender IDs easier to read */
-    #tenderList .tender-emph,
-    #tenderList b,
-    #tenderList .title,
-    #tenderList .name,
-    #tenderList .tenderName,
-    #tenderList .tender-id {
-      color:#ffe082 !important;
-      font-weight:800;
-      letter-spacing:.2px;
-    }
+    /* Presets sheet */
+    .sheet{ position:fixed; inset:auto 0 0 0; background:#0e151e; border-top:1px solid rgba(255,255,255,.1); border-top-left-radius:16px; border-top-right-radius:16px; transform:translateY(100%); transition:transform .26s ease; z-index:1000; }
+    .sheet:not(.is-hidden){ transform:translateY(0) }
+    .sheetHeader{ display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.08)}
+    .sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:999; display:none }
+
+    .linebtn, .presetsbtn, .supplybtn, .whyBtn { background:#0e151e; border:1px solid rgba(255,255,255,.1); color:#e6f0ff }
+    .linebtn.active, .supplybtn.active, .presetsbtn.active { outline:2px solid #4fa3ff; outline-offset: 0 }
+
+    .linepick{ display:flex; gap:8px; padding:10px 12px; flex-wrap:wrap; }
+    .preset{ background:#0b1017; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px 12px; cursor:pointer; user-select:none }
+    .preset.selected{ border-color:#4fa3ff; box-shadow:0 0 0 2px rgba(79,163,255,.35) inset }
   `);
 
-  // ---- Nozzle selects in editor
-  const teNoz  = container.querySelector('#teNoz');
-  const teNozA = container.querySelector('#teNozA');
-  const teNozB = container.querySelector('#teNozB');
-  [teNoz, teNozA, teNozB].forEach(sel=>{
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name}</option>`).join('');
+  // ---------- DOM references ----------
+  const stage        = container.querySelector('#stage');
+  const G_hoses      = container.querySelector('#hoses');
+  const G_branches   = container.querySelector('#branches');
+  const G_labels     = container.querySelector('#labels');
+  const G_tips       = container.querySelector('#tips');
+  const G_supply     = container.querySelector('#supplyG');
+
+  const GPMel        = container.querySelector('#GPM');
+  const PDPel        = container.querySelector('#PDP');
+  const topInfo      = container.querySelector('#topInfo');
+
+  const teTitle      = container.querySelector('#teTitle');
+  const teWhere      = container.querySelector('#teWhere');
+  const teSize       = container.querySelector('#teSize');
+  const teLen        = container.querySelector('#teLen');
+  const teNoz        = container.querySelector('#teNoz');
+  const teElev       = container.querySelector('#teElev');
+  const teWye        = container.querySelector('#teWye');
+  const teLenA       = container.querySelector('#teLenA');
+  const teLenB       = container.querySelector('#teLenB');
+  const teNozA       = container.querySelector('#teNozA');
+  const teNozB       = container.querySelector('#teNozB');
+  const branchBlock  = container.querySelector('#branchBlock');
+
+  const ssMode       = container.querySelector('#ssMode');
+  const hydrantRow   = container.querySelector('#hydrantRow');
+  const staticRow    = container.querySelector('#staticRow');
+  const hydrantResEl = container.querySelector('#hydrantResult');
+
+  // ---------- Populate nozzle selects ----------
+  function fillNozzleSelect(sel, defId) {
+    if (!sel) return;
+    sel.innerHTML = '';
+    NOZ_LIST.forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id;
+      opt.textContent = n.label || n.id;
+      if (n.id === defId) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  // ---------- Build static hose group holders ----------
+  (function buildStaticGroups(){
+    const ns = 'http://www.w3.org/2000/svg';
+    ['left','back','right'].forEach(id=>{
+      const g = document.createElementNS(ns, 'g');
+      g.setAttribute('id', 'hose_'+id);
+      G_hoses.appendChild(g);
+    });
+  })();
+
+  // ---------- Add + tip ----------
+  function addTip(key, where, x, y) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const g  = document.createElementNS(ns, 'g');
+    g.setAttribute('class','hose-end');
+    g.setAttribute('data-line', key);
+    g.setAttribute('data-where', where);
+
+    const hit = document.createElementNS(ns,'rect');
+    hit.setAttribute('class','plus-hit');
+    hit.setAttribute('x', x-28); hit.setAttribute('y', y-28);
+    hit.setAttribute('width', 56); hit.setAttribute('height', 56);
+
+    const c = document.createElementNS(ns,'circle');
+    c.setAttribute('class','plus-circle'); c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 16);
+
+    const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign');
+    v.setAttribute('x1', x); v.setAttribute('y1', y-7); v.setAttribute('x2', x); v.setAttribute('y2', y+7);
+
+    const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign');
+    h.setAttribute('x1', x-7); h.setAttribute('y1', y); h.setAttribute('x2', x+7); h.setAttribute('y2', y);
+
+    g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h);
+    G_tips.appendChild(g);
+  }
+
+  // ---------- Draw all ----------
+  function drawAll() {
+    const viewH = stage.viewBox.baseVal.height || TRUCK_H;
+
+    // clear dynamic layers
+    clearGroup(G_tips); clearGroup(G_branches); clearGroup(G_labels); // keep G_hoses if you draw complex paths
+
+    // (Example end coords; your real geometry likely differs)
+    const ends = {
+      left:  { x: TRUCK_W - 80, y: 120 },
+      back:  { x: TRUCK_W - 52, y: 144 },
+      right: { x: TRUCK_W - 24, y: 168 }
+    };
+
+    // Build + tips at ends for active lines
+    ['left','back','right'].forEach((key)=>{
+      const L = seedDefaultsForKey(key);
+      const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
+      if (btn) btn.classList.toggle('active', !!L.visible);
+
+      if (!L.visible) return;
+      const e = ends[key];
+      addTip(key, 'main', e.x, e.y);
+      if (L.hasWye) {
+        addTip(key, 'L', e.x - 20, e.y - 18);
+        addTip(key, 'R', e.x + 20, e.y - 18);
+      }
+    });
+
+    // Supply drawing & panel visibility
+    waterSupply.draw(viewH);
+    if (typeof waterSupply.updatePanelsVisibility === 'function') {
+      waterSupply.updatePanelsVisibility();
+    }
+
+    // KPIs
+    refreshTotals();
+  }
+
+  // ---------- Totals ----------
+  function refreshTotals(){
+    const totalGPM = Object.values(state.lines).reduce((acc, L)=>{
+      if (!L.visible) return acc;
+      const noz = activeNozzle(L);
+      return acc + (noz?.gpm || 0);
+    }, 0);
+
+    const pdp = Object.values(state.lines).reduce((acc, L)=>{
+      if (!L.visible) return acc;
+      // If you have a real FL calc per segment/nozzle, call it here.
+      // This placeholder keeps UI ticking; replace with your function.
+      const base = (activeNozzle(L)?.np || 50);
+      return Math.max(acc, base + (L.elevFt||0));
+    }, 0);
+
+    GPMel.textContent = fmt(totalGPM);
+    PDPel.textContent = fmt(pdp);
+
+    // Supply summary labels
+    ssMode.textContent = state.supply === 'pressurized' ? 'Hydrant (pressurized)' : 'Static (tender shuttle)';
+    hydrantRow.style.display = state.supply === 'pressurized' ? '' : 'none';
+    staticRow.style.display  = state.supply === 'static' ? '' : 'none';
+    if (state.supply === 'pressurized') {
+      hydrantResEl.textContent = state.hydrant?.lastResult || '—';
+    }
+  }
+
+  // ---------- Presets UI ----------
+  const sheet        = container.querySelector('#sheet');
+  const presetsBtn   = container.querySelector('#presetsBtn');
+  const sheetClose   = container.querySelector('#sheetClose');
+  const sheetBackdrop= container.querySelector('#sheetBackdrop');
+
+  presetsBtn.addEventListener('click', ()=>{
+    sheet.classList.toggle('is-hidden');
+    sheetBackdrop.style.display = sheet.classList.contains('is-hidden') ? 'none' : 'block';
+  });
+  sheetClose.addEventListener('click', ()=>{
+    sheet.classList.add('is-hidden');
+    sheetBackdrop.style.display = 'none';
+  });
+  sheetBackdrop.addEventListener('click', ()=>{
+    sheet.classList.add('is-hidden');
+    sheetBackdrop.style.display = 'none';
   });
 
-  // ---- DOM references
-  const overlay     = container.querySelector('#overlay');
-  const stage       = container.querySelector('#stage');
-  const G_hoses     = container.querySelector('#hoses');
-  const G_branches  = container.querySelector('#branches');
-  const G_labels    = container.querySelector('#labels');
-  const G_tips      = container.querySelector('#tips');
-  const G_supply    = container.querySelector('#supplyG');
-  const truckImg    = container.querySelector('#truckImg');
-  const topInfo     = container.querySelector('#topInfo');
-  const linesTable  = container.querySelector('#linesTable');
-  const PDPel       = container.querySelector('#PDP');
-  const whyBtn      = container.querySelector('#whyBtn');
-  const branchBlock = container.querySelector('#branchBlock');
-  const tipEditor   = container.querySelector('#tipEditor');
-  const teTitle     = container.querySelector('#teTitle');
-  const teWhere     = container.querySelector('#teWhere');
-  const teSize      = container.querySelector('#teSize');
-  const teLen       = container.querySelector('#teLen');
-  const teElev      = container.querySelector('#teElev');
-  const teWye       = container.querySelector('#teWye');
-  const teLenA      = container.querySelector('#teLenA');
-  const teLenB      = container.querySelector('#teLenB');
-  const GPMel       = container.querySelector('#GPM');
-  const supplySummaryEl = container.querySelector('#supplySummary');
-
-  // Panels controlled by waterSupply.js
-  const hydrantHelper = container.querySelector('#hydrantHelper');
-  const staticHelper  = container.querySelector('#staticHelper');
-
-  // ---- Style utils
-  function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
-  function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
-  function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
-  function fmt(n){ return Math.round(n); }
-  function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
-  // ---- Vertical sizing
-  function supplyHeight(){
-    return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
-  }
-  function computeNeededHeightPx(){
-    const needs = Object.values(state.lines).filter(l=>l.visible);
-    let maxUp = 0;
-    needs.forEach(L=>{
-      const mainPx = (sumFt(L.itemsMain)/50)*PX_PER_50FT;
-      let branchPx = 0;
-      if(L.hasWye){
-        const lpx = (sumFt(L.itemsLeft)/50)*PX_PER_50FT;
-        const rpx = (sumFt(L.itemsRight)/50)*PX_PER_50FT;
-        branchPx = Math.max(lpx, rpx) + BRANCH_LIFT;
-      }
-      maxUp = Math.max(maxUp, mainPx + branchPx);
-    });
-    return Math.max(TRUCK_H + supplyHeight() + 10, TRUCK_H + maxUp + 40 + supplyHeight());
-  }
-  function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
-  function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
-
-  // ---- Hose geometry
-  function mainCurve(dir, totalPx, viewH){
-    const {x:sx,y:sy} = pumpXY(viewH);
-    const ex = dir===-1 ? sx - 110 : dir===1 ? sx + 110 : sx;
-    const ey = Math.max(10, sy - totalPx);
-    const cx = (sx+ex)/2 + (dir===-1?-CURVE_PULL:dir===1?CURVE_PULL:0);
-    const cy = sy - (sy-ey)*0.48;
-    return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
-  }
-  function straightBranch(side, startX, startY, totalPx){
-    const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
-    return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
-  }
-  function addLabel(text, x, y, dy=0){
-    const ns='http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns,'g');
-    const pad = 4;
-    const t = document.createElementNS(ns,'text');
-    t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
-    g.appendChild(t); G_labels.appendChild(g);
-    const bb = t.getBBox();
-    const bg = document.createElementNS(ns,'rect');
-    bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
-    bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-    bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
-    g.insertBefore(bg, t);
-  }
-  function addTip(key, where, x, y){
-    const ns='http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns,'g');
-    g.setAttribute('class','hose-end'); g.setAttribute('data-line',key); g.setAttribute('data-where',where);
-    const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-20); hit.setAttribute('y', y-20); hit.setAttribute('width', 40); hit.setAttribute('height', 40);
-    const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',14);
-    const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign'); v.setAttribute('x1',x); v.setAttribute('y1',y-6); v.setAttribute('x2',x); v.setAttribute('y2',y+6);
-    const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-6); h.setAttribute('y1',y); h.setAttribute('x2',x+6); h.setAttribute('y2',y);
-    g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
-  }
-  function drawSegmentedPath(group, basePath, segs){
-    const ns = 'http://www.w3.org/2000/svg';
-    const sh = document.createElementNS(ns,'path');
-    sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
-    const total = basePath.getTotalLength(); let offset = 0;
-    const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
-    segs.forEach(seg=>{
-      const px = (seg.lengthFt/50)*PX_PER_50FT;
-      const portion = Math.min(total, (px/totalPx)*total);
-      const p = document.createElementNS(ns,'path');
-      p.setAttribute('class', 'hoseBase '+clsFor(seg.size));
-      p.setAttribute('d', basePath.getAttribute('d'));
-      p.setAttribute('stroke-dasharray', portion+' '+total);
-      p.setAttribute('stroke-dashoffset', -offset);
-      group.appendChild(p);
-      offset += portion;
-    });
-  }
-
-  // ---- Totals & KPI coloring
-  function refreshTotals(){
-    const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
-    let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
-    vis.forEach(([key, L])=>{
-      const single = isSingleWye(L);
-      const flow = single ? (activeNozzle(L)?.gpm||0)
-                 : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
-                            : (L.nozRight?.gpm||0);
-      const mainFL = FL_total(flow, L.itemsMain);
-      let PDP=0;
-      if(single){
-        const side = activeSide(L);
-        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
-        const bnNoz  = activeNozzle(L);
-        const branchFL = FL_total(bnNoz.gpm, bnSegs);
-        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
-      }else if(L.hasWye){
-        const lNeed = FL_total(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
-        const rNeed = FL_total(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
-      }else{
-        PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
-      }
-      totalGPM += flow;
-      if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
-    });
-    state.lastMaxKey = maxKey;
-    GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
-    PDPel.classList.remove('orange','red');
-    if(vis.length){
-      const v = Math.round(maxPDP);
-      PDPel.textContent = v+' psi';
-      if(v>250) PDPel.classList.add('red');
-      else if(v>200) PDPel.classList.add('orange');
-    }else{
-      PDPel.textContent = '— psi';
-    }
-  }
-
-  // ---- Hose bar visualization in math panel
-  function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
-    const totalLen = sumFt(sections);
-    containerEl.innerHTML='';
-    if(!totalLen||!gpm){
-      containerEl.textContent='No hose yet';
-      containerEl.style.color='#9fb0c8';
-      containerEl.style.fontSize='12px';
-      return;
-    }
-    const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
-    const svgNS='http://www.w3.org/2000/svg';
-    const svg=document.createElementNS(svgNS,'svg');
-    svg.setAttribute('width','100%'); svg.setAttribute('height',H);
-    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-
-    if(nozzleText){
-      const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
-      t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
-      svg.appendChild(t);
-    }
-
-    const innerW=W-16-NP_W;
-    const track=document.createElementNS(svgNS,'rect');
-    track.setAttribute('x',8); track.setAttribute('y',20);
-    track.setAttribute('width',innerW); track.setAttribute('height',18);
-    track.setAttribute('fill','#0c1726'); track.setAttribute('stroke','#20324f');
-    track.setAttribute('rx',6); track.setAttribute('ry',6);
-    svg.appendChild(track);
-
-    let x=8;
-    sections.forEach(seg=>{
-      const segW=(seg.lengthFt/totalLen)*innerW;
-      const r=document.createElementNS(svgNS,'rect');
-      r.setAttribute('x',x); r.setAttribute('y',20);
-      r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18);
-      r.setAttribute('fill',COLORS[seg.size]||'#888');
-      r.setAttribute('stroke','rgba(0,0,0,.35)');
-      r.setAttribute('rx',5); r.setAttribute('ry',5);
-      svg.appendChild(r);
-
-      const fl=FL(gpm,seg.size,seg.lengthFt);
-      const tx=document.createElementNS(svgNS,'text');
-      tx.setAttribute('fill','#0b0f14'); tx.setAttribute('font-size','11');
-      tx.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
-      tx.setAttribute('text-anchor','middle'); tx.setAttribute('x',x+segW/2); tx.setAttribute('y',34);
-      tx.textContent=''+seg.lengthFt+'′ • '+Math.round(fl)+' psi';
-      svg.appendChild(tx);
-
-      x+=segW;
-    });
-
-    const pill=document.createElementNS(svgNS,'rect');
-    pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
-    pill.setAttribute('width',64-12); pill.setAttribute('height',18);
-    pill.setAttribute('fill','#eaf2ff'); pill.setAttribute('stroke','#20324f');
-    pill.setAttribute('rx',6); pill.setAttribute('ry',6);
-    svg.appendChild(pill);
-
-    const npT=document.createElementNS(svgNS,'text');
-    npT.setAttribute('x',innerW+8+(64-12)/2); npT.setAttribute('y',33);
-    npT.setAttribute('text-anchor','middle'); npT.setAttribute('fill','#0b0f14'); npT.setAttribute('font-size','11');
-    npT.textContent = pillOverride ? pillOverride : ('NP '+npPsi);
-    svg.appendChild(npT);
-
-    containerEl.appendChild(svg);
-  }
-
-  // ---- “Why?” (simple PP explanation)
-  function ppExplainHTML(L){
-    const single = isSingleWye(L);
-    const side = activeSide(L);
-    const flow = single ? (activeNozzle(L)?.gpm||0)
-               : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
-                          : (L.nozRight?.gpm||0);
-    const mainSecs = splitIntoSections(L.itemsMain);
-    const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
-    const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
-    const mainSum = mainFLs.reduce((a,c)=>a+c,0);
-    const elevPsi = (L.elevFt||0) * PSI_PER_FT;
-    const elevStr = (elevPsi>=0? '+':'')+fmt(elevPsi)+' psi';
-
-    if(!L.hasWye){
-      return `
-        <div><b>Simple PP:</b>
-          <ul class="simpleList">
-            <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
-            <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-            <li><b>Elevation</b> = ${elevStr}</li>
-          </ul>
-          <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
-        </div>
-      `;
-    } else if(single){
-      const noz = activeNozzle(L);
-      const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
-      const bnSecs = splitIntoSections(bnSegs);
-      const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
-      const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
-      const brSum  = brFLs.reduce((x,y)=>x+y,0);
-      const total  = noz.NP + brSum + mainSum + elevPsi;
-      return `
-        <div><b>Simple PP (Single branch via wye):</b>
-          <ul class="simpleList">
-            <li><b>Nozzle Pressure</b> = ${fmt(noz.NP)} psi</li>
-            <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
-            <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-            <li><b>Elevation</b> = ${elevStr}</li>
-          </ul>
-          <div style="margin-top:6px"><b>PP = NP + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
-        </div>
-      `;
-    } else {
-      const aSecs = splitIntoSections(L.itemsLeft);
-      const bSecs = splitIntoSections(L.itemsRight);
-      const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
-      const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
-      const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
-      const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
-      const maxNeed = Math.max(aNeed, bNeed);
-      const wyeLoss = (L.wyeLoss||10);
-      const total = maxNeed + mainSum + wyeLoss + elevPsi;
-      return `
-        <div><b>Simple PP (Wye):</b>
-          <ul class="simpleList">
-            <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
-            <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
-            <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
-            <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
-            <li><b>Wye</b> = +${wyeLoss} psi</li>
-            <li><b>Elevation</b> = ${elevStr}</li>
-          </ul>
-          <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
-        </div>
-      `;
-    }
-  }
-
-  // ---- Lines math section
-  function renderLinesPanel(){
-    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
-    if(!anyDeployed || !state.showMath){ linesTable.innerHTML=''; linesTable.classList.add('is-hidden'); return; }
-    linesTable.classList.remove('is-hidden'); linesTable.innerHTML='';
-
-    ['left','back','right'].forEach(key=>{
-      const L = state.lines[key];
-      const row = document.createElement('div'); row.className='lineRow';
-      const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
-      const single = isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : L.nozRight;
-      const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-
-      const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
-        <span class="title">${L.label}</span>
-        <span class="tag">Main: ${sumFt(L.itemsMain)}′ (${segs})</span>
-        <span class="tag">Flow: ${flow} gpm</span>
-        <span class="tag">${L.visible? 'DEPLOYED':'not deployed'}</span>
-      `;
-      row.appendChild(head);
-      linesTable.appendChild(row);
-
-      if(L.visible){
-        const bflow = flow;
-        const wrap = document.createElement('div');
-
-        if(L.hasWye && !single){
-          const wye = (L.wyeLoss ?? 10);
-          wrap.innerHTML = `
-            <details class="math" open>
-              <summary>Line math</summary>
-              <div class="hoseviz">
-                <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
-                  <div class="hosebar" id="viz_main_${key}"></div>
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
-                  <div class="hosebar" id="viz_L_${key}"></div>
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
-                  <div class="hosebar" id="viz_R_${key}"></div>
-                </div>
-                <div class="simpleBox" id="pp_simple_${key}"></div>
-              </div>
-            </details>
-          `;
-          linesTable.appendChild(wrap);
-
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+(sumFt(L.itemsLeft)||0)+'′');
-          drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+(sumFt(L.itemsRight)||0)+'′');
-          document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
-
-        } else if(single){
-          const side = activeSide(L);
-          const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
-          const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
-          const noz = activeNozzle(L);
-
-          wrap.innerHTML = `
-            <details class="math" open>
-              <summary>Line math</summary>
-              <div class="hoseviz">
-                <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${noz.NP} psi</div>
-                  <div class="hosebar" id="viz_main_${key}"></div>
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm</div>
-                  <div class="hosebar" id="viz_BR_${key}"></div>
-                </div>
-                <div class="simpleBox" id="pp_simple_${key}"></div>
-              </div>
-            </details>
-          `;
-          linesTable.appendChild(wrap);
-
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (noz?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm');
-          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), bflow, (noz?.NP||0), bnTitle+' '+(sumFt(bnSegs)||0)+'′');
-          document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
-
-        } else {
-          wrap.innerHTML = `
-            <details class="math" open>
-              <summary>Line math</summary>
-              <div class="hoseviz">
-                <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
-                </div>
-                <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
-                  <div class="hosebar" id="viz_main_${key}"></div>
-                </div>
-                <div class="simpleBox" id="pp_simple_${key}"></div>
-              </div>
-            </details>
-          `;
-          linesTable.appendChild(wrap);
-
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+sumFt(L.itemsMain)+'′ @ '+bflow+' gpm');
-          document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
-        }
-      }
-    });
-  }
-
-  // ---- Tip editor interactions
-  let currentViewH = null;
-  let chosenPreset=null, chosenLine=null, editorContext=null;
-
-  overlay.addEventListener('click', (e)=>{
+  // ---------- Tip editor: populate fields on "+" click ----------
+  // NOTE: We DO NOT open or position the editor here; bottom-sheet-editor.js will do that.
+  stage.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     const L = seedDefaultsForKey(key);
     L.visible = true;
-    editorContext = {key, where};
-    teTitle.textContent = L.label+' — '+(where==='main'?'Main':'Branch '+where);
+
+    // Title + where
+    const whereLabel = (where === 'main' ? 'Main' : (where === 'L' ? 'Branch L' : 'Branch R'));
+    teTitle.textContent = (L.label || key.toUpperCase()) + ' — ' + whereLabel;
     teWhere.value = where.toUpperCase();
-    teElev.value = L.elevFt||0;
-    teWye.value  = L.hasWye? 'on':'off';
 
-    if(where==='main'){
-      const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
-      teSize.value = seg.size; teLen.value = seg.lengthFt||0;
-      const nozId = (isSingleWye(L)? (activeNozzle(L)?.id) : L.nozRight.id) || L.nozRight.id;
-      teNoz.value = nozId;
-    } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozLeft?.id)||'chiefXD';
+    // Elevation + Wye
+    teElev.value = L.elevFt || 0;
+    teWye.value  = L.hasWye ? 'on' : 'off';
+
+    // Nozzle lists
+    if (where === 'main') {
+      fillNozzleSelect(teNoz, (isSingleWye(L) ? activeNozzle(L)?.id : L.nozRight?.id) || activeNozzle(L)?.id);
+    } else if (where === 'L') {
+      fillNozzleSelect(teNoz, L.nozLeft?.id);
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt; teNoz.value = (L.nozRight?.id)||'chiefXD265';
+      fillNozzleSelect(teNoz, L.nozRight?.id);
     }
+    fillNozzleSelect(teNozA, L.nozLeft?.id);
+    fillNozzleSelect(teNozB, L.nozRight?.id);
 
-    branchBlock.classList.toggle('is-hidden', teWye.value==='off');
-    if(teNozA) teNozA.value = (L.nozLeft?.id)||'chiefXD';
-    if(teNozB) teNozB.value = (L.nozRight?.id)||'chiefXD265';
-    if(teLenA) teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
-    if(teLenB) teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
+    // Length + Size (basic defaults if missing)
+    let seg = null;
+    if (where === 'main') {
+      seg = L.itemsMain?.[0] || { size:'1.75', lengthFt:200 };
+    } else if (where === 'L') {
+      seg = L.itemsLeft?.[0] || { size:'1.75', lengthFt:100 };
+    } else {
+      seg = L.itemsRight?.[0] || { size:'1.75', lengthFt:100 };
+    }
+    teSize.value = String(seg.size);
+    teLen.value  = String(seg.lengthFt ?? 0);
 
-    tipEditor.style.visibility = 'hidden';
-    tipEditor.classList.remove('is-hidden');
-
-    const edW = tipEditor.offsetWidth || 300;
-    const edH = tipEditor.offsetHeight || 240;
-
-    const pump = pumpXY(currentViewH || 260);
-    const truckTop = truckTopY(currentViewH || 260);
-
-    const srect = stage.getBoundingClientRect();
-    let left = pump.x - edW/2;
-    let top  = truckTop - edH - 8;
-
-    left = Math.max(8, Math.min(left, srect.width - edW - 8));
-    top  = Math.max(8, Math.min(top, srect.height - edH - 8));
-
-    tipEditor.style.left = left + 'px';
-    tipEditor.style.top  = top + 'px';
-    tipEditor.style.visibility = 'visible';
+    // Branch fields
+    branchBlock.classList.toggle('is-hidden', teWye.value !== 'on');
+    teLenA && (teLenA.value = String(L.itemsLeft?.[0]?.lengthFt ?? 0));
+    teLenB && (teLenB.value = String(L.itemsRight?.[0]?.lengthFt ?? 0));
   });
 
-  teWye.addEventListener('change', ()=>{ branchBlock.classList.toggle('is-hidden', teWye.value==='off'); });
-  container.querySelector('#teCancel').addEventListener('click', ()=>{
-    tipEditor.classList.add('is-hidden');
-  });
+  // ---------- Apply / Cancel (Apply updates state only; add-on closes the sheet) ----------
   container.querySelector('#teApply').addEventListener('click', ()=>{
-    if(!editorContext) return;
-    const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
-    const noz = (NOZ[container.querySelector('#teNoz').value]);
-    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
-    L.elevFt = elev;
-    if(where==='main'){
-      L.itemsMain = [{size, lengthFt:len}];
-      if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[]; L.nozRight = noz;
-      }else{
-        L.hasWye=true;
-        const lenA = Math.max(0, +teLenA?.value||0);
-        const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
-        L.nozLeft  = NOZ[teNozA?.value] || L.nozLeft;
-        L.nozRight = NOZ[teNozB?.value] || L.nozRight;
+    const where = String(teWhere.value || 'MAIN').toUpperCase();
+    // Find current editing line based on the title prefix we set (safe heuristic)
+    const label = (teTitle.textContent || '');
+    const key = label.includes('Line 1') || label.includes('LEFT')  ? 'left' :
+                label.includes('Line 2') || label.includes('BACK')  ? 'back' :
+                label.includes('Line 3') || label.includes('RIGHT') ? 'right' : (['left','back','right'].find(k=>label.toUpperCase().includes(k.toUpperCase())) || 'left');
+
+    const L = state.lines[key] || seedDefaultsForKey(key);
+    const size = String(teSize.value);
+    const len  = Math.max(0, +teLen.value || 0);
+    const elev = +teElev.value || 0;
+
+    const noz = NOZ[String(teNoz.value)] || activeNozzle(L);
+    const wyeOn = (String(teWye.value) === 'on');
+
+    if (where === 'MAIN') {
+      L.itemsMain = len ? [{ size, lengthFt: len }] : [];
+      L.elevFt    = elev;
+      if (wyeOn) {
+        L.hasWye = true;
+        const lenA = Math.max(0, +teLenA?.value || 0);
+        const lenB = Math.max(0, +teLenB?.value || 0);
+        L.itemsLeft  = lenA ? [{ size: '1.75', lengthFt: lenA }] : [];
+        L.itemsRight = lenB ? [{ size: '1.75', lengthFt: lenB }] : [];
+        L.nozLeft  = NOZ[String(teNozA?.value)] || L.nozLeft;
+        L.nozRight = NOZ[String(teNozB?.value)] || L.nozRight;
+      } else {
+        L.hasWye = false;
+        L.nozRight = noz; // single tip on main
       }
-    } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : []; L.nozLeft = noz;
+    } else if (where === 'L') {
+      L.hasWye = true;
+      L.itemsLeft = len ? [{ size, lengthFt: len }] : [];
+      L.nozLeft   = noz;
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : []; L.nozRight = noz;
+      L.hasWye = true;
+      L.itemsRight = len ? [{ size, lengthFt: len }] : [];
+      L.nozRight   = noz;
     }
-    L.visible = true; tipEditor.classList.add('is-hidden'); drawAll();
+
+    L.visible = true;
+    drawAll(); // refresh
   });
 
-  // ---- Line toggle buttons
+  container.querySelector('#teCancel').addEventListener('click', ()=>{
+    // no state changes; bottom-sheet-editor.js will close the sheet
+  });
+
+  // Wye toggle shows/hides branch block (add-on also wires this, but keeping here is fine)
+  teWye.addEventListener('change', ()=>{
+    branchBlock.classList.toggle('is-hidden', teWye.value !== 'on');
+  });
+
+  // ---------- Line toggle buttons ----------
   container.querySelectorAll('.linebtn').forEach(b=>{
     b.addEventListener('click', ()=>{
-      const key=b.dataset.line; const L=seedDefaultsForKey(key);
-      L.visible = !L.visible; b.classList.toggle('active', L.visible);
+      const key = b.dataset.line;
+      const L = seedDefaultsForKey(key);
+      L.visible = !L.visible;
+      b.classList.toggle('active', !!L.visible);
       drawAll();
     });
   });
 
-  // ---- Water Supply UI integration
+  // ---------- Hydrant / Tender mode ----------
+  function updateSupplyButtons(){
+    container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply === 'pressurized');
+    container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply === 'static');
+  }
+
+  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
+    state.supply = 'pressurized';
+    updateSupplyButtons();
+    waterSupply.showPanel('hydrant');
+    refreshTotals();
+  });
+  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
+    state.supply = 'static';
+    updateSupplyButtons();
+    waterSupply.showPanel('tender');
+    refreshTotals();
+  });
+
+  // ---------- Why button (placeholder) ----------
+  container.querySelector('#whyBtn').addEventListener('click', ()=>{
+    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
+    if (!anyDeployed) { alert('No lines deployed yet'); return; }
+    alert('PDP math breakdown coming soon'); // swap with your own modal/details
+  });
+
+  // ---------- Water Supply integration ----------
   const waterSupply = new WaterSupplyUI({
-    container, state,
-    pumpXY, truckTopY,
-    G_supply, TRUCK_H,
+    container, state, pumpXY, TRUCK_H, G_supply,
     ids: {
       hydrantHelper: '#hydrantHelper',
       staticHelper:  '#staticHelper',
@@ -838,250 +619,17 @@ export async function render(container){
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult'
-    }
+    },
+    onSupplyChange: ()=>{ updateSupplyButtons(); refreshTotals(); },
+    onTenderUpdate: ()=>{ refreshTotals(); }
   });
+  updateSupplyButtons();
 
-  // Explicit Hydrant/Tender buttons
-  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
-    state.supply = 'pressurized';
-    drawAll();
-  });
-  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
-    state.supply = 'static';
-    drawAll();
-  });
-
-  // ---- Presets
-  const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
-  function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
-  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
-  container.querySelector('#presetsBtn').addEventListener('click', openSheet);
-  container.querySelector('#sheetClose').addEventListener('click', closeSheet);
-  sheetBackdrop.addEventListener('click', closeSheet);
-  container.querySelector('#presetGrid').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
-    chosenPreset = p.dataset.preset;
-    container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)'; updateSheetApply();
-  });
-  container.querySelector('.linepick').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
-    chosenLine = p.dataset.applyline;
-    container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)'; updateSheetApply();
-  });
-  function updateSheetApply(){ container.querySelector('#sheetApply').disabled = !(chosenPreset && chosenLine); }
-  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); closeSheet(); });
-  function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
-  function applyPresetTo(preset, key){
-    const L = state.lines[key]; clearLine(L); L.visible = true;
-    switch(preset){
-      case 'standpipe': L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false; L.nozRight=NOZ.fog150_75; L.elevFt=60; break;
-      case 'sprinkler': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:50}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; break;
-      case 'foam': L.itemsMain=[{size:'1.75', lengthFt:200}]; L.nozRight=NOZ.fog150_75; L.hasWye=false; L.elevFt=0; break;
-      case 'monitor': L.itemsMain=[{size:'2.5', lengthFt:200}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=0; break;
-      case 'aerial': state.supply='pressurized'; L.itemsMain=[{size:'2.5', lengthFt:150}]; L.nozRight=NOZ.sb1_1_8; L.hasWye=false; L.elevFt=80; break;
-    }
-    drawAll();
-  }
-
-  // ---- Why? button
-  whyBtn.addEventListener('click', ()=>{
-    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
-    if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
-    if(!state.showMath){ state.showMath = true; renderLinesPanel(); }
-    if(!state.lastMaxKey) return;
-    const target = container.querySelector('#pp_simple_'+state.lastMaxKey);
-    if(target){
-      target.scrollIntoView({behavior:'smooth', block:'center'});
-      target.classList.remove('flash'); void target.offsetWidth; target.classList.add('flash');
-      const details = target.closest('details'); if(details && !details.open){ details.open = true; }
-    }
-  });
-
-  // ===== Hydrant/Tender “answers” box under KPIs =====
-
-  // Compute hydrant advice: %drop and how many more same-size lines
-  function computeHydrantAdvice() {
-    const staticEl   = container.querySelector('#hydrantStatic');
-    const residualEl = container.querySelector('#hydrantResidual');
-    const sizeSel    = container.querySelector('#hydrantLineSize');
-
-    if (!staticEl || !residualEl || !sizeSel) return null;
-
-    const s  = +staticEl.value || 0;
-    const r  = +residualEl.value || 0;
-    if (s <= 0 || r <= 0 || r > s) return null;
-
-    const pct = ((s - r) / s) * 100;               // % drop
-    let more = 0;
-    if (pct <= 10) more = 3;
-    else if (pct <= 15) more = 2;
-    else if (pct <= 25) more = 1;
-    else more = 0;
-
-    const sizeText = sizeSel.value === '2.5' ? '2½″'
-                    : sizeSel.value === '5'   ? '5″'
-                    : '1¾″';
-
-    return { pct: Math.round(pct), more, sizeText };
-  }
-
-  // Make tender number/name more readable without depending on internals
-  function enhanceTenderListStyle() {
-    const root = container.querySelector('#tenderList');
-    if (!root) return;
-    root.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
-      el.classList.add('tender-emph');
-    });
-  }
-
-  // Show the requested info in the box just under KPIs
-  function refreshSupplySummary(){
-    const box = supplySummaryEl;
-    if (!box) return;
-
-    let html = '';
-    if (state.supply === 'pressurized') {
-      const adv = computeHydrantAdvice();
-      if (adv) {
-        html = `
-          <div class="row">
-            <span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span>
-          </div>
-          <div class="row">
-            <span class="k">Drop</span><span class="v">${adv.pct}%</span>
-          </div>
-          <div class="row">
-            <span class="k">Guidance</span>
-            <span class="v">Add approximately <b>${adv.more}</b> more of the same ${adv.sizeText} line</span>
-          </div>
-        `;
-      } else {
-        html = `
-          <div class="row">
-            <span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span>
-          </div>
-          <div class="mini" style="margin-top:6px;color:#cfe6ff">
-            Enter <b>Static</b> and <b>Residual w/ 1 line</b>, then tap <b>Evaluate %Drop</b>.
-          </div>
-        `;
-      }
-    } else if (state.supply === 'static') {
-      const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
-      html = `
-        <div class="row">
-          <span class="k">Supply Mode</span><span class="v">Tender shuttle</span>
-        </div>
-        <div class="row">
-          <span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span>
-        </div>
-        <div class="mini" style="margin-top:6px;color:#cfe6ff">
-          Shuttle GPM updates after each full round trip.
-        </div>
-      `;
-    } else {
-      html = '';
-    }
-
-    if (html) {
-      box.innerHTML = html;
-      box.style.display = 'block';
-    } else {
-      box.innerHTML = '';
-      box.style.display = 'none';
-    }
-  }
-
-  // Observe tender list and hydrant inputs so the box stays current
-  const tenderListEl = container.querySelector('#tenderList');
-  const shuttleEl    = container.querySelector('#shuttleTotalGpm');
-  const hydCalcBtn   = container.querySelector('#hydrantCalcBtn');
-  const hydInputs    = [ '#hydrantStatic', '#hydrantResidual', '#hydrantLineSize' ]
-    .map(sel => container.querySelector(sel))
-    .filter(Boolean);
-
-  hydCalcBtn?.addEventListener('click', () => setTimeout(refreshSupplySummary, 0));
-  hydInputs.forEach(inp => inp.addEventListener('input', refreshSupplySummary));
-
-  const mo = new MutationObserver(() => {
-    enhanceTenderListStyle();
-    refreshSupplySummary();
-  });
-  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
-  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
-
-  // ---- Main draw
-  function drawAll(){
-    const viewH = Math.ceil(computeNeededHeightPx());
-    currentViewH = viewH;
-    overlay.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
-    stage.style.height = viewH + 'px';
-    truckImg.setAttribute('y', String(truckTopY(viewH)));
-
-    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
-
-    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed';
-
-    ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
-      const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
-      const mainFt = sumFt(L.itemsMain);
-      const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
-
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, L.itemsMain);
-      addTip(key,'main',geom.endX,geom.endY);
-
-      const single = isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-      const npLabel = usedNoz ? (' — Nozzle '+usedNoz.NP+' psi') : (L.hasWye ? ' — via Wye' : (' — Nozzle '+L.nozRight.NP+' psi'));
-      addLabel(mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
-
-      if(L.hasWye){
-        if(sumFt(L.itemsLeft)>0){
-          const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
-          addTip(key,'L',gL.endX,gL.endY);
-        } else addTip(key,'L',geom.endX-20,geom.endY-20);
-
-        if(sumFt(L.itemsRight)>0){
-          const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, L.itemsRight);
-          addTip(key,'R',gR.endX,gR.endY);
-        } else addTip(key,'R',geom.endX+20,geom.endY-20);
-      }
-      base.remove();
-    });
-
-    // Supply visuals & panel visibility handled by waterSupply.js
-    waterSupply.draw(viewH);
-    if (typeof waterSupply.updatePanelsVisibility === 'function') {
-      waterSupply.updatePanelsVisibility(); // show hydrantHelper/staticHelper appropriately
-    }
-
-    // KPIs, math, and answer box refresh
-    refreshTotals();
-    renderLinesPanel();
-    enhanceTenderListStyle();
-    refreshSupplySummary();
-
-    // Button active states for Hydrant/Tender
-    const hb = container.querySelector('#hydrantBtn');
-    const tb = container.querySelector('#tenderBtn');
-    hb?.classList.toggle('active', state.supply==='pressurized');
-    tb?.classList.toggle('active', state.supply==='static');
-  }
-
-  // ---- Initial draw
+  // ---------- Initial draw ----------
   drawAll();
 
-  // Done
-  return { dispose(){ /* WaterSupplyUI may clean up timers internally */ } };
+  // ---------- Return disposer (if needed) ----------
+  return { dispose(){ /* add any cleanup if you attach timers */ } };
 }
 
-// Default export
 export default { render };
