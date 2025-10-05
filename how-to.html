@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How to Use the Pump Calculator</title>
+<style>
+  :root{
+    --bg:#09131f; --card:#0e151e; --ink:#eaf2ff; --muted:#a9bed9; --accent:#6ecbff; --border:rgba(255,255,255,.12);
+  }
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:900px;margin:0 auto;padding:16px}
+  header{position:sticky;top:0;backdrop-filter:saturate(160%) blur(8px);background:rgba(9,19,31,.8);border-bottom:1px solid var(--border);z-index:10}
+  header .bar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 0}
+  nav{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 14px;color:var(--ink)}
+  .btn.primary{background:#0b1726;border-color:#1e3652}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin:14px 0}
+  h1{font-size:28px;margin:14px 0 6px} h2{font-size:20px;margin:18px 0 8px} h3{font-size:16px;margin:14px 0 6px}
+  .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#0b1726;border:1px solid var(--border);color:var(--muted);font-size:12px}
+  .grid{display:grid;gap:12px}
+  @media (min-width:840px){ .grid{grid-template-columns:1fr 1fr} }
+  details{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:8px 10px}
+  details+details{margin-top:8px}
+  summary{cursor:pointer;font-weight:700;color:#cfe4ff}
+  .mini{color:var(--muted);font-size:14px}
+  .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1726;border:1px solid var(--border);border-radius:6px;padding:2px 6px}
+  .toc a{display:inline-block;margin:4px 8px 0 0}
+  img, video{max-width:100%;border-radius:8px;border:1px solid var(--border)}
+  .search{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:#0b1420;color:var(--ink);outline:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <div><b>How to: Pump Calculator</b></div>
+    <nav>
+      <a class="btn" href="/">← Back to App</a>
+      <a class="btn primary" href="#troubleshooting">Troubleshooting</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1>How to Use the Pump Calculator</h1>
+  <p class="mini">This guide covers quick start, common tasks, “Why?” math, tender shuttles, and troubleshooting.</p>
+
+  <div class="card">
+    <input id="search" class="search" placeholder="Search (e.g., wye, tender, 2½, 185 @ 50)…" />
+    <div class="mini" style="margin-top:6px">Tip: links on this page can be shared (ex: <code>/how-to.html#deploy-line</code>).</div>
+  </div>
+
+  <div class="card toc">
+    <h2>Jump to</h2>
+    <a href="#quick-start" class="pill">Quick Start</a>
+    <a href="#deploy-line" class="pill">Deploy a line</a>
+    <a href="#edit-branches" class="pill">Wye & branches</a>
+    <a href="#nozzles" class="pill">Nozzle defaults</a>
+    <a href="#tender" class="pill">Tender shuttle</a>
+    <a href="#why" class="pill">“Why?” math</a>
+    <a href="#troubleshooting" class="pill">Troubleshooting</a>
+  </div>
+
+  <section id="quick-start" class="card">
+    <h2>Quick Start (60s)</h2>
+    <ol>
+      <li>Press <b>Line 1</b> to deploy.</li>
+      <li>Tap the <b>+</b> at the hose tip to open the editor.</li>
+      <li>Pick <b>Diameter</b> & <b>Length</b>. If using a Wye, set <b>Wye = On</b> and enter branch lengths.</li>
+      <li>Choose a nozzle or accept defaults (see below).</li>
+      <li>Switch supply: <b>Hydrant</b> or <b>Tender</b>.</li>
+      <li>Tap <b>Why?</b> to see the PP breakdown.</li>
+    </ol>
+    <video autoplay muted loop playsinline src="assets/howto/quick-start.mp4"></video>
+  </section>
+
+  <section id="deploy-line" class="card">
+    <h2>Deploy a Line</h2>
+    <details open>
+      <summary>Steps</summary>
+      <div class="grid">
+        <div>
+          <ol>
+            <li>Toggle a line (<b>Line 1–3</b>) to make it visible.</li>
+            <li>Tap the <b>+</b> near the hose end to open the editor.</li>
+            <li>Set <b>Diameter</b> and <b>Length</b>. <span class="mini">1¾″ defaults to 185 @ 50; 2½″ defaults to 265 @ 50 (Fog preferred).</span></li>
+            <li>Tap <b>Apply</b>.</li>
+          </ol>
+        </div>
+        <div><img src="assets/howto/deploy-line.gif" alt="Deploy a line" /></div>
+      </div>
+    </details>
+  </section>
+
+  <section id="edit-branches" class="card">
+    <h2>Wye & Branches</h2>
+    <details open>
+      <summary>Single vs. two-branch</summary>
+      <p>Set <b>Wye = On</b> in the editor. The main line won’t show a nozzle. For a single branch in use, only that branch’s nozzle/flow is used. Branch B defaults to <b>Fog 185 @ 50</b> if empty.</p>
+    </details>
+  </section>
+
+  <section id="nozzles" class="card">
+    <h2>Nozzle Defaults</h2>
+    <ul>
+      <li><b>1¾″</b> → <b>Fog 185 @ 50</b></li>
+      <li><b>2½″</b> → <b>Fog 265 @ 50</b></li>
+      <li><b>Branch B</b> default (when creating Wye) → <b>Fog 185 @ 50</b></li>
+    </ul>
+  </section>
+
+  <section id="tender" class="card">
+    <h2>Tender Shuttle</h2>
+    <details open>
+      <summary>Adding tenders & seeing total shuttle GPM</summary>
+      <ol>
+        <li>Switch supply to <b>Tender</b>.</li>
+        <li>Enter <b>Tender ID</b> and <b>Capacity</b>, then press <b>Add Tender</b>.</li>
+        <li>Watch <b>Total Shuttle GPM</b> update as tenders cycle.</li>
+      </ol>
+      <img src="assets/howto/tender.gif" alt="Tender shuttle example" />
+    </details>
+  </section>
+
+  <section id="why" class="card">
+    <h2>“Why?” Math</h2>
+    <p>Tap <b>Why?</b> on the main view to see NP, branch/main friction loss, Wye loss, and elevation contributions.</p>
+  </section>
+
+  <section id="troubleshooting" class="card">
+    <h2>Troubleshooting</h2>
+    <details open>
+      <summary>“+” doesn’t open</summary>
+      <ul>
+        <li>Make sure a line is deployed (no <b>+</b> otherwise).</li>
+        <li>If self-hosted, confirm <code>bottom-sheet-editor.js</code> is loading (open console: <code>window.BottomSheetEditor</code> should exist).</li>
+      </ul>
+    </details>
+
+    <details>
+      <summary>Practice or Tender state resets when changing view</summary>
+      <p>Your current build persists state automatically. If it resets, check that the browser isn’t blocking session storage or that you’re not in a private tab with aggressive clearing.</p>
+    </details>
+  </section>
+</main>
+
+<script>
+  // Simple client-side filter for headings and details
+  const input = document.getElementById('search');
+  input?.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('section.card').forEach(sec=>{
+      const text = sec.innerText.toLowerCase();
+      sec.style.display = q && !text.includes(q) ? 'none' : '';
+    });
+  });
+</script>
+</body>
+</html>
