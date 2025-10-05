@@ -629,7 +629,7 @@ export async function render(container){
     .simpleBox b{color:#eaf2ff}
     .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
-  "");
+  `);
 
   /* ------------------------------ DOM refs -------------------------------- */
   const stageSvg    = container.querySelector('#stageSvg');
@@ -643,7 +643,7 @@ export async function render(container){
   const PDPel       = container.querySelector('#PDP');
   const GPMel       = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
-  const linesTable  = container.querySelector('#linesTable'); // <-- declared ONCE
+  const linesTable  = container.querySelector('#linesTable');
 
   // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
