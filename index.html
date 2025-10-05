@@ -84,13 +84,29 @@
     @media (min-width:700px){ .brand img{ height:40px; } }
     .brandName{ font-weight:800; letter-spacing:.2px; font-size:18px; line-height:1; color:var(--brand-red); }
     @media (min-width:700px){ .brandName{ font-size:20px; } }
-    .hdrBtns{display:flex; align-items:center; gap:8px}
-    .iconBtn{
+    .hdrBtns{display:flex; align-items:center; gap:8px; position:relative}
+
+    /* Replaces icon-only cog with a text Settings button + a small menu */
+    .textBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn); color:#eaf2ff;
-      border-radius:12px; padding:10px; min-width:44px; min-height:44px;
+      border-radius:12px; padding:10px 12px; min-width:44px; min-height:44px;
       display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
-      box-shadow:0 6px 16px rgba(0,0,0,.35);
+      box-shadow:0 6px 16px rgba(0,0,0,.35); font-size:14px; gap:8px;
     }
+    .textBtn svg{ opacity:.85 }
+
+    .menu{
+      position:absolute; right:0; top:calc(100% + 6px);
+      background:#0e1726; border:1px solid var(--edge); border-radius:12px; min-width:180px;
+      padding:6px; display:none; z-index:20; box-shadow:0 12px 28px rgba(0,0,0,.45);
+    }
+    .menu.show{ display:block; }
+    .menu a, .menu button{
+      display:flex; width:100%; text-align:left; gap:8px; align-items:center;
+      background:#0b1a29; border:1px solid #1f3a57; color:#eaf2ff;
+      border-radius:10px; padding:10px; font-size:14px; text-decoration:none; cursor:pointer;
+    }
+    .menu a:hover, .menu button:hover{ border-color:#2a5f92 }
 
     main{padding:10px;padding-bottom:84px}
     .stack{display:flex;flex-direction:column;gap:10px}
@@ -195,12 +211,24 @@
         <span class="brandName">FireOps Calc</span>
       </div>
       <div class="hdrBtns">
-        <button class="iconBtn" id="settingsBtn" aria-label="Open Settings" title="Settings">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <!-- Settings button that opens a small menu -->
+        <button class="textBtn" id="settingsBtn" aria-haspopup="menu" aria-expanded="false">
+          <!-- small gear for context + "Settings" label -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
             <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0 2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
           </svg>
+          Settings
         </button>
+        <div class="menu" id="settingsMenu" role="menu" aria-label="Settings">
+          <a href="/how-to.html" role="menuitem" id="howToItem">
+            <!-- question-circle-ish -->
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm1 16h-2v-2h2v2Zm1.9-7.1-.9.8c-.7.6-1 1.1-1 2.3h-2v-.5c0-1 .4-2 1.2-2.6l1.2-1c.4-.3.6-.8.6-1.3 0-1-.8-1.7-1.8-1.7s-1.8.7-1.8 1.7H7c0-2 1.7-3.7 3.8-3.7s3.8 1.6 3.8 3.6c0 1.1-.4 2-1.8 2.9Z"/>
+            </svg>
+            How-to & Help
+          </a>
+        </div>
       </div>
     </div>
   </header>
@@ -215,7 +243,7 @@
 
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal routing wiring (unchanged look) -->
+  <!-- Minimal routing wiring + settings menu behavior -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -232,7 +260,8 @@
           });
         }
       };
-      document.getElementById('settingsBtn')?.addEventListener('click', () => navTo('settings'));
+
+      // Bottom nav
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
@@ -240,6 +269,42 @@
           navTo(btn.dataset.view);
         });
       });
+
+      // Settings menu logic
+      const settingsBtn = document.getElementById('settingsBtn');
+      const settingsMenu = document.getElementById('settingsMenu');
+
+      function closeMenu(){
+        settingsMenu.classList.remove('show');
+        settingsBtn.setAttribute('aria-expanded','false');
+      }
+      function toggleMenu(){
+        const open = settingsMenu.classList.toggle('show');
+        settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+
+      settingsBtn?.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        toggleMenu();
+      });
+
+      // Close on outside click or ESC
+      document.addEventListener('click', (e)=>{
+        if (!settingsMenu.contains(e.target) && e.target !== settingsBtn){
+          closeMenu();
+        }
+      });
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === 'Escape') closeMenu();
+      });
+
+      // Optional: when navigating anywhere, close the menu
+      window.addEventListener('nav:calc', closeMenu);
+      window.addEventListener('nav:practice', closeMenu);
+      window.addEventListener('nav:charts', closeMenu);
+
+      // How-to item could also route inside the app if desired:
+      // document.getElementById('howToItem')?.addEventListener('click', (e)=>{ e.preventDefault(); navTo('howto'); closeMenu(); });
     })();
   </script>
 </body>
