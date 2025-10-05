@@ -253,10 +253,10 @@ function ppExplainHTML(L){
 // ---- Main render
 export async function render(container){
   container.innerHTML = `
-    <section class="stack">
+    <section class="stack" data-calc-root>
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <!-- NOTE: id changed from 'overlay' to 'stageSvg' to avoid pointer-events collision -->
+          <!-- NOTE: id is 'stageSvg' to avoid pointer-events collisions -->
           <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
             <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
               onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
@@ -502,7 +502,7 @@ export async function render(container){
   `);
 
   // ---- DOM refs
-  const stageSvg    = container.querySelector('#stageSvg'); // <-- renamed from #overlay
+  const stageSvg    = container.querySelector('#stageSvg');
   const G_hoses     = container.querySelector('#hoses');
   const G_branches  = container.querySelector('#branches');
   const G_labels    = container.querySelector('#labels');
@@ -826,7 +826,7 @@ export async function render(container){
   let editorContext=null;
 
   // Populate editor on '+'; DO NOT open/hide here (bottom-sheet-editor.js handles that).
-  // We also call BottomSheetEditor.open() explicitly if available.
+  // We also call BottomSheetEditor.open() explicitly; if missing, show a minimal fallback.
   stageSvg.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
@@ -861,6 +861,19 @@ export async function render(container){
 
     if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
       window.BottomSheetEditor.open();
+    } else {
+      // Fallback: show the inline editor as a simple modal if the add-on isn't loaded yet
+      tipEditor.classList.remove('is-hidden');
+      tipEditor.classList.add('is-open');
+      let tipBackdrop = container.querySelector('#tipBackdrop');
+      if(!tipBackdrop){
+        tipBackdrop = document.createElement('div');
+        tipBackdrop.id = 'tipBackdrop';
+        tipBackdrop.className = 'sheet-backdrop';
+        document.body.appendChild(tipBackdrop);
+      }
+      tipBackdrop.style.display = 'block';
+      tipBackdrop.onclick = () => { tipEditor.classList.add('is-hidden'); tipBackdrop.style.display='none'; };
     }
   });
 
@@ -930,6 +943,21 @@ export async function render(container){
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
     state.supply = 'static'; drawAll();
   });
+
+  // ---- Ensure bottom-sheet-editor.js is loaded (in case index.html didn't include it)
+  (function ensureBottomSheet(){
+    if (window.BottomSheetEditor) return;
+    try{
+      const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
+      if (already) return;
+      const s = document.createElement('script');
+      s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
+      s.onload = () => { /* ready */ };
+      document.body.appendChild(s);
+    }catch(e){
+      // ignore
+    }
+  })();
 
   // ----- Main draw -----
   function drawAll(){
