@@ -1,67 +1,79 @@
 // bottom-sheet-editor.js
-// Popup editor that ONLY covers the fire-truck stage (#stage). Opens on "+", closes on Apply/Cancel.
-// Assumes #tipEditor markup already exists inside the page (created by view.calc.js).
+// Popup editor that covers ONLY the fire-truck stage area, rendered in a fixed-position portal
+// above the SVG (so it can't get hidden behind it). Opens on "+", closes on Apply/Cancel.
 
 (function(){
   const cfg = {
-    lockScroll: false // set true to disable body scroll while editor is open
+    lockScroll: false // set true to prevent body scroll while the panel is open
   };
 
-  // Find calc root & key DOM nodes
+  // ---- Locate host elements created by view.calc.js
   const root        = document.querySelector('[data-calc-root]') || document.body;
-  const stage       = root.querySelector('#stage');          // wrapper that contains the truck SVG
+  const stage       = root.querySelector('#stage');           // wrapper around the truck/SVG
   const stageSvg    = root.querySelector('#stageSvg') || root.querySelector('svg');
-  const tipEditor   = root.querySelector('#tipEditor');
+  const tipEditor   = root.querySelector('#tipEditor');       // the editor markup already on the page
   const teCancel    = root.querySelector('#teCancel');
   const teApply     = root.querySelector('#teApply');
   const teWye       = root.querySelector('#teWye');
   const branchBlock = root.querySelector('#branchBlock');
 
-  // If essentials are missing, expose a no-op API
   if(!stage || !stageSvg || !tipEditor){
-    window.BottomSheetEditor = {
-      open(){}, close(){}, configure(o){ Object.assign(cfg, o||{}); }
-    };
+    // Essentials not found; expose a no-op API to avoid runtime errors.
+    window.BottomSheetEditor = { open(){}, close(){}, configure(o){ Object.assign(cfg, o||{}); } };
     return;
   }
 
-  // Ensure stage can host absolutely-positioned children
-  if (getComputedStyle(stage).position === 'static') {
-    stage.style.position = 'relative';
+  // ---- Create a fixed-position portal host attached to <body>
+  // We'll *move* #tipEditor into this host while open, then move it back on close.
+  let portal = document.getElementById('stageOverlayHost');
+  if(!portal){
+    portal = document.createElement('div');
+    portal.id = 'stageOverlayHost';
+    document.body.appendChild(portal);
   }
 
-  // Backdrop that covers ONLY the stage area (not the whole page)
-  let stageBackdrop = stage.querySelector('#stageBackdrop');
-  if(!stageBackdrop){
-    stageBackdrop = document.createElement('div');
-    stageBackdrop.id = 'stageBackdrop';
-    stage.appendChild(stageBackdrop);
+  // Backdrop lives inside the portal, covers only the portal bounds
+  let portalBackdrop = portal.querySelector('#stageOverlayBackdrop');
+  if(!portalBackdrop){
+    portalBackdrop = document.createElement('div');
+    portalBackdrop.id = 'stageOverlayBackdrop';
+    portal.appendChild(portalBackdrop);
   }
 
-  // Put #tipEditor inside #stage so it overlays the truck only
-  if (tipEditor.parentElement !== stage) {
-    stage.appendChild(tipEditor);
-  }
+  // Keep original parent so we can restore on close
+  const originalParent = tipEditor.parentElement;
 
-  // One-time safety / styling
-  const styleId = 'stage-editor-style';
+  // ---- One-time safety / styling
+  const styleId = 'stage-overlay-style';
   if(!document.getElementById(styleId)){
     const s = document.createElement('style');
     s.id = styleId;
     s.textContent = `
-      /* Backdrop only over the truck stage */
-      #stage #stageBackdrop{
-        position:absolute; inset:0;
+      /* Fixed portal positioned over the stage rect */
+      #stageOverlayHost{
+        position: fixed;
+        left: 0; top: 0; width: 0; height: 0;
+        z-index: 9999;           /* HIGH to beat any SVG stacking quirks */
+        display: none;           /* shown when opening */
+        pointer-events: none;    /* children manage interactivity */
+        contain: layout paint;   /* avoid bleed/flicker */
+      }
+      #stageOverlayBackdrop{
+        position: absolute; inset: 0;
         background: rgba(0,0,0,0.45);
-        display:none; z-index: 20;  /* below the editor, above the SVG */
+        pointer-events: auto;    /* receive clicks to close */
+        display: none;           /* shown when open */
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
-        pointer-events: auto;
+        animation: fadeIn .14s ease-out;
       }
-      /* Editor covers the stage area */
-      #stage #tipEditor.cover-stage{
-        position:absolute; inset:0;
-        display:none; z-index: 21; /* above backdrop */
+      @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+      /* Editor fills the portal area */
+      #stageOverlayHost #tipEditor.cover-stage{
+        position: absolute; inset: 0;
+        display: none;           /* shown when open */
+        pointer-events: auto;
         background: #0e151e;
         border: 1px solid rgba(255,255,255,.10);
         border-radius: 12px;
@@ -71,64 +83,117 @@
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transform: translateZ(0);
+        animation: stageIn .14s ease-out;
       }
-      #stage #tipEditor.cover-stage.is-open{
-        display:block;
-        animation: stageIn .16s ease-out;
-      }
-      #stage #stageBackdrop.show{
-        display:block;
-        animation: fadeIn .16s ease-out;
-      }
-      @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
-      @keyframes stageIn{
-        from{ opacity:.75; transform: translateZ(0) scale(0.98) }
-        to{ opacity:1; transform: translateZ(0) scale(1) }
+      @keyframes stageIn {
+        from { opacity:.75; transform: translateZ(0) scale(0.985) }
+        to   { opacity:1;   transform: translateZ(0) scale(1) }
       }
 
-      /* Make fields comfy for mobile inside the full-cover panel */
-      #tipEditor .te-row label{ font-weight:700; color:#dfe9ff; display:block; margin:6px 0 4px }
+      /* Comfy mobile controls */
+      #tipEditor .te-row label{
+        font-weight:700; color:#dfe9ff; display:block; margin:6px 0 4px;
+      }
       #tipEditor .te-row input, #tipEditor .te-row select{
         width:100%; padding:10px 12px; border-radius:12px;
         background:#0b1420; color:#eaf2ff;
         border:1px solid rgba(255,255,255,.22);
       }
-      #tipEditor .te-actions{ position:sticky; bottom:0; background:rgba(14,21,30,.85); padding-top:8px; margin-top:10px; backdrop-filter: none; }
-      #tipEditor .te-actions .btn{ min-height:44px; padding:10px 14px; border-radius:12px; }
+      #tipEditor .te-actions{
+        position: sticky; bottom: 0;
+        background: rgba(14,21,30,.9);
+        padding-top: 8px; margin-top: 10px;
+      }
+      #tipEditor .te-actions .btn{
+        min-height: 44px; padding: 10px 14px; border-radius:12px;
+      }
     `;
     document.head.appendChild(s);
   }
 
-  // Behavior helpers
+  // ---- Utilities
   function lockBodyScroll(lock){
     if(!cfg.lockScroll) return;
     document.body.style.overflow = lock ? 'hidden' : '';
   }
 
+  function positionPortalOverStage(){
+    const r = stage.getBoundingClientRect();
+    // Size and position the portal to exactly cover the stage’s on-screen rect
+    portal.style.left   = `${Math.round(r.left)}px`;
+    portal.style.top    = `${Math.round(r.top)}px`;
+    portal.style.width  = `${Math.round(r.width)}px`;
+    portal.style.height = `${Math.round(r.height)}px`;
+  }
+
+  function mountEditorIntoPortal(){
+    if (tipEditor.parentElement !== portal){
+      tipEditor.classList.add('cover-stage');
+      portal.appendChild(tipEditor);
+    }
+  }
+
+  function unmountEditorToOriginal(){
+    if (tipEditor.parentElement === portal){
+      originalParent.appendChild(tipEditor);
+      tipEditor.classList.remove('cover-stage');
+    }
+  }
+
+  let isOpen = false;
+  let onScrollOrResizeBound = null;
+
   function open(){
-    if (tipEditor.classList.contains('is-open')) return;
+    if (isOpen) return;
 
-    // Make sure editor has the cover-stage class and is inside stage
-    tipEditor.classList.add('cover-stage');
+    // Prepare geometry and mount
+    positionPortalOverStage();
+    mountEditorIntoPortal();
 
-    // Show backdrop + editor
-    stageBackdrop.classList.add('show');
-    tipEditor.classList.add('is-open');
-    lockBodyScroll(true);
+    // Show portal + backdrop + editor
+    portal.style.display = 'block';
+    portalBackdrop.style.display = 'block';
+    tipEditor.classList.remove('is-hidden');
+    tipEditor.style.display = 'block';
 
-    // Focus the first control inside
+    // Keep aligned if the page scrolls or resizes while open
+    if(!onScrollOrResizeBound){
+      onScrollOrResizeBound = () => positionPortalOverStage();
+      window.addEventListener('scroll', onScrollOrResizeBound, { passive:true });
+      window.addEventListener('resize', onScrollOrResizeBound, { passive:true });
+    }
+
+    // Focus first control
     const first = tipEditor.querySelector('input, select, textarea, button');
     if(first) setTimeout(()=> first.focus(), 0);
+
+    lockBodyScroll(true);
+    isOpen = true;
   }
 
   function close(){
-    if (!tipEditor.classList.contains('is-open')) return;
-    tipEditor.classList.remove('is-open');
-    stageBackdrop.classList.remove('show');
+    if (!isOpen) return;
+
+    // Hide UI
+    tipEditor.style.display = 'none';
+    portalBackdrop.style.display = 'none';
+    portal.style.display = 'none';
+
+    // Restore to original place so existing code keeps working
+    unmountEditorToOriginal();
+
+    // Stop following geometry
+    if(onScrollOrResizeBound){
+      window.removeEventListener('scroll', onScrollOrResizeBound);
+      window.removeEventListener('resize', onScrollOrResizeBound);
+      onScrollOrResizeBound = null;
+    }
+
     lockBodyScroll(false);
+    isOpen = false;
   }
 
-  // Open ONLY when clicking a real "+" (hose-end) inside the stage SVG
+  // ---- Open only when clicking a real "+" (hose-end) inside the stage SVG
   stageSvg.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end');
     if(!tip) return;
@@ -137,14 +202,14 @@
     open();
   });
 
-  // Backdrop: click outside panel (but inside stage) closes
-  stageBackdrop.addEventListener('click', (e)=>{
-    if(e.target !== stageBackdrop) return;
+  // ---- Backdrop closes (clicking outside the panel, but within the stage area)
+  portalBackdrop.addEventListener('click', (e)=>{
+    if(e.target !== portalBackdrop) return;
     e.stopPropagation();
     close();
   });
 
-  // Cancel closes
+  // ---- Cancel closes
   if(teCancel){
     teCancel.addEventListener('click', (e)=>{
       e.preventDefault();
@@ -153,22 +218,22 @@
     });
   }
 
-  // Apply closes (per your request)
+  // ---- Apply closes (per your request)
   if(teApply){
     teApply.addEventListener('click', ()=>{
-      // Your host code already applies state; we just close the overlay here.
+      // Your host code applies changes; we just close the overlay.
       close();
     });
   }
 
-  // Wye toggle shows/hides branch inputs
+  // ---- Wye toggle reveals branch inputs
   if(teWye && branchBlock){
     const sync = ()=> branchBlock.classList.toggle('is-hidden', teWye.value !== 'on');
     teWye.addEventListener('change', sync);
     requestAnimationFrame(sync);
   }
 
-  // Public API for optional external control
+  // ---- Public API
   window.BottomSheetEditor = {
     open, close,
     configure(opts){
