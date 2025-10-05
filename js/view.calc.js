@@ -629,7 +629,7 @@ export async function render(container){
     .simpleBox b{color:#eaf2ff}
     .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
-  `);
+  "");
 
   /* ------------------------------ DOM refs -------------------------------- */
   const stageSvg    = container.querySelector('#stageSvg');
@@ -640,10 +640,10 @@ export async function render(container){
   const G_supply    = container.querySelector('#supplyG');
   const truckImg    = container.querySelector('#truckImg');
   const topInfo     = container.querySelector('#topInfo');
-  const linesTable  = container.querySelector('#linesTable');
   const PDPel       = container.querySelector('#PDP');
   const GPMel       = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
+  const linesTable  = container.querySelector('#linesTable'); // <-- declared ONCE
 
   // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
@@ -791,8 +791,6 @@ export async function render(container){
   }
 
   /* --------------------------- Lines math panel --------------------------- */
-
-  const linesTable = container.querySelector('#linesTable');
 
   function renderLinesPanel(){
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
@@ -1186,8 +1184,6 @@ export async function render(container){
   })();
 
   /* -------------------------------- Draw --------------------------------- */
-
-  function refreshSupplySummary(){ /* already defined above; keep reference */ }
 
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
