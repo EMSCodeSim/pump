@@ -4,28 +4,21 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
-  <meta name="description" content="Phone-friendly fire pump calculator for crews: hydrant percent drop (how many same-size lines to add), tender shuttle GPM with round-trip timers, and fast line math presets."/>
-  <link rel="canonical" href="https://yourdomain.com/"/>
+  <meta name="description" content="Phone-friendly fire pump calculator for crews: hydrant percent drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
 
-  <!-- Open Graph -->
-  <meta property="og:type" content="website"/>
-  <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta property="og:description" content="Hydrant % drop to estimate additional lines, tender shuttle GPM after each round trip, and quick line math — built for phones on the rig."/>
-  <meta property="og:url" content="https://yourdomain.com/"/>
-  <meta property="og:image" content="https://yourdomain.com/fireopscalc.png"/>
-
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta name="twitter:description" content="Hydrant % drop, tender shuttle GPM, and line math — phone friendly."/>
-  <meta name="twitter:image" content="https://yourdomain.com/fireopscalc.png"/>
-
-  <!-- Icons / PWA (optional if you have these files) -->
-  <link rel="icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <!-- PWA basics -->
+  <meta name="theme-color" content="#0b0f14">
   <link rel="manifest" href="/site.webmanifest">
 
-  <!-- Google tag (gtag.js) -->
+  <!-- Icons (adjust paths if needed) -->
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <!-- Preload perf -->
+  <link rel="preload" href="/assets/images/engine181.png" as="image">
+  <link rel="preload" href="/js/store.js" as="script" type="module">
+
+  <!-- Analytics (optional, keep as-is if you use it) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-6W3WSFVFGW"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -34,7 +27,7 @@
     gtag('config', 'G-6W3WSFVFGW');
   </script>
 
-  <!-- SoftwareApplication schema -->
+  <!-- App schema -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -43,12 +36,11 @@
     "applicationCategory": "EducationApplication",
     "operatingSystem": "Web",
     "description": "Phone-friendly fire pump calculator: hydrant percent drop, tender shuttle GPM, and line math.",
-    "url": "https://yourdomain.com",
-    "image": "https://yourdomain.com/fireopscalc.png"
+    "url": "https://fireopscalc.com",
+    "image": "https://fireopscalc.com/fireopscalc.png"
   }
   </script>
 
-  <link rel="preload" href="/js/store.js" as="script" type="module">
   <style>
     :root{
       --bg:#0b0f14; --panel:#0f1624; --ink:#eaf2ff; --muted:#9fb0c8; --edge:rgba(255,255,255,.14);
@@ -62,37 +54,40 @@
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
 
-    /* Visually hidden (for accessible SEO H1) */
+    /* Reduce motion preference */
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+
+    /* Visually hidden H1 for SEO */
     .visually-hidden{
       position:absolute!important; width:1px; height:1px; padding:0; margin:-1px;
       overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
     }
 
-    /* ===== Top banner ===== */
+    /* ===== Top header ===== */
     header{
       position:sticky; top:0; z-index:10;
-      padding:10px 14px;
+      padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
       background:linear-gradient(180deg,#0c1320,#0b0f14);
       border-bottom:1px solid var(--edge)
     }
     .hdr{display:flex; align-items:center; justify-content:space-between; gap:12px}
     .brand{display:flex; align-items:center; gap:12px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-    .brand img{
-      height:36px; width:auto; object-fit:contain; display:block;
-      filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))
-    }
+    .brand img{ height:36px; width:auto; object-fit:contain; display:block; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35)) }
     @media (min-width:700px){ .brand img{ height:40px; } }
     .brandName{ font-weight:800; letter-spacing:.2px; font-size:18px; line-height:1; color:var(--brand-red); }
     @media (min-width:700px){ .brandName{ font-size:20px; } }
     .hdrBtns{display:flex; align-items:center; gap:8px; position:relative}
 
-    /* Settings button + small menu */
+    /* Settings button + menu */
     .textBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn); color:#eaf2ff;
       border-radius:12px; padding:10px 12px; min-width:44px; min-height:44px;
       display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
-      box-shadow:0 6px 16px rgba(0,0,0,.35); font-size:14px; gap:8px;
+      box-shadow:0 6px 16px rgba(0,0,0,.35); font-size:14px; gap:8px; position:relative;
     }
+    .textBtn:active{ transform:translateY(1px); filter:brightness(.98); }
     .textBtn svg{ opacity:.85 }
 
     .menu{
@@ -112,74 +107,6 @@
     .stack{display:flex;flex-direction:column;gap:10px}
     .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
-    /* Visual builder */
-    .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
-    .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
-    #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
-    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--bubble);border:1px solid var(--bubble-edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
-
-    .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
-    .linebtn,.supplybtn,.presetsbtn{
-      background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
-      padding:8px 10px;font-size:13px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap
-    }
-    .linebtn.active{outline:2px solid var(--accent)}
-
-    /* Hose look */
-    .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
-    .hose5{stroke:var(--hose5);stroke-width:12}
-    .hose25{stroke:var(--hose25);stroke-width:9}
-    .hose175{stroke:var(--hose175);stroke-width:6}
-    .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
-
-    .hose-end{cursor:pointer;pointer-events:all}
-    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
-    .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
-    .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
-
-    /* KPIs + math */
-    .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .kpi b{font-size:18px}
-    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:6px 9px;font-size:12px;cursor:pointer}
-    .whyBtn:active{transform:translateY(1px)}
-    #PDP.orange{color:var(--warn)}
-    #PDP.red{color:var(--alert)}
-
-    .linesTable{margin-top:8px;border-top:1px solid var(--edge);padding-top:8px;display:grid;gap:8px}
-    .lineRow{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px}
-    .lineHeader{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px;font-size:12px;color:#cfe4ff}
-    .lineHeader .title{font-weight:700;color:#eaf2ff}
-    .lineHeader .tag{display:inline-block;background:#0b1a29;border:1px solid #1f3a57;border-radius:999px;padding:3px 7px;margin:2px 2px;font-size:11px}
-    details.math{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:6px 8px;margin-top:6px}
-    details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
-    .hoseviz{margin-top:6px}
-    .hoseLegend{display:flex;gap:8px;align-items:center;font-size:11px;color:#cfe4ff;margin:2px 0 6px}
-    .legSwatch{width:14px;height:8px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.35)}
-    .sw175{background:var(--hose175)} .sw25{background:var(--hose25)} .sw5{background:var(--hose5)}
-    .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
-    .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
-    .ppEq{font-size:14px;color:#eaf2ff;margin-top:6px;font-weight:700}
-    .lbl{font-size:10px;fill:#0b0f14}
-    .is-hidden{display:none!important}
-    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
-    .simpleBox b{color:#eaf2ff}
-    .simpleList{margin:6px 0 0 16px;padding:0}
-    .simpleList li{margin:2px 0}
-
-    @keyframes flashBox{0%{box-shadow:0 0 0 rgba(63,191,255,0)} 25%{box-shadow:0 0 0 4px rgba(58,167,255,.35)} 100%{box-shadow:0 0 0 rgba(63,191,255,0)}}
-    .flash{animation:flashBox 1200ms ease 1}
-
-    /* Preset bottom sheet */
-    .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:saturate(110%) blur(2px);z-index:40;display:none}
-    .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:#0e1726;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;padding:12px 12px 16px;transform:translateY(100%);transition:.28s ease}
-    .sheet.show + .sheet-backdrop{display:block}
-    .sheet.show{transform:translateY(0)}
-    .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
-    .preset{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:10px;text-align:center;font-size:13px;cursor:pointer}
-    .linepick{display:flex;gap:8px;margin-top:10px}
-    .linepick .preset{flex:1}
-
     /* Bottom nav */
     .bottom-nav{
       position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--nav);border-top:1px solid var(--navEdge);
@@ -187,31 +114,26 @@
       padding-bottom:calc(8px + env(safe-area-inset-bottom));
     }
     .navbtn{
-      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer
+      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer;
+      min-height:44px;
     }
+    .navbtn:active{ transform:translateY(1px); filter:brightness(.98); }
     .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
 
-    .status{font-size:13px;color:#cfe4ff;margin-top:6px}
-    .ok{color:var(--ok)} .warn{color:var(--warn)} .alert{color:var(--alert)}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid var(--edge);padding:6px 8px;font-size:13px}
-    th{background:#0b1320;color:#cfe4ff;text-align:left}
-    caption{caption-side:top;text-align:left;color:#cfe4ff;font-weight:700;margin:6px 0}
+    /* Handy utility */
+    .is-hidden{display:none!important}
   </style>
 </head>
 <body>
-  <!-- Accessible SEO H1 (not visually intrusive) -->
   <h1 class="visually-hidden">Fire pump calculator — hydrant percent drop, tender shuttle GPM, and hose line math</h1>
 
   <header>
     <div class="hdr">
       <div class="brand" aria-label="FireOps Calc">
-        <!-- Your logo at root -->
         <img src="/fireopscalc.png" alt="FireOps Calc logo">
         <span class="brandName">FireOps Calc</span>
       </div>
       <div class="hdrBtns">
-        <!-- Settings button that opens a small menu with How-to -->
         <button class="textBtn" id="settingsBtn" aria-haspopup="menu" aria-expanded="false">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
@@ -239,22 +161,21 @@
     <button class="navbtn" data-view="charts">Charts</button>
   </nav>
 
-  <!-- OPTION B: Force a clean start on every full page load (before app.js) -->
+  <!-- Force a clean start every full load (Option B) -->
   <script>
     try {
-      // Known keys used by the app — add more if you discover others
       sessionStorage.removeItem('pump.practice.v3');
       localStorage.removeItem('pump.practice.v3');
       localStorage.removeItem('pump.state');
       sessionStorage.removeItem('pump.state');
-      // Optional: global flag other scripts can read
       window.FIREOPS_FRESH_LOAD = true;
     } catch (e) {}
   </script>
 
+  <!-- App entry -->
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal routing wiring + settings menu behavior -->
+  <!-- Settings menu + simple SPA routing glue -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -271,7 +192,6 @@
         }
       };
 
-      // Bottom nav behavior
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
@@ -280,38 +200,23 @@
         });
       });
 
-      // Settings menu logic
       const settingsBtn = document.getElementById('settingsBtn');
       const settingsMenu = document.getElementById('settingsMenu');
-
-      function closeMenu(){
-        settingsMenu.classList.remove('show');
-        settingsBtn.setAttribute('aria-expanded','false');
-      }
-      function toggleMenu(){
-        const open = settingsMenu.classList.toggle('show');
-        settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      }
-
-      settingsBtn?.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        toggleMenu();
-      });
-
-      // Close on outside click or ESC
-      document.addEventListener('click', (e)=>{
-        if (!settingsMenu.contains(e.target) && e.target !== settingsBtn){
-          closeMenu();
-        }
-      });
-      document.addEventListener('keydown', (e)=>{
-        if (e.key === 'Escape') closeMenu();
-      });
-
-      // Optional: close menu on view changes
+      function closeMenu(){ settingsMenu.classList.remove('show'); settingsBtn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(){ const open=settingsMenu.classList.toggle('show'); settingsBtn.setAttribute('aria-expanded',open?'true':'false'); }
+      settingsBtn?.addEventListener('click', (e)=>{ e.stopPropagation(); toggleMenu(); });
+      document.addEventListener('click', (e)=>{ if (!settingsMenu.contains(e.target) && e.target !== settingsBtn){ closeMenu(); }});
+      document.addEventListener('keydown', (e)=>{ if (e.key==='Escape') closeMenu(); });
       window.addEventListener('nav:calc', closeMenu);
       window.addEventListener('nav:practice', closeMenu);
       window.addEventListener('nav:charts', closeMenu);
+
+      // Register service worker (PWA)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(()=>{});
+        });
+      }
     })();
   </script>
 </body>
