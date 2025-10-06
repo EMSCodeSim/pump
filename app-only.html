@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Custom Settings — App Only</title>
+  <meta name="description" content="Custom department presets are available in the FireOps Calc mobile app."/>
+  <link rel="icon" href="/fireopscalc.png"/>
+  <style>
+    :root{ --bg:#0b0f14; --panel:#0f1624; --ink:#eaf2ff; --muted:#9fb0c8; --edge:rgba(255,255,255,.14); --accent:#3aa7ff; }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
+    .wrap{max-width:860px;margin:0 auto;padding:24px}
+    .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:20px}
+    h1{margin:0 0 8px}
+    p{color:#cfe4ff}
+    .muted{color:var(--muted)}
+    .cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+    .btn{
+      display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+      background:#0b1320;border:1px solid #20324f;border-radius:12px;color:#eaf2ff;
+      padding:10px 14px;font-weight:600;
+    }
+    .btn:hover{outline:2px solid rgba(58,167,255,.35)}
+    .back{display:inline-block;margin-top:16px;color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Custom Settings (App Only)</h1>
+      <p>
+        Department-specific presets (Line 1/2/3 and nozzle presets) are available in the <b>FireOps Calc app</b>.
+        The website version keeps calculations fast and simple, but does not store custom presets.
+      </p>
+      <p class="muted">
+        Install the app to define your hoses, nozzles, target GPM/NP, friction factors, and common lengths. Your
+        choices are saved locally on your device for quick, offline use.
+      </p>
+
+      <div class="cta">
+        <!-- Replace these with your actual store links when ready -->
+        <a class="btn" href="#" onclick="alert('App store link coming soon');return false;">
+          <!-- store icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v14H4z" stroke="currentColor" stroke-width="1.6"/></svg>
+          Get the App
+        </a>
+        <a class="btn" href="/" aria-label="Back to calculator">
+          <!-- home icon -->
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7v9H3z" stroke="currentColor" stroke-width="1.6"/></svg>
+          Back to Calculator
+        </a>
+      </div>
+
+      <a class="back" href="/">← Return to FireOps Calc</a>
+    </div>
+  </div>
+</body>
+</html>
