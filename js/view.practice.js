@@ -232,7 +232,7 @@ export async function render(container) {
     return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
   }
 
-  // ===== utils (labels with collision avoidance)
+  // ===== utils
   function clearPractice(){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
@@ -247,57 +247,6 @@ export async function render(container) {
     return weightedArray[weightedArray.length-1].v;
   }
   const sizeLabelLocal = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
-
-  // --- Smart label placement (prevents bubbles from overlapping)
-  const placedRects = [];
-  function rectsOverlap(a,b){
-    return !(a.x+a.w < b.x || b.x+b.w < a.x || a.y+a.h < b.y || b.y+b.h < a.y);
-  }
-  function reserveRect(r){ placedRects.push(r); }
-  function addSmartLabel(x, y, text, { anchor='middle', prefer='up', pad=4, maxTries=16 } = {}){
-    const g = document.createElementNS(ns,'g');
-
-    const t = document.createElementNS(ns,'text');
-    t.setAttribute('x', x); t.setAttribute('y', y);
-    t.setAttribute('text-anchor', anchor);
-    t.setAttribute('fill','#0b0f14');
-    t.setAttribute('font-size','12');
-    t.textContent = text;
-
-    // temp append to measure
-    G_labelsP.appendChild(t);
-    let bb = t.getBBox();
-    let rect = { x: bb.x - pad, y: bb.y - pad, w: bb.width + pad*2, h: bb.height + pad*2 };
-
-    // Try to nudge to avoid overlaps
-    const stepY = 14, stepX = 18;
-    let tries = 0;
-    let dirSeq = (prefer==='up')
-      ? [[0,-stepY],[0,-2*stepY],[-stepX,-stepY],[stepX,-stepY],[-stepX*1.5,-2*stepY],[stepX*1.5,-2*stepY],[0,-3*stepY],[0,stepY],[0,2*stepY]]
-      : [[0,stepY],[0,2*stepY],[stepX,stepY],[-stepX,stepY],[0,-stepY],[0,-2*stepY]];
-    let tx = x, ty = y;
-    while(tries < maxTries && placedRects.some(r => rectsOverlap(r, rect))){
-      const d = dirSeq[Math.min(tries, dirSeq.length-1)];
-      tx = x + d[0]; ty = y + d[1];
-      t.setAttribute('x', tx); t.setAttribute('y', ty);
-      bb = t.getBBox();
-      rect = { x: bb.x - pad, y: bb.y - pad, w: bb.width + pad*2, h: bb.height + pad*2 };
-      tries++;
-    }
-
-    const r = document.createElementNS(ns,'rect');
-    r.setAttribute('x', rect.x); r.setAttribute('y', rect.y);
-    r.setAttribute('width', rect.w); r.setAttribute('height', rect.h);
-    r.setAttribute('fill', '#eaf2ff');
-    r.setAttribute('stroke', '#111');
-    r.setAttribute('stroke-width', '.5');
-    r.setAttribute('rx','4'); r.setAttribute('ry','4');
-
-    // wrap group so rect under text
-    g.appendChild(r); g.appendChild(t);
-    G_labelsP.appendChild(g);
-    reserveRect(rect);
-  }
 
   // ===== scenario generator (no single-branch wye; master stream equal 2.5″ lines; hide per-line GPM on graphic)
   function makeScenario(){
@@ -387,16 +336,41 @@ export async function render(container) {
     return S;
   }
 
+  // ===== label helpers
+  const placedLabels = [];
+  function placeY(y){
+    let yy = y;
+    const step = 14; let safety = 0;
+    while(placedLabels.some(v => Math.abs(v-yy) < step) && safety<10){ yy -= step; safety++; }
+    placedLabels.push(yy);
+    return yy;
+  }
+  function addLabel(x, y, text){
+    const pad = 4;
+    const g = document.createElementNS(ns,'g');
+    const t = document.createElementNS(ns,'text');
+    t.setAttribute('x', x); t.setAttribute('y', placeY(y));
+    t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','12');
+    t.textContent = text;
+    G_labelsP.appendChild(t);
+    const bb = t.getBBox();
+    const r = document.createElementNS(ns,'rect');
+    r.setAttribute('x', bb.x - pad); r.setAttribute('y', bb.y - pad);
+    r.setAttribute('width', bb.width + pad*2); r.setAttribute('height', bb.height + pad*2);
+    r.setAttribute('fill', '#eaf2ff'); r.setAttribute('stroke', '#111'); r.setAttribute('stroke-width', '.5');
+    r.setAttribute('rx','4'); r.setAttribute('ry','4');
+    g.appendChild(r); g.appendChild(t); G_labelsP.appendChild(g);
+  }
+
   // ===== draw
   function drawScenario(S){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
     while(G_labelsP.firstChild) G_labelsP.removeChild(G_labelsP.firstChild);
-    placedRects.length = 0;
+    placedLabels.length = 0;
     workEl.innerHTML = '';
 
     if(S.type==='master'){
-      // Two equal 2½″ lines feeding a master stream — ALWAYS show a nozzle and separate labels
       const maxLenPx = (S.line1.len/50)*PX_PER_50FT;
       const viewH = Math.max(TRUCK_H + 20 + maxLenPx + BRANCH_LIFT, TRUCK_H+20) + 20;
       svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${Math.ceil(viewH)}`);
@@ -420,29 +394,15 @@ export async function render(container) {
       const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bPath); G_branchesP.appendChild(bSh);
       const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose25'); b.setAttribute('d', bPath); G_branchesP.appendChild(b);
 
-      // Nozzle (drawn above hoses so it's obvious)
+      // Nozzle
       const nozzle = document.createElementNS(ns,'circle');
-      nozzle.setAttribute('cx', junctionX);
-      nozzle.setAttribute('cy', junctionY);
-      nozzle.setAttribute('r', 5); // a touch larger for visibility
-      nozzle.setAttribute('fill', '#eaf2ff');
-      nozzle.setAttribute('stroke', '#111');
-      nozzle.setAttribute('stroke-width', '.8');
+      nozzle.setAttribute('cx', junctionX); nozzle.setAttribute('cy', junctionY);
+      nozzle.setAttribute('r', 4); nozzle.setAttribute('fill', '#eaf2ff'); nozzle.setAttribute('stroke', '#111'); nozzle.setAttribute('stroke-width', '.8');
       G_hosesP.appendChild(nozzle);
 
-      // Labels: push them apart and avoid overlap
-      addSmartLabel(outLeftX - 40, Math.max(12, junctionY - 10),
-        `Line 1: ${S.line1.len}′ 2½″`,
-        { anchor: 'end', prefer: 'up' }
-      );
-      addSmartLabel(outRightX + 40, Math.max(12, junctionY - 10),
-        `Line 2: ${S.line2.len}′ 2½″`,
-        { anchor: 'start', prefer: 'up' }
-      );
-      addSmartLabel(junctionX, Math.max(12, junctionY - 28),
-        `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`,
-        { anchor: 'middle', prefer: 'up' }
-      );
+      addLabel(outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`);
+      addLabel(outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`);
+      addLabel(junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
       return;
     }
 
@@ -475,23 +435,11 @@ export async function render(container) {
       const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
       const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
 
-      addSmartLabel(geom.endX, Math.max(12, geom.endY - 12),
-        `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)}`,
-        { anchor:'middle', prefer:'up' }
-      );
-      addSmartLabel(aGeom.endX - 10, Math.max(12, aGeom.endY - 12),
-        `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`,
-        { anchor:'end', prefer:'up' }
-      );
-      addSmartLabel(bGeom.endX + 10, Math.max(12, bGeom.endY - 12),
-        `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`,
-        { anchor:'start', prefer:'up' }
-      );
+      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)}`);
+      addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+      addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     } else {
-      addSmartLabel(geom.endX, Math.max(12, geom.endY - 12),
-        `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`,
-        { anchor:'middle', prefer:'up' }
-      );
+      addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
     }
   }
 
