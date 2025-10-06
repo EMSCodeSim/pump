@@ -36,6 +36,22 @@
     gtag('config', 'G-6W3WSFVFGW');
   </script>
 
+  <!-- SoftwareApplication schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "FireOps Calc",
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
   <style>
     :root{
       --bg:#0b1020;
@@ -238,26 +254,19 @@
         keys.forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k); });
       } catch (e) {}
 
-      // Uncomment to clear all localStorage for this origin if needed:
-      // try { localStorage.clear(); } catch (e) {}
-
       window.FIREOPSCALC_RESET_ON_LOAD = true;
 
-      // Handle back/forward cache (Safari/Firefox)
       window.addEventListener('pageshow', (ev) => {
         if (ev.persisted) {
           try {
             keys.forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k); });
           } catch (e) {}
           window.FIREOPSCALC_RESET_ON_LOAD = true;
-          // Optional hard refresh:
-          // location.reload();
         }
       });
     })();
   </script>
 
-  <!-- Your app code -->
   <script type="module" src="/js/app.js"></script>
 
   <!-- Minimal inline boot helpers for demo navigation/kpis (safe if app.js overrides) -->
