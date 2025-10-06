@@ -86,7 +86,7 @@
     @media (min-width:700px){ .brandName{ font-size:20px; } }
     .hdrBtns{display:flex; align-items:center; gap:8px; position:relative}
 
-    /* Replaces icon-only cog with a text Settings button + a small menu */
+    /* Settings button + small menu */
     .textBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn); color:#eaf2ff;
       border-radius:12px; padding:10px 12px; min-width:44px; min-height:44px;
@@ -125,7 +125,7 @@
     }
     .linebtn.active{outline:2px solid var(--accent)}
 
-    /* Hose look (original) */
+    /* Hose look */
     .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
     .hose5{stroke:var(--hose5);stroke-width:12}
     .hose25{stroke:var(--hose25);stroke-width:9}
@@ -137,7 +137,7 @@
     .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
     .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
 
-    /* KPIs + math (original) */
+    /* KPIs + math */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
     .kpi b{font-size:18px}
@@ -211,9 +211,8 @@
         <span class="brandName">FireOps Calc</span>
       </div>
       <div class="hdrBtns">
-        <!-- Settings button that opens a small menu -->
+        <!-- Settings button that opens a small menu with How-to -->
         <button class="textBtn" id="settingsBtn" aria-haspopup="menu" aria-expanded="false">
-          <!-- small gear for context + "Settings" label -->
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
             <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0 2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
@@ -222,7 +221,6 @@
         </button>
         <div class="menu" id="settingsMenu" role="menu" aria-label="Settings">
           <a href="/how-to.html" role="menuitem" id="howToItem">
-            <!-- question-circle-ish -->
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path fill="currentColor" d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm1 16h-2v-2h2v2Zm1.9-7.1-.9.8c-.7.6-1 1.1-1 2.3h-2v-.5c0-1 .4-2 1.2-2.6l1.2-1c.4-.3.6-.8.6-1.3 0-1-.8-1.7-1.8-1.7s-1.8.7-1.8 1.7H7c0-2 1.7-3.7 3.8-3.7s3.8 1.6 3.8 3.6c0 1.1-.4 2-1.8 2.9Z"/>
             </svg>
@@ -241,6 +239,19 @@
     <button class="navbtn" data-view="charts">Charts</button>
   </nav>
 
+  <!-- OPTION B: Force a clean start on every full page load (before app.js) -->
+  <script>
+    try {
+      // Known keys used by the app — add more if you discover others
+      sessionStorage.removeItem('pump.practice.v3');
+      localStorage.removeItem('pump.practice.v3');
+      localStorage.removeItem('pump.state');
+      sessionStorage.removeItem('pump.state');
+      // Optional: global flag other scripts can read
+      window.FIREOPS_FRESH_LOAD = true;
+    } catch (e) {}
+  </script>
+
   <script type="module" src="/js/app.js"></script>
 
   <!-- Minimal routing wiring + settings menu behavior -->
@@ -251,7 +262,6 @@
         if (window.navigate) { window.navigate(view); return; }
         if (view) location.hash = '#' + view;
         window.dispatchEvent(new CustomEvent('nav:'+view));
-        // Optional GA4 SPA tracking:
         if (typeof gtag === 'function') {
           gtag('event', 'page_view', {
             page_title: document.title,
@@ -261,7 +271,7 @@
         }
       };
 
-      // Bottom nav
+      // Bottom nav behavior
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
@@ -298,13 +308,10 @@
         if (e.key === 'Escape') closeMenu();
       });
 
-      // Optional: when navigating anywhere, close the menu
+      // Optional: close menu on view changes
       window.addEventListener('nav:calc', closeMenu);
       window.addEventListener('nav:practice', closeMenu);
       window.addEventListener('nav:charts', closeMenu);
-
-      // How-to item could also route inside the app if desired:
-      // document.getElementById('howToItem')?.addEventListener('click', (e)=>{ e.preventDefault(); navTo('howto'); closeMenu(); });
     })();
   </script>
 </body>
