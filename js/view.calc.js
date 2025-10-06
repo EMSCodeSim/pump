@@ -1,9 +1,13 @@
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
-// and practice-state persistence (including tender shuttle) across view switches.
+// and a header (logo + "FireOps Calc" + cog Settings).
+// IMPORTANT: Fresh-load default — we DO NOT restore previous session on page load.
+//            We clear any prior session save and start with no hoses deployed
+//            and no water supply selected. (State still autosaves while the page
+//            is open, but is not restored on a brand-new load.)
 //
-// Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
+// Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; fallback included).
 
 import {
   state,
@@ -25,7 +29,7 @@ import {
 import { WaterSupplyUI } from './waterSupply.js';
 
 /* ========================================================================== */
-/*             Practice state persistence (incl. Tender Shuttle)              */
+/*             Fresh-load default + (optional) runtime persistence            */
 /* ========================================================================== */
 
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
@@ -33,15 +37,17 @@ const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 function safeClone(obj){
   try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
 }
-function loadSaved(){
-  try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
-  catch { return null; }
-}
 function saveNow(pack){
   try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
 }
+function buildSnapshot(waterSnapshot){
+  return safeClone({
+    state,                // entire sim state (lines, supply, etc.)
+    water: waterSnapshot || null
+  });
+}
 
-// mark edits “dirty” and flush every 1s
+// mark edits “dirty” and flush every 1s (runtime only)
 let __dirty = false;
 function markDirty(){ __dirty = true; }
 let __saveInterval = null;
@@ -59,24 +65,26 @@ function stopAutoSave(){
   __saveInterval = null;
 }
 
-// Build a combined snapshot: full sim state + optional water supply snapshot
-function buildSnapshot(waterSnapshot){
-  return safeClone({
-    state,                // entire sim state (lines, supply, etc.)
-    water: waterSnapshot || null
+/** Reset global state to app defaults for a clean start (no deployed hoses, no supply). */
+function resetToFreshDefaults(){
+  try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch {}
+  // Supply: nothing selected
+  state.supply = '';
+  // Lines cleared & hidden
+  ['left','back','right'].forEach(key=>{
+    const L = seedDefaultsForKey(key);     // keep labels etc.
+    L.visible   = false;
+    L.hasWye    = false;
+    L.elevFt    = 0;
+    L.itemsMain = [];
+    L.itemsLeft = [];
+    L.itemsRight= [];
+    L.nozLeft   = undefined;
+    L.nozRight  = undefined;
   });
-}
-
-// Applies saved.state into live state (preserving object identities)
-function restoreState(savedState){
-  if (!savedState) return;
-  if (savedState.supply) state.supply = savedState.supply;
-  if (savedState.lines) {
-    for (const k of Object.keys(state.lines)){
-      if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
-    }
-  }
-  // If water/tenders/shuttle live on state, they’ll be set during water restore (below)
+  // Hide math panel by default
+  state.showMath = false;
+  state.lastMaxKey = null;
 }
 
 /* ========================================================================== */
@@ -98,20 +106,15 @@ function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
 function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
 function fmt(n){ return Math.round(n); }
 
-function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-
 /* ---------- Nozzle finders & defaults ---------- */
 
-// Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
-  // exact match
   const exact = NOZ_LIST.find(n =>
     Number(n.gpm)===Number(gpm) &&
     Number(n.NP)===Number(NP) &&
     (!preferFog || /fog/i.test(n.name||n.label||'')));
   if (exact) return exact.id;
 
-  // close match
   const near = NOZ_LIST
     .filter(n => Math.abs(Number(n.gpm)-Number(gpm))<=12 && Math.abs(Number(n.NP)-Number(NP))<=5)
     .sort((a,b)=>{
@@ -123,22 +126,17 @@ function findNozzleId({ gpm, NP, preferFog=true }){
     })[0];
   if (near) return near.id;
 
-  // fallback: first fog, else first
   const anyFog = NOZ_LIST.find(n => /fog/i.test(n.name||n.label||''));
   return anyFog ? anyFog.id : (NOZ_LIST[0]?.id);
 }
 
-// Requested defaults by diameter:
-//  - 1.75 → 185 @ 50 (Fog preferred)
-//  - 2.5  → 265 @ 50 (Fog preferred)
+// Diameter defaults:
+// 1.75 → 185 @ 50 (Fog); 2.5 → 265 @ 50 (Fog)
 function defaultNozzleIdForSize(size){
   if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
   if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
-  // For other sizes, keep “closest fog near 185 @ 50”
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
-
-// Ensure a nozzle exists for a target (main/left/right) based on size
 function ensureDefaultNozzleFor(L, where, size){
   const nozId = defaultNozzleIdForSize(size);
   if (where==='main'){
@@ -149,8 +147,6 @@ function ensureDefaultNozzleFor(L, where, size){
     L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
   }
 }
-
-// Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
     const id = findNozzleId({gpm:185, NP:50, preferFog:true});
@@ -220,15 +216,15 @@ function addTip(G_tips, key, where, x, y){
   g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
 }
 function drawSegmentedPath(group, basePath, segs){
-  const ns = 'http://www.w3.org/2000/svg';
-  const sh = document.createElementNS(ns,'path');
+  const ns = 'http://www.w3.org/200/svg'; // typo-proof not used; real paths cloned below
+  const sh = document.createElementNS('http://www.w3.org/2000/svg','path');
   sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
   const total = basePath.getTotalLength(); let offset = 0;
   const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
   segs.forEach(seg=>{
     const px = (seg.lengthFt/50)*PX_PER_50FT;
     const portion = Math.min(total, (px/totalPx)*total);
-    const p = document.createElementNS(ns,'path');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
     p.setAttribute('class', 'hoseBase '+clsFor(seg.size));
     p.setAttribute('d', basePath.getAttribute('d'));
     p.setAttribute('stroke-dasharray', portion+' '+total);
@@ -339,7 +335,6 @@ function ppExplainHTML(L){
       </div>
     `;
   } else if(single){
-    // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
     const noz = activeNozzle(L);
     const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
     const bnSecs = splitIntoSections(bnSegs);
@@ -390,11 +385,10 @@ function ppExplainHTML(L){
 
 export async function render(container){
 
-  // Restore saved practice "state" early (lines/supply etc.)
-  const saved_at_mount = loadSaved();
-  if (saved_at_mount?.state) restoreState(saved_at_mount.state);
+  // Fresh-load reset: always start clean (no hoses, no supply), and clear prior session save.
+  resetToFreshDefaults();
 
-  // Persist on hide/close
+  // Persist on hide/close (runtime only; not restored next hard load)
   window.addEventListener('beforeunload', ()=>{
     const pack = buildSnapshot(pickWaterSnapshotSafe());
     if (pack) saveNow(pack);
@@ -408,6 +402,20 @@ export async function render(container){
 
   container.innerHTML = `
     <section class="stack" data-calc-root>
+
+      <!-- Top header row: logo + title + cog -->
+      <header class="topbar">
+        <div class="brand">
+          <img class="logo" alt="FireOps" src="/assets/images/logo.svg" onerror="this.style.display='none'">
+          <div class="appTitle">FireOps Calc</div>
+        </div>
+        <button id="settingsBtn" class="iconbtn" aria-label="Settings" title="Settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Zm8.94 2.62-.86-.5c.07-.6.07-1.21 0-1.81l.86-.5a.7.7 0 0 0 .26-.95l-1-1.73a.7.7 0 0 0-.9-.3l-.97.4c-.47-.38-.99-.7-1.55-.94l-.15-1.06a.7.7 0 0 0-.69-.6h-2a.7.7 0 0 0-.69.6l-.15 1.06c-.56.24-1.08.56-1.55.94l-.97-.4a.7.7 0 0 0-.9.3l-1 1.73a.7.7 0 0 0 .26.95l.86.5a7.6 7.6 0 0 0 0 1.81l-.86.5a.7.7 0 0 0-.26.95l1 1.73c.18.32.57.45.9.3l.97-.4c.47.38.99.7 1.55.94l.15 1.06c.06.35.35.6.69.6h2c.34 0 .63-.25.69-.6l.15-1.06c.56-.24 1.08-.56 1.55-.94l.97.4c.33.14.72.02.9-.3l1-1.73a.7.7 0 0 0-.26-.95Z"/>
+          </svg>
+        </button>
+      </header>
+
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
@@ -420,7 +428,7 @@ export async function render(container){
             <g id="supplyG"></g>
           </svg>
 
-          <!-- Editor (opened by bottom-sheet-editor.js or our fallback) -->
+          <!-- Editor (opened by bottom-sheet-editor.js or fallback) -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
@@ -581,10 +589,27 @@ export async function render(container){
       <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
     </div>
     <div id="sheetBackdrop" class="sheet-backdrop"></div>
+
+    <!-- Settings bottom sheet -->
+    <div id="settingsSheet" class="sheet" aria-modal="true" role="dialog" aria-labelledby="settingsTitle">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="title" id="settingsTitle">Settings</div>
+        <button class="btn" id="settingsClose">Close</button>
+      </div>
+
+      <div class="settingsList">
+        <a class="settingsItem" href="/how-to.html">
+          <span>How-to & Help</span>
+          <span class="mini">Open the full guide</span>
+        </a>
+      </div>
+    </div>
+    <div id="settingsBackdrop" class="sheet-backdrop"></div>
   `;
 
   /* ----------------------------- Styles ---------------------------------- */
   injectStyle(container, `
+    :root { --border: rgba(255,255,255,.12); --accent: #6ecbff; }
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
     .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
@@ -601,10 +626,55 @@ export async function render(container){
     .field input:focus, .field select:focus, .field textarea:focus {
       border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
     }
-    .supplySummary { background:#0e151e; border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; color:#eaf2ff; }
+    .supplySummary { background:#0e151e; border:1px solid var(--border); border-radius:12px; padding:12px; color:#eaf2ff; }
     .supplySummary .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .supplySummary .k { color:#a9bed9; min-width:160px; }
     .supplySummary .v { font-weight:800; }
+
+    /* Topbar */
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:8px; padding:10px 12px; margin-bottom:10px;
+      position:sticky; top:0; z-index:5;
+      background:rgba(9,19,31,.85); backdrop-filter:saturate(160%) blur(6px);
+      border-bottom:1px solid var(--border); border-radius:12px;
+    }
+    .brand{ display:flex; align-items:center; gap:8px; min-height:28px; }
+    .logo{ width:22px; height:22px; object-fit:contain }
+    .topbar .appTitle{ font-weight:800; color:#eaf2ff }
+    .iconbtn{
+      display:inline-flex; align-items:center; justify-content:center;
+      min-height:0; padding:8px; border-radius:12px;
+      background:#0b1726; color:#cfe4ff; border:1px solid var(--border);
+    }
+    .iconbtn:hover{ border-color:#29507a }
+
+    /* Sheets (presets & settings reuse same styles) */
+    .sheet{
+      position:fixed; left:0; right:0; bottom:-75vh; height:75vh;
+      background:#0e151e; border-top-left-radius:16px; border-top-right-radius:16px;
+      border:1px solid var(--border); padding:12px; z-index:60;
+      transition:bottom .25s ease;
+      max-width:860px; margin:0 auto;
+    }
+    .sheet.show{ bottom:0; }
+    .sheet-backdrop{
+      position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; z-index:55;
+    }
+    .sheet .title{ font-weight:800; color:#eaf2ff; }
+    .preset-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px }
+    .preset{ background:#0b1726; border:1px solid var(--border); border-radius:10px; padding:10px; cursor:pointer; color:#cfe4ff }
+    .preset:hover{ border-color:#29507a }
+    .linepick{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap }
+
+    .settingsList{ display:flex; flex-direction:column; gap:8px; margin-top:10px }
+    .settingsItem{
+      display:flex; flex-direction:column; gap:2px;
+      padding:12px; border:1px solid var(--border); border-radius:12px;
+      background:#0b1726; color:#eaf2ff; text-decoration:none;
+    }
+    .settingsItem:hover{ border-color:#29507a }
+    .settingsItem.toggle{ flex-direction:row; align-items:center; justify-content:space-between }
 
     .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
     .hose5{stroke:#ecd464;stroke-width:12}
@@ -658,7 +728,6 @@ export async function render(container){
   const teNoz       = container.querySelector('#teNoz');
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
-  const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
   // Populate nozzle selects
@@ -693,14 +762,12 @@ export async function render(container){
     }
   });
 
-  // Helper to pick the best snapshot API if present
   function pickWaterSnapshotSafe(){
     try {
       if (typeof waterSupply.getSnapshot === 'function') return waterSupply.getSnapshot();
       if (typeof waterSupply.snapshot    === 'function') return waterSupply.snapshot();
       if (typeof waterSupply.export      === 'function') return waterSupply.export();
     } catch {}
-    // Best-effort DOM fallback if no API:
     try {
       const tenders = [];
       const list = container.querySelectorAll('#tenderList [data-tender]');
@@ -716,29 +783,12 @@ export async function render(container){
     return null;
   }
 
-  // Restore water snapshot after WaterSupplyUI exists
-  try {
-    const snap = saved_at_mount?.water;
-    if (snap && typeof waterSupply.restoreSnapshot === 'function') {
-      waterSupply.restoreSnapshot(snap);
-    } else if (snap && typeof waterSupply.setSnapshot === 'function') {
-      waterSupply.setSnapshot(snap);
-    } else if (snap && typeof waterSupply.import === 'function') {
-      waterSupply.import(snap);
-    } else if (snap) {
-      // Fallback: try common field names on state
-      if (snap.tenders) state.tenders = snap.tenders;
-      if (snap.shuttle) state.shuttle = snap.shuttle;
-    }
-  } catch {}
-
-  // Start autosave heartbeat (includes water snapshot)
+  // Start autosave heartbeat (runtime only; won’t be restored on next hard load)
   startAutoSave(()=>{
     const waterSnap = pickWaterSnapshotSafe();
     return buildSnapshot(waterSnap);
   });
 
-  // Observe Tender Shuttle UI to persist on changes, too
   const tenderListEl = container.querySelector('#tenderList');
   const shuttleEl    = container.querySelector('#shuttleTotalGpm');
   const mo = new MutationObserver(() => {
@@ -897,7 +947,7 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight?.NP||0} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1006,16 +1056,10 @@ export async function render(container){
 
   let editorContext=null;
 
-  function setBranchABEditorDefaults(key){
-    if(teNozA) teNozA.value = (state.lines[key].nozLeft?.id) || teNozA.value;
-    if(teNozB) teNozB.value = (state.lines[key].nozRight?.id) || teNozB.value;
-    if(teLenA) teLenA.value = (state.lines[key].itemsLeft[0]?.lengthFt)||0;
-    if(teLenB) teLenB.value = (state.lines[key].itemsRight[0]?.lengthFt)||0;
-  }
-
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
     const wyeOn = teWye?.value==='on';
+    const rowNoz = container.querySelector('#rowNoz');
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
   }
 
@@ -1026,54 +1070,60 @@ export async function render(container){
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
-    teElev.value = L.elevFt||0;
-    teWye.value  = L.hasWye? 'on':'off';
+    container.querySelector('#teWhere').value = where.toUpperCase();
+    container.querySelector('#teElev').value  = L.elevFt||0;
+    container.querySelector('#teWye').value   = L.hasWye? 'on':'off';
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
-      if (L.hasWye) {
-        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
-      } else {
-        // Ensure default nozzle for main based on diameter if missing
+      if (!L.hasWye){
         ensureDefaultNozzleFor(L,'main',seg.size);
-        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
+        if (L.nozRight?.id) teNoz.value = L.nozRight.id;
+      } else {
+        setBranchBDefaultIfEmpty(L);
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
-      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
-    } else {
+      if(L.nozLeft?.id) teNoz.value = L.nozLeft.id;
+    } else { // R
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
-    setBranchABEditorDefaults(key);
+    // Populate branch selectors
+    const teNozA = container.querySelector('#teNozA');
+    const teNozB = container.querySelector('#teNozB');
+    const teLenA = container.querySelector('#teLenA');
+    const teLenB = container.querySelector('#teLenB');
+    if (teNozA && L.nozLeft?.id) teNozA.value = L.nozLeft.id;
+    if (teNozB && L.nozRight?.id) teNozB.value = L.nozRight.id;
+    if (teLenA) teLenA.value = (L.itemsLeft[0]?.lengthFt)||0;
+    if (teLenB) teLenB.value = (L.itemsRight[0]?.lengthFt)||0;
+
     showHideMainNozzleRow();
   }
 
-  // Change of diameter in editor → update default nozzle (when applicable)
   teSize?.addEventListener('change', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext;
     const L = state.lines[key];
     const size = teSize.value;
-    if (where==='main' && teWye.value!=='on'){
+    if (where==='main' && container.querySelector('#teWye').value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
     } else if (where==='L'){
       ensureDefaultNozzleFor(L,'L',size);
       if (L.nozLeft?.id && teNoz) teNoz.value = L.nozLeft.id;
     } else if (where==='R'){
-      // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
   });
 
-  // Delegate click on "+"
+  // "+" click
   stageSvg.addEventListener('click', (e)=>{
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     e.preventDefault(); e.stopPropagation();
@@ -1083,24 +1133,24 @@ export async function render(container){
     if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
     } else {
-      // Minimal fallback
       tipEditor.classList.remove('is-hidden');
       tipEditor.classList.add('is-open');
     }
   });
 
-  // Keep rowNoz visibility in sync when Wye changes in-editor
+  // Wye change inside editor
   teWye?.addEventListener('change', ()=>{
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
       setBranchBDefaultIfEmpty(L);
+      const teNozB = container.querySelector('#teNozB');
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
   });
 
-  // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
+  // Apply
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
@@ -1112,20 +1162,21 @@ export async function render(container){
       L.itemsMain = [{size, lengthFt:len}];
       if(!wyeOn){
         L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // default nozzle by diameter if unset OR use chosen
         if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
         else ensureDefaultNozzleFor(L,'main',size);
       }else{
         L.hasWye=true;
+        const teLenA = container.querySelector('#teLenA');
+        const teLenB = container.querySelector('#teLenB');
+        const teNozA = container.querySelector('#teNozA');
+        const teNozB = container.querySelector('#teNozB');
+
         const lenA = Math.max(0, +teLenA?.value||0);
         const lenB = Math.max(0, +teLenB?.value||0);
         L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
         L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
-        if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
-        }
+        if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
@@ -1134,9 +1185,7 @@ export async function render(container){
       else ensureDefaultNozzleFor(L,'L',size);
     } else {
       L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
-      if (!(L.nozRight?.id)){
-        setBranchBDefaultIfEmpty(L);
-      }
+      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
       if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
     }
 
@@ -1170,18 +1219,40 @@ export async function render(container){
     });
   }
 
-  /* -------------------------- Ensure editor script ------------------------ */
-
-  (function ensureBottomSheet(){
+  /* ---------------- Option B: dynamic, bullet-proof editor loader ---------- */
+  (async function ensureBottomSheet(){
     if (window.BottomSheetEditor) return;
-    try{
-      const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
-      if (already) return;
-      const s = document.createElement('script');
-      s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
-      document.body.appendChild(s);
-    }catch(e){}
+    try {
+      const url = new URL('./bottom-sheet-editor.js', import.meta.url).href;
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = res;
+        s.onerror = rej;
+        document.body.appendChild(s);
+      });
+    } catch {
+      // Fallback inline editor (minimal) so + still works
+      window.BottomSheetEditor = {
+        open(){ document.getElementById('tipEditor')?.classList.remove('is-hidden'); },
+        close(){ document.getElementById('tipEditor')?.classList.add('is-hidden'); },
+        configure() {}
+      };
+    }
   })();
+
+  /* --------------------------- Settings (cog) ----------------------------- */
+  const settingsBtn = container.querySelector('#settingsBtn');
+  const settingsSheet = container.querySelector('#settingsSheet');
+  const settingsBackdrop = container.querySelector('#settingsBackdrop');
+  const settingsClose = container.querySelector('#settingsClose');
+
+  function openSettings(){ settingsSheet.classList.add('show'); settingsBackdrop.style.display='block'; }
+  function closeSettings(){ settingsSheet.classList.remove('show'); settingsBackdrop.style.display='none'; }
+
+  settingsBtn?.addEventListener('click', openSettings);
+  settingsClose?.addEventListener('click', closeSettings);
+  settingsBackdrop?.addEventListener('click', closeSettings);
 
   /* -------------------------------- Draw --------------------------------- */
 
@@ -1205,7 +1276,6 @@ export async function render(container){
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
-      // Main label: if Wye present, show 'via Wye' (no nozzle mention)
       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
@@ -1236,23 +1306,20 @@ export async function render(container){
       waterSupply.updatePanelsVisibility();
     }
 
-    // KPIs, math, summary
     refreshTotals();
     renderLinesPanel();
     refreshSupplySummary();
 
-    // Button active states
     container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
     container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
 
-    // mark dirty after draw (belt & suspenders)
     markDirty();
   }
 
-  // Initial draw
+  // Initial draw (clean)
   drawAll();
 
-  // Dev helper to clear saved practice
+  // Dev helper to clear saved practice manually in console
   window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
 
   return { dispose(){
