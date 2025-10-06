@@ -43,7 +43,7 @@
     "applicationCategory": "EducationApplication",
     "operatingSystem": "Web",
     "description": "Phone-friendly fire pump calculator: hydrant percent drop, tender shuttle GPM, and line math.",
-    "url": https://fireopscalc.com,
+    "url": "https://fireopscalc.com",
     "image": "https://fireopscalc.com/fireopscalc.png"
   }
   </script>
@@ -84,19 +84,35 @@
     @media (min-width:700px){ .brand img{ height:40px; } }
     .brandName{ font-weight:800; letter-spacing:.2px; font-size:18px; line-height:1; color:var(--brand-red); }
     @media (min-width:700px){ .brandName{ font-size:20px; } }
-    .hdrBtns{display:flex; align-items:center; gap:8px}
+
+    .hdrBtns{display:flex; align-items:center; gap:8px; position:relative}
     .iconBtn{
       appearance:none; border:1px solid var(--btnEdge); background:var(--btn); color:#eaf2ff;
       border-radius:12px; padding:10px; min-width:44px; min-height:44px;
       display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
       box-shadow:0 6px 16px rgba(0,0,0,.35);
     }
+    /* Settings dropdown */
+    .menu{position:relative}
+    .menu-list{
+      position:absolute; right:0; top:48px; z-index:20;
+      background:#0e1726; border:1px solid var(--edge); border-radius:12px;
+      min-width:190px; padding:6px; display:none; box-shadow:0 12px 28px rgba(0,0,0,.4);
+    }
+    .menu-list.show{display:block}
+    .menu-item{
+      display:flex; align-items:center; gap:8px;
+      padding:10px 10px; border-radius:10px; color:#eaf2ff; text-decoration:none; font-size:14px;
+      background:transparent; border:1px solid transparent;
+    }
+    .menu-item:hover{ background:#0b1320; border-color:#1f3a57; }
+    .menu-sep{height:1px; background:var(--edge); margin:6px 2px}
 
     main{padding:10px;padding-bottom:84px}
     .stack{display:flex;flex-direction:column;gap:10px}
     .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
-    /* Visual builder */
+    /* Visual builder (unchanged) */
     .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
     .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
     #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
@@ -194,13 +210,30 @@
         <img src="/fireopscalc.png" alt="FireOps Calc logo">
         <span class="brandName">FireOps Calc</span>
       </div>
+
+      <!-- NEW: Settings gear with dropdown menu (How-To + Custom Setup) -->
       <div class="hdrBtns">
-        <button class="iconBtn" id="settingsBtn" aria-label="Open Settings" title="Settings">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0 2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
-          </svg>
-        </button>
+        <div class="menu">
+          <button class="iconBtn" id="settingsBtn" aria-haspopup="true" aria-expanded="false" title="Settings & Help">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0 2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </button>
+          <div class="menu-list" id="settingsMenu" role="menu" aria-label="Settings menu">
+            <a class="menu-item" href="/how-to.html" role="menuitem">
+              <!-- book/info icon -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h11a1 1 0 0 1 1 1v14H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 0v14" stroke="currentColor" stroke-width="1.6"/></svg>
+              How-To
+            </a>
+            <div class="menu-sep"></div>
+            <a class="menu-item" href="/custom-setup.html" role="menuitem">
+              <!-- sliders icon -->
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h10M4 17h16M14 7l0 0m-8 10l0 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              Custom Setup
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </header>
@@ -236,7 +269,7 @@
 
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal routing wiring (unchanged look) -->
+  <!-- Minimal routing wiring + settings menu toggle -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -244,7 +277,6 @@
         if (window.navigate) { window.navigate(view); return; }
         if (view) location.hash = '#' + view;
         window.dispatchEvent(new CustomEvent('nav:'+view));
-        // Optional GA4 SPA tracking:
         if (typeof gtag === 'function') {
           gtag('event', 'page_view', {
             page_title: document.title,
@@ -253,7 +285,8 @@
           });
         }
       };
-      document.getElementById('settingsBtn')?.addEventListener('click', () => navTo('settings'));
+
+      // Bottom nav (unchanged)
       document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
         btn.addEventListener('click', ()=>{
           document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
@@ -261,6 +294,23 @@
           navTo(btn.dataset.view);
         });
       });
+
+      // NEW: settings dropdown behavior
+      const btn = document.getElementById('settingsBtn');
+      const menu = document.getElementById('settingsMenu');
+      function closeMenu(){ menu.classList.remove('show'); btn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(e){
+        e.preventDefault();
+        const isOpen = menu.classList.contains('show');
+        if (isOpen){ closeMenu(); } else {
+          menu.classList.add('show'); btn.setAttribute('aria-expanded','true');
+        }
+      }
+      btn?.addEventListener('click', toggleMenu);
+      document.addEventListener('click', (e)=>{
+        if (!menu.contains(e.target) && !btn.contains(e.target)) closeMenu();
+      });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
     })();
   </script>
 </body>
