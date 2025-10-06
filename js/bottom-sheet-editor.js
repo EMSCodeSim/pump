@@ -1,109 +1,135 @@
-/* bottom-sheet-editor.js
- * Reusable mobile bottom sheet with:
- * - Drag handle + swipe-down to close
- * - Focus trap + ESC/backdrop to close
- * - Apply/Cancel actions with callbacks
- * - Safe-area padding & no-scroll background lock
- * - Small utility API: open(), close(), setContent(), setApplyEnabled(), setLoading(), updateTitle()
+/* bottom-sheet-editor.js  — CENTER MODAL VERSION
+ * Replaces the bottom sheet with a centered popup over the truck image.
+ * - Accessible modal (role="dialog", focus trap, ESC/backdrop close)
+ * - Dimmed backdrop; page scroll locked while open
+ * - Built-in form factory: buildLineEditorForm(line) for hoseline settings
+ * - API: BottomSheetEditor.open({ title, node|html, onApply, onCancel, initialFocus })
+ *        BottomSheetEditor.close()
  *
- * Usage:
+ * Integration example in view.calc.js (pseudo):
  *   const ctrl = BottomSheetEditor.open({
- *     title: 'Edit Line',
- *     html: '<p>…</p>',        // or node: HTMLElement
- *     primaryLabel: 'Apply',
- *     cancelLabel: 'Cancel',
- *     closeOnBackdrop: true,
- *     onApply: () => { … },    // optional
- *     onCancel: () => { … },   // optional
- *     initialFocus: '#gpm'     // optional CSS selector inside the sheet
+ *     title: 'Edit Line (Left)',
+ *     node: buildLineEditorForm(currentLine),
+ *     onApply: () => { const data = readLineEditorForm(); applyToState(data); }
  *   });
- *
- *   // Later (optional)
- *   ctrl.setContent('<b>Updated</b>');
- *   ctrl.setApplyEnabled(false);
- *   ctrl.setLoading(true);
- *   ctrl.updateTitle('New Title');
- *   ctrl.close();
  */
 
 (function(){
   const ID = {
     wrap: 'bse-wrap',
     backdrop: 'bse-backdrop',
-    sheet: 'bse-sheet',
+    modal: 'bse-modal',
+    dialog: 'bse-dialog',
     title: 'bse-title',
     body: 'bse-body',
     apply: 'bse-apply',
     cancel: 'bse-cancel',
-    grab: 'bse-grab',
     loader: 'bse-loader'
   };
 
   const STYLE = `
-  /* ===== Bottom Sheet Editor (BSE) ===== */
-  :root { --bse-panel:#0e151e; --bse-ink:#eaf2ff; --bse-edge:rgba(255,255,255,.14); --bse-btn:#0b1320; --bse-btnEdge:#20324f; --bse-accent:#3aa7ff; }
+  :root {
+    --bse-bg: rgba(0,0,0,.55);
+    --bse-panel:#0f1624; --bse-ink:#eaf2ff; --bse-edge:rgba(255,255,255,.14);
+    --bse-btn:#0b1320; --bse-btnEdge:#20324f; --bse-accent:#3aa7ff;
+  }
   #${ID.wrap} { all: initial; font-family: system-ui, Segoe UI, Inter, Arial, sans-serif; }
   #${ID.wrap} *, #${ID.wrap} *::before, #${ID.wrap} *::after { box-sizing: border-box; }
+
+  /* Backdrop fills the whole viewport */
   #${ID.backdrop}{
-    position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9998;
-    opacity: 0; transition: opacity .2s ease;
+    position: fixed; inset: 0; background: var(--bse-bg); z-index: 9998;
+    opacity: 0; transition: opacity .18s ease;
   }
   #${ID.backdrop}.show{ opacity: 1; }
-  #${ID.sheet}{
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
-    background: var(--bse-panel); color: var(--bse-ink);
-    border-top: 1px solid var(--bse-edge); border-radius: 16px 16px 0 0;
-    transform: translateY(100%); transition: transform .25s ease;
-    max-height: 80dvh; overflow: auto; -webkit-overflow-scrolling: touch;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom));
-    will-change: transform; contain: paint;
-    box-shadow: 0 -10px 30px rgba(0,0,0,.35);
-    backface-visibility: hidden;
+
+  /* Centered modal container */
+  #${ID.modal}{
+    position: fixed; inset: 0; z-index: 9999;
+    display: grid; place-items: center; padding: 12px;
+    pointer-events: none;       /* backdrop eats outer clicks */
   }
-  #${ID.sheet}.show{ transform: translateY(0); }
-  #${ID.sheet}:focus{ outline: none; }
-  #${ID.sheet} .bse-content{ padding: 8px 12px 12px; }
-  #${ID.sheet} .bse-head{ display:flex; align-items:center; justify-content:center; position:sticky; top:0; z-index:1;
-    padding: 6px 12px 2px; background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
-    border-top-left-radius: 16px; border-top-right-radius: 16px;
+
+  /* Dialog panel */
+  #${ID.dialog}{
+    pointer-events: auto; background: var(--bse-panel); color: var(--bse-ink);
+    border: 1px solid var(--bse-edge); border-radius: 16px;
+    width: min(92vw, 560px); max-height: min(82vh, 720px);
+    display: flex; flex-direction: column;
+    transform: translateY(10px) scale(.98);
+    opacity: 0; transition: transform .18s ease, opacity .18s ease;
+    box-shadow: 0 18px 48px rgba(0,0,0,.45);
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    outline: none;
   }
-  #${ID.grab}{ width: 42px; height: 4px; border-radius: 999px; background:#2b3b55; }
-  #${ID.title}{ margin: 8px 0 10px; font-size: 16px; font-weight: 700; text-align:center; }
-  #${ID.body} > * { max-width: 100%; }
-  .bse-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top: 14px; }
+  #${ID.dialog}.show{ transform: translateY(0) scale(1); opacity: 1; }
+
+  .bse-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 10px 12px; border-bottom: 1px solid var(--bse-edge);
+  }
+  #${ID.title}{ margin:0; font-size:16px; font-weight:800; letter-spacing:.2px; }
+  .bse-close{
+    appearance:none; border:1px solid var(--bse-btnEdge); background:var(--bse-btn);
+    color:#cfe4ff; border-radius:10px; padding:8px 10px; min-width:40px; cursor:pointer;
+  }
+
+  .bse-content{ padding: 10px 12px; overflow:auto; -webkit-overflow-scrolling: touch; }
+  .bse-actions{ padding: 10px 12px; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--bse-edge); }
   .bse-btn{
-    appearance:none; border:1px solid var(--bse-btnEdge); background: var(--bse-btn); color: var(--bse-ink);
-    border-radius: 12px; padding: 10px 14px; min-height: 44px; min-width: 44px; cursor: pointer; font: inherit;
-    box-shadow: 0 6px 16px rgba(0,0,0,.35);
+    appearance:none; border:1px solid var(--bse-btnEdge); background:var(--bse-btn); color:var(--bse-ink);
+    border-radius:12px; padding:10px 14px; min-height:44px; min-width:44px; cursor:pointer; font: inherit;
+    box-shadow:0 6px 16px rgba(0,0,0,.35);
   }
+  .bse-btn.primary{ background:#102038; border-color:#2b74ad; }
   .bse-btn:active{ transform: translateY(1px); filter: brightness(.98); }
-  .bse-btn.primary{ border-color:#2b74ad; background: #102038; }
-  .bse-btn[disabled]{ opacity:.6; cursor:not-allowed; }
+  .bse-btn[disabled]{ opacity:.65; cursor:not-allowed; }
+
   .bse-loader{
-    display:none; margin-left:auto; margin-right:auto; width: 26px; height: 26px; border-radius: 50%;
-    border: 2.5px solid rgba(255,255,255,.22); border-top-color: var(--bse-accent); animation: bseSpin .8s linear infinite;
+    display:none; margin: 8px auto; width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.22); border-top-color: var(--bse-accent);
+    animation: bseSpin .8s linear infinite;
   }
   .bse-loading .bse-loader{ display:block; }
   .bse-loading .bse-actions .bse-btn{ opacity:.5; pointer-events:none; }
   @keyframes bseSpin{ to { transform: rotate(360deg); } }
 
-  @media (prefers-reduced-motion: reduce){
-    #${ID.backdrop}{ transition: none !important; }
-    #${ID.sheet}{ transition: none !important; }
+  /* Form basics inside modal */
+  #${ID.dialog} label{ display:block; font-weight:700; color:#dfe9ff; margin: 8px 0 4px; }
+  #${ID.dialog} input, #${ID.dialog} select{
+    width:100%; padding:10px 12px; border:1px solid rgba(255,255,255,.22); border-radius:12px;
+    background:#0b1420; color:#eaf2ff; font-size:16px; outline:none;
   }
+  #${ID.dialog} input:focus, #${ID.dialog} select:focus{
+    border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
+  }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .col{ flex:1 1 180px; min-width: 160px; }
+  .chipRow{ display:flex; gap:6px; flex-wrap: wrap; }
+  .chip{
+    padding:8px 10px; border:1px solid #1f3a57; background:#0b1a29; color:#eaf2ff;
+    border-radius:999px; cursor:pointer; font-size:14px;
+  }
+  .chip.active{ border-color:#2a5f92; background:#0e2036; }
 
-  /* Improve tap hit area for controls inside */
-  #${ID.sheet} button, #${ID.sheet} input, #${ID.sheet} select, #${ID.sheet} textarea { font-size: 16px; }
+  /* Reduced motion preference */
+  @media (prefers-reduced-motion: reduce){
+    #${ID.backdrop}, #${ID.dialog}{ transition: none !important; }
+  }
   `;
 
   const HTML = `
     <div id="${ID.backdrop}" aria-hidden="true"></div>
-    <section id="${ID.sheet}" role="dialog" aria-modal="true" aria-labelledby="${ID.title}" tabindex="-1">
-      <div class="bse-head"><div id="${ID.grab}" aria-hidden="true"></div></div>
-      <div class="bse-content">
-        <h2 id="${ID.title}">Edit</h2>
-        <div id="${ID.body}"></div>
-        <div class="bse-loader" id="${ID.loader}" aria-hidden="true"></div>
+    <section id="${ID.modal}" aria-hidden="true">
+      <div id="${ID.dialog}" role="dialog" aria-modal="true" aria-labelledby="${ID.title}" tabindex="-1">
+        <div class="bse-head">
+          <h2 id="${ID.title}">Edit</h2>
+          <button type="button" class="bse-close" data-close="1" aria-label="Close">Close</button>
+        </div>
+        <div class="bse-content">
+          <div class="bse-loader" id="${ID.loader}" aria-hidden="true"></div>
+          <div id="${ID.body}"></div>
+        </div>
         <div class="bse-actions">
           <button type="button" class="bse-btn" id="${ID.cancel}">Cancel</button>
           <button type="button" class="bse-btn primary" id="${ID.apply}">Apply</button>
@@ -112,12 +138,9 @@
     </section>
   `;
 
-  let root, backdrop, sheet, titleEl, bodyEl, btnApply, btnCancel, loaderEl;
-  let isOpen = false;
-  let removeFns = [];
-  let previousActive = null;
+  let root, backdrop, modal, dialog, titleEl, bodyEl, btnApply, btnCancel, loaderEl;
+  let isOpen = false, removeFns = [], previousActive = null;
   let applyCb = null, cancelCb = null;
-  let startY = null, currentY = null, dragging = false;
 
   function ensureDOM(){
     if (root) return;
@@ -126,261 +149,332 @@
     root.innerHTML = `<style>${STYLE}</style>${HTML}`;
     document.body.appendChild(root);
 
-    backdrop  = root.querySelector(`#${ID.backdrop}`);
-    sheet     = root.querySelector(`#${ID.sheet}`);
-    titleEl   = root.querySelector(`#${ID.title}`);
-    bodyEl    = root.querySelector(`#${ID.body}`);
-    btnApply  = root.querySelector(`#${ID.apply}`);
-    btnCancel = root.querySelector(`#${ID.cancel}`);
-    loaderEl  = root.querySelector(`#${ID.loader}`);
+    backdrop  = root.querySelector('#'+ID.backdrop);
+    modal     = root.querySelector('#'+ID.modal);
+    dialog    = root.querySelector('#'+ID.dialog);
+    titleEl   = root.querySelector('#'+ID.title);
+    bodyEl    = root.querySelector('#'+ID.body);
+    btnApply  = root.querySelector('#'+ID.apply);
+    btnCancel = root.querySelector('#'+ID.cancel);
+    loaderEl  = root.querySelector('#'+ID.loader);
   }
 
   function lockScroll(){
     document.documentElement.classList.add('bse-noscroll');
-    const style = document.getElementById('bse-noscroll-style');
-    if (!style) {
+    if (!document.getElementById('bse-noscroll-style')){
       const s = document.createElement('style');
       s.id = 'bse-noscroll-style';
       s.textContent = `.bse-noscroll, .bse-noscroll body{ overflow:hidden !important; }`;
       document.head.appendChild(s);
     }
   }
-  function unlockScroll(){
-    document.documentElement.classList.remove('bse-noscroll');
-  }
-
-  function vibrate(ms=10){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(_){} }
-
-  function focusTrap(e){
-    if (e.key !== 'Tab') return;
-    const tabbables = getTabbables(sheet);
-    if (!tabbables.length) return;
-    const first = tabbables[0];
-    const last = tabbables[tabbables.length - 1];
-    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
-  }
+  function unlockScroll(){ document.documentElement.classList.remove('bse-noscroll'); }
 
   function getTabbables(scope){
     return Array.from(scope.querySelectorAll(
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
     )).filter(el => !el.hasAttribute('disabled') && !el.getAttribute('aria-hidden'));
   }
-
+  function focusTrap(e){
+    if (e.key !== 'Tab') return;
+    const tabbables = getTabbables(dialog);
+    if (!tabbables.length) return;
+    const first = tabbables[0], last = tabbables[tabbables.length - 1];
+    if (e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+  }
   function onKeydown(e){
     if (e.key === 'Escape'){ e.stopPropagation(); close(true); }
   }
-
-  function onBackdrop(){
-    // Configurable via open({ closeOnBackdrop })
-    if (sheet.dataset.closeOnBackdrop === 'true') close(true);
+  function onBackdropClick(e){
+    if (e.target === backdrop){ close(true); }
   }
-
-  function touchStart(e){
-    if (e.touches.length !== 1) return;
-    startY = e.touches[0].clientY;
-    currentY = startY;
-    dragging = true;
-    sheet.style.transition = 'none';
-  }
-  function touchMove(e){
-    if (!dragging) return;
-    currentY = e.touches[0].clientY;
-    const dy = Math.max(0, currentY - startY);
-    // Only allow pull-down
-    sheet.style.transform = `translateY(${dy}px)`;
-  }
-  function touchEnd(){
-    if (!dragging) return;
-    const dy = Math.max(0, (currentY||0) - (startY||0));
-    dragging = false;
-    sheet.style.transition = '';
-    if (dy > 90){ vibrate(5); close(true); }
-    else { sheet.style.transform = 'translateY(0)'; }
-    startY = currentY = null;
-  }
+  function vibrate(ms=10){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(_){} }
 
   function setLoading(on){
-    if (on){ sheet.classList.add('bse-loading'); }
-    else { sheet.classList.remove('bse-loading'); }
+    if (on){ dialog.classList.add('bse-loading'); }
+    else { dialog.classList.remove('bse-loading'); }
   }
-
-  function setApplyEnabled(enabled){
-    btnApply.disabled = !enabled;
-  }
-
-  function updateTitle(t){
-    titleEl.textContent = t || '';
-  }
-
+  function setApplyEnabled(enabled){ btnApply.disabled = !enabled; }
+  function updateTitle(t){ titleEl.textContent = t || ''; }
   function setContent(content){
     bodyEl.innerHTML = '';
-    if (typeof content === 'string'){
-      bodyEl.innerHTML = content;
-    } else if (content instanceof HTMLElement){
-      bodyEl.appendChild(content);
-    }
+    if (typeof content === 'string') bodyEl.innerHTML = content;
+    else if (content instanceof HTMLElement) bodyEl.appendChild(content);
   }
 
-  function wireOnce(el, evt, fn, opts){
-    el.addEventListener(evt, fn, opts);
-    removeFns.push(()=> el.removeEventListener(evt, fn, opts));
-  }
+  function wire(el, evt, fn, opts){ el.addEventListener(evt, fn, opts); removeFns.push(()=>el.removeEventListener(evt, fn, opts)); }
 
   function open(opts={}){
     ensureDOM();
-
     const {
       title = 'Edit',
       html = null,
       node = null,
       onApply = null,
       onCancel = null,
+      initialFocus = null,
       primaryLabel = 'Apply',
-      cancelLabel = 'Cancel',
-      closeOnBackdrop = true,
-      initialFocus = null
+      cancelLabel = 'Cancel'
     } = opts;
 
-    // Reset and configure
-    sheet.dataset.closeOnBackdrop = closeOnBackdrop ? 'true' : 'false';
     updateTitle(title);
     setContent(node || html || '');
-    btnApply.textContent = primaryLabel;
-    btnCancel.textContent = cancelLabel;
     setLoading(false);
     setApplyEnabled(true);
+    btnApply.textContent = primaryLabel;
+    btnCancel.textContent = cancelLabel;
     applyCb = typeof onApply === 'function' ? onApply : null;
     cancelCb = typeof onCancel === 'function' ? onCancel : null;
 
-    // Show
+    // show
     backdrop.classList.add('show');
-    sheet.classList.add('show');
+    dialog.classList.add('show');
     backdrop.style.display = 'block';
-    sheet.style.display = 'block';
+    modal.style.display = 'grid';
     isOpen = true;
     lockScroll();
     previousActive = document.activeElement;
 
-    // Focus management
-    const doFocus = ()=>{
-      let focusEl = null;
-      if (initialFocus && typeof initialFocus === 'string'){
-        focusEl = sheet.querySelector(initialFocus);
-      }
-      if (!focusEl){
-        const tabs = getTabbables(sheet);
-        focusEl = tabs[0] || btnApply || sheet;
-      }
-      focusEl && focusEl.focus();
-    };
-    setTimeout(doFocus, 0);
+    // cleanup old listeners
+    removeFns.forEach(fn=>fn()); removeFns = [];
 
-    // Clean old listeners
-    removeFns.forEach(fn => fn());
-    removeFns = [];
-
-    // Wire listeners
-    wireOnce(document, 'keydown', onKeydown, true);
-    wireOnce(sheet, 'keydown', focusTrap);
-    wireOnce(backdrop, 'click', onBackdrop);
-    // Touch/drag on grab area AND sheet top area
-    const grab = root.querySelector('#'+ID.grab);
-    wireOnce(grab, 'touchstart', touchStart, {passive:true});
-    wireOnce(grab, 'touchmove',  touchMove,  {passive:true});
-    wireOnce(grab, 'touchend',   touchEnd,   {passive:true});
-    // Also allow pulling anywhere in header area
-    wireOnce(sheet, 'touchstart', (e)=>{
-      // only allow pull if touch starts within ~90px from top of sheet
-      const rect = sheet.getBoundingClientRect();
-      if (e.touches[0].clientY - rect.top < 90) touchStart(e);
-    }, {passive:true});
-    wireOnce(sheet, 'touchmove',  touchMove,  {passive:true});
-    wireOnce(sheet, 'touchend',   touchEnd,   {passive:true});
-
-    // Buttons
-    wireOnce(btnCancel, 'click', ()=>{
-      vibrate(8);
-      close(true);
-    });
-    wireOnce(btnApply, 'click', ()=>{
-      // Prevent double submits while user callback runs
+    // listeners
+    wire(document, 'keydown', onKeydown, true);
+    wire(dialog, 'keydown', focusTrap);
+    wire(backdrop, 'click', onBackdropClick);
+    // close buttons
+    modal.querySelector('[data-close]')?.addEventListener('click', ()=> close(true), { once:true });
+    wire(btnCancel, 'click', ()=> { vibrate(8); close(true); });
+    wire(btnApply, 'click', ()=>{
       if (btnApply.disabled) return;
       vibrate(10);
-      const maybePromise = applyCb && applyCb();
-      // If onApply returns a Promise, keep sheet until resolved/rejected
-      if (maybePromise && typeof maybePromise.then === 'function'){
-        setLoading(true);
-        btnApply.disabled = true;
-        maybePromise.finally(()=> {
-          setLoading(false);
-          btnApply.disabled = false;
-          close(false); // treat as confirmed
-        });
-      } else {
-        close(false);
-      }
+      const maybe = applyCb && applyCb();
+      if (maybe && typeof maybe.then === 'function'){
+        setLoading(true); btnApply.disabled = true;
+        maybe.finally(()=>{ setLoading(false); btnApply.disabled = false; close(false); });
+      } else { close(false); }
     });
 
-    // Public controller
-    const controller = {
+    // focus
+    setTimeout(()=>{
+      let el = initialFocus ? dialog.querySelector(initialFocus) : null;
+      if (!el){
+        const tabs = getTabbables(dialog);
+        el = tabs[0] || dialog;
+      }
+      el && el.focus();
+    }, 0);
+
+    // controller
+    return {
       close: () => close(false),
-      setContent,
-      setApplyEnabled,
-      setLoading,
-      updateTitle,
-      el: sheet
+      setContent, setApplyEnabled, setLoading, updateTitle,
+      el: dialog
     };
-    return controller;
   }
 
   function close(byCancel){
     if (!isOpen) return;
     isOpen = false;
 
-    // callbacks
     try{
       if (byCancel && cancelCb) cancelCb();
-      // Fire an event for external listeners (optional)
-      const evt = new CustomEvent('bse:closed', { detail: { cancelled: !!byCancel }});
-      sheet.dispatchEvent(evt);
+      dialog.dispatchEvent(new CustomEvent('bse:closed', { detail: { cancelled: !!byCancel }}));
     }catch(_){}
 
-    // Animate out
     backdrop.classList.remove('show');
-    sheet.classList.remove('show');
-    sheet.style.transform = ''; // reset any drag transform
-    // After transition, hide (timeout as a fallback)
-    const tidy = ()=> {
+    dialog.classList.remove('show');
+
+    const tidy = ()=>{
       backdrop.style.display = 'none';
-      sheet.style.display = 'none';
+      modal.style.display = 'none';
       unlockScroll();
-      // Remove listeners
-      removeFns.forEach(fn => fn());
-      removeFns = [];
-      // Restore focus
-      if (previousActive && typeof previousActive.focus === 'function'){
-        previousActive.focus();
-      } else {
-        // focus the document to avoid leaving focus trapped
-        document.body.focus && document.body.focus();
-      }
+      removeFns.forEach(fn=>fn()); removeFns = [];
+      if (previousActive && typeof previousActive.focus === 'function') previousActive.focus();
     };
-    // Try to detect transition end
-    let done = false;
-    const onEnd = ()=>{ if (done) return; done = true; sheet.removeEventListener('transitionend', onEnd); tidy(); };
-    sheet.addEventListener('transitionend', onEnd);
-    setTimeout(onEnd, 260); // fallback
+    const onEnd = ()=>{ dialog.removeEventListener('transitionend', onEnd); tidy(); };
+    dialog.addEventListener('transitionend', onEnd);
+    setTimeout(onEnd, 220);
   }
 
-  // Expose API
+  // ---------- Built-in hoseline editor form helpers ----------
+  // Default nozzles (adjust if your store provides these dynamically)
+  const DEFAULT_NOZZLES = [
+    { id:'fog175_185_50',  label:'Fog 185 @50',  gpm:185, np:50,  size:'1.75' },
+    { id:'fog175_185_75',  label:'Fog 185 @75',  gpm:185, np:75,  size:'1.75' },
+    { id:'sb25_265_50',    label:'SmoothBore 265 @50', gpm:265, np:50, size:'2.5' },
+    { id:'fog25_250_75',   label:'Fog 250 @75',  gpm:250, np:75,  size:'2.5' }
+  ];
+
+  function makeEl(html){
+    const t = document.createElement('template');
+    t.innerHTML = html.trim();
+    return t.content.firstElementChild;
+  }
+
+  // Build a form node for editing a line
+  // line: { size, lengthFt, hasWye, elevFt, nozzle: { id,gpm,np,label } }
+  function buildLineEditorForm(line={}){
+    const sz = String(line.size || '1.75');
+    const len = Number(line.lengthFt || 200);
+    const elev = Number(line.elevFt || 0);
+    const hasWye = !!line.hasWye;
+    const noz = line.nozzle || inferDefaultNozzle(sz);
+
+    const node = makeEl(`
+      <form id="bseLineForm">
+        <div class="row">
+          <div class="col">
+            <label>Diameter</label>
+            <select name="size" id="bseSize">
+              <option value="1.75">1¾″</option>
+              <option value="2.5">2½″</option>
+              <option value="5">5″ (supply)</option>
+            </select>
+          </div>
+          <div class="col">
+            <label>Length (ft)</label>
+            <input type="number" inputmode="numeric" step="25" min="0" name="lengthFt" id="bseLen" value="${len}">
+            <div class="chipRow" style="margin-top:6px">
+              ${[150,200,250,300].map(v=>`<button type="button" class="chip" data-len="${v}">${v}′</button>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label>Elevation (ft)</label>
+            <input type="number" inputmode="decimal" step="5" name="elevFt" id="bseElev" value="${elev}">
+          </div>
+          <div class="col">
+            <label>Wye (split to two 1¾″?)</label>
+            <select name="hasWye" id="bseWye">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+            <div style="margin-top:6px; font-size:12px; color:#9fb0c8">
+              If “Yes”, the main line will not have a nozzle; branch defaults: A <b>Fog 185 @50</b>, B <b>Fog 185 @50</b>.
+            </div>
+          </div>
+        </div>
+
+        <div id="bseNozGroup">
+          <label>Nozzle</label>
+          <select name="nozId" id="bseNozId"></select>
+          <div class="row" style="margin-top:8px">
+            <div class="col">
+              <label>Nozzle Flow (GPM)</label>
+              <input type="number" inputmode="decimal" step="5" name="nozGpm" id="bseNozGpm" value="${noz.gpm||185}">
+            </div>
+            <div class="col">
+              <label>Nozzle Pressure (NP psi)</label>
+              <input type="number" inputmode="decimal" step="5" name="nozNp" id="bseNozNp" value="${noz.np||50}">
+            </div>
+          </div>
+        </div>
+      </form>
+    `);
+
+    // wire selects
+    const selSize = node.querySelector('#bseSize');
+    const selWye  = node.querySelector('#bseWye');
+    const selNoz  = node.querySelector('#bseNozId');
+    const inpLen  = node.querySelector('#bseLen');
+    const inpElev = node.querySelector('#bseElev');
+    const inpGpm  = node.querySelector('#bseNozGpm');
+    const inpNp   = node.querySelector('#bseNozNp');
+    const nozGroup= node.querySelector('#bseNozGroup');
+
+    // Fill nozzle list for current size
+    function fillNozzles(forSize){
+      selNoz.innerHTML = '';
+      const items = DEFAULT_NOZZLES.filter(n => n.size === forSize);
+      items.forEach(n=>{
+        const o = document.createElement('option');
+        o.value = n.id; o.textContent = n.label; selNoz.appendChild(o);
+      });
+      // pick default rule: 2.5 → 265@50, 1.75 → 185@50
+      const def = inferDefaultNozzle(forSize);
+      selNoz.value = def.id;
+      inpGpm.value = def.gpm;
+      inpNp.value  = def.np;
+    }
+
+    function inferDefaultNozzle(size){
+      if (size === '2.5') return { id:'sb25_265_50', label:'SmoothBore 265 @50', gpm:265, np:50, size:'2.5' };
+      return { id:'fog175_185_50', label:'Fog 185 @50', gpm:185, np:50, size:'1.75' };
+    }
+
+    // initial
+    selSize.value = sz;
+    selWye.value  = String(hasWye);
+    fillNozzles(sz);
+    // If a specific nozzle present in incoming line, select it
+    if (line.nozzle && line.nozzle.id){
+      const match = Array.from(selNoz.options).find(o => o.value === line.nozzle.id);
+      if (match){ selNoz.value = match.value; }
+      if (typeof line.nozzle.gpm === 'number') inpGpm.value = line.nozzle.gpm;
+      if (typeof line.nozzle.np  === 'number') inpNp.value  = line.nozzle.np;
+    }
+    // Hide nozzle group when Wye is ON (main line has no nozzle)
+    function updateNozzleVisibility(){
+      const off = (selWye.value === 'true');
+      nozGroup.style.display = off ? 'none' : 'block';
+    }
+    updateNozzleVisibility();
+
+    // events
+    selSize.addEventListener('change', ()=>{
+      fillNozzles(selSize.value);
+    });
+    selWye.addEventListener('change', updateNozzleVisibility);
+    node.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', (e)=>{
+        e.preventDefault();
+        const v = Number(chip.getAttribute('data-len'));
+        inpLen.value = v;
+        node.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+    selNoz.addEventListener('change', ()=>{
+      const n = DEFAULT_NOZZLES.find(x=>x.id===selNoz.value);
+      if (n){ inpGpm.value = n.gpm; inpNp.value = n.np; }
+    });
+
+    // expose reader on node for onApply
+    node.readValues = () => {
+      const size = selSize.value;
+      const hasW = (selWye.value === 'true');
+      const data = {
+        size,
+        lengthFt: Number(inpLen.value||0),
+        elevFt: Number(inpElev.value||0),
+        hasWye: hasW
+      };
+      if (!hasW){
+        data.nozzle = {
+          id: selNoz.value,
+          gpm: Number(inpGpm.value||0),
+          np:  Number(inpNp.value||0),
+          label: selNoz.options[selNoz.selectedIndex]?.text || ''
+        };
+      } else {
+        // main line nozzle removed; branch defaults handled by your calc code
+        data.nozzle = null;
+      }
+      return data;
+    };
+
+    return node;
+  }
+
+  // expose
   window.BottomSheetEditor = {
-    open,
-    close: () => close(true),
-    setContent,
-    setApplyEnabled,
-    setLoading,
-    updateTitle,
+    open, close: () => close(true),
+    setContent, setApplyEnabled, setLoading, updateTitle,
+    buildLineEditorForm,
     get isOpen(){ return isOpen; }
   };
 })();
