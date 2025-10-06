@@ -20,7 +20,7 @@
   <meta name="twitter:description" content="Hydrant % drop, tender shuttle GPM, and line math — phone friendly."/>
   <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
-  <!-- Icons / PWA (optional) -->
+  <!-- Icons / PWA -->
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
@@ -56,8 +56,7 @@
       --btn:#0b1320; --btnEdge:#20324f;
       --accent:#3aa7ff; --ok:#9fe879; --warn:#ffa726; --alert:#ef5350;
       --nav:#0a111d; --navEdge:#1b2a44;
-      --brand-red:#ff4d4d;
-      --disabled:#5e6e86;
+      --brand-red:#ff4d4d; --disabled:#5e6e86;
     }
     *{box-sizing:border-box}
     html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
@@ -110,7 +109,7 @@
     .stack{display:flex;flex-direction:column;gap:10px}
     .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
 
-    /* Visual builder (unchanged) */
+    /* Visual builder */
     .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
     .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
     #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
@@ -123,7 +122,7 @@
     }
     .linebtn.active{outline:2px solid var(--accent)}
 
-    /* Hose look (original) */
+    /* Hose look */
     .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
     .hose5{stroke:var(--hose5);stroke-width:12}
     .hose25{stroke:var(--hose25);stroke-width:9}
@@ -135,7 +134,7 @@
     .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
     .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
 
-    /* KPIs + math (original) */
+    /* KPIs + math */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
     .kpi b{font-size:18px}
@@ -241,15 +240,33 @@
     <button class="navbtn" data-view="charts">Charts</button>
   </nav>
 
-  <!-- Reset hose-line state on every load BEFORE the app boots -->
+  <!-- HARD RESET of deployed/working line state on every load BEFORE the app boots -->
   <script>
     (function () {
-      const keys = ['hoselines','lineState','calcState','calc_lines','calc_presets'];
-      try { keys.forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k); }); } catch (e) {}
+      // Keep only keys explicitly meant to persist presets (adjust if you add more).
+      const KEEP = new Set(['line_defaults_v2','calc_presets_v2']);
+      try {
+        // Remove everything in localStorage except KEEP
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!KEEP.has(k)) localStorage.removeItem(k);
+        }
+        // Session storage should never persist lines between reloads
+        sessionStorage.clear();
+      } catch (e) {}
+      // Optional flag your app can use if needed
       window.FIREOPSCALC_RESET_ON_LOAD = true;
+
+      // Handle bfcache (Safari/Firefox) so the reset still applies on back/forward navigation
       window.addEventListener('pageshow', function (ev) {
         if (ev.persisted) {
-          try { keys.forEach(k => { localStorage.removeItem(k); sessionStorage.removeItem(k); }); } catch (e) {}
+          try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const k = localStorage.key(i);
+              if (!KEEP.has(k)) localStorage.removeItem(k);
+            }
+            sessionStorage.clear();
+          } catch (e) {}
           window.FIREOPSCALC_RESET_ON_LOAD = true;
         }
       });
@@ -258,7 +275,7 @@
 
   <script type="module" src="/js/app.js"></script>
 
-  <!-- Minimal routing + settings menu + ENV detection -->
+  <!-- Minimal routing + settings menu + ENV detection + website-only presets redirect -->
   <script>
     (function(){
       const navTo = (view) => {
@@ -303,15 +320,27 @@
       const IS_APP = isStandalonePWA() || isCapacitor();
 
       // Point Custom Setup appropriately:
-      const link = document.getElementById('customSetupLink');
+      const setupLink = document.getElementById('customSetupLink');
       if (!IS_APP){
-        // On website → send to explainer page instead of live custom-setup
-        link.setAttribute('href','/app-only.html');
-        link.setAttribute('title','Custom settings available in the app');
+        setupLink.setAttribute('href','/app-only.html'); // explainer page for website users
+        setupLink.setAttribute('title','Custom settings available in the app');
       } else {
-        // In app / installed PWA → allow local custom setup page
-        link.setAttribute('href','/custom-setup.html');
+        setupLink.setAttribute('href','/custom-setup.html'); // real custom setup in app/PWA
       }
+
+      // Website-only handling for "Presets" buttons: send to explainer instead of opening the in-app sheet
+      const presetButtons = [
+        ...document.querySelectorAll('.presetsbtn'),
+        ...document.querySelectorAll('#openPresets')
+      ];
+      presetButtons.forEach(pbtn => {
+        pbtn.addEventListener('click', (e) => {
+          if (!IS_APP) {
+            e.preventDefault();
+            window.location.href = '/app-only-presets.html';
+          }
+        }, { capture: true });
+      });
     })();
   </script>
 </body>
