@@ -1,0 +1,10 @@
+{
+  "appId": "com.fireops.calc",
+  "appName": "FireOps Calc",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}
