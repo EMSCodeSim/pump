@@ -243,21 +243,20 @@
   <!-- HARD RESET of deployed/working line state on every load BEFORE the app boots -->
   <script>
     (function () {
-      // Keep only keys explicitly meant to persist presets (adjust if you add more).
-      const KEEP = new Set(['line_defaults_v2','calc_presets_v2']);
+      // Preserve ONLY the real presets key used by /js/store.js
+      const KEEP = new Set(['pump_presets_v1']);
       try {
-        // Remove everything in localStorage except KEEP
+        // Remove everything else in localStorage (deployed lines, UI caches, etc.)
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const k = localStorage.key(i);
           if (!KEEP.has(k)) localStorage.removeItem(k);
         }
-        // Session storage should never persist lines between reloads
+        // Always clear session-scoped state
         sessionStorage.clear();
       } catch (e) {}
-      // Optional flag your app can use if needed
       window.FIREOPSCALC_RESET_ON_LOAD = true;
 
-      // Handle bfcache (Safari/Firefox) so the reset still applies on back/forward navigation
+      // Ensure reset also applies when returning via back/forward cache
       window.addEventListener('pageshow', function (ev) {
         if (ev.persisted) {
           try {
