@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
+  <meta name="description" content="Phone-friendly fire pump calculator for crews: hydrant percent drop (how many same-size lines to add), tender shuttle GPM with round-trip timers, and fast line math presets."/>
+  <link rel="canonical" href=https://fireopscalc.com/"/>
+  <link rel="manifest" href="/manifest.json">
+
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
+  <meta property="og:description" content="Hydrant % drop to estimate additional lines, tender shuttle GPM after each round trip, and quick line math — built for phones on the rig."/>
+  <meta property="og:url" content="https://fireopscalc.com/"/>
+  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FireOps Calc — Fast fire pump calculations"/>
+  <meta name="twitter:description" content="Hydrant % drop, tender shuttle GPM, and line math — phone friendly."/>
+  <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
+
+  <!-- Icons / PWA -->
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-6W3WSFVFGW"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-6W3WSFVFGW');
+  </script>
+
+  <!-- SoftwareApplication schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "FireOps Calc",
+    "applicationCategory": "EducationApplication",
+    "operatingSystem": "Web",
+    "description": "Phone-friendly fire pump calculator: hydrant percent drop, tender shuttle GPM, and line math.",
+    "url": "https://fireopscalc.com",
+    "image": "https://fireopscalc.com/fireopscalc.png"
+  }
+  </script>
+
+  <link rel="preload" href="/js/store.js" as="script" type="module">
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#0f1624; --ink:#eaf2ff; --muted:#9fb0c8; --edge:rgba(255,255,255,.14);
+      --hose5:#ecd464; --hose25:#6ecbff; --hose175:#ff6b6b;
+      --bubble:#172134; --bubble-edge:rgba(255,255,255,.15);
+      --btn:#0b1320; --btnEdge:#20324f;
+      --accent:#3aa7ff; --ok:#9fe879; --warn:#ffa726; --alert:#ef5350;
+      --nav:#0a111d; --navEdge:#1b2a44;
+      --brand-red:#ff4d4d; --disabled:#5e6e86;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Inter,Arial,sans-serif}
+
+    .visually-hidden{
+      position:absolute!important; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+    }
+
+    /* ===== Top banner ===== */
+    header{
+      position:sticky; top:0; z-index:10;
+      padding:10px 14px;
+      background:linear-gradient(180deg,#0c1320,#0b0f14);
+      border-bottom:1px solid var(--edge)
+    }
+    .hdr{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .brand{display:flex; align-items:center; gap:12px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+    .brand img{height:36px; width:auto; object-fit:contain; display:block; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+    @media (min-width:700px){ .brand img{ height:40px; } }
+    .brandName{ font-weight:800; letter-spacing:.2px; font-size:18px; line-height:1; color:var(--brand-red); }
+    @media (min-width:700px){ .brandName{ font-size:20px; } }
+
+    .hdrBtns{display:flex; align-items:center; gap:8px; position:relative}
+    .iconBtn{
+      appearance:none; border:1px solid var(--btnEdge); background:var(--btn); color:#eaf2ff;
+      border-radius:12px; padding:10px; min-width:44px; min-height:44px;
+      display:inline-flex; align-items:center; justify-content:center; cursor:pointer;
+      box-shadow:0 6px 16px rgba(0,0,0,.35);
+    }
+    .iconBtn[aria-disabled="true"]{ color:var(--disabled); cursor:not-allowed; }
+
+    /* Settings dropdown */
+    .menu{position:relative}
+    .menu-list{
+      position:absolute; right:0; top:48px; z-index:20;
+      background:#0e1726; border:1px solid var(--edge); border-radius:12px;
+      min-width:190px; padding:6px; display:none; box-shadow:0 12px 28px rgba(0,0,0,.4);
+    }
+    .menu-list.show{display:block}
+    .menu-item{
+      display:flex; align-items:center; gap:8px;
+      padding:10px 10px; border-radius:10px; color:#eaf2ff; text-decoration:none; font-size:14px;
+      background:transparent; border:1px solid transparent;
+    }
+    .menu-item:hover{ background:#0b1320; border-color:#1f3a57; }
+    .menu-sep{height:1px; background:var(--edge); margin:6px 2px}
+
+    main{padding:10px;padding-bottom:84px}
+    .stack{display:flex;flex-direction:column;gap:10px}
+    .card{background:#0e1726;border:1px solid var(--edge);border-radius:14px;padding:10px}
+
+    /* Visual builder */
+    .wrapper{background:linear-gradient(180deg,#0b0f14,#0e1726);border:1px solid var(--edge);border-radius:14px}
+    .stage{position:relative;width:100%;max-width:900px;margin:0 auto;min-height:260px}
+    #overlay, #overlayPractice{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:auto}
+    .info{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:var(--bubble);border:1px solid var(--bubble-edge);border-radius:999px;padding:6px 10px;font-size:12px;z-index:3}
+
+    .linebar{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;gap:6px;z-index:3;padding:0 8px}
+    .linebtn,.supplybtn,.presetsbtn{
+      background:var(--btn);border:1px solid var(--btnEdge);color:#eaf2ff;border-radius:10px;
+      padding:8px 10px;font-size:13px;cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);white-space:nowrap
+    }
+    .linebtn.active{outline:2px solid var(--accent)}
+
+    /* Hose look */
+    .hoseBase{fill:none;stroke-linecap:round;stroke-linejoin:round}
+    .hose5{stroke:var(--hose5);stroke-width:12}
+    .hose25{stroke:var(--hose25);stroke-width:9}
+    .hose175{stroke:var(--hose175);stroke-width:6}
+    .shadow{stroke:rgba(0,0,0,.35);stroke-width:12}
+
+    .hose-end{cursor:pointer;pointer-events:all}
+    .plus-hit{fill:transparent;stroke:transparent;rx:12;ry:12}
+    .plus-circle{fill:#fff;stroke:#111;stroke-width:1.5;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+    .plus-sign{stroke:#111;stroke-width:3;stroke-linecap:round}
+
+    /* KPIs + math */
+    .kpis{display:flex;gap:8px;flex-wrap:wrap}
+    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px 10px;font-size:13px;color:#cfe4ff;flex:1;min-width:140px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .kpi b{font-size:18px}
+    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid #1f3a57;color:#eaf2ff;border-radius:999px;padding:6px 9px;font-size:12px;cursor:pointer}
+    .whyBtn:active{transform:translateY(1px)}
+    #PDP.orange{color:var(--warn)}
+    #PDP.red{color:var(--alert)}
+
+    .linesTable{margin-top:8px;border-top:1px solid var(--edge);padding-top:8px;display:grid;gap:8px}
+    .lineRow{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px}
+    .lineHeader{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px;font-size:12px;color:#cfe4ff}
+    .lineHeader .title{font-weight:700;color:#eaf2ff}
+    .lineHeader .tag{display:inline-block;background:#0b1a29;border:1px solid #1f3a57;border-radius:999px;padding:3px 7px;margin:2px 2px;font-size:11px}
+    details.math{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:6px 8px;margin-top:6px}
+    details.math summary{cursor:pointer;color:#cfe4ff;font-weight:700}
+    .hoseviz{margin-top:6px}
+    .hoseLegend{display:flex;gap:8px;align-items:center;font-size:11px;color:#cfe4ff;margin:2px 0 6px}
+    .legSwatch{width:14px;height:8px;border-radius:3px;display:inline-block;border:1px solid rgba(0,0,0,.35)}
+    .sw175{background:var(--hose175)} .sw25{background:var(--hose25)} .sw5{background:var(--hose5)}
+    .barWrap{background:#0b1320;border:1px solid #1f3a57;border-radius:10px;padding:6px;margin:6px 0}
+    .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
+    .ppEq{font-size:14px;color:#eaf2ff;margin-top:6px;font-weight:700}
+    .lbl{font-size:10px;fill:#0b0f14}
+    .is-hidden{display:none!important}
+    .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
+    .simpleBox b{color:#eaf2ff}
+    .simpleList{margin:6px 0 0 16px;padding:0}
+    .simpleList li{margin:2px 0}
+
+    @keyframes flashBox{0%{box-shadow:0 0 0 rgba(63,191,255,0)} 25%{box-shadow:0 0 0 4px rgba(58,167,255,.35)} 100%{box-shadow:0 0 0 rgba(63,191,255,0)}}
+    .flash{animation:flashBox 1200ms ease 1}
+
+    /* Preset bottom sheet */
+    .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:saturate(110%) blur(2px);z-index:40;display:none}
+    .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:#0e1726;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;padding:12px 12px 16px;transform:translateY(100%);transition:.28s ease}
+    .sheet.show + .sheet-backdrop{display:block}
+    .sheet.show{transform:translateY(0)}
+    .preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+    .preset{background:#0b1a29;border:1px solid #1f3a57;border-radius:12px;padding:10px;text-align:center;font-size:13px;cursor:pointer}
+    .linepick{display:flex;gap:8px;margin-top:10px}
+    .linepick .preset{flex:1}
+
+    /* Bottom nav */
+    .bottom-nav{
+      position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--nav);border-top:1px solid var(--navEdge);
+      display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px;
+      padding-bottom:calc(8px + env(safe-area-inset-bottom));
+    }
+    .navbtn{
+      background:#0b1320;border:1px solid var(--navEdge);border-radius:12px;color:#cfe4ff;padding:10px 8px;font-size:12px;text-align:center;cursor:pointer
+    }
+    .navbtn.active{outline:2px solid var(--accent); color:#eaf2ff}
+
+    .status{font-size:13px;color:#cfe4ff;margin-top:6px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)} .alert{color:var(--alert)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid var(--edge);padding:6px 8px;font-size:13px}
+    th{background:#0b1320;color:#cfe4ff;text-align:left}
+    caption{caption-side:top;text-align:left;color:#cfe4ff;font-weight:700;margin:6px 0}
+  </style>
+</head>
+<body>
+  <h1 class="visually-hidden">Fire pump calculator — hydrant percent drop, tender shuttle GPM, and hose line math</h1>
+
+  <header>
+    <div class="hdr">
+      <div class="brand" aria-label="FireOps Calc">
+        <img src="/fireopscalc.png" alt="FireOps Calc logo">
+        <span class="brandName">FireOps Calc</span>
+      </div>
+
+      <!-- Settings gear with dropdown -->
+      <div class="hdrBtns">
+        <div class="menu">
+          <button class="iconBtn" id="settingsBtn" aria-haspopup="true" aria-expanded="false" title="Settings & Help">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M19.4 13.5a7.6 7.6 0 0 0 .06-3l2-1.2-2-3.4-2.2.8a7.7 7.7 0 0 0-2.6-1.5L14 1h-4l-.6 3.2a7.7 7.7 0 0 0 2.6 1.5l-2.2-.8-2 3.4 2 1.2a7.6 7.6 0 0 0 0 3l-2 1.2 2 3.4 2.2-.8a7.7 7.7 0 0 0 2.6 1.5L10 23h4l.6-3.2a7.7 7.7 0 0 0 2.6-1.5l2.2.8 2-3.4-2-1.2Z" stroke="currentColor" stroke-width="1.8"/>
+            </svg>
+          </button>
+          <div class="menu-list" id="settingsMenu" role="menu" aria-label="Settings menu">
+            <a class="menu-item" href="/how-to.html" role="menuitem">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h11a1 1 0 0 1 1 1v14H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 0v14" stroke="currentColor" stroke-width="1.6"/></svg>
+              How-To
+            </a>
+            <div class="menu-sep"></div>
+            <!-- This link is changed at runtime depending on environment -->
+            <a class="menu-item" id="customSetupLink" href="/custom-setup.html" role="menuitem">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h10M4 17h16M14 7l0 0m-8 10l0 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              Custom Setup
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main id="app"></main>
+
+  <nav class="bottom-nav">
+    <button class="navbtn active" data-view="calc">Calculations</button>
+    <button class="navbtn" data-view="practice">Practice</button>
+    <button class="navbtn" data-view="charts">Charts</button>
+  </nav>
+
+  <!-- HARD RESET of deployed/working line state on every load BEFORE the app boots -->
+  <script>
+    (function () {
+      // Preserve ONLY the real presets key used by /js/store.js
+      const KEEP = new Set(['pump_presets_v1']);
+      try {
+        // Remove everything else in localStorage (deployed lines, UI caches, etc.)
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!KEEP.has(k)) localStorage.removeItem(k);
+        }
+        // Always clear session-scoped state
+        sessionStorage.clear();
+      } catch (e) {}
+      window.FIREOPSCALC_RESET_ON_LOAD = true;
+
+      // Ensure reset also applies when returning via back/forward cache
+      window.addEventListener('pageshow', function (ev) {
+        if (ev.persisted) {
+          try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const k = localStorage.key(i);
+              if (!KEEP.has(k)) localStorage.removeItem(k);
+            }
+            sessionStorage.clear();
+          } catch (e) {}
+          window.FIREOPSCALC_RESET_ON_LOAD = true;
+        }
+      });
+    })();
+  </script>
+
+  <script type="module" src="/js/app.js"></script>
+
+  <!-- Minimal routing + settings menu + ENV detection + website-only presets redirect -->
+  <script>
+    (function(){
+      const navTo = (view) => {
+        if (window.loadView) { window.loadView(view); return; }
+        if (window.navigate) { window.navigate(view); return; }
+        if (view) location.hash = '#' + view;
+        window.dispatchEvent(new CustomEvent('nav:'+view));
+        if (typeof gtag === 'function') {
+          gtag('event', 'page_view', { page_title: document.title, page_location: location.href, page_path: location.pathname + (location.hash || '') });
+        }
+      };
+
+      // Bottom nav
+      document.querySelectorAll('.bottom-nav .navbtn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          document.querySelectorAll('.bottom-nav .navbtn').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          navTo(btn.dataset.view);
+        });
+      });
+
+      // Settings dropdown
+      const btn = document.getElementById('settingsBtn');
+      const menu = document.getElementById('settingsMenu');
+      function closeMenu(){ menu.classList.remove('show'); btn.setAttribute('aria-expanded','false'); }
+      function toggleMenu(e){
+        e.preventDefault();
+        const isOpen = menu.classList.contains('show');
+        if (isOpen){ closeMenu(); } else { menu.classList.add('show'); btn.setAttribute('aria-expanded','true'); }
+      }
+      btn?.addEventListener('click', toggleMenu);
+      document.addEventListener('click', (e)=>{ if (!menu.contains(e.target) && !btn.contains(e.target)) closeMenu(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeMenu(); });
+
+      // ===== Environment detection: App vs Website =====
+      function isStandalonePWA(){
+        return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+      }
+      function isCapacitor(){
+        return !!(window.Capacitor || window.capacitor || (navigator.userAgent && /Capacitor|Cordova|WKWebView/i.test(navigator.userAgent)));
+      }
+      const IS_APP = isStandalonePWA() || isCapacitor();
+
+      // Point Custom Setup appropriately:
+      const setupLink = document.getElementById('customSetupLink');
+      if (!IS_APP){
+        setupLink.setAttribute('href','/app-only.html'); // explainer page for website users
+        setupLink.setAttribute('title','Custom settings available in the app');
+      } else {
+        setupLink.setAttribute('href','/custom-setup.html'); // real custom setup in app/PWA
+      }
+
+      // Website-only handling for "Presets" buttons: send to explainer instead of opening the in-app sheet
+      const presetButtons = [
+        ...document.querySelectorAll('.presetsbtn'),
+        ...document.querySelectorAll('#openPresets')
+      ];
+      presetButtons.forEach(pbtn => {
+        pbtn.addEventListener('click', (e) => {
+          if (!IS_APP) {
+            e.preventDefault();
+            window.location.href = '/app-only-presets.html';
+          }
+        }, { capture: true });
+      });
+    })();
+  </script>
+</body>
+</html>
