@@ -11,8 +11,8 @@ workflows:
       groups:
         - app_store_credentials   # contains: APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
-        XCODE_SCHEME: App                     # <-- change if scheme differs
+        APP_IDENTIFIER: com.fireopscalc.app   # <-- set to your bundle id
+        XCODE_SCHEME: App                     # <-- change if your scheme differs
 
     scripts:
       - name: Install deps
@@ -44,14 +44,26 @@ workflows:
           echo "Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID} (expect 36)"
           echo "Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
 
-      - name: Fetch signing files from App Store Connect (auto-create if missing)
+      - name: Generate certificate private key (for creating new Distribution cert)
         script: |
-          # Syntax per your runner's help: positional BUNDLE_ID, plus global auth flags
+          # Create a fresh RSA private key for the Distribution cert (PKCS#1, 2048-bit)
+          CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
+          openssl genrsa -out "$CERT_KEY_PATH" 2048
+          # Hide path for logs
+          echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
+          echo "Created local certificate private key."
+
+      - name: Fetch signing files from App Store Connect (auto-create using our key)
+        script: |
+          # Your runner expects: positional BUNDLE_ID + global auth flags.
+          # We also provide the certificate private key via @file: and save the p12 with no password.
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --certificate-key "@file:$CERT_KEY_PATH" \
+            --p12-password "" \
             --create --verbose
 
       - name: List fetched certs & profiles (debug)
