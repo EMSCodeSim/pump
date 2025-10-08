@@ -9,78 +9,48 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials     # must contain:
-                                    # APP_STORE_CONNECT_KEY_IDENTIFIER
-                                    # APP_STORE_CONNECT_ISSUER_ID
-                                    # APP_STORE_CONNECT_PRIVATE_KEY
+        - app_store_credentials        # your group with the 3 vars
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
-        XCODE_SCHEME: App                     # <-- change if your scheme differs
+        APP_IDENTIFIER: com.fireopscalc.app
+        XCODE_SCHEME: App
 
     scripts:
       - name: Install deps
         script: |
-          echo "Node:" && node -v
-          if ! npm ci; then
-            echo "npm ci failed, retry with legacy peer deps"
-            npm install --legacy-peer-deps
-          fi
+          npm ci || npm install --legacy-peer-deps
 
-      - name: Build web to dist/
+      - name: Build web assets
         script: |
           npm run build || true
-          if [ ! -f "dist/index.html" ]; then
-            mkdir -p dist
-            if [ -f "index.html" ]; then
-              cp index.html dist/index.html
-            else
-              echo "dist/index.html missing and no root index.html to copy."
-              exit 1
-            fi
-          fi
+          [ -f dist/index.html ] || { mkdir -p dist && cp index.html dist/index.html; }
 
-      - name: Ensure iOS platform exists & sync Capacitor
+      - name: Ensure iOS platform exists & sync
         script: |
-          if [ ! -d "ios" ]; then
-            echo "iOS platform missing → adding…"
-            npx cap add ios
-          fi
+          [ -d ios ] || npx cap add ios
           npx cap sync ios
 
-      - name: Debug ASC env (lengths only)
+      - name: Debug ASC vars
         script: |
-          echo "Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER} (expect ~10)"
-          echo "Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID} (expect 36)"
+          echo "Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER}"
+          echo "Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID}"
           echo "Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
 
-      - name: Fetch signing files from App Store Connect (creates if needed)
+      # ✅ use built-in signing commands (no flags → version-safe)
+      - name: Automatic code signing (App Store Connect API)
         script: |
-          app-store-connect fetch-signing-files \
-            --type IOS_APP_STORE \
-            --app-identifier "$APP_IDENTIFIER" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --create
-
-      - name: Install certificates & profiles to keychain
-        script: |
+          keychain initialize
+          app-store-connect fetch-profiles
           keychain add-certificates
 
       - name: Build .ipa
         script: |
           xcode-project build-ipa \
             --workspace "ios/App/App.xcworkspace" \
-            --scheme "$XCODE_SCHEME" \
-            --archive-path "$CM_BUILD_DIR/App.xcarchive"
+            --scheme "$XCODE_SCHEME"
 
       - name: Publish to TestFlight
         script: |
-          IPA_PATH="$(find . -type f -name '*.ipa' | head -n 1)"
-          if [ -z "$IPA_PATH" ]; then
-            echo "No .ipa found to upload"; exit 1
-          fi
-          echo "Uploading $IPA_PATH to TestFlight…"
+          IPA_PATH="$(find . -name '*.ipa' | head -n 1)"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
@@ -90,4 +60,3 @@ workflows:
 
     artifacts:
       - "**/*.ipa"
-      - "ios/App/build/**"
