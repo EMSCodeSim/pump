@@ -8,9 +8,14 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
-      # 👇 Load your group so the vars exist in the build environment
       groups:
-        - app_store_credentials
+        - app_store_credentials   # contains:
+                                  # APP_STORE_CONNECT_KEY_IDENTIFIER
+                                  # APP_STORE_CONNECT_ISSUER_ID
+                                  # APP_STORE_CONNECT_PRIVATE_KEY
+      vars:
+        APP_IDENTIFIER: com.fireopscalc.app   # <-- change if needed
+        XCODE_SCHEME: App                     # <-- change if your scheme differs
 
     scripts:
       - name: Install deps
@@ -42,33 +47,31 @@ workflows:
           fi
           npx cap sync ios
 
-      - name: Debug ASC env
+      - name: Debug ASC env (lengths only)
         script: |
-          echo "ASC Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER}"
-          echo "ASC Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID}"
-          echo "ASC Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
+          echo "Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER} (expect ~10)"
+          echo "Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID} (expect 36)"
+          echo "Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
 
-      - name: Automatic code signing (App Store Connect API)
+      - name: Fetch signing files from App Store Connect (creates if needed)
         script: |
-          # Try modern flags first
-          if xcode-project use-profiles \
-              --api-key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-              --api-private-key "$APP_STORE_CONNECT_PRIVATE_KEY"; then
-            echo "Signing set with modern flags"
-          else
-            echo "Retrying with legacy flags…"
-            xcode-project use-profiles \
-              --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-              --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
-          fi
+          app-store-connect fetch-signing-files \
+            --type IOS_APP_STORE \
+            --bundle-id "$APP_IDENTIFIER" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --create
+
+      - name: Install certificates & profiles to keychain
+        script: |
+          keychain add-certificates
 
       - name: Build .ipa
         script: |
           xcode-project build-ipa \
             --workspace "ios/App/App.xcworkspace" \
-            --scheme "App" \
+            --scheme "$XCODE_SCHEME" \
             --archive-path "$CM_BUILD_DIR/App.xcarchive"
 
       - name: Publish to TestFlight
