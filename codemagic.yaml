@@ -5,31 +5,41 @@ workflows:
     max_build_duration: 60
 
     environment:
-      node: 18
+      node: 20            # <-- fix: your deps want Node >=20
       xcode: latest
       cocoapods: default
       vars:
-        # change to match your app
+        # ✅ change these 2 to match your app
         APP_IDENTIFIER: com.fireopscalc.app
         APP_NAME: FireOps Calc
 
-        # map to your Codemagic env vars (make sure these three exist)
-        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY   # Key ID (10 char)
+        # ✅ map to your Codemagic env vars (make sure they exist in Settings → Environment variables)
+        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY   # Key ID (10 chars)
         APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU      # Issuer ID (UUID)
-        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV    # .p8 contents
+        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV    # .p8 contents (BEGIN/END included)
 
     scripts:
       - name: Install dependencies and sync Capacitor
         script: |
-          npm ci
+          set -e
+          echo "🔧 Node version:" && node -v
+          echo "📦 Trying npm ci..."
+          if ! npm ci; then
+            echo "⚠️ npm ci failed, retrying with npm install --legacy-peer-deps"
+            npm install --legacy-peer-deps
+          fi
+          echo "🔗 npx cap sync ios"
           npx cap sync ios
 
       - name: Install CocoaPods (if present)
         script: |
           if [ -f "ios/App/Podfile" ]; then
+            echo "📦 pod install"
             cd ios/App
             pod install
             cd ../../
+          else
+            echo "ℹ️ No Podfile found, skipping pods"
           fi
 
       - name: Automatic code signing (App Store Connect API)
@@ -48,11 +58,13 @@ workflows:
 
       - name: Publish to TestFlight
         script: |
+          IPA_PATH="$(find . -type f -name '*.ipa' | head -n 1)"
+          echo "📤 Uploading $IPA_PATH to TestFlight"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --path "$(find . -type f -name '*.ipa' | head -n 1)" \
+            --path "$IPA_PATH" \
             --submit-to-testflight
 
     artifacts:
