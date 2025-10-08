@@ -1,71 +1,18 @@
-workflows:
-  ios-capacitor:
-    name: iOS Capacitor → TestFlight
-    instance_type: mac_mini_m2
-    max_build_duration: 60
-
     environment:
       node: 18
       xcode: latest
       cocoapods: default
       vars:
-        # 👇 change these to match your app
-        APP_IDENTIFIER: com.fireopscalc.app     # your bundle id
-        APP_NAME: FireOps Calc                  # display name for logs
+        APP_IDENTIFIER: com.fireopscalc.app
+        APP_NAME: FireOps Calc
 
-        # 👇 map to the variables you already created in Codemagic UI
-        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY
-        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU
-        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV
-
-    scripts:
-      - name: Install dependencies and sync Capacitor
-        script: |
-          echo "🏗 Installing Node dependencies"
-          npm ci
-          echo "🔗 Syncing Capacitor iOS project"
-          npx cap sync ios
-
-      - name: Install CocoaPods (if present)
-        script: |
-          if [ -f "ios/App/Podfile" ]; then
-            echo "📦 Installing pods"
-            cd ios/App
-            pod install
-            cd ../../
-          else
-            echo "ℹ️  No Podfile found, skipping pods"
-          fi
-
-      - name: Automatic code signing (App Store Connect API)
-        script: |
-          xcode-project use-profiles \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
-
-      - name: Build .ipa
-        script: |
-          xcode-project build-ipa \
-            --workspace "ios/App/App.xcworkspace" \
-            --scheme "App" \
-            --archive-path "$CM_BUILD_DIR/App.xcarchive"
-
-      - name: Publish to TestFlight
-        script: |
-          app-store-connect publish \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --path "$(find . -type f -name '*.ipa' | head -n 1)" \
-            --submit-to-testflight
-
-    artifacts:
-      - "**/*.ipa"
-      - "ios/App/build/**"
+        # Map env vars from Codemagic UI
+        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY   # <-- Key ID
+        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU      # <-- Issuer ID
+        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV    # <-- .p8 contents
 
     publishing:
       app_store_connect:
-        api_key_id: $APP_STORE_CONNECT_KEY
-        issuer_id: $APP_STORE_CONNECT_ISSU
-        private_key: $APP_STORE_CONNECT_PRIV
+        api_key_id: $APP_STORE_CONNECT_KEY        # Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSU        # Issuer ID
+        private_key: $APP_STORE_CONNECT_PRIV      # Private key
