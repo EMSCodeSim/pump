@@ -9,12 +9,12 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # contains:
-                                  # APP_STORE_CONNECT_KEY_IDENTIFIER
-                                  # APP_STORE_CONNECT_ISSUER_ID
-                                  # APP_STORE_CONNECT_PRIVATE_KEY
+        - app_store_credentials     # must contain:
+                                    # APP_STORE_CONNECT_KEY_IDENTIFIER
+                                    # APP_STORE_CONNECT_ISSUER_ID
+                                    # APP_STORE_CONNECT_PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- change if needed
+        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
         XCODE_SCHEME: App                     # <-- change if your scheme differs
 
     scripts:
@@ -57,7 +57,7 @@ workflows:
         script: |
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
-            --bundle-id "$APP_IDENTIFIER" \
+            --app-identifier "$APP_IDENTIFIER" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
