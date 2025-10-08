@@ -9,13 +9,10 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # must contain:
-                                  # APP_STORE_CONNECT_KEY_IDENTIFIER (Key ID)
-                                  # APP_STORE_CONNECT_ISSUER_ID     (Issuer ID)
-                                  # APP_STORE_CONNECT_PRIVATE_KEY   (.p8 contents)
+        - app_store_credentials   # contains: APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- set to your bundle id
-        XCODE_SCHEME: App                     # <-- change if your scheme differs
+        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
+        XCODE_SCHEME: App                     # <-- change if scheme differs
 
     scripts:
       - name: Install deps
@@ -49,27 +46,13 @@ workflows:
 
       - name: Fetch signing files from App Store Connect (auto-create if missing)
         script: |
-          set -e
-          # Try all known flag variants for older/newer CLI versions
-          for FLAG in identifier app-id bundle-id app-identifier; do
-            echo "Trying fetch-signing-files with --$FLAG '$APP_IDENTIFIER' + --create"
-            if app-store-connect fetch-signing-files \
-                --type IOS_APP_STORE \
-                --$FLAG "$APP_IDENTIFIER" \
-                --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-                --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-                --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-                --create; then
-              echo "✅ fetch-signing-files succeeded with --$FLAG"
-              FOUND=1
-              break
-            fi
-          done
-          if [ -z "${FOUND:-}" ]; then
-            echo "❌ Could not fetch signing files with any flag variant."
-            app-store-connect fetch-signing-files -h || true
-            exit 2
-          fi
+          # Syntax per your runner's help: positional BUNDLE_ID, plus global auth flags
+          app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
+            --type IOS_APP_STORE \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --create --verbose
 
       - name: List fetched certs & profiles (debug)
         script: |
