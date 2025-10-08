@@ -8,6 +8,9 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
+      # 👇 Load your group so the vars exist in the build environment
+      groups:
+        - app_store_credentials
 
     scripts:
       - name: Install deps
@@ -39,22 +42,22 @@ workflows:
           fi
           npx cap sync ios
 
-      - name: Automatic code signing (App Store Connect API)
+      - name: Debug ASC env
         script: |
-          # Sanity-check that env vars are present
           echo "ASC Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER}"
           echo "ASC Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID}"
           echo "ASC Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
 
-          # Try modern flags first (most runners):
+      - name: Automatic code signing (App Store Connect API)
+        script: |
+          # Try modern flags first
           if xcode-project use-profiles \
               --api-key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
               --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
               --api-private-key "$APP_STORE_CONNECT_PRIVATE_KEY"; then
-            echo "Signing set with --api-key-id / --api-private-key"
+            echo "Signing set with modern flags"
           else
-            echo "Retrying with legacy flag names…"
-            # Fallback for older codemagic-cli-tools:
+            echo "Retrying with legacy flags…"
             xcode-project use-profiles \
               --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
               --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
