@@ -9,7 +9,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
-        # 👇 change these two to match your app
+        # 👇 change these to match your app
         APP_IDENTIFIER: com.fireopscalc.app     # your bundle id
         APP_NAME: FireOps Calc                  # display name for logs
 
@@ -19,17 +19,17 @@ workflows:
         APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV
 
     scripts:
-      - name: Install deps & sync Capacitor
+      - name: Install dependencies and sync Capacitor
         script: |
-          echo "🏗  Installing Node deps"
+          echo "🏗 Installing Node dependencies"
           npm ci
-          echo "🔗 Syncing Capacitor iOS"
+          echo "🔗 Syncing Capacitor iOS project"
           npx cap sync ios
 
       - name: Install CocoaPods (if present)
         script: |
           if [ -f "ios/App/Podfile" ]; then
-            echo "📦 Running pod install"
+            echo "📦 Installing pods"
             cd ios/App
             pod install
             cd ../../
@@ -61,12 +61,11 @@ workflows:
             --submit-to-testflight
 
     artifacts:
-      - **/*.ipa
-      - ios/App/build/**
+      - "**/*.ipa"
+      - "ios/App/build/**"
 
     publishing:
       app_store_connect:
-        # These are used for the Publishing UI as well (mirrors the vars above)
         api_key: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         private_key: $APP_STORE_CONNECT_PRIVATE_KEY
