@@ -20,7 +20,6 @@ workflows:
 
       - name: Build web to dist/
         script: |
-          # Try project build; if none, ensure dist/index.html exists
           npm run build || true
           if [ ! -f "dist/index.html" ]; then
             mkdir -p dist
@@ -42,10 +41,25 @@ workflows:
 
       - name: Automatic code signing (App Store Connect API)
         script: |
-          xcode-project use-profiles \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
+          # Sanity-check that env vars are present
+          echo "ASC Key ID len: ${#APP_STORE_CONNECT_KEY_IDENTIFIER}"
+          echo "ASC Issuer ID len: ${#APP_STORE_CONNECT_ISSUER_ID}"
+          echo "ASC Private key starts with: ${APP_STORE_CONNECT_PRIVATE_KEY:0:27}"
+
+          # Try modern flags first (most runners):
+          if xcode-project use-profiles \
+              --api-key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+              --api-private-key "$APP_STORE_CONNECT_PRIVATE_KEY"; then
+            echo "Signing set with --api-key-id / --api-private-key"
+          else
+            echo "Retrying with legacy flag names…"
+            # Fallback for older codemagic-cli-tools:
+            xcode-project use-profiles \
+              --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+              --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
+          fi
 
       - name: Build .ipa
         script: |
