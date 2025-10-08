@@ -1,0 +1,67 @@
+workflows:
+  ios_capacitor:
+    name: iOS (Capacitor)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      groups:
+        - appstore_connect    # define secrets below in Codemagic UI
+      vars:
+        APP_ID: "com.fireops.calc"
+        SCHEME: "App"
+        WORKSPACE: "ios/App/App.xcworkspace"
+      xcode: latest
+      node: 20
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Install deps
+        script: |
+          npm ci
+
+      - name: Build web to dist/
+        script: |
+          npm run build
+
+      - name: Capacitor sync (installs pods in cloud)
+        script: |
+          npx cap sync ios
+
+      - name: Automatic code signing (App Store Connect API)
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$APP_ID" --type IOS_APP_STORE --create
+          xcode-project use-profiles
+
+      - name: Build archive
+        script: |
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
+            clean archive \
+            DEVELOPMENT_TEAM="$CM_DEVELOPER_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual
+
+      - name: Export .ipa
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
+            -exportOptionsPlist <(app-store-connect export-options plist --type ios) \
+            -exportPath $CM_BUILD_DIR/build
+
+    artifacts:
+      - build/*.ipa
+      - build/*.dSYM.zip
+      - $CM_EXPORT_DIR/**/*
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY     # .p8 contents
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER   # Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID     # Issuer ID
+        submit_to_testflight: true
