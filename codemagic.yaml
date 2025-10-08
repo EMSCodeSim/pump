@@ -1,67 +1,72 @@
 workflows:
-  ios_capacitor:
-    name: iOS (Capacitor)
+  ios-capacitor:
+    name: iOS Capacitor → TestFlight
+    instance_type: mac_mini_m2
     max_build_duration: 60
-    instance_type: mac_mini_m1
+
     environment:
-      groups:
-        - appstore_connect    # define secrets below in Codemagic UI
-      vars:
-        APP_ID: "com.fireops.calc"
-        SCHEME: "App"
-        WORKSPACE: "ios/App/App.xcworkspace"
+      node: 18
       xcode: latest
-      node: 20
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
+      cocoapods: default
+      vars:
+        # 👇 change these two to match your app
+        APP_IDENTIFIER: com.fireopscalc.app     # your bundle id
+        APP_NAME: FireOps Calc                  # display name for logs
+
+        # 👇 map to the variables you already created in Codemagic UI
+        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY
+        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU
+        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV
+
     scripts:
-      - name: Install deps
+      - name: Install deps & sync Capacitor
         script: |
+          echo "🏗  Installing Node deps"
           npm ci
-
-      - name: Build web to dist/
-        script: |
-          npm run build
-
-      - name: Capacitor sync (installs pods in cloud)
-        script: |
+          echo "🔗 Syncing Capacitor iOS"
           npx cap sync ios
+
+      - name: Install CocoaPods (if present)
+        script: |
+          if [ -f "ios/App/Podfile" ]; then
+            echo "📦 Running pod install"
+            cd ios/App
+            pod install
+            cd ../../
+          else
+            echo "ℹ️  No Podfile found, skipping pods"
+          fi
 
       - name: Automatic code signing (App Store Connect API)
         script: |
-          keychain initialize
-          app-store-connect fetch-signing-files "$APP_ID" --type IOS_APP_STORE --create
-          xcode-project use-profiles
+          xcode-project use-profiles \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
 
-      - name: Build archive
+      - name: Build .ipa
         script: |
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
-            clean archive \
-            DEVELOPMENT_TEAM="$CM_DEVELOPER_TEAM_ID" \
-            CODE_SIGN_STYLE=Manual
+          xcode-project build-ipa \
+            --workspace "ios/App/App.xcworkspace" \
+            --scheme "App" \
+            --archive-path "$CM_BUILD_DIR/App.xcarchive"
 
-      - name: Export .ipa
+      - name: Publish to TestFlight
         script: |
-          xcodebuild -exportArchive \
-            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
-            -exportOptionsPlist <(app-store-connect export-options plist --type ios) \
-            -exportPath $CM_BUILD_DIR/build
+          app-store-connect publish \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --path "$(find . -type f -name '*.ipa' | head -n 1)" \
+            --submit-to-testflight
 
     artifacts:
-      - build/*.ipa
-      - build/*.dSYM.zip
-      - $CM_EXPORT_DIR/**/*
+      - **/*.ipa
+      - ios/App/build/**
+
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY     # .p8 contents
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER   # Key ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID     # Issuer ID
-        submit_to_testflight: true
+        # These are used for the Publishing UI as well (mirrors the vars above)
+        api_key: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        private_key: $APP_STORE_CONNECT_PRIVATE_KEY
