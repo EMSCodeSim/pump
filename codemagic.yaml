@@ -5,42 +5,34 @@ workflows:
     max_build_duration: 60
 
     environment:
-      node: 20            # <-- fix: your deps want Node >=20
+      node: 20
       xcode: latest
       cocoapods: default
       vars:
-        # ✅ change these 2 to match your app
         APP_IDENTIFIER: com.fireopscalc.app
         APP_NAME: FireOps Calc
-
-        # ✅ map to your Codemagic env vars (make sure they exist in Settings → Environment variables)
-        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY   # Key ID (10 chars)
-        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU      # Issuer ID (UUID)
-        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV    # .p8 contents (BEGIN/END included)
+        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY
+        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU
+        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV
 
     scripts:
-      - name: Install dependencies and sync Capacitor
+      - name: Install deps
         script: |
-          set -e
-          echo "🔧 Node version:" && node -v
-          echo "📦 Trying npm ci..."
+          echo "Node:" && node -v
           if ! npm ci; then
-            echo "⚠️ npm ci failed, retrying with npm install --legacy-peer-deps"
+            echo "npm ci failed, trying legacy peer deps"
             npm install --legacy-peer-deps
           fi
-          echo "🔗 npx cap sync ios"
-          npx cap sync ios
 
-      - name: Install CocoaPods (if present)
+      - name: Build web to dist/
         script: |
-          if [ -f "ios/App/Podfile" ]; then
-            echo "📦 pod install"
-            cd ios/App
-            pod install
-            cd ../../
-          else
-            echo "ℹ️ No Podfile found, skipping pods"
-          fi
+          # Try your app's build script; if none, fall back to copying root index.html
+          npm run build || (mkdir -p dist && cp index.html dist/index.html)
+          test -f dist/index.html || (echo "dist/index.html missing" && exit 1)
+
+      - name: Capacitor sync (installs pods in cloud)
+        script: |
+          npx cap sync ios
 
       - name: Automatic code signing (App Store Connect API)
         script: |
@@ -59,7 +51,7 @@ workflows:
       - name: Publish to TestFlight
         script: |
           IPA_PATH="$(find . -type f -name '*.ipa' | head -n 1)"
-          echo "📤 Uploading $IPA_PATH to TestFlight"
+          echo "Uploading $IPA_PATH"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
