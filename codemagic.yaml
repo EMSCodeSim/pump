@@ -8,30 +8,36 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
-      vars:
-        APP_IDENTIFIER: com.fireopscalc.app
-        APP_NAME: FireOps Calc
-        APP_STORE_CONNECT_KEY_IDENTIFIER: $APP_STORE_CONNECT_KEY
-        APP_STORE_CONNECT_ISSUER_ID: $APP_STORE_CONNECT_ISSU
-        APP_STORE_CONNECT_PRIVATE_KEY: $APP_STORE_CONNECT_PRIV
 
     scripts:
       - name: Install deps
         script: |
           echo "Node:" && node -v
           if ! npm ci; then
-            echo "npm ci failed, trying legacy peer deps"
+            echo "npm ci failed, retry with legacy peer deps"
             npm install --legacy-peer-deps
           fi
 
       - name: Build web to dist/
         script: |
-          # Try your app's build script; if none, fall back to copying root index.html
-          npm run build || (mkdir -p dist && cp index.html dist/index.html)
-          test -f dist/index.html || (echo "dist/index.html missing" && exit 1)
+          # Try project build; if none, ensure dist/index.html exists
+          npm run build || true
+          if [ ! -f "dist/index.html" ]; then
+            mkdir -p dist
+            if [ -f "index.html" ]; then
+              cp index.html dist/index.html
+            else
+              echo "dist/index.html missing and no root index.html to copy."
+              exit 1
+            fi
+          fi
 
-      - name: Capacitor sync (installs pods in cloud)
+      - name: Ensure iOS platform exists & sync Capacitor
         script: |
+          if [ ! -d "ios" ]; then
+            echo "iOS platform missing → adding…"
+            npx cap add ios
+          fi
           npx cap sync ios
 
       - name: Automatic code signing (App Store Connect API)
@@ -51,7 +57,10 @@ workflows:
       - name: Publish to TestFlight
         script: |
           IPA_PATH="$(find . -type f -name '*.ipa' | head -n 1)"
-          echo "Uploading $IPA_PATH"
+          if [ -z "$IPA_PATH" ]; then
+            echo "No .ipa found to upload"; exit 1
+          fi
+          echo "Uploading $IPA_PATH to TestFlight…"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
