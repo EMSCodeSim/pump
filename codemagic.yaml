@@ -11,8 +11,9 @@ workflows:
       groups:
         - app_store_credentials   # contains: APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- set to your bundle id
+        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
         XCODE_SCHEME: App                     # <-- change if your scheme differs
+        TEAM_ID: ""                           # <-- optionally set your Apple Team ID (e.g., 1A2BC3D4E5), or leave empty
 
     scripts:
       - name: Install deps
@@ -46,17 +47,12 @@ workflows:
 
       - name: Generate certificate private key (for creating new Distribution cert)
         script: |
-          # Create a fresh RSA private key for the Distribution cert (PKCS#1, 2048-bit)
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
-          # Hide path for logs
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
-          echo "Created local certificate private key."
 
       - name: Fetch signing files from App Store Connect (auto-create using our key)
         script: |
-          # Your runner expects: positional BUNDLE_ID + global auth flags.
-          # We also provide the certificate private key via @file: and save the p12 with no password.
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
@@ -78,11 +74,31 @@ workflows:
           keychain initialize
           keychain add-certificates
 
+      - name: Create ExportOptions.plist (automatic signing, app-store)
+        script: |
+          PLIST_PATH="$CM_BUILD_DIR/export_options.plist"
+          {
+            echo '<?xml version="1.0" encoding="UTF-8"?>'
+            echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+            echo '<plist version="1.0"><dict>'
+            echo '  <key>method</key><string>app-store</string>'
+            echo '  <key>signingStyle</key><string>automatic</string>'
+            if [ -n "$TEAM_ID" ]; then
+              echo '  <key>teamID</key><string>'"$TEAM_ID"'</string>'
+            fi
+            echo '  <key>stripSwiftSymbols</key><true/>'
+            echo '  <key>uploadSymbols</key><true/>'
+            echo '  <key>manageAppVersionAndBuildNumber</key><false/>'
+            echo '</dict></plist>'
+          } > "$PLIST_PATH"
+          echo "ExportOptions at: $PLIST_PATH"
+
       - name: Build .ipa
         script: |
           xcode-project build-ipa \
             --workspace "ios/App/App.xcworkspace" \
-            --scheme "$XCODE_SCHEME"
+            --scheme "$XCODE_SCHEME" \
+            --export-options-plist "$CM_BUILD_DIR/export_options.plist"
 
       - name: Publish to TestFlight
         script: |
