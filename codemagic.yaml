@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor Build — Sign App Only"
+    name: "iOS Capacitor — Final Fix (Attach Provisioning Profile)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -45,7 +45,7 @@ workflows:
 
       - name: Generate signing key
         script: |
-          echo "🔑 Generating temporary signing key..."
+          echo "🔑 Generating signing key..."
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
@@ -69,13 +69,21 @@ workflows:
           keychain initialize
           keychain add-certificates
 
-      - name: Extract TEAM_ID
+      - name: Detect TEAM_ID and provisioning profile
         script: |
+          echo "🔍 Detecting provisioning profile..."
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found!"
+            exit 1
+          fi
+          echo "PROFILE_PATH=$PROFILE_PATH" >> $CM_ENV
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$CM_BUILD_DIR/profile.plist")"
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
-          echo "✅ Using TEAM_ID: $TEAM_ID"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
+          echo "✅ Found provisioning profile: $PROFILE_NAME"
 
       - name: Patch Pods signing
         script: |
@@ -116,9 +124,9 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (sign App only; disable Pods signing)
+      - name: Archive (App only; attach provisioning profile)
         script: |
-          echo "🏗 Archiving (App only; Pods signing disabled)..."
+          echo "🏗 Archiving with attached provisioning profile..."
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
           xcodebuild \
@@ -133,6 +141,8 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            PROVISIONING_PROFILE="$PROFILE_PATH" \
             Pods-App.CODE_SIGNING_ALLOWED=NO \
             Capacitor.CODE_SIGNING_ALLOWED=NO \
             CapacitorCordova.CODE_SIGNING_ALLOWED=NO \
