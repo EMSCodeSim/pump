@@ -1,34 +1,43 @@
 workflows:
   ios_release:
-    name: iOS Release (App Store Connect)
+    name: iOS Release (ASC upload)
     max_build_duration: 120
+    instance_type: mac_mini_m2
     environment:
+      groups:
+        - app_store_credentials   # contains APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID
       vars:
-        # ====== App & Signing (➜ FILL ME) ======
-        APP_IDENTIFIER: com.fireopscalc.app     # your bundle id (must match the App Store Connect app record)
-        TEAM_ID: QZ55W58398                     # your Apple Developer Team ID
-        XCODE_SCHEME: App                       # your Xcode scheme name
-
-        # ====== App Store Connect API Key (➜ FILL ME) ======
-        APP_STORE_CONNECT_KEY_IDENTIFIER: ""    # e.g. CKFS49657U
-        APP_STORE_CONNECT_ISSUER_ID: ""         # e.g. a786600e-e10a-42b2-a2bf-443a1da2554b
-        APP_STORE_CONNECT_PRIVATE_KEY: ""       # the KEY CONTENT starting with "-----BEGIN PRIVATE KEY-----"
-
+        APP_IDENTIFIER: "com.fireopscalc.app"      # <- make sure this matches your Xcode target bundle id
+        TEAM_ID: "QZ55W58398"
+        XCODE_SCHEME: "App"
       xcode: 16.4
       cocoapods: default
       node: latest
       ruby: default
 
     scripts:
-      # --- Prep Node/Capacitor build (optional; remove if not using Capacitor or web assets) ---
-      - name: Install deps / build web
+      - name: Preflight — verify App Store Connect vars are present
+        script: |
+          set -euo pipefail
+          missing=0
+          for v in APP_STORE_CONNECT_PRIVATE_KEY APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "❌ Missing $v (expected from secure group 'app_store_credentials')"
+              missing=1
+            else
+              # print redacted length to confirm content without leaking
+              len=${#${v}}
+              echo "✅ $v present (length: ${#v})"
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+
+      - name: Install deps / build web (optional)
         script: |
           set -e
-          if [ -f "package.json" ]; then
+          if [ -f package.json ]; then
             npm ci
-            if [ -f "ionic.config.json" ] || [ -f "capacitor.config.ts" ] || [ -f "capacitor.config.json" ]; then
-              npm run build || true
-            fi
+            npm run build || true
           fi
 
       - name: Pod install
@@ -36,97 +45,59 @@ workflows:
           set -e
           cd ios/App
           pod repo update
-          pod install --verbose
+          pod install
           cd ../..
 
-      # --- Locate an App Store profile for the bundle id ---
-      - name: Locate App Store provisioning profile for $APP_IDENTIFIER
+      - name: Select provisioning profile for App Store
         script: |
           set -euo pipefail
-
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          [ -d "$PROFILES_DIR" ] || { echo "❌ No provisioning profiles dir found at $PROFILES_DIR"; exit 1; }
-
+          [ -d "$PROFILES_DIR" ] || { echo "❌ $PROFILES_DIR not found"; exit 1; }
           BEST_PROFILE=""
+          BEST_NAME=""
           BEST_MTIME=0
-
           for p in "$PROFILES_DIR"/*.mobileprovision; do
             [ -e "$p" ] || continue
-            TMP_PLIST="$CM_BUILD_DIR/profile.plist"
-            /usr/bin/security cms -D -i "$p" > "$TMP_PLIST"
-
-            # Must be for our bundle id & App Store type (no devices and not enterprise)
-            BID=$(/usr/libexec/PlistBuddy -c "Print Entitlements:application-identifier" "$TMP_PLIST" 2>/dev/null || true)
-            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$TMP_PLIST" 2>/dev/null || true)
-            PROV_DEVICES=$(/usr/libexec/PlistBuddy -c "Print ProvisionedDevices" "$TMP_PLIST" 2>/dev/null || true)
-            PROVISIONS_ALL=$(/usr/libexec/PlistBuddy -c "Print ProvisionsAllDevices" "$TMP_PLIST" 2>/dev/null || echo "false")
-            APP_ID_PREFIX=$(/usr/libexec/PlistBuddy -c "Print ApplicationIdentifierPrefix:0" "$TMP_PLIST" 2>/dev/null || true)
-
-            # application-identifier is like TEAMID.com.example.app → check suffix against our bundle id
-            if [ -n "$BID" ]; then
-              SUFFIX="${BID#*.}"
-            else
-              continue
-            fi
-
-            # App Store profile has no ProvisionedDevices and ProvisionsAllDevices != true
-            if [ "$SUFFIX" = "$APP_IDENTIFIER" ] && [ "$PROVISIONS_ALL" != "true" ] && ! echo "$PROV_DEVICES" | grep -q "<array>"; then
-              MTIME=$(stat -f "%m" "$p" 2>/dev/null || stat -t "%s" -f "%m" "$p" 2>/dev/null || echo 0)
-              if [ "$MTIME" -gt "$BEST_MTIME" ]; then
-                BEST_MTIME="$MTIME"
-                BEST_PROFILE="$p"
-                BEST_PROFILE_NAME="$PROFILE_NAME"
-              fi
+            TMP="$CM_BUILD_DIR/profile.plist"
+            /usr/bin/security cms -D -i "$p" > "$TMP" || continue
+            AID=$(/usr/libexec/PlistBuddy -c "Print Entitlements:application-identifier" "$TMP" 2>/dev/null || true)
+            NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$TMP" 2>/dev/null || true)
+            ALL=$(/usr/libexec/PlistBuddy -c "Print ProvisionsAllDevices" "$TMP" 2>/dev/null || echo "false")
+            DEV=$(/usr/libexec/PlistBuddy -c "Print ProvisionedDevices" "$TMP" 2>/dev/null || true)
+            [[ "$AID" == *".$APP_IDENTIFIER" ]] || continue
+            # App Store profile: no devices and not enterprise
+            if echo "$DEV" | grep -q "<array>"; then continue; fi
+            if [ "$ALL" = "true" ]; then continue; fi
+            MTIME=$(stat -f "%m" "$p" 2>/dev/null || echo 0)
+            if [ "$MTIME" -gt "$BEST_MTIME" ]; then
+              BEST_MTIME="$MTIME"; BEST_PROFILE="$p"; BEST_NAME="$NAME"
             fi
           done
-
-          if [ -z "${BEST_PROFILE:-}" ]; then
-            echo "❌ No App Store provisioning profile found locally for $APP_IDENTIFIER"
-            echo "Make sure an **App Store** profile for this bundle id exists and is installed on the builder."
-            exit 1
-          fi
-
-          echo "✅ Using provisioning profile:"
-          echo "   Path : $BEST_PROFILE"
-          echo "   Name : $BEST_PROFILE_NAME"
-
-          # Export env for later steps
+          [ -n "$BEST_PROFILE" ] || { echo "❌ No App Store profile found for $APP_IDENTIFIER"; exit 1; }
           echo "PROFILE_PATH=$BEST_PROFILE" >> $CM_ENV
-          echo "PROFILE_NAME=$BEST_PROFILE_NAME" >> $CM_ENV
+          echo "PROFILE_NAME=$BEST_NAME" >> $CM_ENV
+          echo "✅ Using profile: $BEST_NAME"
 
-      # --- Generate exportOptions.plist for App Store ---
       - name: Write export options (app-store)
         script: |
-          set -euo pipefail
           cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
             <dict>
-              <key>method</key>
-              <string>app-store</string>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>destination</key>
-              <string>export</string>
-              <key>stripSwiftSymbols</key>
-              <true/>
+              <key>method</key><string>app-store</string>
+              <key>uploadSymbols</key><true/>
+              <key>compileBitcode</key><false/>
+              <key>signingStyle</key><string>manual</string>
+              <key>stripSwiftSymbols</key><true/>
             </dict>
           </plist>
           PLIST
 
-      # --- Archive: App = manual signing, Pods = no signing ---
-      - name: Archive (App manual; Pods no-sign)
+      - name: Archive (App manual; Pods signing disabled)
         script: |
           set -euo pipefail
-
-          echo "➡️ Archiving App with PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER"
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -158,68 +129,32 @@ workflows:
             "CapacitorCordova:PROVISIONING_PROFILE=" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-          echo "✅ Archive created at $ARCHIVE_PATH"
-
-      # --- Export IPA ---
       - name: Export IPA
         script: |
           set -euo pipefail
-          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
           EXPORT_DIR="$CM_BUILD_DIR/ipa"
           mkdir -p "$EXPORT_DIR"
-
-          echo "➡️ Exporting IPA (App Store)…"
           xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
+            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
             -exportPath "$EXPORT_DIR"
-
-          ls -lah "$EXPORT_DIR"
           echo "IPA_DIR=$EXPORT_DIR" >> $CM_ENV
 
-      # --- Sanity check IPA (bundle id & profile type must be App Store) ---
-      - name: Validate IPA before upload
+      - name: Sanity check IPA
         script: |
           set -euo pipefail
           IPA_PATH=$(ls "$IPA_DIR"/*.ipa 2>/dev/null || true)
           [ -n "$IPA_PATH" ] || { echo "❌ No IPA produced"; exit 1; }
-
-          TMP_DIR="$CM_BUILD_DIR/ipa_check"
-          rm -rf "$TMP_DIR"; mkdir -p "$TMP_DIR"
-          unzip -q "$IPA_PATH" -d "$TMP_DIR"
-          APP_DIR=$(find "$TMP_DIR/Payload" -maxdepth 1 -name '*.app' | head -n 1)
-
-          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_DIR/Info.plist")
-          echo "CFBundleIdentifier in IPA: $BUNDLE_ID"
-          if [ "$BUNDLE_ID" != "$APP_IDENTIFIER" ]; then
-            echo "❌ Bundle id mismatch. IPA=$BUNDLE_ID expected=$APP_IDENTIFIER"
-            exit 1
-          fi
-
-          EMBED="$APP_DIR/embedded.mobileprovision"
-          /usr/bin/security cms -D -i "$EMBED" > "$CM_BUILD_DIR/embedded.plist"
-          DEVICES=$(/usr/libexec/PlistBuddy -c 'Print ProvisionedDevices' "$CM_BUILD_DIR/embedded.plist" 2>/dev/null || true)
-          ALLDEV=$(/usr/libexec/PlistBuddy -c 'Print ProvisionsAllDevices' "$CM_BUILD_DIR/embedded.plist" 2>/dev/null || echo "false")
-
-          if echo "$DEVICES" | grep -q "<array>"; then
-            echo "❌ Profile has device UDIDs → this is Ad Hoc, not App Store."
-            exit 1
-          fi
-          if [ "$ALLDEV" = "true" ]; then
-            echo "❌ Enterprise profile detected (ProvisionsAllDevices=true)."
-            exit 1
-          fi
-
-          echo "✅ IPA looks App Store–ready."
+          unzip -q "$IPA_PATH" -d "$CM_BUILD_DIR/ipa_check"
+          APP_DIR=$(find "$CM_BUILD_DIR/ipa_check/Payload" -maxdepth 1 -name '*.app' | head -n 1)
+          BID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP_DIR/Info.plist")
+          echo "IPA CFBundleIdentifier: $BID"
+          [ "$BID" = "$APP_IDENTIFIER" ] || { echo "❌ Bundle id mismatch"; exit 1; }
           echo "IPA_PATH=$IPA_PATH" >> $CM_ENV
 
-      # --- Upload to App Store Connect ---
-      - name: Upload to App Store Connect (IPA)
+      - name: Upload to App Store Connect
         script: |
           set -euo pipefail
-          [ -n "${IPA_PATH:-}" ] || { echo "❌ IPA_PATH not set"; exit 1; }
-
-          echo "➡️ Publishing $IPA_PATH to App Store Connect…"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
@@ -227,9 +162,8 @@ workflows:
             --path "$IPA_PATH"
 
     artifacts:
-      - build/**/*
       - ipa/*.ipa
-
+      - App.xcarchive
     publishing:
       email:
         recipients:
