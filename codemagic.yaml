@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor — Final Fixed Signing"
+    name: "iOS Capacitor — Final Clean Signing"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -124,9 +124,16 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (App only; completely clear Pods signing)
+      - name: Archive (App only; unset global signing first)
         script: |
-          echo "🏗 Archiving (App only; fully remove Pods signing)..."
+          echo "🏗 Archiving (App only; unsetting global signing)..."
+          # Completely remove signing vars inherited by Pods
+          unset CODE_SIGN_IDENTITY
+          unset PROVISIONING_PROFILE_SPECIFIER
+          unset PROVISIONING_PROFILE
+          unset DEVELOPMENT_TEAM
+          unset CODE_SIGN_STYLE
+
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
           xcodebuild \
