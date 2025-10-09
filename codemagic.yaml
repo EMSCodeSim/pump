@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor → TestFlight (auto-create signing + pods + verbose archive)
+    name: iOS Capacitor → TestFlight (auto-create signing)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,7 +9,10 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
+        - app_store_credentials   # must contain:
+                                  # APP_STORE_CONNECT_KEY_IDENTIFIER
+                                  # APP_STORE_CONNECT_ISSUER_ID
+                                  # APP_STORE_CONNECT_PRIVATE_KEY
       vars:
         APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
         XCODE_SCHEME: App                     # <-- change if your scheme differs
@@ -51,9 +54,11 @@ workflows:
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
+          echo "Created CI certificate private key."
 
       - name: Fetch signing files from App Store Connect (auto-create)
         script: |
+          # Your runner expects positional bundle id + global auth flags.
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -70,6 +75,24 @@ workflows:
         script: |
           keychain initialize
           keychain add-certificates
+
+      - name: Extract TEAM_ID & PROFILE_NAME from provisioning profile
+        script: |
+          PROFILE_PATH="$(/usr/bin/find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found"; exit 1
+          fi
+          echo "Using profile: $PROFILE_PATH"
+          /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
+          TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$CM_BUILD_DIR/profile.plist")"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "❌ Failed to parse TeamIdentifier/Name from profile"; exit 1
+          fi
+          echo "✅ TEAM_ID: $TEAM_ID"
+          echo "✅ PROFILE_NAME: $PROFILE_NAME"
+          echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
 
       - name: (Debug) Show schemes & key build settings
         script: |
@@ -108,11 +131,11 @@ workflows:
             -configuration Release \
             clean
 
-      - name: Archive (force iOS destination, verbose — no xcpretty)
+      - name: Archive (explicit signing + correct destination)
         script: |
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗 Archiving with destination 'generic/platform=iOS' (verbose output)…"
+          echo "🏗 Archiving with destination 'generic/platform=iOS'…"
           xcodebuild \
             -workspace "ios/App/App.xcworkspace" \
             -scheme "$XCODE_SCHEME" \
@@ -121,7 +144,10 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
             archive \
-            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA (verbose)
