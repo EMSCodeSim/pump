@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor — FINAL ISOLATED SIGNING"
+    name: "iOS Capacitor — FIXED XCODEBUILD TARGET ISOLATION"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -17,25 +17,21 @@ workflows:
     scripts:
       - name: Install dependencies
         script: |
-          echo "📦 Installing npm packages..."
           npm ci || npm install --legacy-peer-deps
 
       - name: Build web assets
         script: |
-          echo "🏗 Building web assets..."
           npm run build || true
           mkdir -p dist
           cp index.html dist/index.html || true
 
       - name: Sync Capacitor
         script: |
-          echo "🔄 Syncing Capacitor iOS..."
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
       - name: Install CocoaPods
         script: |
-          echo "📚 Installing CocoaPods..."
           cd ios/App
           pod repo update
           pod install
@@ -50,7 +46,7 @@ workflows:
 
       - name: Fetch signing files
         script: |
-          echo "📥 Fetching signing files from App Store Connect..."
+          echo "📥 Fetching signing files..."
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -63,13 +59,11 @@ workflows:
 
       - name: Initialize keychain
         script: |
-          echo "🔐 Initializing keychain..."
           keychain initialize
           keychain add-certificates
 
       - name: Detect TEAM_ID and provisioning profile
         script: |
-          echo "🔍 Detecting provisioning profile..."
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
@@ -77,33 +71,39 @@ workflows:
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
           echo "PROFILE_PATH=$PROFILE_PATH" >> $CM_ENV
-          echo "✅ Found provisioning profile: $PROFILE_NAME"
+
+      - name: Create isolated signing config
+        script: |
+          echo "🧩 Creating temporary xcconfig..."
+          SIGNING_CONFIG="$CM_BUILD_DIR/signing.xcconfig"
+          cat <<EOF > "$SIGNING_CONFIG"
+          DEVELOPMENT_TEAM = $TEAM_ID
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_STYLE = Manual
+          PROVISIONING_PROFILE_SPECIFIER = $PROFILE_NAME
+          PRODUCT_BUNDLE_IDENTIFIER = $APP_IDENTIFIER
+
+          Pods-App.CODE_SIGNING_ALLOWED = NO
+          Pods-App.CODE_SIGN_STYLE = Automatic
+          Capacitor.CODE_SIGNING_ALLOWED = NO
+          Capacitor.CODE_SIGN_STYLE = Automatic
+          CapacitorCordova.CODE_SIGNING_ALLOWED = NO
+          CapacitorCordova.CODE_SIGN_STYLE = Automatic
+          EOF
+          echo "Created $SIGNING_CONFIG"
 
       - name: Clean
         script: |
-          echo "🧹 Cleaning project..."
           xcodebuild clean \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (isolated environment)
+      - name: Archive
         script: |
-          echo "🏗 Archiving in isolated environment..."
+          echo "🏗 Archiving App only..."
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
 
-          # Isolate environment: remove all inherited signing vars
-          env -i \
-            PATH="$PATH" \
-            HOME="$HOME" \
-            LANG=en_US.UTF-8 \
-            TERM=xterm-256color \
-            XCODE_SCHEME="$XCODE_SCHEME" \
-            TEAM_ID="$TEAM_ID" \
-            APP_IDENTIFIER="$APP_IDENTIFIER" \
-            PROFILE_NAME="$PROFILE_NAME" \
-            PROFILE_PATH="$PROFILE_PATH" \
-            CM_BUILD_DIR="$CM_BUILD_DIR" \
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -111,41 +111,20 @@ workflows:
             -destination generic/platform=iOS \
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
-            archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PROVISIONING_PROFILE="$PROFILE_PATH" \
-            Pods-App.CODE_SIGN_STYLE=Automatic \
-            Pods-App.CODE_SIGN_IDENTITY="" \
-            Pods-App.PROVISIONING_PROFILE_SPECIFIER="" \
-            Pods-App.PROVISIONING_PROFILE="" \
-            Capacitor.CODE_SIGN_STYLE=Automatic \
-            Capacitor.CODE_SIGN_IDENTITY="" \
-            Capacitor.PROVISIONING_PROFILE_SPECIFIER="" \
-            Capacitor.PROVISIONING_PROFILE="" \
-            CapacitorCordova.CODE_SIGN_STYLE=Automatic \
-            CapacitorCordova.CODE_SIGN_IDENTITY="" \
-            CapacitorCordova.PROVISIONING_PROFILE_SPECIFIER="" \
-            CapacitorCordova.PROVISIONING_PROFILE="" \
-            COMPILER_INDEX_STORE_ENABLE=NO
+            -xcconfig "$CM_BUILD_DIR/signing.xcconfig" \
+            archive COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA
         script: |
-          echo "📦 Exporting IPA..."
           mkdir -p "$CM_BUILD_DIR/ipa"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
             -exportPath "$CM_BUILD_DIR/ipa"
-          ls -la "$CM_BUILD_DIR/ipa"
 
       - name: Upload to TestFlight
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
-          echo "🚀 Uploading $IPA_PATH to TestFlight..."
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
