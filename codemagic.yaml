@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor → TestFlight (auto-create signing)
+    name: iOS Capacitor → TestFlight (auto-create signing, fixed Pods signing)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -109,7 +109,7 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release | egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE|SUPPORTED_PLATFORMS|SDKROOT" || true
 
-      - name: Create ExportOptions.plist (app-store, automatic)
+      - name: Create ExportOptions.plist (app-store, manual)
         script: |
           PLIST_PATH="$CM_BUILD_DIR/export_options.plist"
           cat > "$PLIST_PATH" <<'PLIST'
@@ -136,7 +136,7 @@ workflows:
             -configuration Release \
             clean
 
-      - name: Archive (explicit signing + correct destination)
+      - name: Archive (fix: Pods sign automatically)
         script: |
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
@@ -154,6 +154,13 @@ workflows:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            OTHER_CODE_SIGN_FLAGS="--deep" \
+            "CODE_SIGNING_ALLOWED=YES" \
+            "CODE_SIGNING_REQUIRED=YES" \
+            "TARGETED_DEVICE_FAMILY=1,2" \
+            "Pods-App.CODE_SIGN_STYLE=Automatic" \
+            "Capacitor.CODE_SIGN_STYLE=Automatic" \
+            "CapacitorCordova.CODE_SIGN_STYLE=Automatic" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA (verbose)
