@@ -112,7 +112,7 @@ workflows:
           : "${PROFILE_NAME:?Missing PROFILE_NAME}"
           : "${PROFILE_PATH:?Missing PROFILE_PATH}"
 
-          echo "Archiving with App-only signing…"
+          echo "Archiving with App-only signing..."
 
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
@@ -160,17 +160,20 @@ workflows:
             -exportPath "$CM_BUILD_DIR/ipa"
           ls -la "$CM_BUILD_DIR/ipa"
 
-      - name: "Upload to TestFlight"
+      - name: "Upload to App Store Connect"
         script: |
-          IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
-          echo "Uploading $IPA_PATH to App Store Connect..."
+          IPA_PATH=$(ls "$CM_BUILD_DIR/ipa"/*.ipa 2>/dev/null || true)
+          echo "Uploading IPA_PATH = [$IPA_PATH] to App Store Connect..."
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ No IPA file found to upload!"
+            exit 1
+          fi
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --path "$IPA_PATH"
-          # If needed, you can also specify the app explicitly:
-          #   --bundle-id "$APP_IDENTIFIER"
+          echo "✅ Upload complete!"
 
     artifacts:
       - "**/*.ipa"
