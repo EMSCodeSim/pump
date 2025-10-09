@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor → TestFlight (Auto-create signing)
+    name: iOS Capacitor → TestFlight (robust archive)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,10 +9,10 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials
+        - app_store_credentials        # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app
-        XCODE_SCHEME: App
+        APP_IDENTIFIER: com.fireopscalc.app    # <-- bundle id
+        XCODE_SCHEME: App                      # <-- change if your scheme differs
 
     scripts:
       - name: Install dependencies
@@ -32,21 +32,21 @@ workflows:
             fi
           fi
 
-      - name: Sync iOS platform
+      - name: Ensure iOS platform exists & sync
         script: |
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
-      - name: Generate private key for new certificate
+      - name: Generate private key for new Distribution cert
         script: |
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
-          echo "Generating new private key..."
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
+          echo "Created local certificate private key."
 
-      - name: Fetch signing files (auto-create new cert/profile)
+      - name: Fetch signing files (create if missing)
         script: |
-          echo "Fetching signing files from App Store Connect..."
+          set -e
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -55,16 +55,52 @@ workflows:
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --certificate-key "@file:$CERT_KEY_PATH" \
             --p12-password "" \
-            --create \
-            --delete-stale-profiles \
-            --verbose
+            --create --delete-stale-profiles --verbose
 
-      - name: Initialize keychain and install certs
+      - name: Initialize keychain & install certs/profiles
         script: |
           keychain initialize
           keychain add-certificates
 
-      - name: Create ExportOptions.plist
+      - name: List fetched certs & profiles (debug)
+        script: |
+          echo "Provisioning Profiles:"
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          echo "Certificates:"
+          ls -la "$HOME/Library/MobileDevice/Certificates" || true
+
+      - name: Extract TEAM_ID, PROFILE_UUID, PROFILE_NAME from profile
+        script: |
+          PROFILE_PATH="$(/usr/bin/find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found"; exit 1
+          fi
+          echo "Using profile: $PROFILE_PATH"
+          /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
+          TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
+          PROFILE_UUID="$(/Musr/bin/false 2>/dev/null || /usr/libexec/PlistBuddy -c 'Print UUID' "$CM_BUILD_DIR/profile.plist")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$CM_BUILD_DIR/profile.plist")"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_UUID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "❌ Failed to parse TeamIdentifier/UUID/Name from profile"; exit 1
+          fi
+          echo "✅ TEAM_ID: $TEAM_ID"
+          echo "✅ PROFILE_UUID: $PROFILE_UUID"
+          echo "✅ PROFILE_NAME: $PROFILE_NAME"
+          echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
+
+      - name: Show schemes & key build settings (debug)
+        script: |
+          set -o pipefail
+          xcodebuild -list -workspace "ios/App/App.xcworkspace" | tee "$CM_BUILD_DIR/schemes.txt"
+          echo "----- SHOW BUILD SETTINGS (Release) -----"
+          xcodebuild -showBuildSettings \
+            -workspace "ios/App/App.xcworkspace" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release | egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER|SUPPORTED_PLATFORMS|SDKROOT" || true
+
+      - name: Create ExportOptions.plist (app-store, automatic)
         script: |
           PLIST_PATH="$CM_BUILD_DIR/export_options.plist"
           cat <<EOF > "$PLIST_PATH"
@@ -74,6 +110,7 @@ workflows:
           <dict>
             <key>method</key><string>app-store</string>
             <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -81,10 +118,11 @@ workflows:
           </plist>
           EOF
 
-      - name: Archive (force iOS destination)
+      - name: Archive (explicit signing + iOS destination)
         script: |
+          set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗 Archiving..."
+          echo "🏗 Archiving with destination 'generic/platform=iOS' and explicit signing…"
           xcodebuild \
             -workspace "ios/App/App.xcworkspace" \
             -scheme "$XCODE_SCHEME" \
@@ -92,11 +130,15 @@ workflows:
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
             archive \
-            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             COMPILER_INDEX_STORE_ENABLE=NO | xcpretty && exit ${PIPESTATUS[0]}
 
       - name: Export IPA
         script: |
+          set -o pipefail
           IPA_OUT_DIR="$CM_BUILD_DIR/ipa"
           mkdir -p "$IPA_OUT_DIR"
           xcodebuild -exportArchive \
@@ -111,7 +153,7 @@ workflows:
           if [ -z "$IPA_PATH" ]; then
             echo "❌ No IPA found"; exit 1
           fi
-          echo "Uploading $IPA_PATH to TestFlight..."
+          echo "🚀 Uploading $IPA_PATH to TestFlight…"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
