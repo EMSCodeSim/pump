@@ -163,13 +163,14 @@ workflows:
       - name: "Upload to TestFlight"
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
-          echo "Uploading $IPA_PATH to TestFlight..."
+          echo "Uploading $IPA_PATH to App Store Connect..."
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --path "$IPA_PATH" \
-            --submit-to-testflight
+            --path "$IPA_PATH"
+          # If needed, you can also specify the app explicitly:
+          #   --bundle-id "$APP_IDENTIFIER"
 
     artifacts:
       - "**/*.ipa"
