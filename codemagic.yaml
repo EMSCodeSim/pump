@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor → TestFlight (auto-create signing, Pods auto-patch)"
+    name: "iOS Capacitor → TestFlight (auto-create signing, App manual / Pods auto)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,7 +9,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials
+        - app_store_credentials   # contains: APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         XCODE_SCHEME: App
@@ -28,13 +28,14 @@ workflows:
             cp index.html dist/index.html || echo "✅ dist created"
           fi
 
-      - name: "Ensure iOS platform exists"
+      - name: "Ensure iOS platform exists & sync"
         script: |
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
       - name: "Install CocoaPods"
         script: |
+          set -e
           cd ios/App
           pod repo update
           pod install
@@ -46,7 +47,7 @@ workflows:
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
 
-      - name: "Fetch signing files"
+      - name: "Fetch signing files (auto-create)"
         script: |
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
@@ -58,7 +59,7 @@ workflows:
             --p12-password "" \
             --create --delete-stale-profiles --verbose
 
-      - name: "Initialize keychain"
+      - name: "Initialize keychain & install certs/profiles"
         script: |
           keychain initialize
           keychain add-certificates
@@ -66,25 +67,32 @@ workflows:
       - name: "Extract TEAM_ID & PROFILE_NAME"
         script: |
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found"; exit 1
+          fi
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
           PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$CM_BUILD_DIR/profile.plist")"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_NAME" ]; then
+            echo "❌ Failed to parse TeamIdentifier/Name from profile"; exit 1
+          fi
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
+          echo "✅ TEAM_ID: $TEAM_ID"
+          echo "✅ PROFILE_NAME: $PROFILE_NAME"
 
-      - name: "Patch Pod targets to use Automatic signing"
+      - name: "Patch Pod targets to Automatic signing (safety)"
         script: |
-          echo "🩹 Patching Xcode project for automatic Pod signing..."
           PROJECT_FILE="ios/App/Pods/Pods.xcodeproj/project.pbxproj"
           if [ -f "$PROJECT_FILE" ]; then
             sed -i '' 's/CODE_SIGN_STYLE = Manual/CODE_SIGN_STYLE = Automatic/g' "$PROJECT_FILE"
             sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PROJECT_FILE"
-            echo "✅ Pods now set to automatic signing"
+            echo "✅ Pods set to Automatic signing"
           else
             echo "⚠️ Pods project not found at $PROJECT_FILE"
           fi
 
-      - name: "Create ExportOptions.plist"
+      - name: "Create ExportOptions.plist (app-store, manual)"
         script: |
           cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -100,10 +108,19 @@ workflows:
           </plist>
           PLIST
 
-      - name: "Archive (Pods auto)"
+      - name: "Clean (verbose)"
+        script: |
+          set -o pipefail
+          xcodebuild \
+            -workspace "ios/App/App.xcworkspace" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            clean
+
+      - name: "Archive (Pods Automatic, App Manual only)"
         script: |
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗 Archiving..."
+          echo "🏗 Archiving (App manual signing only; Pods automatic)…"
           set -o pipefail
           xcodebuild \
             -workspace "ios/App/App.xcworkspace" \
@@ -113,24 +130,35 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
             archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution" \
+            "DEVELOPMENT_TEAM[sdk=iphoneos*]=$TEAM_ID" \
+            "PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]=$APP_IDENTIFIER" \
+            "CODE_SIGN_STYLE[sdk=iphoneos*]=Manual" \
+            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]=$PROFILE_NAME" \
+            "Pods-App.CODE_SIGN_STYLE=Automatic" \
+            "Capacitor.CODE_SIGN_STYLE=Automatic" \
+            "CapacitorCordova.CODE_SIGN_STYLE=Automatic" \
+            "Pods-App.PROVISIONING_PROFILE_SPECIFIER=" \
+            "Capacitor.PROVISIONING_PROFILE_SPECIFIER=" \
+            "CapacitorCordova.PROVISIONING_PROFILE_SPECIFIER=" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: "Export IPA"
+      - name: "Export IPA (verbose)"
         script: |
+          set -o pipefail
           mkdir -p "$CM_BUILD_DIR/ipa"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
             -exportPath "$CM_BUILD_DIR/ipa"
+          ls -la "$CM_BUILD_DIR/ipa"
 
       - name: "Publish to TestFlight"
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ No IPA found to upload"; exit 1
+          fi
           echo "🚀 Uploading $IPA_PATH"
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
