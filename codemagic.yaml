@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor - Manual App signing, Pods no-sign"
+    name: "iOS Capacitor — App manual signing; Pods no-sign"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -15,38 +15,39 @@ workflows:
         XCODE_SCHEME: App
 
     scripts:
-      - name: "Install dependencies"
+      - name: Install dependencies
         script: |
           npm ci || npm install --legacy-peer-deps
 
-      - name: "Build web assets"
+      - name: Build web assets
         script: |
           npm run build || true
           mkdir -p dist
           cp index.html dist/index.html || true
 
-      - name: "Sync Capacitor project"
+      - name: Sync Capacitor iOS
         script: |
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
-      - name: "Install CocoaPods"
+      - name: Install CocoaPods
         script: |
+          set -e
           cd ios/App
           pod repo update
           pod install
           cd ../../
 
-      - name: "Generate certificate private key"
+      - name: Generate certificate private key (CSR key)
         script: |
-          echo "Generating CSR private key..."
+          set -e
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
 
-      - name: "Fetch signing files"
+      - name: Fetch signing files (App Store distribution)
         script: |
-          echo "Fetching signing files from App Store Connect..."
+          set -e
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -57,17 +58,18 @@ workflows:
             --p12-password "" \
             --create --delete-stale-profiles --verbose
 
-      - name: "Initialize keychain and add certs"
+      - name: Initialize keychain & install certs
         script: |
+          set -e
           keychain initialize
           keychain add-certificates
 
-      - name: "Detect Team ID and Provisioning Profile"
+      - name: Detect team and profile info
         script: |
-          echo "Detecting provisioning profile..."
+          set -e
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
           if [ -z "$PROFILE_PATH" ]; then
-            echo "No provisioning profile found!"
+            echo "No provisioning profile found under ~/Library/MobileDevice/Provisioning Profiles"
             exit 1
           fi
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
@@ -76,44 +78,27 @@ workflows:
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
           echo "PROFILE_PATH=$PROFILE_PATH" >> $CM_ENV
-          echo "Using team: $TEAM_ID"
-          echo "Using profile: $PROFILE_NAME"
+          echo "Detected Team: $TEAM_ID"
+          echo "Profile name:  $PROFILE_NAME"
+          echo "Profile path:  $PROFILE_PATH"
 
-      - name: "Create ExportOptions.plist"
-        script: |
-          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict>
-          </plist>
-          PLIST
-
-      - name: "Clean build"
+      - name: Clean build
         script: |
           xcodebuild clean \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: "Archive - App only signing, Pods no-sign (per-target overrides)"
+      - name: Archive (App manual; Pods no-sign)
         script: |
           set -euo pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-
           : "${APP_IDENTIFIER:?Missing APP_IDENTIFIER}"
           : "${TEAM_ID:?Missing TEAM_ID}"
           : "${PROFILE_NAME:?Missing PROFILE_NAME}"
           : "${PROFILE_PATH:?Missing PROFILE_PATH}"
 
-          echo "Archiving with App-only signing..."
-
+          echo "Archiving with App manual signing and Pods no-sign..."
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -150,22 +135,81 @@ workflows:
             "CapacitorCordova:PROVISIONING_PROFILE=" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: "Export IPA"
-        script: |
-          echo "Exporting IPA..."
-          mkdir -p "$CM_BUILD_DIR/ipa"
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$CM_BUILD_DIR/ipa"
-          ls -la "$CM_BUILD_DIR/ipa"
+          echo "Verifying archive contents..."
+          if [ ! -d "$ARCHIVE_PATH/Products/Applications" ]; then
+            echo "Archive missing Products/Applications directory:"
+            find "$ARCHIVE_PATH" -maxdepth 3 -type d -print
+            exit 1
+          fi
+          ls -la "$ARCHIVE_PATH/Products/Applications" || true
+          APP_BUNDLE="$(find "$ARCHIVE_PATH/Products/Applications" -name '*.app' -maxdepth 1 | head -n 1 || true)"
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "No .app found in archive. Listing entire archive for clues:"
+            find "$ARCHIVE_PATH" -maxdepth 4 -print
+            exit 1
+          fi
+          echo "Found app bundle: $APP_BUNDLE"
 
-      - name: "Upload to App Store Connect"
+      - name: Create ExportOptions.plist (distribution)
         script: |
+          set -e
+          : "${TEAM_ID:?Missing TEAM_ID}"
+          : "${APP_IDENTIFIER:?Missing APP_IDENTIFIER}"
+          : "${PROFILE_NAME:?Missing PROFILE_NAME}"
+
+          cat > "$CM_BUILD_DIR/export_options.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+            <dict>
+              <key>method</key><string>app-store</string>
+              <key>signingStyle</key><string>manual</string>
+              <key>teamID</key><string>${TEAM_ID}</string>
+              <key>signingCertificate</key><string>Apple Distribution</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                <key>${APP_IDENTIFIER}</key><string>${PROFILE_NAME}</string>
+              </dict>
+              <key>compileBitcode</key><false/>
+              <key>stripSwiftSymbols</key><true/>
+              <key>uploadSymbols</key><true/>
+              <key>manageAppVersionAndBuildNumber</key><false/>
+            </dict>
+          </plist>
+          PLIST
+
+          echo "ExportOptions.plist created:"
+          cat "$CM_BUILD_DIR/export_options.plist"
+
+      - name: Export IPA (with verbose log)
+        script: |
+          set -euo pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          EXPORT_DIR="$CM_BUILD_DIR/ipa"
+          LOG_PATH="$CM_BUILD_DIR/export.log"
+          mkdir -p "$EXPORT_DIR"
+
+          echo "Exporting IPA..."
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
+            -exportPath "$EXPORT_DIR" \
+            | tee "$LOG_PATH"
+
+          echo "Export log tail:"
+          tail -n 200 "$LOG_PATH" || true
+
+          echo "Listing export dir:"
+          ls -la "$EXPORT_DIR" || true
+
+      - name: Upload to App Store Connect (IPA)
+        script: |
+          set -e
           IPA_PATH=$(ls "$CM_BUILD_DIR/ipa"/*.ipa 2>/dev/null || true)
           echo "Uploading IPA_PATH = [$IPA_PATH] to App Store Connect..."
           if [ -z "$IPA_PATH" ]; then
-            echo "❌ No IPA file found to upload!"
+            echo "No IPA produced. Showing export log for diagnosis:"
+            [ -f "$CM_BUILD_DIR/export.log" ] && tail -n 400 "$CM_BUILD_DIR/export.log" || echo "export.log missing"
             exit 1
           fi
           app-store-connect publish \
@@ -173,7 +217,7 @@ workflows:
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --path "$IPA_PATH"
-          echo "✅ Upload complete!"
+          echo "Upload complete."
 
     artifacts:
       - "**/*.ipa"
