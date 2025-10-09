@@ -9,10 +9,10 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # contains: APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_PRIVATE_KEY
+        - app_store_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
       vars:
-        APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
-        XCODE_SCHEME: App                     # <-- change if your scheme differs
+        APP_IDENTIFIER: com.fireopscalc.app
+        XCODE_SCHEME: App
 
     scripts:
       - name: Install deps
@@ -59,7 +59,7 @@ workflows:
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --certificate-key "@file:$CERT_KEY_PATH" \
             --p12-password "" \
-            --create --verbose
+            --verbose
 
       - name: List fetched certs & profiles (debug)
         script: |
@@ -111,15 +111,18 @@ workflows:
       - name: Archive with xcodebuild (force Automatic signing)
         script: |
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          xcodebuild -workspace "ios/App/App.xcworkspace" \
-                     -scheme "$XCODE_SCHEME" \
-                     -configuration Release \
-                     -archivePath "$ARCHIVE_PATH" \
-                     archive \
-                     DEVELOPMENT_TEAM="$TEAM_ID" \
-                     CODE_SIGN_STYLE=Automatic \
-                     PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
-                     COMPILER_INDEX_STORE_ENABLE=NO | xcpretty && exit ${PIPESTATUS[0]}
+          echo "🏗  Archiving with destination 'generic/platform=iOS'..."
+          xcodebuild \
+            -workspace "ios/App/App.xcworkspace" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            archive \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+            COMPILER_INDEX_STORE_ENABLE=NO | xcpretty && exit ${PIPESTATUS[0]}
 
       - name: Export IPA
         script: |
