@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor — Manual App signing, Pods no-sign (final fixed)"
+    name: "iOS Capacitor — Manual App signing, Pods no-sign (Final)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -25,7 +25,7 @@ workflows:
           mkdir -p dist
           cp index.html dist/index.html || true
 
-      - name: Sync Capacitor
+      - name: Sync Capacitor project
         script: |
           [ -d ios ] || npx cap add ios
           npx cap sync ios
@@ -62,7 +62,7 @@ workflows:
           keychain initialize
           keychain add-certificates
 
-      - name: Detect TEAM_ID and provisioning profile
+      - name: Detect Team ID and Provisioning Profile
         script: |
           echo "🔍 Detecting provisioning profile..."
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
@@ -95,24 +95,24 @@ workflows:
           </plist>
           PLIST
 
-      - name: Clean
+      - name: Clean build
         script: |
           xcodebuild clean \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (App manual; Pods no-sign — fixed)
+      - name: Archive (App manual; Pods truly no-sign — App: overrides)
         script: |
           set -euo pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
 
-          : "${APP_IDENTIFIER:?}"
-          : "${TEAM_ID:?}"
-          : "${PROFILE_NAME:?}"
-          : "${PROFILE_PATH:?}"
+          : "${APP_IDENTIFIER:?Missing APP_IDENTIFIER}"
+          : "${TEAM_ID:?Missing TEAM_ID}"
+          : "${PROFILE_NAME:?Missing PROFILE_NAME}"
+          : "${PROFILE_PATH:?Missing PROFILE_PATH}"
 
-          echo "🏗 Archiving with manual signing for App and no signing for Pods…"
+          echo "🏗 Archiving with App-only signing…"
 
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
@@ -122,33 +122,35 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
             archive \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PROVISIONING_PROFILE="$PROFILE_PATH" \
-            Pods-App:CODE_SIGNING_ALLOWED=NO \
-            Pods-App:CODE_SIGNING_REQUIRED=NO \
-            Pods-App:CODE_SIGN_STYLE=Automatic \
-            Pods-App:CODE_SIGN_IDENTITY= \
-            Pods-App:DEVELOPMENT_TEAM= \
-            Pods-App:PROVISIONING_PROFILE_SPECIFIER= \
-            Pods-App:PROVISIONING_PROFILE= \
-            Capacitor:CODE_SIGNING_ALLOWED=NO \
-            Capacitor:CODE_SIGNING_REQUIRED=NO \
-            Capacitor:CODE_SIGN_STYLE=Automatic \
-            Capacitor:CODE_SIGN_IDENTITY= \
-            Capacitor:DEVELOPMENT_TEAM= \
-            Capacitor:PROVISIONING_PROFILE_SPECIFIER= \
-            Capacitor:PROVISIONING_PROFILE= \
-            CapacitorCordova:CODE_SIGNING_ALLOWED=NO \
-            CapacitorCordova:CODE_SIGNING_REQUIRED=NO \
-            CapacitorCordova:CODE_SIGN_STYLE=Automatic \
-            CapacitorCordova:CODE_SIGN_IDENTITY= \
-            CapacitorCordova:DEVELOPMENT_TEAM= \
-            CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER= \
-            CapacitorCordova:PROVISIONING_PROFILE= \
+            # 1️⃣ Clear global signing so Pods don’t inherit it
+            CODE_SIGN_STYLE= \
+            CODE_SIGN_IDENTITY= \
+            PROVISIONING_PROFILE_SPECIFIER= \
+            PROVISIONING_PROFILE= \
+            DEVELOPMENT_TEAM= \
+            # 2️⃣ Apply signing ONLY to App target
+            "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
+            "App:DEVELOPMENT_TEAM=$TEAM_ID" \
+            "App:CODE_SIGN_STYLE=Manual" \
+            "App:CODE_SIGN_IDENTITY=Apple Distribution" \
+            "App:PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" \
+            "App:PROVISIONING_PROFILE=$PROFILE_PATH" \
+            # 3️⃣ Disable signing on all Pods targets
+            "Pods-App:CODE_SIGNING_ALLOWED=NO" \
+            "Pods-App:CODE_SIGNING_REQUIRED=NO" \
+            "Pods-App:CODE_SIGN_IDENTITY=" \
+            "Pods-App:PROVISIONING_PROFILE_SPECIFIER=" \
+            "Pods-App:PROVISIONING_PROFILE=" \
+            "Capacitor:CODE_SIGNING_ALLOWED=NO" \
+            "Capacitor:CODE_SIGNING_REQUIRED=NO" \
+            "Capacitor:CODE_SIGN_IDENTITY=" \
+            "Capacitor:PROVISIONING_PROFILE_SPECIFIER=" \
+            "Capacitor:PROVISIONING_PROFILE=" \
+            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" \
+            "CapacitorCordova:CODE_SIGNING_REQUIRED=NO" \
+            "CapacitorCordova:CODE_SIGN_IDENTITY=" \
+            "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER=" \
+            "CapacitorCordova:PROVISIONING_PROFILE=" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA
