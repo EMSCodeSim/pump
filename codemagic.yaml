@@ -7,7 +7,7 @@ workflows:
       groups:
         - app_store_credentials   # contains APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID
       vars:
-        APP_IDENTIFIER: "com.fireopscalc.app"      # <- make sure this matches your Xcode target bundle id
+        APP_IDENTIFIER: "com.fireopscalc.app"      # <- ensure this matches your Xcode target bundle id
         TEAM_ID: "QZ55W58398"
         XCODE_SCHEME: "App"
       xcode: 16.4
@@ -21,13 +21,12 @@ workflows:
           set -euo pipefail
           missing=0
           for v in APP_STORE_CONNECT_PRIVATE_KEY APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID; do
-            if [ -z "${!v:-}" ]; then
+            val="${!v:-}"
+            if [ -z "$val" ]; then
               echo "❌ Missing $v (expected from secure group 'app_store_credentials')"
               missing=1
             else
-              # print redacted length to confirm content without leaking
-              len=${#${v}}
-              echo "✅ $v present (length: ${#v})"
+              echo "✅ $v present (length: ${#val})"
             fi
           done
           [ "$missing" -eq 0 ] || exit 1
@@ -65,7 +64,6 @@ workflows:
             ALL=$(/usr/libexec/PlistBuddy -c "Print ProvisionsAllDevices" "$TMP" 2>/dev/null || echo "false")
             DEV=$(/usr/libexec/PlistBuddy -c "Print ProvisionedDevices" "$TMP" 2>/dev/null || true)
             [[ "$AID" == *".$APP_IDENTIFIER" ]] || continue
-            # App Store profile: no devices and not enterprise
             if echo "$DEV" | grep -q "<array>"; then continue; fi
             if [ "$ALL" = "true" ]; then continue; fi
             MTIME=$(stat -f "%m" "$p" 2>/dev/null || echo 0)
