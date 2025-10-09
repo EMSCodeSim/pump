@@ -64,14 +64,32 @@ workflows:
       - name: List fetched certs & profiles (debug)
         script: |
           echo "Provisioning Profiles:"
-          ls -la "/Users/builder/Library/MobileDevice/Provisioning Profiles" || true
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
           echo "Certificates:"
-          ls -la "/Users/builder/Library/MobileDevice/Certificates" || true
+          ls -la "$HOME/Library/MobileDevice/Certificates" || true
 
       - name: Initialize keychain & install certs/profiles
         script: |
           keychain initialize
           keychain add-certificates
+
+      - name: Extract TEAM_ID and PROFILE_UUID from provisioning profile
+        script: |
+          PROFILE_PATH="$(/usr/bin/find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found"; exit 1
+          fi
+          echo "Using profile: $PROFILE_PATH"
+          /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
+          TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print UUID' "$CM_BUILD_DIR/profile.plist")"
+          if [ -z "$TEAM_ID" ] || [ -z "$PROFILE_UUID" ]; then
+            echo "❌ Failed to parse TeamIdentifier/UUID from profile"; exit 1
+          fi
+          echo "✅ TEAM_ID: $TEAM_ID"
+          echo "✅ PROFILE_UUID: $PROFILE_UUID"
+          echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
 
       - name: Create ExportOptions.plist (automatic signing, app-store)
         script: |
@@ -82,9 +100,7 @@ workflows:
             echo '<plist version="1.0"><dict>'
             echo '  <key>method</key><string>app-store</string>'
             echo '  <key>signingStyle</key><string>automatic</string>'
-            if [ -n "${TEAM_ID:-}" ]; then
-              echo '  <key>teamID</key><string>'"$TEAM_ID"'</string>'
-            fi
+            echo '  <key>teamID</key><string>'"$TEAM_ID"'</string>'
             echo '  <key>stripSwiftSymbols</key><true/>'
             echo '  <key>uploadSymbols</key><true/>'
             echo '  <key>manageAppVersionAndBuildNumber</key><false/>'
@@ -92,16 +108,32 @@ workflows:
           } > "$PLIST_PATH"
           echo "ExportOptions at: $PLIST_PATH"
 
-      - name: Build .ipa
+      - name: Archive with xcodebuild (force Automatic signing)
         script: |
-          xcode-project build-ipa \
-            --workspace "ios/App/App.xcworkspace" \
-            --scheme "$XCODE_SCHEME" \
-            --export-options-plist "$CM_BUILD_DIR/export_options.plist"
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          xcodebuild -workspace "ios/App/App.xcworkspace" \
+                     -scheme "$XCODE_SCHEME" \
+                     -configuration Release \
+                     -archivePath "$ARCHIVE_PATH" \
+                     archive \
+                     DEVELOPMENT_TEAM="$TEAM_ID" \
+                     CODE_SIGN_STYLE=Automatic \
+                     PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+                     COMPILER_INDEX_STORE_ENABLE=NO | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: Export IPA
+        script: |
+          IPA_OUT_DIR="$CM_BUILD_DIR/ipa"
+          mkdir -p "$IPA_OUT_DIR"
+          xcodebuild -exportArchive \
+                     -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+                     -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
+                     -exportPath "$IPA_OUT_DIR" | xcpretty && exit ${PIPESTATUS[0]}
+          ls -la "$IPA_OUT_DIR"
 
       - name: Publish to TestFlight
         script: |
-          IPA_PATH="$(find . -name '*.ipa' | head -n 1)"
+          IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
             echo "No .ipa found to upload"; exit 1
           fi
