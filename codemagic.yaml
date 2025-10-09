@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor → TestFlight (App manual / Pods automatic)"
+    name: "iOS Capacitor → TestFlight (automatic signing at build)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,7 +9,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials
+        - app_store_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         XCODE_SCHEME: App
@@ -25,7 +25,7 @@ workflows:
           npm run build || true
           if [ ! -f "dist/index.html" ]; then
             mkdir -p dist
-            cp index.html dist/index.html
+            cp index.html dist/index.html || true
           fi
 
       - name: "Ensure iOS platform exists & sync"
@@ -47,7 +47,7 @@ workflows:
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
 
-      - name: "Fetch signing files"
+      - name: "Fetch signing files (create if missing)"
         script: |
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
@@ -64,18 +64,15 @@ workflows:
           keychain initialize
           keychain add-certificates
 
-      - name: "Extract TEAM_ID & PROFILE_NAME"
+      - name: "Extract TEAM_ID (from fetched profile)"
         script: |
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
-          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print Name' "$CM_BUILD_DIR/profile.plist")"
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
-          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
           echo "✅ TEAM_ID: $TEAM_ID"
-          echo "✅ PROFILE_NAME: $PROFILE_NAME"
 
-      - name: "Patch Pods to automatic signing"
+      - name: "Patch Pods to automatic signing (safety)"
         script: |
           PROJECT_FILE="ios/App/Pods/Pods.xcodeproj/project.pbxproj"
           if [ -f "$PROJECT_FILE" ]; then
@@ -84,7 +81,7 @@ workflows:
             echo "✅ Pods project patched to Automatic signing"
           fi
 
-      - name: "Create ExportOptions.plist"
+      - name: "Create ExportOptions.plist (automatic)"
         script: |
           cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -92,7 +89,7 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
+            <key>signingStyle</key><string>automatic</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -100,11 +97,20 @@ workflows:
           </plist>
           PLIST
 
-      - name: "Archive (App manual, Pods auto)"
+      - name: "Clean (verbose)"
         script: |
-          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗 Archiving (App manual signing only, Pods auto)…"
           set -o pipefail
+          xcodebuild \
+            -workspace "ios/App/App.xcworkspace" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            clean
+
+      - name: "Archive (Automatic signing with Team)"
+        script: |
+          set -o pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          echo "🏗 Archiving with Automatic signing…"
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -113,17 +119,10 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
             archive \
-            CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple\ Distribution \
-            DEVELOPMENT_TEAM[sdk=iphoneos*]="$TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]="$APP_IDENTIFIER" \
-            CODE_SIGN_STYLE[sdk=iphoneos*]=Manual \
-            PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]="$PROFILE_NAME" \
-            Pods-App.CODE_SIGN_STYLE=Automatic \
-            Pods-App.PROVISIONING_PROFILE_SPECIFIER= \
-            Capacitor.CODE_SIGN_STYLE=Automatic \
-            Capacitor.PROVISIONING_PROFILE_SPECIFIER= \
-            CapacitorCordova.CODE_SIGN_STYLE=Automatic \
-            CapacitorCordova.PROVISIONING_PROFILE_SPECIFIER= \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY=Apple\ Distribution \
+            CODE_SIGN_STYLE=Automatic \
+            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: "Export IPA"
