@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor → TestFlight (auto-create signing, fixed Pods signing)
+    name: "iOS Capacitor → TestFlight (auto-create signing, fixed Pods signing)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -18,12 +18,12 @@ workflows:
         XCODE_SCHEME: App                     # <-- change if your scheme differs
 
     scripts:
-      - name: Install dependencies
+      - name: "Install dependencies"
         script: |
           echo "Node:" && node -v
           npm ci || npm install --legacy-peer-deps
 
-      - name: Build web assets to dist/
+      - name: "Build web assets to dist/"
         script: |
           npm run build || true
           if [ ! -f "dist/index.html" ]; then
@@ -35,12 +35,12 @@ workflows:
             fi
           fi
 
-      - name: Ensure iOS platform exists & sync Capacitor
+      - name: "Ensure iOS platform exists & sync Capacitor"
         script: |
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
-      - name: Install CocoaPods (ios/App)
+      - name: "Install CocoaPods (ios/App)"
         script: |
           set -e
           cd ios/App
@@ -49,14 +49,14 @@ workflows:
           cd ../../
           echo "Pods installed."
 
-      - name: Generate cert private key (for new Distribution cert)
+      - name: "Generate cert private key (for new Distribution cert)"
         script: |
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
           echo "Created CI certificate private key."
 
-      - name: Fetch signing files from App Store Connect (auto-create)
+      - name: "Fetch signing files from App Store Connect (auto-create)"
         script: |
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
@@ -70,12 +70,12 @@ workflows:
             --delete-stale-profiles \
             --verbose
 
-      - name: Initialize keychain & install certs/profiles
+      - name: "Initialize keychain & install certs/profiles"
         script: |
           keychain initialize
           keychain add-certificates
 
-      - name: Extract TEAM_ID & PROFILE_NAME from provisioning profile
+      - name: "Extract TEAM_ID & PROFILE_NAME from provisioning profile"
         script: |
           PROFILE_PATH="$(/usr/bin/find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
           if [ -z "$PROFILE_PATH" ]; then
@@ -93,13 +93,13 @@ workflows:
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
           echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
 
-      - name: Confirm profile type
+      - name: "Confirm profile type"
         script: |
           /usr/bin/security cms -D -i "$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)" > "$CM_BUILD_DIR/profile.plist"
           echo "🔍 Checking profile type:"
           /usr/libexec/PlistBuddy -c "Print :Entitlements:aps-environment" "$CM_BUILD_DIR/profile.plist" || echo "Profile type not found"
 
-      - name: (Debug) Show schemes & key build settings
+      - name: "(Debug) Show schemes & key build settings"
         script: |
           set -o pipefail
           xcodebuild -list -workspace "ios/App/App.xcworkspace" || true
@@ -109,7 +109,7 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release | egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE|SUPPORTED_PLATFORMS|SDKROOT" || true
 
-      - name: Create ExportOptions.plist (app-store, manual)
+      - name: "Create ExportOptions.plist (app-store, manual)"
         script: |
           PLIST_PATH="$CM_BUILD_DIR/export_options.plist"
           cat > "$PLIST_PATH" <<'PLIST'
@@ -127,7 +127,7 @@ workflows:
           PLIST
           echo "ExportOptions at: $PLIST_PATH"
 
-      - name: Clean (verbose)
+      - name: "Clean (verbose)"
         script: |
           set -o pipefail
           xcodebuild \
@@ -136,7 +136,7 @@ workflows:
             -configuration Release \
             clean
 
-      - name: Archive (fix: Pods sign automatically)
+      - name: "Archive (fix: Pods sign automatically)"
         script: |
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
@@ -155,15 +155,15 @@ workflows:
             CODE_SIGN_STYLE=Manual \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             OTHER_CODE_SIGN_FLAGS="--deep" \
-            "CODE_SIGNING_ALLOWED=YES" \
-            "CODE_SIGNING_REQUIRED=YES" \
-            "TARGETED_DEVICE_FAMILY=1,2" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES \
+            TARGETED_DEVICE_FAMILY=1,2 \
             "Pods-App.CODE_SIGN_STYLE=Automatic" \
             "Capacitor.CODE_SIGN_STYLE=Automatic" \
             "CapacitorCordova.CODE_SIGN_STYLE=Automatic" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Export IPA (verbose)
+      - name: "Export IPA (verbose)"
         script: |
           set -o pipefail
           IPA_OUT_DIR="$CM_BUILD_DIR/ipa"
@@ -174,7 +174,7 @@ workflows:
             -exportPath "$IPA_OUT_DIR"
           ls -la "$IPA_OUT_DIR"
 
-      - name: Publish to TestFlight
+      - name: "Publish to TestFlight"
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
