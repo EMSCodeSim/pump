@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor — Manual App signing, Pods no-sign (correct per-target flags)"
+    name: "iOS Capacitor — Manual App signing, Pods no-sign (final)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -102,12 +102,11 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (Manual App signing; Pods truly no-sign)
+      - name: Archive (Manual App signing; Pods truly no-sign — sdk+config qualified)
         script: |
-          echo "🏗 Archiving with Manual App signing and Pods no-sign (per-target with colons)…"
+          echo "🏗 Archiving (App manual; Pods no-sign)…"
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
 
-          # NOTE: Per-target settings MUST use `TargetName:SETTING=VALUE` (COLON), not dot.
           set -o pipefail
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
@@ -117,30 +116,41 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -sdk iphoneos \
             archive \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PROVISIONING_PROFILE="$PROFILE_PATH" \
-            "Pods-App:CODE_SIGNING_ALLOWED=NO" \
-            "Pods-App:CODE_SIGN_STYLE=Automatic" \
-            "Pods-App:CODE_SIGN_IDENTITY=" \
-            "Pods-App:PROVISIONING_PROFILE_SPECIFIER=" \
-            "Pods-App:PROVISIONING_PROFILE=" \
-            "Capacitor:CODE_SIGNING_ALLOWED=NO" \
-            "Capacitor:CODE_SIGN_STYLE=Automatic" \
-            "Capacitor:CODE_SIGN_IDENTITY=" \
-            "Capacitor:PROVISIONING_PROFILE_SPECIFIER=" \
-            "Capacitor:PROVISIONING_PROFILE=" \
-            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" \
-            "CapacitorCordova:CODE_SIGN_STYLE=Automatic" \
-            "CapacitorCordova:CODE_SIGN_IDENTITY=" \
-            "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER=" \
-            "CapacitorCordova:PROVISIONING_PROFILE=" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            "CODE_SIGN_STYLE[sdk=iphoneos*][config=Release]=Manual" \
+            "CODE_SIGN_IDENTITY[sdk=iphoneos*][config=Release]=Apple Distribution" \
+            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*][config=Release]=$PROFILE_NAME" \
+            "PROVISIONING_PROFILE[sdk=iphoneos*][config=Release]=$PROFILE_PATH" \
+            \
+            # --- Pods: disable signing & clear any profile/identity (sdk+config+per-target) ---
+            "Pods-App:CODE_SIGNING_ALLOWED[sdk=iphoneos*][config=Release]=NO" \
+            "Pods-App:CODE_SIGNING_REQUIRED[sdk=iphoneos*][config=Release]=NO" \
+            "Pods-App:CODE_SIGN_STYLE[sdk=iphoneos*][config=Release]=Automatic" \
+            "Pods-App:CODE_SIGN_IDENTITY[sdk=iphoneos*][config=Release]=" \
+            "Pods-App:DEVELOPMENT_TEAM[sdk=iphoneos*][config=Release]=" \
+            "Pods-App:PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*][config=Release]=" \
+            "Pods-App:PROVISIONING_PROFILE[sdk=iphoneos*][config=Release]=" \
+            \
+            "Capacitor:CODE_SIGNING_ALLOWED[sdk=iphoneos*][config=Release]=NO" \
+            "Capacitor:CODE_SIGNING_REQUIRED[sdk=iphoneos*][config=Release]=NO" \
+            "Capacitor:CODE_SIGN_STYLE[sdk=iphoneos*][config=Release]=Automatic" \
+            "Capacitor:CODE_SIGN_IDENTITY[sdk=iphoneos*][config=Release]=" \
+            "Capacitor:DEVELOPMENT_TEAM[sdk=iphoneos*][config=Release]=" \
+            "Capacitor:PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*][config=Release]=" \
+            "Capacitor:PROVISIONING_PROFILE[sdk=iphoneos*][config=Release]=" \
+            \
+            "CapacitorCordova:CODE_SIGNING_ALLOWED[sdk=iphoneos*][config=Release]=NO" \
+            "CapacitorCordova:CODE_SIGNING_REQUIRED[sdk=iphoneos*][config=Release]=NO" \
+            "CapacitorCordova:CODE_SIGN_STYLE[sdk=iphoneos*][config=Release]=Automatic" \
+            "CapacitorCordova:CODE_SIGN_IDENTITY[sdk=iphoneos*][config=Release]=" \
+            "CapacitorCordova:DEVELOPMENT_TEAM[sdk=iphoneos*][config=Release]=" \
+            "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*][config=Release]=" \
+            "CapacitorCordova:PROVISIONING_PROFILE[sdk=iphoneos*][config=Release]=" \
+            \
             COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Export IPA (manual)
+      - name: Export IPA
         script: |
           echo "📦 Exporting IPA..."
           mkdir -p "$CM_BUILD_DIR/ipa"
