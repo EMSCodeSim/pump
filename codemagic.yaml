@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor — Final Fix (Attach Provisioning Profile)"
+    name: "iOS Capacitor — Final Fixed Signing"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -124,9 +124,9 @@ workflows:
             -scheme "$XCODE_SCHEME" \
             -configuration Release
 
-      - name: Archive (App only; attach provisioning profile)
+      - name: Archive (App only; completely clear Pods signing)
         script: |
-          echo "🏗 Archiving with attached provisioning profile..."
+          echo "🏗 Archiving (App only; fully remove Pods signing)..."
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
           xcodebuild \
@@ -143,9 +143,18 @@ workflows:
             CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             PROVISIONING_PROFILE="$PROFILE_PATH" \
-            Pods-App.CODE_SIGNING_ALLOWED=NO \
-            Capacitor.CODE_SIGNING_ALLOWED=NO \
-            CapacitorCordova.CODE_SIGNING_ALLOWED=NO \
+            Pods-App.CODE_SIGN_STYLE=Automatic \
+            Pods-App.CODE_SIGN_IDENTITY="" \
+            Pods-App.PROVISIONING_PROFILE_SPECIFIER="" \
+            Pods-App.PROVISIONING_PROFILE="" \
+            Capacitor.CODE_SIGN_STYLE=Automatic \
+            Capacitor.CODE_SIGN_IDENTITY="" \
+            Capacitor.PROVISIONING_PROFILE_SPECIFIER="" \
+            Capacitor.PROVISIONING_PROFILE="" \
+            CapacitorCordova.CODE_SIGN_STYLE=Automatic \
+            CapacitorCordova.CODE_SIGN_IDENTITY="" \
+            CapacitorCordova.PROVISIONING_PROFILE_SPECIFIER="" \
+            CapacitorCordova.PROVISIONING_PROFILE="" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: Export IPA
