@@ -13,7 +13,6 @@ workflows:
       vars:
         APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
         XCODE_SCHEME: App                     # <-- change if your scheme differs
-        TEAM_ID: ""                           # <-- optionally set your Apple Team ID (e.g., 1A2BC3D4E5), or leave empty
 
     scripts:
       - name: Install deps
@@ -83,7 +82,7 @@ workflows:
             echo '<plist version="1.0"><dict>'
             echo '  <key>method</key><string>app-store</string>'
             echo '  <key>signingStyle</key><string>automatic</string>'
-            if [ -n "$TEAM_ID" ]; then
+            if [ -n "${TEAM_ID:-}" ]; then
               echo '  <key>teamID</key><string>'"$TEAM_ID"'</string>'
             fi
             echo '  <key>stripSwiftSymbols</key><true/>'
