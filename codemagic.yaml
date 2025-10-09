@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: "iOS Capacitor → TestFlight (automatic signing at build)"
+    name: "iOS Capacitor → TestFlight (Fully Automatic Signing)"
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,7 +9,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
+        - app_store_credentials   # APP_STORE_CONNECT_* variables
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         XCODE_SCHEME: App
@@ -17,11 +17,12 @@ workflows:
     scripts:
       - name: "Install dependencies"
         script: |
-          echo "Node:" && node -v
+          echo "📦 Installing npm packages..."
           npm ci || npm install --legacy-peer-deps
 
       - name: "Build web assets"
         script: |
+          echo "🏗 Building web assets..."
           npm run build || true
           if [ ! -f "dist/index.html" ]; then
             mkdir -p dist
@@ -30,25 +31,27 @@ workflows:
 
       - name: "Ensure iOS platform exists & sync"
         script: |
+          echo "🔄 Syncing Capacitor iOS..."
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
       - name: "Install CocoaPods"
         script: |
-          set -e
+          echo "📚 Installing CocoaPods..."
           cd ios/App
           pod repo update
           pod install
           cd ../../
 
-      - name: "Generate cert private key"
+      - name: "Generate certificate private key"
         script: |
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
 
-      - name: "Fetch signing files (create if missing)"
+      - name: "Fetch signing files"
         script: |
+          echo "🔑 Fetching signing files from App Store Connect..."
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -59,29 +62,31 @@ workflows:
             --p12-password "" \
             --create --delete-stale-profiles --verbose
 
-      - name: "Initialize keychain & install certs/profiles"
+      - name: "Initialize keychain & install certs"
         script: |
+          echo "🔐 Initializing keychain..."
           keychain initialize
           keychain add-certificates
 
-      - name: "Extract TEAM_ID (from fetched profile)"
+      - name: "Extract TEAM_ID"
         script: |
           PROFILE_PATH="$(find "$HOME/Library/MobileDevice/Provisioning Profiles" -name '*.mobileprovision' | head -n 1)"
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           TEAM_ID="$(/usr/libexec/PlistBuddy -c 'Print TeamIdentifier:0' "$CM_BUILD_DIR/profile.plist")"
           echo "TEAM_ID=$TEAM_ID" >> $CM_ENV
-          echo "✅ TEAM_ID: $TEAM_ID"
+          echo "✅ Using TEAM_ID: $TEAM_ID"
 
-      - name: "Patch Pods to automatic signing (safety)"
+      - name: "Patch Pods to automatic signing"
         script: |
           PROJECT_FILE="ios/App/Pods/Pods.xcodeproj/project.pbxproj"
           if [ -f "$PROJECT_FILE" ]; then
             sed -i '' 's/CODE_SIGN_STYLE = Manual/CODE_SIGN_STYLE = Automatic/g' "$PROJECT_FILE"
             sed -i '' '/PROVISIONING_PROFILE_SPECIFIER/d' "$PROJECT_FILE"
-            echo "✅ Pods project patched to Automatic signing"
+            sed -i '' '/CODE_SIGN_IDENTITY/d' "$PROJECT_FILE"
+            echo "✅ Pods signing set to Automatic"
           fi
 
-      - name: "Create ExportOptions.plist (automatic)"
+      - name: "Create ExportOptions.plist"
         script: |
           cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -96,9 +101,11 @@ workflows:
           </dict>
           </plist>
           PLIST
+          echo "✅ ExportOptions.plist created."
 
-      - name: "Clean (verbose)"
+      - name: "Clean Xcode project"
         script: |
+          echo "🧹 Cleaning project..."
           set -o pipefail
           xcodebuild \
             -workspace "ios/App/App.xcworkspace" \
@@ -106,11 +113,11 @@ workflows:
             -configuration Release \
             clean
 
-      - name: "Archive (Automatic signing with Team)"
+      - name: "Archive with automatic signing"
         script: |
+          echo "🏗 Archiving with Automatic Signing..."
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗 Archiving with Automatic signing…"
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -120,13 +127,13 @@ workflows:
             -sdk iphoneos \
             archive \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_IDENTITY=Apple\ Distribution \
             CODE_SIGN_STYLE=Automatic \
             PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
             COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: "Export IPA"
         script: |
+          echo "📦 Exporting IPA..."
           mkdir -p "$CM_BUILD_DIR/ipa"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
@@ -134,10 +141,10 @@ workflows:
             -exportPath "$CM_BUILD_DIR/ipa"
           ls -la "$CM_BUILD_DIR/ipa"
 
-      - name: "Publish to TestFlight"
+      - name: "Upload to TestFlight"
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
-          echo "🚀 Uploading $IPA_PATH"
+          echo "🚀 Uploading $IPA_PATH to TestFlight..."
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
