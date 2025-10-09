@@ -1,6 +1,6 @@
 workflows:
   ios-capacitor:
-    name: iOS Capacitor → TestFlight (auto-create signing)
+    name: iOS Capacitor → TestFlight (auto-create signing + pods + verbose archive)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -9,10 +9,7 @@ workflows:
       xcode: latest
       cocoapods: default
       groups:
-        - app_store_credentials   # must contain:
-                                  # APP_STORE_CONNECT_KEY_IDENTIFIER
-                                  # APP_STORE_CONNECT_ISSUER_ID
-                                  # APP_STORE_CONNECT_PRIVATE_KEY
+        - app_store_credentials   # APP_STORE_CONNECT_KEY_IDENTIFIER / _ISSUER_ID / _PRIVATE_KEY
       vars:
         APP_IDENTIFIER: com.fireopscalc.app   # <-- your bundle id
         XCODE_SCHEME: App                     # <-- change if your scheme differs
@@ -40,16 +37,23 @@ workflows:
           [ -d ios ] || npx cap add ios
           npx cap sync ios
 
+      - name: Install CocoaPods (ios/App)
+        script: |
+          set -e
+          cd ios/App
+          pod repo update
+          pod install
+          cd ../../
+          echo "Pods installed."
+
       - name: Generate cert private key (for new Distribution cert)
         script: |
           CERT_KEY_PATH="$CM_BUILD_DIR/cert_private.key"
           openssl genrsa -out "$CERT_KEY_PATH" 2048
           echo "CERT_KEY_PATH=$CERT_KEY_PATH" >> $CM_ENV
-          echo "Created CI certificate private key."
 
       - name: Fetch signing files from App Store Connect (auto-create)
         script: |
-          # Your runner expects positional bundle id + global auth flags.
           app-store-connect fetch-signing-files "$APP_IDENTIFIER" \
             --type IOS_APP_STORE \
             --platform IOS \
@@ -67,7 +71,7 @@ workflows:
           keychain initialize
           keychain add-certificates
 
-      - name: (Debug) Show schemes & critical build settings
+      - name: (Debug) Show schemes & key build settings
         script: |
           set -o pipefail
           xcodebuild -list -workspace "ios/App/App.xcworkspace" || true
@@ -95,22 +99,32 @@ workflows:
           PLIST
           echo "ExportOptions at: $PLIST_PATH"
 
-      - name: Archive (force iOS destination)
+      - name: Clean (verbose)
+        script: |
+          set -o pipefail
+          xcodebuild \
+            -workspace "ios/App/App.xcworkspace" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            clean
+
+      - name: Archive (force iOS destination, verbose — no xcpretty)
         script: |
           set -o pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "🏗  Archiving with destination 'generic/platform=iOS'..."
+          echo "🏗 Archiving with destination 'generic/platform=iOS' (verbose output)…"
           xcodebuild \
             -workspace "ios/App/App.xcworkspace" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
+            -sdk iphoneos \
             archive \
             CODE_SIGN_STYLE=Automatic \
-            COMPILER_INDEX_STORE_ENABLE=NO | xcpretty && exit ${PIPESTATUS[0]}
+            COMPILER_INDEX_STORE_ENABLE=NO
 
-      - name: Export IPA
+      - name: Export IPA (verbose)
         script: |
           set -o pipefail
           IPA_OUT_DIR="$CM_BUILD_DIR/ipa"
@@ -118,14 +132,14 @@ workflows:
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$IPA_OUT_DIR" | xcpretty && exit ${PIPESTATUS[0]}
+            -exportPath "$IPA_OUT_DIR"
           ls -la "$IPA_OUT_DIR"
 
       - name: Publish to TestFlight
         script: |
           IPA_PATH="$(find "$CM_BUILD_DIR/ipa" -name '*.ipa' | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
-            echo "No .ipa found to upload"; exit 1
+            echo "No IPA found to upload"; exit 1
           fi
           echo "🚀 Uploading $IPA_PATH to TestFlight…"
           app-store-connect publish \
