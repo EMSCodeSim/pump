@@ -5,17 +5,10 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      groups:
-        # Must contain these 3 variables:
-        #   APP_STORE_CONNECT_PRIVATE_KEY  (base64-encoded .p8 contents)
-        #   APP_STORE_CONNECT_KEY_IDENTIFIER
-        #   APP_STORE_CONNECT_ISSUER_ID
-        - app_store_connect
+      # No "groups:" section — variables are read directly from the app's Environment variables UI.
       vars:
         APP_IDENTIFIER: "com.fireopscalc.app"
         TEAM_ID: "QZ55W58398"
-        # Optional: shown in logs only
-        PROFILE_HUMAN_NAME: "FireOpsCalc Distribution App"
         XCODE_SCHEME: "App"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         CONFIGURATION: "Release"
@@ -32,7 +25,6 @@ workflows:
           source: true
 
     scripts:
-      # --- 0. Preflight -------------------------------------------------------
       - name: Preflight — verify App Store Connect vars are present
         script: |
           set -euo pipefail
@@ -47,22 +39,19 @@ workflows:
           done
           [ "$missing" -eq 0 ] || { echo "Aborting."; exit 1; }
 
-      # --- 1. Make ASC .p8 file ----------------------------------------------
       - name: Create App Store Connect API key file
         script: |
           set -euo pipefail
           mkdir -p "$CM_BUILD_DIR/asc"
           echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
           chmod 600 "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
-          echo "API key written to $CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
+          echo "API key saved."
 
-      # --- 2. Fetch / ensure provisioning profile ----------------------------
       - name: Fetch App Store provisioning profile for $APP_IDENTIFIER
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR/asc"
 
-          # Try to fetch an existing iOS App Store profile for our bundle id.
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
             --bundle-id "$APP_IDENTIFIER" \
@@ -77,24 +66,21 @@ workflows:
             echo "❌ No provisioning profile downloaded."
             exit 1
           fi
-          echo "✅ Got profile: $PROFILE_PATH"
+          echo "✅ Profile: $PROFILE_PATH"
 
-          # Extract UUID & install to the standard location for Xcode.
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
           echo "Installed profile UUID: $PROFILE_UUID"
           echo "export PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
 
-      # --- 3. Pods (optional if you have pods) -------------------------------
       - name: Install CocoaPods
         script: |
           set -euo pipefail
           cd ios/App
           pod install
 
-      # --- 4. Archive (manual signing for App; Pods: no signing) -------------
-      - name: Archive
+      - name: Archive (manual App signing; no Pods signing)
         script: |
           set -euo pipefail
           xcodebuild \
@@ -115,7 +101,6 @@ workflows:
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive | xcpretty
 
-      # --- 5. Export IPA ------------------------------------------------------
       - name: Export IPA (App Store)
         script: |
           set -euo pipefail
@@ -146,7 +131,6 @@ workflows:
           ls -lah "$CM_BUILD_DIR/ipa"
           test -f "$CM_BUILD_DIR/ipa/App.ipa" || (echo "❌ IPA not found"; exit 1)
 
-      # --- 6. Upload to TestFlight -------------------------------------------
       - name: Upload IPA to App Store Connect (TestFlight)
         script: |
           set -euo pipefail
