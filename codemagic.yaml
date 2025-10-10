@@ -11,21 +11,16 @@ workflows:
       node: latest
       ruby: default
 
-      # Codemagic will install these EXACT certificate/profile records
       ios_signing:
         certificates:
           - FireOpsCalc Distribution
         provisioning_profiles:
           - FireOpsCalc App Store Provision
 
-      # App info
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         TEAM_ID: QZ55W58398
-        XCODE_SCHEME: App
-
-        # Fill these in the app's Environment variables page (as Secrets).
-        # They should match your ASC key (Key ID 82567339RS, Issuer a786600e-e10a-42b2-a2bf-443a1da2554b).
+        XCODE_SCHEME: App    # ⚠️ This MUST exactly match your scheme name in Xcode (check case!)
         APP_STORE_CONNECT_KEY_IDENTIFIER: 82567339RS
         APP_STORE_CONNECT_ISSUER_ID: a786600e-e10a-42b2-a2bf-443a1da2554b
         APP_STORE_CONNECT_PRIVATE_KEY: |
@@ -34,10 +29,18 @@ workflows:
           -----END PRIVATE KEY-----
 
     scripts:
-      - name: Install dependencies (web/app)
+      - name: Verify workspace & scheme
+        script: |
+          echo "🔍 Checking for iOS workspace..."
+          find . -name "*.xcworkspace"
+          echo "🔍 Checking available schemes..."
+          xcodebuild -list -workspace ios/App/App.xcworkspace || true
+
+      - name: Install dependencies
         script: |
           set -e
           if [ -f package.json ]; then
+            echo "📦 Installing npm dependencies"
             npm ci
             npm run build || true
           fi
@@ -47,25 +50,33 @@ workflows:
           set -e
           cd ios/App
           pod repo update
-          pod install
+          pod install --verbose
           cd ../..
 
-      # Archive WITHOUT overriding signing flags; Codemagic uses the installed
-      # "FireOpsCalc Distribution" cert + "FireOpsCalc App Store Provision" profile.
-      - name: Archive
+      - name: Build & Archive app
         script: |
           set -e
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          echo "📦 Archiving to $ARCHIVE_PATH"
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -destination generic/platform=iOS \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+            -archivePath "$ARCHIVE_PATH" \
             archive \
             PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             | xcpretty
+
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found at $ARCHIVE_PATH"
+            exit 1
+          fi
+          echo "✅ Archive created successfully"
 
       - name: Prepare export options
         script: |
@@ -85,12 +96,16 @@ workflows:
       - name: Export IPA
         script: |
           set -e
+          IPA_DIR="$CM_BUILD_DIR/ipa"
+          mkdir -p "$IPA_DIR"
+          echo "📦 Exporting IPA to $IPA_DIR"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$CM_BUILD_DIR/ipa" \
+            -exportPath "$IPA_DIR" \
             | xcpretty
-          ls -lah "$CM_BUILD_DIR/ipa"
+          echo "✅ Contents of IPA folder:"
+          ls -la "$IPA_DIR"
 
       - name: Upload to App Store Connect
         script: |
@@ -98,8 +113,11 @@ workflows:
           IPA_PATH="$CM_BUILD_DIR/ipa/App.ipa"
           if [ ! -f "$IPA_PATH" ]; then
             echo "❌ IPA not found at $IPA_PATH"
+            echo "📁 IPA folder contents:"
+            ls -la "$CM_BUILD_DIR/ipa" || true
             exit 1
           fi
+          echo "🚀 Uploading $IPA_PATH to App Store Connect..."
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
@@ -109,4 +127,3 @@ workflows:
     artifacts:
       - $CM_BUILD_DIR/ipa/*.ipa
       - $CM_BUILD_DIR/App.xcarchive
-      - $HOME/Library/Logs/scan/*.log
