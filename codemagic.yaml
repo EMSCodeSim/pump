@@ -1,9 +1,8 @@
-# codemagic.yaml
 workflows:
   ios_release:
     name: iOS Release (App Store Connect)
-    max_build_duration: 120
     instance_type: mac_mini_m2
+    max_build_duration: 120
 
     environment:
       xcode: 16.4
@@ -11,6 +10,7 @@ workflows:
       node: latest
       ruby: default
 
+      # Tell Codemagic which cert + profile to install on the build machine
       ios_signing:
         certificates:
           - FireOpsCalc Distribution
@@ -20,7 +20,10 @@ workflows:
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         TEAM_ID: QZ55W58398
-        XCODE_SCHEME: App    # ⚠️ This MUST exactly match your scheme name in Xcode (check case!)
+        XCODE_SCHEME: App
+        APPSTORE_PROFILE_NAME: FireOpsCalc App Store Provision
+
+        # App Store Connect API key (already added in App settings → Environment variables)
         APP_STORE_CONNECT_KEY_IDENTIFIER: 82567339RS
         APP_STORE_CONNECT_ISSUER_ID: a786600e-e10a-42b2-a2bf-443a1da2554b
         APP_STORE_CONNECT_PRIVATE_KEY: |
@@ -29,18 +32,17 @@ workflows:
           -----END PRIVATE KEY-----
 
     scripts:
-      - name: Verify workspace & scheme
+      - name: Verify workspace & schemes
         script: |
-          echo "🔍 Checking for iOS workspace..."
-          find . -name "*.xcworkspace"
-          echo "🔍 Checking available schemes..."
+          echo "🔎 Workspaces:"
+          find ios -name "*.xcworkspace" -maxdepth 3
+          echo "🔎 Listing schemes in ios/App/App.xcworkspace"
           xcodebuild -list -workspace ios/App/App.xcworkspace || true
 
-      - name: Install dependencies
+      - name: Install JS deps (if any)
         script: |
           set -e
           if [ -f package.json ]; then
-            echo "📦 Installing npm dependencies"
             npm ci
             npm run build || true
           fi
@@ -53,7 +55,7 @@ workflows:
           pod install --verbose
           cd ../..
 
-      - name: Build & Archive app
+      - name: Build & Archive app (Manual signing + explicit profile)
         script: |
           set -e
           ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
@@ -70,25 +72,30 @@ workflows:
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$APPSTORE_PROFILE_NAME" \
             | xcpretty
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not found at $ARCHIVE_PATH"
             exit 1
           fi
-          echo "✅ Archive created successfully"
+          echo "✅ Archive created"
 
-      - name: Prepare export options
+      - name: Prepare export options (map bundle id → profile)
         script: |
-          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
+          cat > "$CM_BUILD_DIR/export_options.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
             <dict>
               <key>method</key><string>app-store</string>
               <key>signingStyle</key><string>manual</string>
-              <key>uploadSymbols</key><true/>
+              <key>provisioningProfiles</key>
+              <dict>
+                <key>${APP_IDENTIFIER}</key><string>${APPSTORE_PROFILE_NAME}</string>
+              </dict>
               <key>stripSwiftSymbols</key><true/>
+              <key>uploadSymbols</key><true/>
             </dict>
           </plist>
           PLIST
@@ -98,13 +105,12 @@ workflows:
           set -e
           IPA_DIR="$CM_BUILD_DIR/ipa"
           mkdir -p "$IPA_DIR"
-          echo "📦 Exporting IPA to $IPA_DIR"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
             -exportPath "$IPA_DIR" \
             | xcpretty
-          echo "✅ Contents of IPA folder:"
+          echo "📁 IPA contents:"
           ls -la "$IPA_DIR"
 
       - name: Upload to App Store Connect
@@ -113,11 +119,10 @@ workflows:
           IPA_PATH="$CM_BUILD_DIR/ipa/App.ipa"
           if [ ! -f "$IPA_PATH" ]; then
             echo "❌ IPA not found at $IPA_PATH"
-            echo "📁 IPA folder contents:"
             ls -la "$CM_BUILD_DIR/ipa" || true
             exit 1
           fi
-          echo "🚀 Uploading $IPA_PATH to App Store Connect..."
+          echo "🚀 Uploading to ASC..."
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
