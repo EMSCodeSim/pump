@@ -2,17 +2,30 @@ workflows:
   ios_release:
     name: iOS Release (App Store Connect)
     max_build_duration: 120
+
     environment:
+      # ← Codemagic needs either `ios_signing` (below) OR an ASC-managed setup.
+      # We’ll use ios_signing that points to assets stored in Codemagic > Teams.
+      ios_signing:
+        certificates:
+          - FireOpsCalc Distribution          # exact name shown in Teams ▸ Code signing certificates
+        provisioning_profiles:
+          - FireOpsCalcApp                    # exact name shown in Teams ▸ iOS provisioning profiles
+
       vars:
         APP_IDENTIFIER: com.fireopscalc.app
         TEAM_ID: QZ55W58398
         XCODE_SCHEME: App
+
+        # If you prefer using the App settings “Environment variables” group,
+        # delete the 3 lines below and rely on $APP_STORE_CONNECT_* from the UI.
         APP_STORE_CONNECT_KEY_IDENTIFIER: 82567339RS
         APP_STORE_CONNECT_ISSUER_ID: a786600e-e10a-42b2-a2bf-443a1da2554b
         APP_STORE_CONNECT_PRIVATE_KEY: |
           -----BEGIN PRIVATE KEY-----
-          (paste full .p8 key here)
+          (paste full .p8 key here, single-line base64 blocks are OK too)
           -----END PRIVATE KEY-----
+
       xcode: 16.4
       cocoapods: default
       node: latest
@@ -35,15 +48,16 @@ workflows:
           pod install --verbose
           cd ../..
 
+      # Optional: keep your auto-detect logic (harmless when ios_signing is present)
       - name: Locate App Store provisioning profile for $APP_IDENTIFIER
         script: |
           set -euo pipefail
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          [ -d "$PROFILES_DIR" ] || { echo "❌ No provisioning profiles dir found"; exit 1; }
+          [ -d "$PROFILES_DIR" ] || { echo "ℹ️ No ~/Library/MobileDevice/Provisioning Profiles dir yet (Codemagic will inject from ios_signing)"; exit 0; }
 
           BEST_PROFILE=""
           BEST_MTIME=0
-          for p in "$PROFILES_DIR"/*.mobileprovision; do
+          for p in "$PROFILES_DIR"/*.mobileprovision 2>/dev/null; do
             [ -e "$p" ] || continue
             TMP_PLIST="$CM_BUILD_DIR/profile.plist"
             /usr/bin/security cms -D -i "$p" > "$TMP_PLIST"
@@ -61,14 +75,13 @@ workflows:
               fi
             fi
           done
-
-          if [ -z "${BEST_PROFILE:-}" ]; then
-            echo "❌ No App Store provisioning profile found for $APP_IDENTIFIER"
-            exit 1
+          if [ -n "${BEST_PROFILE:-}" ]; then
+            echo "✅ Also found local profile: $BEST_PROFILE_NAME"
+            echo "PROFILE_PATH=$BEST_PROFILE" >> "$CM_ENV"
+            echo "PROFILE_NAME=$BEST_PROFILE_NAME" >> "$CM_ENV"
+          else
+            echo "ℹ️ No local profile found; relying on ios_signing assets."
           fi
-          echo "✅ Using provisioning profile: $BEST_PROFILE_NAME"
-          echo "PROFILE_PATH=$BEST_PROFILE" >> $CM_ENV
-          echo "PROFILE_NAME=$BEST_PROFILE_NAME" >> $CM_ENV
 
       - name: Write export options
         script: |
@@ -98,8 +111,7 @@ workflows:
             "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
             "App:DEVELOPMENT_TEAM=$TEAM_ID" \
             "App:CODE_SIGN_STYLE=Manual" \
-            "App:CODE_SIGN_IDENTITY=Apple Distribution" \
-            "App:PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME"
+            "App:CODE_SIGN_IDENTITY=Apple Distribution"
 
       - name: Export IPA
         script: |
