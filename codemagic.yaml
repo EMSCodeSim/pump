@@ -5,7 +5,6 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      # No "groups:" section — variables are read directly from the app's Environment variables UI.
       vars:
         APP_IDENTIFIER: "com.fireopscalc.app"
         TEAM_ID: "QZ55W58398"
@@ -17,35 +16,71 @@ workflows:
       xcode: latest
 
     triggering:
-      events:
-        - push
+      events: [ push ]
       branch_patterns:
         - pattern: main
           include: true
           source: true
 
     scripts:
-      - name: Preflight — verify App Store Connect vars are present
+      - name: Preflight — resolve & verify App Store Connect vars
         script: |
           set -euo pipefail
+
+          # ---- Resolve from multiple possible names (yesterday's vs today's) ----
+          # Private key can be: base64 text, raw p8 text, or a filesystem path to a .p8
+          APP_STORE_CONNECT_PRIVATE_KEY_RESOLVED="${APP_STORE_CONNECT_PRIVATE_KEY:-${ASC_PRIVATE_KEY_B64:-${ASC_API_KEY_B64:-}}}"
+          APP_STORE_CONNECT_KEY_IDENTIFIER_RESOLVED="${APP_STORE_CONNECT_KEY_IDENTIFIER:-${ASC_KEY_ID:-${APP_STORE_CONNECT_KEY_ID:-}}}"
+          APP_STORE_CONNECT_ISSUER_ID_RESOLVED="${APP_STORE_CONNECT_ISSUER_ID:-${ASC_ISSUER_ID:-${APP_STORE_CONNECT_ISSUER_ID:-}}}"
+
+          # Export for later steps
+          export APP_STORE_CONNECT_PRIVATE_KEY_RESOLVED APP_STORE_CONNECT_KEY_IDENTIFIER_RESOLVED APP_STORE_CONNECT_ISSUER_ID_RESOLVED
+
           missing=0
-          for v in APP_STORE_CONNECT_PRIVATE_KEY APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID; do
-            if [ -z "${!v:-}" ]; then
-              echo "❌ Missing required env var: $v"
-              missing=1
-            else
-              echo "✅ $v is set"
-            fi
-          done
-          [ "$missing" -eq 0 ] || { echo "Aborting."; exit 1; }
+          if [ -z "${APP_STORE_CONNECT_PRIVATE_KEY_RESOLVED:-}" ]; then
+            echo "❌ Missing private key (set APP_STORE_CONNECT_PRIVATE_KEY or ASC_PRIVATE_KEY_B64 or ASC_API_KEY_B64)"
+            missing=1
+          fi
+          if [ -z "${APP_STORE_CONNECT_KEY_IDENTIFIER_RESOLVED:-}" ]; then
+            echo "❌ Missing key id (set APP_STORE_CONNECT_KEY_IDENTIFIER or ASC_KEY_ID or APP_STORE_CONNECT_KEY_ID)"
+            missing=1
+          fi
+          if [ -z "${APP_STORE_CONNECT_ISSUER_ID_RESOLVED:-}" ]; then
+            echo "❌ Missing issuer id (set APP_STORE_CONNECT_ISSUER_ID or ASC_ISSUER_ID)"
+            missing=1
+          fi
+
+          if [ "$missing" -ne 0 ]; then
+            echo "Aborting due to missing App Store Connect variables."
+            exit 1
+          fi
+
+          echo "✅ ASC vars resolved."
 
       - name: Create App Store Connect API key file
         script: |
           set -euo pipefail
           mkdir -p "$CM_BUILD_DIR/asc"
-          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
-          chmod 600 "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
-          echo "API key saved."
+          p8_path="$CM_BUILD_DIR/asc/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER_RESOLVED}.p8"
+
+          val="${APP_STORE_CONNECT_PRIVATE_KEY_RESOLVED}"
+
+          if [ -f "$val" ]; then
+            # Treat value as a filesystem path to .p8 (Secure file case)
+            cp "$val" "$p8_path"
+          elif echo "$val" | grep -q "-----BEGIN"; then
+            # Raw .p8 text pasted
+            printf "%s" "$val" > "$p8_path"
+          else
+            # Assume base64-encoded
+            echo "$val" | base64 --decode > "$p8_path"
+          fi
+
+          chmod 600 "$p8_path"
+          echo "API key saved at $p8_path"
+          echo "export ASC_P8_PATH=$p8_path" >> $CM_ENV
+          echo "export ASC_KEY_ID=${APP_STORE_CONNECT_KEY_IDENTIFIER_RESOLVED}" >> $CM_ENV
+          echo "export ASC_ISSUER_ID=${APP_STORE_CONNECT_ISSUER_ID_RESOLVED}" >> $CM_ENV
 
       - name: Fetch App Store provisioning profile for $APP_IDENTIFIER
         script: |
@@ -55,23 +90,22 @@ workflows:
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
             --bundle-id "$APP_IDENTIFIER" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --api-key-path "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8" \
+            --issuer-id "$ASC_ISSUER_ID" \
+            --key-id "$ASC_KEY_ID" \
+            --api-key-path "$ASC_P8_PATH" \
             --output-dir "$CM_BUILD_DIR/asc" \
             --create
 
-          PROFILE_PATH="$(ls -1 *.mobileprovision | head -n 1)"
+          PROFILE_PATH="$(ls -1 *.mobileprovision | head -n 1 || true)"
           if [ -z "${PROFILE_PATH:-}" ]; then
-            echo "❌ No provisioning profile downloaded."
+            echo "❌ No App Store profile downloaded for $APP_IDENTIFIER"
             exit 1
           fi
-          echo "✅ Profile: $PROFILE_PATH"
 
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
-          echo "Installed profile UUID: $PROFILE_UUID"
+          echo "✅ Installed profile UUID: $PROFILE_UUID"
           echo "export PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
 
       - name: Install CocoaPods
@@ -80,7 +114,7 @@ workflows:
           cd ios/App
           pod install
 
-      - name: Archive (manual App signing; no Pods signing)
+      - name: Archive (manual App signing; disable Pods signing)
         script: |
           set -euo pipefail
           xcodebuild \
@@ -136,9 +170,9 @@ workflows:
           set -euo pipefail
           app-store-connect publish \
             --path "$CM_BUILD_DIR/ipa/App.ipa" \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --api-key-path "$CM_BUILD_DIR/asc/AuthKey_$APP_STORE_CONNECT_KEY_IDENTIFIER.p8"
+            --issuer-id "$ASC_ISSUER_ID" \
+            --key-id "$ASC_KEY_ID" \
+            --api-key-path "$ASC_P8_PATH"
           echo "✅ Upload submitted to App Store Connect."
 
     artifacts:
