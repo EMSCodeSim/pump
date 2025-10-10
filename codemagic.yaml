@@ -1,7 +1,6 @@
 workflows:
   ios_release:
     name: iOS Release (App Store Connect)
-    instance_type: mac_mini_m2
     max_build_duration: 120
 
     environment:
@@ -10,36 +9,37 @@ workflows:
       node: latest
       ruby: default
 
-      # Tell Codemagic which cert + profile to install on the build machine
-      ios_signing:
-        certificates:
-          - FireOpsCalc Distribution
-        provisioning_profiles:
-          - FireOpsCalc App Store Provision
-
       vars:
+        # 🔧 App identifiers
         APP_IDENTIFIER: com.fireopscalc.app
         TEAM_ID: QZ55W58398
         XCODE_SCHEME: App
-        APPSTORE_PROFILE_NAME: FireOpsCalc App Store Provision
 
-        # App Store Connect API key (already added in App settings → Environment variables)
+        # 🔐 App Store Connect API key values
         APP_STORE_CONNECT_KEY_IDENTIFIER: 82567339RS
         APP_STORE_CONNECT_ISSUER_ID: a786600e-e10a-42b2-a2bf-443a1da2554b
         APP_STORE_CONNECT_PRIVATE_KEY: |
           -----BEGIN PRIVATE KEY-----
-          (paste full .p8 key here)
+          (paste your full .p8 key here)
           -----END PRIVATE KEY-----
 
     scripts:
-      - name: Verify workspace & schemes
+      # ✅ Verify App Store Connect vars
+      - name: Preflight — verify App Store Connect vars
         script: |
-          echo "🔎 Workspaces:"
-          find ios -name "*.xcworkspace" -maxdepth 3
-          echo "🔎 Listing schemes in ios/App/App.xcworkspace"
-          xcodebuild -list -workspace ios/App/App.xcworkspace || true
+          set -euo pipefail
+          missing=0
+          for v in APP_STORE_CONNECT_PRIVATE_KEY APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID; do
+            if [ -z "${!v:-}" ]; then
+              echo "❌ Missing required env var: $v"
+              missing=1
+            fi
+          done
+          [ $missing -eq 0 ] || { echo "Aborting due to missing App Store Connect variables."; exit 1; }
+          echo "✅ App Store Connect variables present."
 
-      - name: Install JS deps (if any)
+      # 📦 Install dependencies if any
+      - name: Install dependencies
         script: |
           set -e
           if [ -f package.json ]; then
@@ -47,6 +47,7 @@ workflows:
             npm run build || true
           fi
 
+      # 📦 Install CocoaPods
       - name: Pod install
         script: |
           set -e
@@ -55,33 +56,41 @@ workflows:
           pod install --verbose
           cd ../..
 
-      - name: Build & Archive app (Manual signing + explicit profile)
+      # 🔎 Locate provisioning profile for the App
+      - name: Locate App Store provisioning profile
         script: |
-          set -e
-          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
-          echo "📦 Archiving to $ARCHIVE_PATH"
-          xcodebuild \
-            -workspace ios/App/App.xcworkspace \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination generic/platform=iOS \
-            -archivePath "$ARCHIVE_PATH" \
-            archive \
-            PRODUCT_BUNDLE_IDENTIFIER="$APP_IDENTIFIER" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$APPSTORE_PROFILE_NAME" \
-            | xcpretty
+          set -euo pipefail
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          [ -d "$PROFILES_DIR" ] || { echo "❌ No provisioning profiles dir found"; exit 1; }
 
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not found at $ARCHIVE_PATH"
+          BEST_PROFILE=""
+          BEST_MTIME=0
+          for p in "$PROFILES_DIR"/*.mobileprovision; do
+            [ -e "$p" ] || continue
+            TMP_PLIST="$CM_BUILD_DIR/profile.plist"
+            /usr/bin/security cms -D -i "$p" > "$TMP_PLIST"
+            BID=$(/usr/libexec/PlistBuddy -c "Print Entitlements:application-identifier" "$TMP_PLIST" 2>/dev/null || true)
+            NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$TMP_PLIST" 2>/dev/null || true)
+            if [[ "$BID" == *"$APP_IDENTIFIER" ]]; then
+              MTIME=$(stat -f "%m" "$p" 2>/dev/null || echo 0)
+              if [ "$MTIME" -gt "$BEST_MTIME" ]; then
+                BEST_MTIME="$MTIME"
+                BEST_PROFILE="$p"
+                BEST_PROFILE_NAME="$NAME"
+              fi
+            fi
+          done
+
+          if [ -z "$BEST_PROFILE" ]; then
+            echo "❌ No App Store provisioning profile found for $APP_IDENTIFIER"
             exit 1
           fi
-          echo "✅ Archive created"
+          echo "✅ Using profile: $BEST_PROFILE_NAME"
+          echo "PROFILE_PATH=$BEST_PROFILE" >> $CM_ENV
+          echo "PROFILE_NAME=$BEST_PROFILE_NAME" >> $CM_ENV
 
-      - name: Prepare export options (map bundle id → profile)
+      # 🧾 Write export options
+      - name: Write export options
         script: |
           cat > "$CM_BUILD_DIR/export_options.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -92,42 +101,67 @@ workflows:
               <key>signingStyle</key><string>manual</string>
               <key>provisioningProfiles</key>
               <dict>
-                <key>${APP_IDENTIFIER}</key><string>${APPSTORE_PROFILE_NAME}</string>
+                <key>${APP_IDENTIFIER}</key><string>${PROFILE_NAME}</string>
               </dict>
-              <key>stripSwiftSymbols</key><true/>
               <key>uploadSymbols</key><true/>
+              <key>stripSwiftSymbols</key><true/>
             </dict>
           </plist>
           PLIST
 
+      # 🏗 Build & Archive
+      - name: Build & Archive app (Manual signing)
+        script: |
+          set -e
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          echo "📦 Archiving to $ARCHIVE_PATH"
+
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination generic/platform=iOS \
+            -archivePath "$ARCHIVE_PATH" \
+            archive \
+            "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
+            "App:DEVELOPMENT_TEAM=$TEAM_ID" \
+            "App:CODE_SIGN_STYLE=Manual" \
+            "App:CODE_SIGN_IDENTITY=Apple Distribution" \
+            "App:PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found at $ARCHIVE_PATH"
+            exit 1
+          fi
+          echo "✅ Archive finished."
+
+      # 📦 Export IPA
       - name: Export IPA
         script: |
           set -e
-          IPA_DIR="$CM_BUILD_DIR/ipa"
-          mkdir -p "$IPA_DIR"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$IPA_DIR" \
-            | xcpretty
-          echo "📁 IPA contents:"
-          ls -la "$IPA_DIR"
+            -exportPath "$CM_BUILD_DIR/ipa"
+          ls -lah "$CM_BUILD_DIR/ipa" || true
+          echo "✅ IPA exported."
 
+      # 🚀 Upload to App Store Connect
       - name: Upload to App Store Connect
         script: |
           set -e
           IPA_PATH="$CM_BUILD_DIR/ipa/App.ipa"
-          if [ ! -f "$IPA_PATH" ]; then
-            echo "❌ IPA not found at $IPA_PATH"
-            ls -la "$CM_BUILD_DIR/ipa" || true
-            exit 1
-          fi
-          echo "🚀 Uploading to ASC..."
+          [ -f "$IPA_PATH" ] || { echo "❌ No IPA found at $IPA_PATH"; exit 1; }
+
           app-store-connect publish \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --path "$IPA_PATH"
+
+          echo "✅ Upload complete."
 
     artifacts:
       - $CM_BUILD_DIR/ipa/*.ipa
