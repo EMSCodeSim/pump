@@ -10,7 +10,6 @@ workflows:
       node: latest
       ruby: default
 
-      # Install signing assets that already exist in Codemagic (names must match exactly)
       ios_signing:
         certificates:
           - FireOpsCalc Distribution
@@ -22,16 +21,14 @@ workflows:
         TEAM_ID: QZ55W58398
         XCODE_SCHEME: App
 
-        # App Store Connect API (use your values / variable group)
         APP_STORE_CONNECT_KEY_IDENTIFIER: 82567339RS
         APP_STORE_CONNECT_ISSUER_ID: a786600e-e10a-42b2-a2bf-443a1da2554b
         APP_STORE_CONNECT_PRIVATE_KEY: |
           -----BEGIN PRIVATE KEY-----
-          (paste your .p8 contents here)
+          (paste your .p8 here)
           -----END PRIVATE KEY-----
 
-        # OPTIONAL: If you prefer to provide a profile via env instead of Codemagic UI,
-        # set APP_STORE_PROFILE_B64 in project env and this file will pick it up.
+        # Optional: if you want to provide the profile via env instead of UI
         # APP_STORE_PROFILE_B64: ""
 
     scripts:
@@ -54,20 +51,17 @@ workflows:
       - name: Resolve App Store provisioning profile (env ► installed ► repo)
         script: |
           set -euo pipefail
-
           TARGET_BUNDLE_ID="${APP_IDENTIFIER}"
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           OUT_DIR="$CM_BUILD_DIR"
           mkdir -p "$OUT_DIR"
 
-          # 1) If provided via env (base64), write it out and prefer this one
           if [ -n "${APP_STORE_PROFILE_B64:-}" ]; then
             echo "ℹ️ Writing provisioning profile from APP_STORE_PROFILE_B64"
             echo "$APP_STORE_PROFILE_B64" | base64 --decode > "$OUT_DIR/AppStore.mobileprovision"
             PROFILE_PATH="$OUT_DIR/AppStore.mobileprovision"
           fi
 
-          # Helper to inspect a .mobileprovision
           inspect_profile() {
             local f="$1"
             /usr/bin/security cms -D -i "$f" > "$OUT_DIR/tmp.plist"
@@ -78,7 +72,6 @@ workflows:
             echo "$app_id|$provisions_all|$prov_devices|$name"
           }
 
-          # 2) If nothing from env, try Codemagic-installed profiles directory
           if [ -z "${PROFILE_PATH:-}" ] && [ -d "$PROFILES_DIR" ]; then
             echo "ℹ️ Searching installed profiles for $TARGET_BUNDLE_ID"
             BEST=""
@@ -89,9 +82,8 @@ workflows:
               app_id="${meta%%|*}"; rest="${meta#*|}"
               provisions_all="${rest%%|*}"; rest="${rest#*|}"
               prov_devices="${rest%%|*}"; name="${rest#*|}"
-
-              # Require exact application-identifier suffix match and App Store distribution
-              if [ -n "$app_id" ]; then suffix="${app_id#*.}"; else continue; fi
+              [ -n "$app_id" ] || continue
+              suffix="${app_id#*.}"
               if [ "$suffix" = "$TARGET_BUNDLE_ID" ] && \
                  [ "$provisions_all" != "true" ] && \
                  ! echo "$prov_devices" | grep -q "<array>"; then
@@ -107,7 +99,6 @@ workflows:
             fi
           fi
 
-          # 3) Fallback to repo file if present
           if [ -z "${PROFILE_PATH:-}" ] && [ -f "ios/App/AppStore.mobileprovision" ]; then
             echo "ℹ️ Using repo profile at ios/App/AppStore.mobileprovision"
             PROFILE_PATH="ios/App/AppStore.mobileprovision"
@@ -121,7 +112,6 @@ workflows:
             exit 1
           fi
 
-          # Export variables for later steps
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$OUT_DIR/profile.plist"
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$OUT_DIR/profile.plist" 2>/dev/null || echo "AppStoreProfile")
           echo "PROFILE_PATH=$PROFILE_PATH" >> "$CM_ENV"
@@ -144,10 +134,11 @@ workflows:
           </plist>
           PLIST
 
-      - name: Build & Archive app (Manual signing)
+      - name: Build & Archive app (Manual signing – scope to App only; disable Pods)
         script: |
           set -euo pipefail
           : "${PROFILE_NAME:?PROFILE_NAME not set}"
+
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -156,11 +147,29 @@ workflows:
             -destination "generic/platform=iOS" \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             archive \
-            "PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
-            "DEVELOPMENT_TEAM=$TEAM_ID" \
-            "CODE_SIGN_STYLE=Manual" \
-            "CODE_SIGN_IDENTITY=Apple Distribution" \
-            "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME"
+            "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
+            "App:DEVELOPMENT_TEAM=$TEAM_ID" \
+            "App:CODE_SIGN_STYLE=Manual" \
+            "App:CODE_SIGN_IDENTITY=Apple Distribution" \
+            "App:PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" \
+            "Pods-App:CODE_SIGNING_ALLOWED=NO" \
+            "Pods-App:CODE_SIGNING_REQUIRED=NO" \
+            "Pods-App:CODE_SIGN_STYLE=Automatic" \
+            "Pods-App:DEVELOPMENT_TEAM=" \
+            "Pods-App:PROVISIONING_PROFILE_SPECIFIER=" \
+            "Pods-App:PROVISIONING_PROFILE=" \
+            "Capacitor:CODE_SIGNING_ALLOWED=NO" \
+            "Capacitor:CODE_SIGNING_REQUIRED=NO" \
+            "Capacitor:CODE_SIGN_STYLE=Automatic" \
+            "Capacitor:DEVELOPMENT_TEAM=" \
+            "Capacitor:PROVISIONING_PROFILE_SPECIFIER=" \
+            "Capacitor:PROVISIONING_PROFILE=" \
+            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" \
+            "CapacitorCordova:CODE_SIGNING_REQUIRED=NO" \
+            "CapacitorCordova:CODE_SIGN_STYLE=Automatic" \
+            "CapacitorCordova:DEVELOPMENT_TEAM=" \
+            "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER=" \
+            "CapacitorCordova:PROVISIONING_PROFILE="
 
       - name: Export IPA
         script: |
