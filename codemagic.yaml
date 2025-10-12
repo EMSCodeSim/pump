@@ -1,55 +1,49 @@
 workflows:
   ios_release:
-    name: iOS Release (manual signing via env)
+    name: iOS Release (ASC upload)
     max_build_duration: 120
     instance_type: mac_mini_m2
 
     environment:
+      # Exact names as visible in Teams → Code signing
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.fireopscalc.app
+        certificates:
+          - FireOpsCalc Distribution
+        provisioning_profiles:
+          - FireOpsCalc App Store Provision
+
+      groups:
+        - app_store_connect            # contains APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID
+
+      vars:
+        APP_IDENTIFIER: com.fireopscalc.app
+        TEAM_ID: QZ55W58398
+        XCODE_SCHEME: App
+
       xcode: 16.4
       cocoapods: default
       node: latest
       ruby: default
-      vars:
-        TEAM_ID: QZ55W58398
-        APP_IDENTIFIER: com.fireopscalc.app
-        XCODE_SCHEME: App
-        EXPORT_METHOD: app-store
-        # Optional: set these in Codemagic if you also want automatic upload after build
-        # APP_STORE_CONNECT_KEY_IDENTIFIER: ""
-        # APP_STORE_CONNECT_ISSUER_ID: ""
-        # APP_STORE_CONNECT_PRIVATE_KEY: |
-        #   -----BEGIN PRIVATE KEY-----
-        #   (paste your .p8 contents here)
-        #   -----END PRIVATE KEY-----
 
     scripts:
-      # 1) HARD requirement: the three env vars must exist
-      - name: Preflight — verify required secrets
+      - name: Preflight — show selected signing assets
         script: |
-          set -euo pipefail
-          missing=0
-          if [ -z "${P12_BASE64:-}" ]; then echo "❌ Missing P12_BASE64"; missing=1; fi
-          if [ -z "${P12_PASSWORD:-}" ]; then echo "❌ Missing P12_PASSWORD"; missing=1; fi
-          if [ -z "${APP_STORE_PROFILE_B64:-}" ]; then echo "❌ Missing APP_STORE_PROFILE_B64"; missing=1; fi
-          if [ "$missing" -eq 1 ]; then
-            echo
-            echo "Aborting due to missing signing inputs."
-            echo "Provide:"
-            echo "  • P12_BASE64  (base64 of your Apple Distribution .p12)"
-            echo "  • P12_PASSWORD"
-            echo "  • APP_STORE_PROFILE_B64 (base64 of your App Store .mobileprovision)"
-            exit 1
-          fi
+          echo "Using certificate(s):"
+          keychain list-certificates || true
+          echo "Using provisioning profile(s):"
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
 
-      # 2) JS deps (optional)
-      - name: Install JS deps (optional)
+      - name: Set up keychain & install injected certs/profiles
         script: |
-          if [ -f package.json ]; then
-            npm ci || npm i
-          fi
+          set -e
+          # Install the certs Codemagic injected from Teams → Code signing
+          keychain add-certificates
+          # Wire the injected provisioning profiles into the Xcode project automatically
+          xcode-project use-profiles --project ios/App/App.xcodeproj
 
-      # 3) Pods
-      - name: CocoaPods
+      - name: Install pods
         script: |
           set -e
           cd ios/App
@@ -57,146 +51,75 @@ workflows:
           pod install --verbose
           cd ../..
 
-      # 4) Keychain + import .p12
-      - name: Set up keychain & install distribution cert
+      - name: Write export options (App Store)
         script: |
-          set -euo pipefail
-          KEYCHAIN_NAME="$(date +%Y%m%d_%H%M%S)_cm.keychain-db"
-          KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
-          KEYCHAIN_PWD="$(uuidgen)"
-
-          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_NAME"
-          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-          security list-keychains -s "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          echo "$P12_BASE64" | base64 --decode > "$CM_BUILD_DIR/dist.p12"
-          security import "$CM_BUILD_DIR/dist.p12" -k "$KEYCHAIN_PATH" -P "${P12_PASSWORD}" -T /usr/bin/codesign -T /usr/bin/security -A
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
-
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$CM_ENV"
-
-      # 5) Install provisioning profile
-      - name: Install App Store provisioning profile
-        script: |
-          set -euo pipefail
-          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILES_DIR"
-          PROFILE_PATH="$PROFILES_DIR/AppStore.mobileprovision"
-
-          echo "$APP_STORE_PROFILE_B64" | base64 --decode > "$PROFILE_PATH"
-          /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
-          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$CM_BUILD_DIR/profile.plist")
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" "$CM_BUILD_DIR/profile.plist")
-          APP_ID_FULL=$(/usr/libexec/PlistBuddy -c "Print Entitlements:application-identifier" "$CM_BUILD_DIR/profile.plist")
-          SUFFIX="${APP_ID_FULL#*.}"
-
-          echo "🔎 Profile name:  $PROFILE_NAME"
-          echo "🔎 Profile UUID:  $PROFILE_UUID"
-          echo "🔎 App ID inside: $SUFFIX"
-
-          if [ "$SUFFIX" != "$APP_IDENTIFIER" ]; then
-            echo "❌ Provisioning profile bundle id ($SUFFIX) does not match $APP_IDENTIFIER"
-            exit 1
-          fi
-
-          echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
-          echo "PROFILE_UUID=$PROFILE_UUID" >> "$CM_ENV"
-
-      # 6) Export options
-      - name: Write export options
-        script: |
-          cat > "$CM_BUILD_DIR/export_options.plist" <<PLIST
+          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>uploadSymbols</key><true/>
+            <key>stripSwiftSymbols</key><true/>
+            <key>provisioningProfiles</key>
             <dict>
-              <key>method</key><string>${EXPORT_METHOD}</string>
-              <key>signingStyle</key><string>manual</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                <key>${APP_IDENTIFIER}</key><string>${PROFILE_NAME}</string>
-              </dict>
-              <key>teamID</key><string>${TEAM_ID}</string>
-              <key>destination</key><string>export</string>
-              <key>stripSwiftSymbols</key><true/>
-              <key>uploadSymbols</key><true/>
-              <key>compileBitcode</key><false/>
+              <key>com.fireopscalc.app</key><string>FireOpsCalc App Store Provision</string>
             </dict>
+          </dict>
           </plist>
           PLIST
 
-      # 7) Build & Archive — manual signing for App; disable signing for Pods
-      - name: Build & Archive app
+      - name: Build & Archive app (manual signing; Pods no-sign)
         script: |
           set -euo pipefail
-          echo "📦 Archiving to $CM_BUILD_DIR/App.xcarchive"
-
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -destination "generic/platform=iOS" \
+            -destination 'generic/platform=iOS' \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             archive \
-            "OTHER_CODE_SIGN_FLAGS=--keychain $KEYCHAIN_PATH" \
-            "DEVELOPMENT_TEAM=$TEAM_ID" \
-            "PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
-            "CODE_SIGN_STYLE=Manual" \
-            "CODE_SIGN_IDENTITY=Apple Distribution" \
-            "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" \
-            "PROVISIONING_PROFILE=$PROFILE_UUID" \
             "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
             "App:DEVELOPMENT_TEAM=$TEAM_ID" \
             "App:CODE_SIGN_STYLE=Manual" \
             "App:CODE_SIGN_IDENTITY=Apple Distribution" \
-            "App:PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME" \
-            "App:PROVISIONING_PROFILE=$PROFILE_UUID" \
-            "Pods-App:CODE_SIGNING_ALLOWED=NO" \
-            "Pods-App:CODE_SIGNING_REQUIRED=NO" \
-            "Pods-App:DEVELOPMENT_TEAM=" \
-            "Pods-App:PROVISIONING_PROFILE_SPECIFIER=" \
-            "Pods-App:PROVISIONING_PROFILE=" \
-            "Capacitor:CODE_SIGNING_ALLOWED=NO" \
-            "Capacitor:CODE_SIGNING_REQUIRED=NO" \
-            "Capacitor:DEVELOPMENT_TEAM=" \
-            "Capacitor:PROVISIONING_PROFILE_SPECIFIER=" \
-            "Capacitor:PROVISIONING_PROFILE=" \
-            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" \
-            "CapacitorCordova:CODE_SIGNING_REQUIRED=NO" \
-            "CapacitorCordova:DEVELOPMENT_TEAM=" \
-            "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER=" \
-            "CapacitorCordova:PROVISIONING_PROFILE="
+            "Pods-App:CODE_SIGNING_ALLOWED=NO" "Pods-App:CODE_SIGNING_REQUIRED=NO" \
+            "Capacitor:CODE_SIGNING_ALLOWED=NO" "Capacitor:CODE_SIGNING_REQUIRED=NO" \
+            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" "CapacitorCordova:CODE_SIGNING_REQUIRED=NO"
 
-      # 8) Export IPA
       - name: Export IPA
         script: |
           set -e
+          mkdir -p "$CM_BUILD_DIR/ipa"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
             -exportPath "$CM_BUILD_DIR/ipa"
-          test -f "$CM_BUILD_DIR/ipa/App.ipa" || { echo "❌ IPA not found"; exit 1; }
-          ls -lah "$CM_BUILD_DIR/ipa"
+          ls -la "$CM_BUILD_DIR/ipa"
 
-      # 9) Upload to App Store Connect (only if you set ASC vars)
-      - name: Upload to App Store Connect (optional)
+      - name: Upload to App Store Connect
         script: |
           set -e
-          if [ -n "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ] && \
-             [ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] && \
-             [ -n "${APP_STORE_CONNECT_PRIVATE_KEY:-}" ]; then
-            app-store-connect publish \
-              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-              --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-              --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-              --path "$CM_BUILD_DIR/ipa/App.ipa"
-          else
-            echo "ℹ️ Skipping upload — App Store Connect API variables not provided."
+          IPA="$CM_BUILD_DIR/ipa/App.ipa"
+          if [ ! -f "$IPA" ]; then
+            echo "❌ IPA not found at $IPA"
+            exit 1
           fi
+          app-store-connect publish \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --path "$IPA"
 
     artifacts:
       - $CM_BUILD_DIR/ipa/*.ipa
-      - $CM_BUILD_DIR/App.xcarchive
+      - $CM_BUILD_DIR/export_options.plist
+    publishing:
+      email:
+        recipients:
+          - your@email.here
+        notify:
+          success: true
+          failure: true
