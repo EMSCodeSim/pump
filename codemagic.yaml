@@ -1,49 +1,45 @@
 workflows:
   ios_release:
-    name: iOS Release (ASC upload)
+    name: iOS Release (App Store)
     max_build_duration: 120
     instance_type: mac_mini_m2
 
     environment:
-      # Exact names as visible in Teams → Code signing
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.fireopscalc.app
-        certificates:
-          - FireOpsCalc Distribution
-        provisioning_profiles:
-          - FireOpsCalc App Store Provision
-
-      groups:
-        - app_store_connect            # contains APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY_IDENTIFIER, APP_STORE_CONNECT_ISSUER_ID
-
-      vars:
-        APP_IDENTIFIER: com.fireopscalc.app
-        TEAM_ID: QZ55W58398
-        XCODE_SCHEME: App
-
       xcode: 16.4
       cocoapods: default
       node: latest
       ruby: default
 
+      # Use signing assets from Codemagic UI (Teams → Code signing identities)
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.fireopscalc.app
+        certificates:
+          - "FireOpsCalc Distribution"
+        provisioning_profiles:
+          - "FireOpsCalc App Store Provision"
+
+      # Pull ASC creds from your variable group in the app (Settings → Environment variables)
+      groups:
+        - app_store_connect   # must contain: APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_ISSU
+
+      # Nice-to-have explicit variables used below
+      vars:
+        APP_IDENTIFIER: com.fireopscalc.app
+        TEAM_ID: QZ55W58398
+        XCODE_SCHEME: App
+        PROFILE_NAME: FireOpsCalc App Store Provision
+
     scripts:
-      - name: Preflight — show selected signing assets
+      - name: Show Xcode & tool versions
         script: |
-          echo "Using certificate(s):"
-          keychain list-certificates || true
-          echo "Using provisioning profile(s):"
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          xcodebuild -version
+          swift --version
+          ruby -v
+          node -v
+          pod --version
 
-      - name: Set up keychain & install injected certs/profiles
-        script: |
-          set -e
-          # Install the certs Codemagic injected from Teams → Code signing
-          keychain add-certificates
-          # Wire the injected provisioning profiles into the Xcode project automatically
-          xcode-project use-profiles --project ios/App/App.xcodeproj
-
-      - name: Install pods
+      - name: Install CocoaPods
         script: |
           set -e
           cd ios/App
@@ -51,28 +47,13 @@ workflows:
           pod install --verbose
           cd ../..
 
-      - name: Write export options (App Store)
+      - name: Clean DerivedData (deflake builds)
         script: |
-          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>uploadSymbols</key><true/>
-            <key>stripSwiftSymbols</key><true/>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key><string>FireOpsCalc App Store Provision</string>
-            </dict>
-          </dict>
-          </plist>
-          PLIST
+          rm -rf ~/Library/Developer/Xcode/DerivedData || true
 
-      - name: Build & Archive app (manual signing; Pods no-sign)
+      - name: Build & Archive (no per-target signing overrides)
         script: |
-          set -euo pipefail
+          set -e
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme "$XCODE_SCHEME" \
@@ -80,46 +61,59 @@ workflows:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            archive \
-            "App:PRODUCT_BUNDLE_IDENTIFIER=$APP_IDENTIFIER" \
-            "App:DEVELOPMENT_TEAM=$TEAM_ID" \
-            "App:CODE_SIGN_STYLE=Manual" \
-            "App:CODE_SIGN_IDENTITY=Apple Distribution" \
-            "Pods-App:CODE_SIGNING_ALLOWED=NO" "Pods-App:CODE_SIGNING_REQUIRED=NO" \
-            "Capacitor:CODE_SIGNING_ALLOWED=NO" "Capacitor:CODE_SIGNING_REQUIRED=NO" \
-            "CapacitorCordova:CODE_SIGNING_ALLOWED=NO" "CapacitorCordova:CODE_SIGNING_REQUIRED=NO"
+            clean archive | xcpretty
+
+      - name: Write export options (App Store)
+        script: |
+          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+            <dict>
+              <key>method</key><string>app-store</string>
+              <key>signingStyle</key><string>automatic</string>
+              <key>uploadSymbols</key><true/>
+              <key>stripSwiftSymbols</key><true/>
+              <key>compileBitcode</key><false/>
+              <key>signingCertificate</key><string>Apple Distribution</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                <key>com.fireopscalc.app</key><string>FireOpsCalc App Store Provision</string>
+              </dict>
+            </dict>
+          </plist>
+          PLIST
 
       - name: Export IPA
         script: |
           set -e
-          mkdir -p "$CM_BUILD_DIR/ipa"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$CM_BUILD_DIR/ipa"
-          ls -la "$CM_BUILD_DIR/ipa"
+            -exportPath "$CM_BUILD_DIR/ipa" | xcpretty
+          ls -lah "$CM_BUILD_DIR/ipa"
 
       - name: Upload to App Store Connect
         script: |
           set -e
-          IPA="$CM_BUILD_DIR/ipa/App.ipa"
-          if [ ! -f "$IPA" ]; then
-            echo "❌ IPA not found at $IPA"
-            exit 1
+          IPA_PATH="$CM_BUILD_DIR/ipa/App.ipa"
+          if [ ! -f "$IPA_PATH" ]; then
+            echo "❌ IPA not found at $IPA_PATH"; exit 1
           fi
           app-store-connect publish \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --path "$IPA"
+            --issuer-id "$APP_STORE_CONNECT_ISSU" \
+            --key-id "$APP_STORE_CONNECT_KEY" \
+            --private-key "$APP_STORE_CONNECT_PRI" \
+            --path "$IPA_PATH"
 
     artifacts:
       - $CM_BUILD_DIR/ipa/*.ipa
-      - $CM_BUILD_DIR/export_options.plist
+      - $CM_BUILD_DIR/App.xcarchive
+
     publishing:
       email:
         recipients:
-          - your@email.here
+          - david@yourdomain.example
         notify:
           success: true
           failure: true
