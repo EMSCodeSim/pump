@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: iOS Release (manual signing; flexible secrets)
+    name: iOS Release (manual signing via env)
     max_build_duration: 120
     instance_type: mac_mini_m2
 
@@ -14,73 +14,41 @@ workflows:
         APP_IDENTIFIER: com.fireopscalc.app
         XCODE_SCHEME: App
         EXPORT_METHOD: app-store
-        # Optional default paths if you committed signing files to the repo
-        LOCAL_P12_PATH: ios/signing/dist.p12
-        LOCAL_PROFILE_PATH: ios/App/AppStore.mobileprovision
-        # If your .p12 has no password, leave P12_PASSWORD empty in Codemagic UI
-        # App Store Connect API key (optional — only required for upload step)
+        # Optional: set these in Codemagic if you also want automatic upload after build
         # APP_STORE_CONNECT_KEY_IDENTIFIER: ""
         # APP_STORE_CONNECT_ISSUER_ID: ""
-        # APP_STORE_CONNECT_PRIVATE_KEY: ""    # contents of .p8 key
+        # APP_STORE_CONNECT_PRIVATE_KEY: |
+        #   -----BEGIN PRIVATE KEY-----
+        #   (paste your .p8 contents here)
+        #   -----END PRIVATE KEY-----
 
     scripts:
-      # ────────────────────────────────────────────────────────────────────────────
-      # 1) Resolve signing inputs from (A) env base64, (B) committed files.
-      #    We DO NOT fail here if ASC variables are missing — that only skips upload.
-      # ────────────────────────────────────────────────────────────────────────────
-      - name: Preflight — resolve signing inputs
+      # 1) HARD requirement: the three env vars must exist
+      - name: Preflight — verify required secrets
         script: |
           set -euo pipefail
-
-          # Decide signing mode for cert/profile: env-b64 or local files
-          SIGN_MODE=""
-          CERT_SRC=""
-          PROF_SRC=""
-
-          if [ -n "${P12_BASE64:-}" ] && [ -n "${APP_STORE_PROFILE_B64:-}" ]; then
-            SIGN_MODE="b64"
-            CERT_SRC="env:P12_BASE64"
-            PROF_SRC="env:APP_STORE_PROFILE_B64"
-          elif [ -f "${LOCAL_P12_PATH}" ] && [ -f "${LOCAL_PROFILE_PATH}" ]; then
-            SIGN_MODE="files"
-            CERT_SRC="$LOCAL_P12_PATH"
-            PROF_SRC="$LOCAL_PROFILE_PATH"
-          else
-            echo "❌ Could not find signing inputs."
-            echo "   Provide either:"
-            echo "   • P12_BASE64 + P12_PASSWORD + APP_STORE_PROFILE_B64 (env vars in Codemagic UI),"
-            echo "     OR"
-            echo "   • Commit files at ${LOCAL_P12_PATH} and ${LOCAL_PROFILE_PATH}."
+          missing=0
+          if [ -z "${P12_BASE64:-}" ]; then echo "❌ Missing P12_BASE64"; missing=1; fi
+          if [ -z "${P12_PASSWORD:-}" ]; then echo "❌ Missing P12_PASSWORD"; missing=1; fi
+          if [ -z "${APP_STORE_PROFILE_B64:-}" ]; then echo "❌ Missing APP_STORE_PROFILE_B64"; missing=1; fi
+          if [ "$missing" -eq 1 ]; then
+            echo
+            echo "Aborting due to missing signing inputs."
+            echo "Provide:"
+            echo "  • P12_BASE64  (base64 of your Apple Distribution .p12)"
+            echo "  • P12_PASSWORD"
+            echo "  • APP_STORE_PROFILE_B64 (base64 of your App Store .mobileprovision)"
             exit 1
           fi
 
-          echo "✅ Using signing mode: ${SIGN_MODE}"
-          echo "   Certificate source: ${CERT_SRC}"
-          echo "   Profile source:     ${PROF_SRC}"
-          echo "SIGN_MODE=${SIGN_MODE}" >> "$CM_ENV"
-
-          # Upload step is optional. We'll only do it if all ASC vars are present.
-          ASC_OK=1
-          for v in APP_STORE_CONNECT_KEY_IDENTIFIER APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_PRIVATE_KEY; do
-            if [ -z "${!v:-}" ]; then ASC_OK=0; fi
-          done
-          if [ "$ASC_OK" -eq 1 ]; then
-            echo "ASC_UPLOAD=1" >> "$CM_ENV"
-            echo "✅ App Store Connect API key present — will upload after build."
-          else
-            echo "ASC_UPLOAD=0" >> "$CM_ENV"
-            echo "ℹ️ App Store Connect API key missing — upload step will be skipped."
-          fi
-
-      # ────────────────────────────────────────────────────────────────────────────
-      # 2) Install deps
-      # ────────────────────────────────────────────────────────────────────────────
+      # 2) JS deps (optional)
       - name: Install JS deps (optional)
         script: |
           if [ -f package.json ]; then
             npm ci || npm i
           fi
 
+      # 3) Pods
       - name: CocoaPods
         script: |
           set -e
@@ -89,10 +57,8 @@ workflows:
           pod install --verbose
           cd ../..
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 3) Create keychain & import cert (from env-b64 or from file)
-      # ────────────────────────────────────────────────────────────────────────────
-      - name: Set up keychain & install Distribution cert
+      # 4) Keychain + import .p12
+      - name: Set up keychain & install distribution cert
         script: |
           set -euo pipefail
           KEYCHAIN_NAME="$(date +%Y%m%d_%H%M%S)_cm.keychain-db"
@@ -105,21 +71,13 @@ workflows:
           security list-keychains -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          if [ "${SIGN_MODE}" = "b64" ]; then
-            echo "$P12_BASE64" | base64 --decode > "$CM_BUILD_DIR/dist.p12"
-            P12_FILE="$CM_BUILD_DIR/dist.p12"
-          else
-            P12_FILE="$LOCAL_P12_PATH"
-          fi
-
-          security import "$P12_FILE" -k "$KEYCHAIN_PATH" -P "${P12_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/security -A
+          echo "$P12_BASE64" | base64 --decode > "$CM_BUILD_DIR/dist.p12"
+          security import "$CM_BUILD_DIR/dist.p12" -k "$KEYCHAIN_PATH" -P "${P12_PASSWORD}" -T /usr/bin/codesign -T /usr/bin/security -A
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PWD" "$KEYCHAIN_PATH"
 
           echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$CM_ENV"
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 4) Install provisioning profile (from env-b64 or from file)
-      # ────────────────────────────────────────────────────────────────────────────
+      # 5) Install provisioning profile
       - name: Install App Store provisioning profile
         script: |
           set -euo pipefail
@@ -127,12 +85,7 @@ workflows:
           mkdir -p "$PROFILES_DIR"
           PROFILE_PATH="$PROFILES_DIR/AppStore.mobileprovision"
 
-          if [ "${SIGN_MODE}" = "b64" ]; then
-            echo "$APP_STORE_PROFILE_B64" | base64 --decode > "$PROFILE_PATH"
-          else
-            cp "$LOCAL_PROFILE_PATH" "$PROFILE_PATH"
-          fi
-
+          echo "$APP_STORE_PROFILE_B64" | base64 --decode > "$PROFILE_PATH"
           /usr/bin/security cms -D -i "$PROFILE_PATH" > "$CM_BUILD_DIR/profile.plist"
           PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" "$CM_BUILD_DIR/profile.plist")
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" "$CM_BUILD_DIR/profile.plist")
@@ -151,9 +104,7 @@ workflows:
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
           echo "PROFILE_UUID=$PROFILE_UUID" >> "$CM_ENV"
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 5) Export options
-      # ────────────────────────────────────────────────────────────────────────────
+      # 6) Export options
       - name: Write export options
         script: |
           cat > "$CM_BUILD_DIR/export_options.plist" <<PLIST
@@ -176,10 +127,8 @@ workflows:
           </plist>
           PLIST
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 6) Build & Archive (Manual signing for App; disable signing for Pods)
-      # ────────────────────────────────────────────────────────────────────────────
-      - name: Build & Archive app (Manual signing; Pods no-sign)
+      # 7) Build & Archive — manual signing for App; disable signing for Pods
+      - name: Build & Archive app
         script: |
           set -euo pipefail
           echo "📦 Archiving to $CM_BUILD_DIR/App.xcarchive"
@@ -221,9 +170,7 @@ workflows:
             "CapacitorCordova:PROVISIONING_PROFILE_SPECIFIER=" \
             "CapacitorCordova:PROVISIONING_PROFILE="
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 7) Export IPA
-      # ────────────────────────────────────────────────────────────────────────────
+      # 8) Export IPA
       - name: Export IPA
         script: |
           set -e
@@ -234,13 +181,13 @@ workflows:
           test -f "$CM_BUILD_DIR/ipa/App.ipa" || { echo "❌ IPA not found"; exit 1; }
           ls -lah "$CM_BUILD_DIR/ipa"
 
-      # ────────────────────────────────────────────────────────────────────────────
-      # 8) Upload to App Store Connect (optional if ASC vars present)
-      # ────────────────────────────────────────────────────────────────────────────
-      - name: Upload to App Store Connect (if API key provided)
+      # 9) Upload to App Store Connect (only if you set ASC vars)
+      - name: Upload to App Store Connect (optional)
         script: |
           set -e
-          if [ "${ASC_UPLOAD:-0}" = "1" ]; then
+          if [ -n "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ] && \
+             [ -n "${APP_STORE_CONNECT_ISSUER_ID:-}" ] && \
+             [ -n "${APP_STORE_CONNECT_PRIVATE_KEY:-}" ]; then
             app-store-connect publish \
               --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
               --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
