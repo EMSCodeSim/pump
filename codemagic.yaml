@@ -9,7 +9,7 @@ workflows:
       node: 18.18.0
       cocoapods: default
 
-      # Include your secure Apple vars (Key ID, Issuer ID, Base64 .p8, Team ID)
+      # Import your env var group that contains the three ASC values + team id
       groups:
         - ios-signing
 
@@ -18,7 +18,7 @@ workflows:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
-      # ✅ AUTOMATIC signing (pick ONE method only → this one)
+      # ✅ Automatic code signing (do NOT add provisioning_profiles / certificates here)
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -86,8 +86,9 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER     # 10-char Key ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID           # UUID
-        key_base64: $APP_STORE_CONNECT_PRIVATE_KEY        # <-- using Base64 of .p8
-        team_id: $APP_STORE_CONNECT_TEAM_ID               # optional but recommended
+        # ✅ Correct field names per Codemagic schema
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY      # full PEM of .p8 (multiline secure var)
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER    # 10-char Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID      # UUID
+        team_id: $APP_STORE_CONNECT_TEAM_ID          # optional but recommended
         submit_to_testflight: true
