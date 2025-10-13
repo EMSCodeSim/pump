@@ -7,113 +7,99 @@ workflows:
     environment:
       xcode: 16.4
       cocoapods: default
-      node: latest
-      ruby: default
+      node: 18.18.0
+      vars:
+        # 👇 set these for your project
+        BUNDLE_ID: "com.fireopscalc.app"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
 
-      # Use signing assets from Codemagic UI (Teams → Code signing identities)
+      # ✅ AUTOMATIC SIGNING — pick ONE method only (this one)
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.fireopscalc.app
-        certificates:
-          - "FireOpsCalc Distribution"
-        provisioning_profiles:
-          - "FireOpsCalc App Store Provision"
+        bundle_identifier: "$BUNDLE_ID"
 
-      # Pull ASC creds from your variable group in the app (Settings → Environment variables)
-      groups:
-        - app_store_connect   # must contain: APP_STORE_CONNECT_PRIVATE_KEY, APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_ISSU
+      # (You already created these secure env vars in Codemagic)
+      # APP_STORE_CONNECT_KEY_IDENTIFIER
+      # APP_STORE_CONNECT_ISSUER_ID
+      # APP_STORE_CONNECT_PRIVATE_KEY
+      # APP_STORE_CONNECT_TEAM_ID  (optional but recommended)
 
-      # Nice-to-have explicit variables used below
-      vars:
-        APP_IDENTIFIER: com.fireopscalc.app
-        TEAM_ID: QZ55W58398
-        XCODE_SCHEME: App
-        PROFILE_NAME: FireOpsCalc App Store Provision
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/.cache/CocoaPods
+        - ios/App/Pods
 
     scripts:
-      - name: Show Xcode & tool versions
+      - name: Clean caches (optional)
         script: |
-          xcodebuild -version
-          swift --version
-          ruby -v
-          node -v
-          pod --version
+          rm -rf ~/Library/Caches/CocoaPods Pods ~/Library/Developer/Xcode/DerivedData || true
+
+      - name: Install dependencies
+        script: npm ci
+
+      - name: Build web assets
+        script: npm run build
+
+      - name: Sync Capacitor iOS
+        script: npx cap sync ios
 
       - name: Install CocoaPods
         script: |
-          set -e
           cd ios/App
-          pod repo update
-          pod install --verbose
-          cd ../..
+          pod install --repo-update
 
-      - name: Clean DerivedData (deflake builds)
-        script: |
-          rm -rf ~/Library/Developer/Xcode/DerivedData || true
-
-      - name: Build & Archive (no per-target signing overrides)
+      - name: Build archive (Release)
         script: |
           set -e
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
           xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+            -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
             clean archive | xcpretty
 
-      - name: Write export options (App Store)
+      - name: Export IPA (App Store)
         script: |
-          cat > "$CM_BUILD_DIR/export_options.plist" <<'PLIST'
+          set -e
+          EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
+          cat > "$EXPORT_PLIST" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
-            <dict>
-              <key>method</key><string>app-store</string>
-              <key>signingStyle</key><string>automatic</string>
-              <key>uploadSymbols</key><true/>
-              <key>stripSwiftSymbols</key><true/>
-              <key>compileBitcode</key><false/>
-              <key>signingCertificate</key><string>Apple Distribution</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                <key>com.fireopscalc.app</key><string>FireOpsCalc App Store Provision</string>
-              </dict>
-            </dict>
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+            <key>teamID</key><string>${APP_STORE_CONNECT_TEAM_ID}</string>
+            <key>destination</key><string>export</string>
+            <key>manageAppVersionAndBuildNumber</key><true/>
+          </dict>
           </plist>
-          PLIST
+          EOF
 
-      - name: Export IPA
-        script: |
-          set -e
+          EXPORT_DIR="$CM_BUILD_DIR/build/ipa"
+          mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportOptionsPlist "$CM_BUILD_DIR/export_options.plist" \
-            -exportPath "$CM_BUILD_DIR/ipa" | xcpretty
-          ls -lah "$CM_BUILD_DIR/ipa"
-
-      - name: Upload to App Store Connect
-        script: |
-          set -e
-          IPA_PATH="$CM_BUILD_DIR/ipa/App.ipa"
-          if [ ! -f "$IPA_PATH" ]; then
-            echo "❌ IPA not found at $IPA_PATH"; exit 1
-          fi
-          app-store-connect publish \
-            --issuer-id "$APP_STORE_CONNECT_ISSU" \
-            --key-id "$APP_STORE_CONNECT_KEY" \
-            --private-key "$APP_STORE_CONNECT_PRI" \
-            --path "$IPA_PATH"
+            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
+            -exportOptionsPlist "$EXPORT_PLIST" \
+            -exportPath "$EXPORT_DIR" | xcpretty
 
     artifacts:
-      - $CM_BUILD_DIR/ipa/*.ipa
-      - $CM_BUILD_DIR/App.xcarchive
+      - build/ipa/*.ipa
+      - build/App.xcarchive
 
     publishing:
-      email:
-        recipients:
-          - david@yourdomain.example
-        notify:
-          success: true
-          failure: true
+      app_store_connect:
+        # ✅ Uses your API key env vars already in Codemagic
+        api_key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        private_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        submit_to_testflight: true
+        # team_id is optional but helps if you belong to multiple teams
+        team_id: $APP_STORE_CONNECT_TEAM_ID
