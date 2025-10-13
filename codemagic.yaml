@@ -1,29 +1,28 @@
 workflows:
   ios_release:
-    name: iOS Release (App Store)
+    name: iOS Release (App Store / TestFlight)
     max_build_duration: 120
     instance_type: mac_mini_m2
 
     environment:
       xcode: 16.4
-      cocoapods: default
       node: 18.18.0
+      cocoapods: default
+
+      # Make your secure Apple vars available to this workflow
+      groups:
+        - ios-signing
+
       vars:
-        # 👇 set these for your project
+        # ✅ Set these for your project
         BUNDLE_ID: "com.fireopscalc.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
-      # ✅ AUTOMATIC SIGNING — pick ONE method only (this one)
+      # ✅ AUTOMATIC SIGNING (pick ONE method only → this one)
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
-
-      # (You already created these secure env vars in Codemagic)
-      # APP_STORE_CONNECT_KEY_IDENTIFIER
-      # APP_STORE_CONNECT_ISSUER_ID
-      # APP_STORE_CONNECT_PRIVATE_KEY
-      # APP_STORE_CONNECT_TEAM_ID  (optional but recommended)
 
     cache:
       cache_paths:
@@ -36,7 +35,7 @@ workflows:
         script: |
           rm -rf ~/Library/Caches/CocoaPods Pods ~/Library/Developer/Xcode/DerivedData || true
 
-      - name: Install dependencies
+      - name: Install deps
         script: npm ci
 
       - name: Build web assets
@@ -96,10 +95,9 @@ workflows:
 
     publishing:
       app_store_connect:
-        # ✅ Uses your API key env vars already in Codemagic
+        # ✅ Uses your env vars from the ios-signing group
         api_key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         private_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        submit_to_testflight: true
-        # team_id is optional but helps if you belong to multiple teams
         team_id: $APP_STORE_CONNECT_TEAM_ID
+        submit_to_testflight: true
