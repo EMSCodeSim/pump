@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: iOS Release (App Store)
+    name: iOS Release (App Store / TestFlight)
     max_build_duration: 120
     instance_type: mac_mini_m2
 
@@ -8,13 +8,17 @@ workflows:
       xcode: 16.4
       node: 18.18.0
       cocoapods: default
+
+      # Include your secure Apple vars (Key ID, Issuer ID, Base64 .p8, Team ID)
       groups:
         - ios-signing
+
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
+      # ✅ AUTOMATIC signing (pick ONE method only → this one)
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -32,7 +36,7 @@ workflows:
       - name: Build web assets
         script: npm run build
 
-      - name: Sync iOS project
+      - name: Sync Capacitor iOS
         script: npx cap sync ios
 
       - name: Install CocoaPods
@@ -40,7 +44,7 @@ workflows:
           cd ios/App
           pod install --repo-update
 
-      - name: Build iOS app archive
+      - name: Build iOS archive (Release)
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
@@ -50,10 +54,10 @@ workflows:
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             clean archive | xcpretty
 
-      - name: Export IPA
+      - name: Export IPA (App Store)
         script: |
           EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
-          cat > "$EXPORT_PLIST" <<EOF
+          cat > "$EXPORT_PLIST" <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -82,8 +86,8 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        private_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        team_id: $APP_STORE_CONNECT_TEAM_ID
+        api_key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER     # 10-char Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID           # UUID
+        key_base64: $APP_STORE_CONNECT_PRIVATE_KEY        # <-- using Base64 of .p8
+        team_id: $APP_STORE_CONNECT_TEAM_ID               # optional but recommended
         submit_to_testflight: true
