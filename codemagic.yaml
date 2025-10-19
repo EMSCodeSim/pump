@@ -6,7 +6,7 @@ workflows:
 
     environment:
       xcode: 16.4
-      node: 18.18.0
+      node: 20.11.1          # ✅ Node 20 LTS for Capacitor v6
       cocoapods: default
 
       groups:
