@@ -8,17 +8,12 @@ workflows:
       xcode: 16.4
       node: 18.18.0
       cocoapods: default
-
-      # Include your secure Apple vars (Key ID, Issuer ID, Base64 .p8)
       groups:
         - ios-signing
-
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
-
-      # ✅ Automatic signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -32,18 +27,14 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm ci
-
       - name: Build web assets
         script: npm run build
-
       - name: Sync Capacitor iOS
         script: npx cap sync ios
-
       - name: Install CocoaPods
         script: |
           cd ios/App
           pod install --repo-update
-
       - name: Build iOS archive (Release)
         script: |
           xcodebuild \
@@ -53,7 +44,6 @@ workflows:
             -destination "generic/platform=iOS" \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             clean archive | xcpretty
-
       - name: Export IPA (App Store)
         script: |
           EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
@@ -86,7 +76,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        # ✅ Correct, validated keys
         api_key_base64: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
