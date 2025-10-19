@@ -28,6 +28,7 @@ workflows:
     scripts:
       - name: Show tool versions
         script: |
+          set -e
           echo "node: $(node -v)"
           echo "npm:  $(npm -v)"
           echo "npx:  $(npx --version)"
@@ -54,41 +55,53 @@ workflows:
 
       - name: Install CocoaPods
         script: |
-          if [ -d ios/App ]; then
-            cd ios/App
-          elif [ -d ios ]; then
-            cd ios
-          fi
+          if [ -d ios/App ]; then cd ios/App; elif [ -d ios ]; then cd ios; fi
           pod install --repo-update
 
-      - name: Detect Xcode workspace/project and scheme
+      - name: Detect Xcode workspace/project and scheme (trim spaces)
         script: |
-          set -e
-          # Find a .xcworkspace first (preferred), otherwise a .xcodeproj
-          WS=$(find ios -maxdepth 2 -name "*.xcworkspace" | head -n 1 || true)
+          set -euo pipefail
+
+          # Prefer workspace, fall back to project
+          WS="$(find ios -maxdepth 2 -name "*.xcworkspace" | head -n 1 || true)"
           if [ -n "$WS" ]; then
             echo "Detected workspace: $WS"
             echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
-            xcodebuild -list -workspace "$WS"
-            SCHEME=$(xcodebuild -list -workspace "$WS" | awk 'flag{if($0~/^$/)flag=0; else print $0} /Schemes:/{flag=1}' | head -n 1)
+            echo "Listing schemes for workspace:"
+            xcodebuild -list -workspace "$WS" || true
+            SCHEMES_RAW="$(xcodebuild -list -workspace "$WS" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
           else
-            PRJ=$(find ios -maxdepth 2 -name "*.xcodeproj" | head -n 1 || true)
+            PRJ="$(find ios -maxdepth 2 -name "*.xcodeproj" | head -n 1 || true)"
             if [ -z "$PRJ" ]; then
               echo "❌ No .xcworkspace or .xcodeproj found under ios/"
               exit 1
             fi
             echo "Detected project: $PRJ"
             echo "DETECTED_PROJECT=$PRJ" >> $CM_ENV
-            xcodebuild -list -project "$PRJ"
-            SCHEME=$(xcodebuild -list -project "$PRJ" | awk 'flag{if($0~/^$/)flag=0; else print $0} /Schemes:/{flag=1}' | head -n 1)
+            echo "Listing schemes for project:"
+            xcodebuild -list -project "$PRJ" || true
+            SCHEMES_RAW="$(xcodebuild -list -project "$PRJ" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
           fi
 
-          if [ -z "$SCHEME" ]; then
-            echo "❌ Could not detect an Xcode scheme. Please share a scheme in Xcode."
+          # Trim leading/trailing whitespace, drop empty lines
+          SCHEMES="$(printf "%s\n" "$SCHEMES_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')"
+          echo "Detected schemes:"
+          printf "%s\n" "$SCHEMES"
+
+          # Prefer explicit 'App' if present (Capacitor default), else first scheme
+          if printf "%s\n" "$SCHEMES" | grep -qx "App"; then
+            DETECTED_SCHEME="App"
+          else
+            DETECTED_SCHEME="$(printf "%s\n" "$SCHEMES" | head -n1)"
+          fi
+
+          if [ -z "${DETECTED_SCHEME:-}" ]; then
+            echo "❌ Could not detect an Xcode scheme. Make sure a scheme is Shared in Xcode (Product → Scheme → Manage Schemes → check 'Shared'), commit *.xcscheme."
             exit 1
           fi
-          echo "Detected scheme: $SCHEME"
-          echo "DETECTED_SCHEME=$SCHEME" >> $CM_ENV
+
+          echo "Using scheme: '$DETECTED_SCHEME'"
+          echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
 
       - name: Build iOS archive (Release)
         script: |
@@ -118,8 +131,7 @@ workflows:
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not found at $ARCHIVE_PATH"
-            # Show derived data to help diagnose
-            echo "DerivedData:"
+            echo "DerivedData snapshot (for diagnostics):"
             ls -R ~/Library/Developer/Xcode/DerivedData || true
             exit 1
           fi
