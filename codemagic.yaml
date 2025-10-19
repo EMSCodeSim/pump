@@ -6,19 +6,15 @@ workflows:
 
     environment:
       xcode: 16.4
-      node: 20.11.1          # Capacitor v6 requires Node >= 20
+      node: 20.11.1
       cocoapods: default
 
-      # Your secure Apple vars live in this group:
       groups:
-        - ios-signing        # APP_STORE_CONNECT_* variables
+        - ios-signing
 
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
-        XCODE_SCHEME: "App"
 
-      # Automatic signing (uses Team → iOS certificates / profiles you set up)
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -35,6 +31,7 @@ workflows:
           echo "node: $(node -v)"
           echo "npm:  $(npm -v)"
           echo "npx:  $(npx --version)"
+          xcodebuild -version
 
       - name: Install dependencies
         script: npm ci
@@ -57,23 +54,80 @@ workflows:
 
       - name: Install CocoaPods
         script: |
-          cd ios/App
+          if [ -d ios/App ]; then
+            cd ios/App
+          elif [ -d ios ]; then
+            cd ios
+          fi
           pod install --repo-update
+
+      - name: Detect Xcode workspace/project and scheme
+        script: |
+          set -e
+          # Find a .xcworkspace first (preferred), otherwise a .xcodeproj
+          WS=$(find ios -maxdepth 2 -name "*.xcworkspace" | head -n 1 || true)
+          if [ -n "$WS" ]; then
+            echo "Detected workspace: $WS"
+            echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
+            xcodebuild -list -workspace "$WS"
+            SCHEME=$(xcodebuild -list -workspace "$WS" | awk 'flag{if($0~/^$/)flag=0; else print $0} /Schemes:/{flag=1}' | head -n 1)
+          else
+            PRJ=$(find ios -maxdepth 2 -name "*.xcodeproj" | head -n 1 || true)
+            if [ -z "$PRJ" ]; then
+              echo "❌ No .xcworkspace or .xcodeproj found under ios/"
+              exit 1
+            fi
+            echo "Detected project: $PRJ"
+            echo "DETECTED_PROJECT=$PRJ" >> $CM_ENV
+            xcodebuild -list -project "$PRJ"
+            SCHEME=$(xcodebuild -list -project "$PRJ" | awk 'flag{if($0~/^$/)flag=0; else print $0} /Schemes:/{flag=1}' | head -n 1)
+          fi
+
+          if [ -z "$SCHEME" ]; then
+            echo "❌ Could not detect an Xcode scheme. Please share a scheme in Xcode."
+            exit 1
+          fi
+          echo "Detected scheme: $SCHEME"
+          echo "DETECTED_SCHEME=$SCHEME" >> $CM_ENV
 
       - name: Build iOS archive (Release)
         script: |
+          set -e
           ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
-          xcodebuild \
-            -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -destination "generic/platform=iOS" \
-            -archivePath "$ARCHIVE_PATH" \
-            clean archive | xcpretty
-          echo "Archive created at: $ARCHIVE_PATH"
+          mkdir -p "$(dirname "$ARCHIVE_PATH")"
+
+          if [ -n "${DETECTED_WORKSPACE:-}" ]; then
+            xcodebuild \
+              -workspace "$DETECTED_WORKSPACE" \
+              -scheme "$DETECTED_SCHEME" \
+              -configuration Release \
+              -destination "generic/platform=iOS" \
+              -archivePath "$ARCHIVE_PATH" \
+              -allowProvisioningUpdates \
+              clean archive | xcpretty
+          else
+            xcodebuild \
+              -project "$DETECTED_PROJECT" \
+              -scheme "$DETECTED_SCHEME" \
+              -configuration Release \
+              -destination "generic/platform=iOS" \
+              -archivePath "$ARCHIVE_PATH" \
+              -allowProvisioningUpdates \
+              clean archive | xcpretty
+          fi
+
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found at $ARCHIVE_PATH"
+            # Show derived data to help diagnose
+            echo "DerivedData:"
+            ls -R ~/Library/Developer/Xcode/DerivedData || true
+            exit 1
+          fi
+          echo "✅ Archive created at: $ARCHIVE_PATH"
 
       - name: Export IPA (App Store)
         script: |
+          set -e
           EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
           cat > "$EXPORT_PLIST" <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -101,30 +155,27 @@ workflows:
           echo "Export directory contents:"
           ls -R "$EXPORT_DIR" || true
 
-          # ✅ Ensure IPA ends up under build/ipa/ so Codemagic always finds it
           FINAL_DIR="$CM_BUILD_DIR/build/ipa"
           mkdir -p "$FINAL_DIR"
-          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 2 -name '*.ipa' | head -n 1)"
+          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 2 -name '*.ipa' | head -n 1 || true)"
           if [ -n "$IPA_PATH" ]; then
             cp "$IPA_PATH" "$FINAL_DIR/"
-            echo "IPA copied to: $FINAL_DIR"
+            echo "✅ IPA copied to: $FINAL_DIR"
           else
-            echo "No .ipa found in export; failing step."
+            echo "❌ No .ipa found in export."
             exit 1
           fi
 
     artifacts:
       - build/ipa/*.ipa
       - build/App.xcarchive
-      # Extra safety: if Xcode wrote archives elsewhere, also try the default folder
       - $HOME/Library/Developer/Xcode/Archives/**/*.xcarchive
 
     publishing:
       app_store_connect:
-        # Use ONE of these depending on your variable:
-        # If the variable holds the RAW PEM (multiline with BEGIN/END):
+        # If your env var holds RAW PEM (multiline with BEGIN/END):
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        # If instead it holds Base64, comment the line above and use this:
+        # If instead it's Base64, comment the line above and use:
         # api_key_base64: $APP_STORE_CONNECT_PRIVATE_KEY
 
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
