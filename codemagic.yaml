@@ -8,12 +8,17 @@ workflows:
       xcode: 16.4
       node: 18.18.0
       cocoapods: default
+
+      # Include your App Store Connect vars group
       groups:
         - ios-signing
+
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
+
+      # Automatic iOS code signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -76,7 +81,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key_base64: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY    # raw PEM (multiline)
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER  # 10-char Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID    # UUID
         submit_to_testflight: true
