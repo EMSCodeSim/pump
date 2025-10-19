@@ -9,7 +9,7 @@ workflows:
       node: 18.18.0
       cocoapods: default
 
-      # Make your secure Apple vars available (Key ID, Issuer ID, Base64 .p8)
+      # Include your secure Apple vars (Key ID, Issuer ID, Base64 .p8)
       groups:
         - ios-signing
 
@@ -18,7 +18,7 @@ workflows:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
-      # ✅ Automatic signing (do NOT add provisioning_profiles/certificates here)
+      # ✅ Automatic signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -86,7 +86,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        # ✅ Using Base64 of your .p8 since you created asc_key_base64.txt earlier
+        # ✅ Correct, validated keys
         api_key_base64: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
