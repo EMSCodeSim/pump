@@ -6,17 +6,19 @@ workflows:
 
     environment:
       xcode: 16.4
-      node: 20.11.1          # Node 20 LTS required by Capacitor v6+
+      node: 20.11.1          # Capacitor v6 requires Node >= 20
       cocoapods: default
 
+      # Your secure Apple vars live in this group:
       groups:
-        - ios-signing        # contains APP_STORE_CONNECT_* vars
+        - ios-signing        # APP_STORE_CONNECT_* variables
 
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
+      # Automatic signing (uses Team → iOS certificates / profiles you set up)
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -30,18 +32,17 @@ workflows:
     scripts:
       - name: Show tool versions
         script: |
-          node -v
-          npm -v
-          npx --version
+          echo "node: $(node -v)"
+          echo "npm:  $(npm -v)"
+          echo "npx:  $(npx --version)"
 
       - name: Install dependencies
         script: npm ci
 
-      - name: Build web assets (try common scripts)
+      - name: Build web assets (try common scripts; skip if none)
         script: |
           echo "Available npm scripts:"
           node -e "try{const s=require('./package.json').scripts||{};console.log(Object.keys(s).join(', ')||'(none)')}catch(e){console.log('(no package.json)')}"
-          set -e
           (
             npm run build \
             || npm run build:web \
@@ -61,13 +62,15 @@ workflows:
 
       - name: Build iOS archive (Release)
         script: |
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
-            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
+            -archivePath "$ARCHIVE_PATH" \
             clean archive | xcpretty
+          echo "Archive created at: $ARCHIVE_PATH"
 
       - name: Export IPA (App Store)
         script: |
@@ -88,20 +91,42 @@ workflows:
           </plist>
           EOF
 
-          EXPORT_DIR="$CM_BUILD_DIR/build/ipa"
+          EXPORT_DIR="$CM_BUILD_DIR/tmp_export"
           mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             -exportOptionsPlist "$EXPORT_PLIST" \
             -exportPath "$EXPORT_DIR" | xcpretty
 
+          echo "Export directory contents:"
+          ls -R "$EXPORT_DIR" || true
+
+          # ✅ Ensure IPA ends up under build/ipa/ so Codemagic always finds it
+          FINAL_DIR="$CM_BUILD_DIR/build/ipa"
+          mkdir -p "$FINAL_DIR"
+          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 2 -name '*.ipa' | head -n 1)"
+          if [ -n "$IPA_PATH" ]; then
+            cp "$IPA_PATH" "$FINAL_DIR/"
+            echo "IPA copied to: $FINAL_DIR"
+          else
+            echo "No .ipa found in export; failing step."
+            exit 1
+          fi
+
     artifacts:
       - build/ipa/*.ipa
       - build/App.xcarchive
+      # Extra safety: if Xcode wrote archives elsewhere, also try the default folder
+      - $HOME/Library/Developer/Xcode/Archives/**/*.xcarchive
 
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY      # raw PEM contents of .p8
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER    # 10-char Key ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID      # Issuer UUID
+        # Use ONE of these depending on your variable:
+        # If the variable holds the RAW PEM (multiline with BEGIN/END):
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        # If instead it holds Base64, comment the line above and use this:
+        # api_key_base64: $APP_STORE_CONNECT_PRIVATE_KEY
+
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
