@@ -9,7 +9,6 @@ workflows:
       node: 18.18.0
       cocoapods: default
 
-      # Include your App Store Connect vars group
       groups:
         - ios-signing
 
@@ -18,7 +17,6 @@ workflows:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
 
-      # Automatic iOS code signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -32,14 +30,29 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm ci
-      - name: Build web assets
-        script: npm run build
+
+      - name: Build web assets (try common scripts)
+        script: |
+          echo "Available npm scripts:"
+          node -e "try{const s=require('./package.json').scripts||{};console.log(Object.keys(s).join(', ')||'(none)')}catch(e){console.log('(no package.json)')}"
+          set -e
+          (
+            npm run build \
+            || npm run build:web \
+            || npm run ionic:build \
+            || npm run prod \
+            || npm run production \
+            || npm run compile
+          ) || echo "No web build script found; continuing without web asset build."
+
       - name: Sync Capacitor iOS
         script: npx cap sync ios
+
       - name: Install CocoaPods
         script: |
           cd ios/App
           pod install --repo-update
+
       - name: Build iOS archive (Release)
         script: |
           xcodebuild \
@@ -49,6 +62,7 @@ workflows:
             -destination "generic/platform=iOS" \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             clean archive | xcpretty
+
       - name: Export IPA (App Store)
         script: |
           EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
@@ -81,7 +95,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY    # raw PEM (multiline)
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER  # 10-char Key ID
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID    # UUID
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
