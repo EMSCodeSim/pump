@@ -55,7 +55,12 @@ workflows:
 
       - name: Install CocoaPods
         script: |
-          if [ -d ios/App ]; then cd ios/App; elif [ -d ios ]; then cd ios; fi
+          set -e
+          if [ -d ios/App ]; then
+            cd ios/App
+          elif [ -d ios ]; then
+            cd ios
+          fi
           pod install --repo-update
 
       - name: Detect Xcode workspace/project and scheme (trim spaces)
@@ -63,32 +68,27 @@ workflows:
           set -euo pipefail
 
           # Prefer workspace, fall back to project
-          WS="$(find ios -maxdepth 2 -name "*.xcworkspace" | head -n 1 || true)"
+          WS="$(find ios -maxdepth 3 -name "*.xcworkspace" | head -n 1 || true)"
           if [ -n "$WS" ]; then
             echo "Detected workspace: $WS"
             echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
-            echo "Listing schemes for workspace:"
-            xcodebuild -list -workspace "$WS" || true
             SCHEMES_RAW="$(xcodebuild -list -workspace "$WS" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
           else
-            PRJ="$(find ios -maxdepth 2 -name "*.xcodeproj" | head -n 1 || true)"
+            PRJ="$(find ios -maxdepth 3 -name "*.xcodeproj" | head -n 1 || true)"
             if [ -z "$PRJ" ]; then
               echo "❌ No .xcworkspace or .xcodeproj found under ios/"
               exit 1
             fi
             echo "Detected project: $PRJ"
             echo "DETECTED_PROJECT=$PRJ" >> $CM_ENV
-            echo "Listing schemes for project:"
-            xcodebuild -list -project "$PRJ" || true
             SCHEMES_RAW="$(xcodebuild -list -project "$PRJ" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
           fi
 
-          # Trim leading/trailing whitespace, drop empty lines
+          # Trim whitespace, drop blank lines
           SCHEMES="$(printf "%s\n" "$SCHEMES_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')"
           echo "Detected schemes:"
-          printf "%s\n" "$SCHEMES"
+          printf "%s\n" "$SCHEMES" || true
 
-          # Prefer explicit 'App' if present (Capacitor default), else first scheme
           if printf "%s\n" "$SCHEMES" | grep -qx "App"; then
             DETECTED_SCHEME="App"
           else
@@ -96,19 +96,30 @@ workflows:
           fi
 
           if [ -z "${DETECTED_SCHEME:-}" ]; then
-            echo "❌ Could not detect an Xcode scheme. Make sure a scheme is Shared in Xcode (Product → Scheme → Manage Schemes → check 'Shared'), commit *.xcscheme."
+            echo "❌ Could not detect a shared Xcode scheme. Open the project in Xcode → Product → Scheme → Manage Schemes → check 'Shared', commit *.xcscheme."
             exit 1
           fi
 
           echo "Using scheme: '$DETECTED_SCHEME'"
           echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
 
-      - name: Build iOS archive (Release)
+          # Print key build settings for the chosen scheme (helps debug signing)
+          if [ -n "${DETECTED_WORKSPACE:-}" ]; then
+            xcodebuild -showBuildSettings -workspace "$DETECTED_WORKSPACE" -scheme "$DETECTED_SCHEME" | \
+              egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
+          else
+            xcodebuild -showBuildSettings -project "$DETECTED_PROJECT" -scheme "$DETECTED_SCHEME" | \
+              egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
+          fi
+
+      - name: Build iOS archive (Release) with full logs
         script: |
-          set -e
+          set -euo pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+          RESULT_BUNDLE="$CM_BUILD_DIR/ArchiveResult.xcresult"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
+          # Do not use xcpretty here — keep raw output for diagnostics
           if [ -n "${DETECTED_WORKSPACE:-}" ]; then
             xcodebuild \
               -workspace "$DETECTED_WORKSPACE" \
@@ -116,8 +127,9 @@ workflows:
               -configuration Release \
               -destination "generic/platform=iOS" \
               -archivePath "$ARCHIVE_PATH" \
+              -resultBundlePath "$RESULT_BUNDLE" \
               -allowProvisioningUpdates \
-              clean archive | xcpretty
+              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
           else
             xcodebuild \
               -project "$DETECTED_PROJECT" \
@@ -125,17 +137,25 @@ workflows:
               -configuration Release \
               -destination "generic/platform=iOS" \
               -archivePath "$ARCHIVE_PATH" \
+              -resultBundlePath "$RESULT_BUNDLE" \
               -allowProvisioningUpdates \
-              clean archive | xcpretty
+              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
+          fi
+          STATUS=${PIPESTATUS[0]}
+          if [ $STATUS -ne 0 ]; then
+            echo "❌ xcodebuild failed. Last 200 lines:"
+            tail -n 200 "$CM_BUILD_DIR/xcbuild.raw.log" || true
+            echo "Result bundle at: $RESULT_BUNDLE"
+            exit $STATUS
           fi
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not found at $ARCHIVE_PATH"
-            echo "DerivedData snapshot (for diagnostics):"
-            ls -R ~/Library/Developer/Xcode/DerivedData || true
+            echo "Result bundle at: $RESULT_BUNDLE"
             exit 1
           fi
           echo "✅ Archive created at: $ARCHIVE_PATH"
+          echo "Result bundle: $RESULT_BUNDLE"
 
       - name: Export IPA (App Store)
         script: |
@@ -162,7 +182,13 @@ workflows:
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
             -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR" | xcpretty
+            -exportPath "$EXPORT_DIR" | tee "$CM_BUILD_DIR/xcbuild.export.log"
+          STATUS=${PIPESTATUS[0]}
+          if [ $STATUS -ne 0 ]; then
+            echo "❌ Export failed. Last 200 lines:"
+            tail -n 200 "$CM_BUILD_DIR/xcbuild.export.log" || true
+            exit $STATUS
+          fi
 
           echo "Export directory contents:"
           ls -R "$EXPORT_DIR" || true
@@ -181,6 +207,9 @@ workflows:
     artifacts:
       - build/ipa/*.ipa
       - build/App.xcarchive
+      - ArchiveResult.xcresult
+      - xcbuild.raw.log
+      - xcbuild.export.log
       - $HOME/Library/Developer/Xcode/Archives/**/*.xcarchive
 
     publishing:
