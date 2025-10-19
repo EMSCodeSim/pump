@@ -6,11 +6,11 @@ workflows:
 
     environment:
       xcode: 16.4
-      node: 20.11.1          # ✅ Node 20 LTS for Capacitor v6
+      node: 20.11.1          # Node 20 LTS required by Capacitor v6+
       cocoapods: default
 
       groups:
-        - ios-signing
+        - ios-signing        # contains APP_STORE_CONNECT_* vars
 
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
@@ -28,6 +28,12 @@ workflows:
         - ios/App/Pods
 
     scripts:
+      - name: Show tool versions
+        script: |
+          node -v
+          npm -v
+          npx --version
+
       - name: Install dependencies
         script: npm ci
 
@@ -95,7 +101,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY      # raw PEM contents of .p8
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER    # 10-char Key ID
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID      # Issuer UUID
         submit_to_testflight: true
