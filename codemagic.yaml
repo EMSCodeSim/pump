@@ -9,10 +9,10 @@ workflows:
       node: 20.11.1
       cocoapods: default
 
-      # Make sure this group contains:
-      # APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
-      # APP_STORE_CONNECT_ISSUER_ID (UUID)
-      # APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
+      # Ensure this group contains:
+      # - APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
+      # - APP_STORE_CONNECT_ISSUER_ID (UUID)
+      # - APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
       groups:
         - ios-signing
 
@@ -20,7 +20,6 @@ workflows:
         BUNDLE_ID: "com.fireopscalc.app"
         APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Developer Team ID
 
-      # Automatic signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -62,15 +61,18 @@ workflows:
           set -euo pipefail
           echo "Fetching signing files for $BUNDLE_ID (App Store)…"
 
-          # Detect whether the key is PEM or Base64
+          # If the key is Base64, decode to PEM; otherwise use as-is.
           if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
-            # RAW PEM (multiline)
-            KEY_FLAG="--private-key"
-            KEY_VALUE="$APP_STORE_CONNECT_PRIVATE_KEY"
+            KEY_PEM="$APP_STORE_CONNECT_PRIVATE_KEY"
           else
-            # Base64
-            KEY_FLAG="--private-key-base64"
-            KEY_VALUE="$APP_STORE_CONNECT_PRIVATE_KEY"
+            TMP_KEY="/tmp/asc_key.p8"
+            # Try GNU (-d) then BSD (-D) base64 decode
+            if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -d > "$TMP_KEY" 2>/dev/null; then
+              :
+            else
+              printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -D > "$TMP_KEY"
+            fi
+            KEY_PEM="$(cat "$TMP_KEY")"
           fi
 
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
@@ -78,7 +80,7 @@ workflows:
             --create \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            $KEY_FLAG "$KEY_VALUE"
+            --private-key "$KEY_PEM"
 
           echo "Installing signing certificate(s)…"
           keychain initialize
@@ -240,8 +242,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        # Use RAW PEM (multiline with BEGIN/END) or Base64 – both are supported above
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # raw PEM or decoded PEM (we handled base64 above)
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
