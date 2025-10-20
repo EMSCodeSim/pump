@@ -12,7 +12,7 @@ workflows:
       # Make sure this group contains:
       # APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
       # APP_STORE_CONNECT_ISSUER_ID (UUID)
-      # APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM with BEGIN/END)
+      # APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
       groups:
         - ios-signing
 
@@ -20,7 +20,7 @@ workflows:
         BUNDLE_ID: "com.fireopscalc.app"
         APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Developer Team ID
 
-      # Tell Codemagic we want automatic signing
+      # Automatic signing
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -59,14 +59,27 @@ workflows:
       # ⭐ Automatic code signing: fetch/create the right cert + provisioning profile
       - name: Fetch signing files from App Store Connect (automatic)
         script: |
-          set -e
+          set -euo pipefail
           echo "Fetching signing files for $BUNDLE_ID (App Store)…"
+
+          # Detect whether the key is PEM or Base64
+          if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
+            # RAW PEM (multiline)
+            KEY_FLAG="--private-key"
+            KEY_VALUE="$APP_STORE_CONNECT_PRIVATE_KEY"
+          else
+            # Base64
+            KEY_FLAG="--private-key-base64"
+            KEY_VALUE="$APP_STORE_CONNECT_PRIVATE_KEY"
+          fi
+
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --api-private-key "$APP_STORE_CONNECT_PRIVATE_KEY"
+            $KEY_FLAG "$KEY_VALUE"
+
           echo "Installing signing certificate(s)…"
           keychain initialize
           keychain add-certificates
@@ -227,7 +240,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        # Use the RAW PEM value (multiline with BEGIN/END) for APP_STORE_CONNECT_PRIVATE_KEY
+        # Use RAW PEM (multiline with BEGIN/END) or Base64 – both are supported above
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
