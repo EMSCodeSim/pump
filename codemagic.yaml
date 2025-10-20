@@ -7,18 +7,9 @@ workflows:
     environment:
       xcode: 16.4
       node: 20.11.1
-      cocoapods: defaultworkflows:
-  ios_release:
-    name: iOS Release (App Store / TestFlight)
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-
-    environment:
-      xcode: 16.4
-      node: 20.11.1
       cocoapods: default
 
-      # Ensure this group contains:
+      # This group must contain:
       # - APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
       # - APP_STORE_CONNECT_ISSUER_ID (UUID)
       # - APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
@@ -27,7 +18,7 @@ workflows:
 
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
-        APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Developer Team ID
+        APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Team ID
 
       ios_signing:
         distribution_type: app_store
@@ -64,7 +55,7 @@ workflows:
             || npm run compile
           ) || echo "No web build script found; continuing without web asset build."
 
-      # ⭐ Automatic code signing: fetch/create the right cert + provisioning profile
+      # Automatic signing: fetch/create certs & profiles via App Store Connect
       - name: Fetch signing files from App Store Connect (automatic)
         script: |
           set -euo pipefail
@@ -75,7 +66,6 @@ workflows:
             KEY_PEM="$APP_STORE_CONNECT_PRIVATE_KEY"
           else
             TMP_KEY="/tmp/asc_key.p8"
-            # Try GNU (-d) then BSD (-D) base64 decode
             if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -d > "$TMP_KEY" 2>/dev/null; then
               :
             else
@@ -141,7 +131,7 @@ workflows:
           echo "Using scheme: '$DETECTED_SCHEME'"
           echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
 
-          # Print key signing settings for sanity
+          # Print signing-related build settings for sanity
           if [ -n "${DETECTED_WORKSPACE:-}" ]; then
             xcodebuild -showBuildSettings -workspace "$DETECTED_WORKSPACE" -scheme "$DETECTED_SCHEME" | \
               egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
@@ -251,245 +241,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # raw PEM or decoded PEM (we handled base64 above)
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
-
-      # Ensure this group contains:
-      # - APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
-      # - APP_STORE_CONNECT_ISSUER_ID (UUID)
-      # - APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
-      groups:
-        - ios-signing
-
-      vars:
-        BUNDLE_ID: "com.fireopscalc.app"
-        APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Developer Team ID
-
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: "$BUNDLE_ID"
-
-    cache:
-      cache_paths:
-        - ~/.npm
-        - ~/.cache/CocoaPods
-        - ios/App/Pods
-
-    scripts:
-      - name: Show tool versions
-        script: |
-          set -e
-          echo "node: $(node -v)"
-          echo "npm:  $(npm -v)"
-          echo "npx:  $(npx --version)"
-          xcodebuild -version
-
-      - name: Install dependencies
-        script: npm ci
-
-      - name: Build web assets (try common scripts; skip if none)
-        script: |
-          echo "Available npm scripts:"
-          node -e "try{const s=require('./package.json').scripts||{};console.log(Object.keys(s).join(', ')||'(none)')}catch(e){console.log('(no package.json)')}"
-          (
-            npm run build \
-            || npm run build:web \
-            || npm run ionic:build \
-            || npm run prod \
-            || npm run production \
-            || npm run compile
-          ) || echo "No web build script found; continuing without web asset build."
-
-      # ⭐ Automatic code signing: fetch/create the right cert + provisioning profile
-      - name: Fetch signing files from App Store Connect (automatic)
-        script: |
-          set -euo pipefail
-          echo "Fetching signing files for $BUNDLE_ID (App Store)…"
-
-          # If the key is Base64, decode to PEM; otherwise use as-is.
-          if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
-            KEY_PEM="$APP_STORE_CONNECT_PRIVATE_KEY"
-          else
-            TMP_KEY="/tmp/asc_key.p8"
-            # Try GNU (-d) then BSD (-D) base64 decode
-            if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -d > "$TMP_KEY" 2>/dev/null; then
-              :
-            else
-              printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -D > "$TMP_KEY"
-            fi
-            KEY_PEM="$(cat "$TMP_KEY")"
-          fi
-
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$KEY_PEM"
-
-          echo "Installing signing certificate(s)…"
-          keychain initialize
-          keychain add-certificates
-          xcode-project use-profiles
-
-      - name: Sync Capacitor iOS
-        script: npx cap sync ios
-
-      - name: Install CocoaPods
-        script: |
-          set -e
-          if [ -d ios/App ]; then
-            cd ios/App
-          elif [ -d ios ]; then
-            cd ios
-          fi
-          pod install --repo-update
-
-      - name: Detect Xcode workspace/project and scheme (trim spaces)
-        script: |
-          set -euo pipefail
-          WS="$(find ios -maxdepth 3 -name "*.xcworkspace" | head -n 1 || true)"
-          if [ -n "$WS" ]; then
-            echo "Detected workspace: $WS"
-            echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
-            SCHEMES_RAW="$(xcodebuild -list -workspace "$WS" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
-          else
-            PRJ="$(find ios -maxdepth 3 -name "*.xcodeproj" | head -n 1 || true)"
-            if [ -z "$PRJ" ]; then
-              echo "❌ No .xcworkspace or .xcodeproj found under ios/"
-              exit 1
-            fi
-            echo "Detected project: $PRJ"
-            echo "DETECTED_PROJECT=$PRJ" >> $CM_ENV
-            SCHEMES_RAW="$(xcodebuild -list -project "$PRJ" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
-          fi
-          SCHEMES="$(printf "%s\n" "$SCHEMES_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')"
-          echo "Detected schemes:"; printf "%s\n" "$SCHEMES" || true
-          if printf "%s\n" "$SCHEMES" | grep -qx "App"; then
-            DETECTED_SCHEME="App"
-          else
-            DETECTED_SCHEME="$(printf "%s\n" "$SCHEMES" | head -n1)"
-          fi
-          if [ -z "${DETECTED_SCHEME:-}" ]; then
-            echo "❌ No shared scheme found. In Xcode: Product → Scheme → Manage Schemes → check 'Shared', commit *.xcscheme."
-            exit 1
-          fi
-          echo "Using scheme: '$DETECTED_SCHEME'"
-          echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
-
-          # Print key signing settings for sanity
-          if [ -n "${DETECTED_WORKSPACE:-}" ]; then
-            xcodebuild -showBuildSettings -workspace "$DETECTED_WORKSPACE" -scheme "$DETECTED_SCHEME" | \
-              egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
-          else
-            xcodebuild -showBuildSettings -project "$DETECTED_PROJECT" -scheme "$DETECTED_SCHEME" | \
-              egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
-          fi
-
-      - name: Build iOS archive (Release) with Team + automatic signing
-        script: |
-          set -euo pipefail
-          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
-          RESULT_BUNDLE="$CM_BUILD_DIR/ArchiveResult.xcresult"
-          mkdir -p "$(dirname "$ARCHIVE_PATH")"
-
-          SIGN_ARGS=(CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID")
-
-          if [ -n "${DETECTED_WORKSPACE:-}" ]; then
-            xcodebuild \
-              -workspace "$DETECTED_WORKSPACE" \
-              -scheme "$DETECTED_SCHEME" \
-              -configuration Release \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              -allowProvisioningUpdates \
-              "${SIGN_ARGS[@]}" \
-              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
-          else
-            xcodebuild \
-              -project "$DETECTED_PROJECT" \
-              -scheme "$DETECTED_SCHEME" \
-              -configuration Release \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              -allowProvisioningUpdates \
-              "${SIGN_ARGS[@]}" \
-              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
-          fi
-          STATUS=${PIPESTATUS[0]}
-          if [ $STATUS -ne 0 ]; then
-            echo "❌ xcodebuild failed. Last 200 lines:"
-            tail -n 200 "$CM_BUILD_DIR/xcbuild.raw.log" || true
-            echo "Result bundle at: $RESULT_BUNDLE"
-            exit $STATUS
-          fi
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not found at $ARCHIVE_PATH"
-            echo "Result bundle at: $RESULT_BUNDLE"
-            exit 1
-          fi
-          echo "✅ Archive created at: $ARCHIVE_PATH"
-
-      - name: Export IPA (App Store)
-        script: |
-          set -e
-          EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
-          cat > "$EXPORT_PLIST" <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-            <key>compileBitcode</key><false/>
-            <key>destination</key><string>export</string>
-            <key>manageAppVersionAndBuildNumber</key><true/>
-          </dict>
-          </plist>
-          EOF
-
-          EXPORT_DIR="$CM_BUILD_DIR/tmp_export"
-          mkdir -p "$EXPORT_DIR"
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
-            -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR" | tee "$CM_BUILD_DIR/xcbuild.export.log"
-          STATUS=${PIPESTATUS[0]}
-          if [ $STATUS -ne 0 ]; then
-            echo "❌ Export failed. Last 200 lines:"
-            tail -n 200 "$CM_BUILD_DIR/xcbuild.export.log" || true
-            exit $STATUS
-          fi
-
-          echo "Export directory contents:"; ls -R "$EXPORT_DIR" || true
-          FINAL_DIR="$CM_BUILD_DIR/build/ipa"
-          mkdir -p "$FINAL_DIR"
-          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 2 -name '*.ipa' | head -n 1 || true)"
-          if [ -n "$IPA_PATH" ]; then
-            cp "$IPA_PATH" "$FINAL_DIR/"
-            echo "✅ IPA copied to: $FINAL_DIR"
-          else
-            echo "❌ No .ipa found in export."
-            exit 1
-          fi
-
-    artifacts:
-      - build/ipa/*.ipa
-      - build/App.xcarchive
-      - ArchiveResult.xcresult
-      - xcbuild.raw.log
-      - xcbuild.export.log
-      - $HOME/Library/Developer/Xcode/Archives/**/*.xcarchive
-
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # raw PEM or decoded PEM (we handled base64 above)
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # raw PEM or decoded PEM
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
