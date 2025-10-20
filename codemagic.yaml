@@ -12,14 +12,15 @@ workflows:
       # This group must contain:
       # - APP_STORE_CONNECT_KEY_IDENTIFIER (10-char Key ID)
       # - APP_STORE_CONNECT_ISSUER_ID (UUID)
-      # - APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)
+      # - APP_STORE_CONNECT_PRIVATE_KEY (RAW PEM or Base64)  <-- used for TestFlight upload only
       groups:
         - ios-signing
 
       vars:
         BUNDLE_ID: "com.fireopscalc.app"
-        APPLE_TEAM_ID: "QZ55W58398"   # <-- your Apple Team ID
+        APPLE_TEAM_ID: "QZ55W58398"   # your Apple Team ID
 
+      # Let Codemagic match your uploaded cert/profile automatically
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "$BUNDLE_ID"
@@ -55,33 +56,10 @@ workflows:
             || npm run compile
           ) || echo "No web build script found; continuing without web asset build."
 
-      # Automatic signing: fetch/create certs & profiles via App Store Connect
-      - name: Fetch signing files from App Store Connect (automatic)
+      # ⭐ Install the cert(s) and the provisioning profile(s) you attached in the app UI
+      - name: Install signing assets from app settings
         script: |
-          set -euo pipefail
-          echo "Fetching signing files for $BUNDLE_ID (App Store)…"
-
-          # If the key is Base64, decode to PEM; otherwise use as-is.
-          if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | grep -q "BEGIN PRIVATE KEY"; then
-            KEY_PEM="$APP_STORE_CONNECT_PRIVATE_KEY"
-          else
-            TMP_KEY="/tmp/asc_key.p8"
-            if printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -d > "$TMP_KEY" 2>/dev/null; then
-              :
-            else
-              printf "%s" "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 -D > "$TMP_KEY"
-            fi
-            KEY_PEM="$(cat "$TMP_KEY")"
-          fi
-
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$KEY_PEM"
-
-          echo "Installing signing certificate(s)…"
+          set -e
           keychain initialize
           keychain add-certificates
           xcode-project use-profiles
@@ -241,7 +219,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # raw PEM or decoded PEM
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
