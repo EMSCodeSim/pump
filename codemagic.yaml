@@ -9,32 +9,32 @@ workflows:
       cocoapods: default
       node: 20
       vars:
-        BUNDLE_ID: com.fireopscalc.app
-        IOS_SCHEME: App
-        IOS_WORKSPACE: ios/App/App.xcworkspace
-        DEVELOPMENT_TEAM: QZ55W58398
+        BUNDLE_ID: com.fireopscalc.app           # ← your bundle id
+        IOS_SCHEME: App                          # ← Xcode scheme
+        IOS_WORKSPACE: ios/App/App.xcworkspace   # ← Capacitor workspace path
+        DEVELOPMENT_TEAM: QZ55W58398             # ← Your Apple Team ID
 
-    # 🔁 REPLACE the placeholder with your real integration name
+    # 🔗 Use the EXACT integration name from Codemagic → Team settings → Integrations
     integrations:
-      app_store_connect: YOUR_REAL_ASC_INTEGRATION_NAME
+      app_store_connect: FireOpsCalc_iOS-KEY
 
     scripts:
-      - name: Tool versions
+      - name: Show tool versions
         script: |
           node -v
           npm -v
           pod --version
           xcodebuild -version
 
-      - name: Install deps
+      - name: Install dependencies
         script: npm ci
 
-      - name: Build web assets (optional)
+      - name: Build web assets (only if script exists)
         script: |
           if npm run | grep -qE '^[[:space:]]*build($|:)'; then
-            npm run build || true
+            npm run build
           else
-            echo "No npm build script; skipping."
+            echo "No npm build script; skipping web build."
           fi
 
       - name: Sync Capacitor iOS
@@ -46,7 +46,7 @@ workflows:
           pod repo update
           pod install --verbose
 
-      - name: Archive (Automatic signing)
+      - name: Build iOS archive (Release) with Automatic signing
         script: |
           xcodebuild -workspace "$IOS_WORKSPACE" \
             -scheme "$IOS_SCHEME" \
@@ -86,7 +86,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration        # literal string; do not change this
+        auth: integration             # ← must be the literal word "integration"
         submit_to_testflight: true
         # beta_groups:
         #   - Internal Testers
