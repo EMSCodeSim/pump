@@ -5,12 +5,12 @@ workflows:
       vars:
         APPLE_TEAM_ID: QZ55W58398
         BUNDLE_ID: com.fireopscalc.app
-        PROFILE_SPECIFIER: FireOpsCalcApp_AppStore
         XCODE_VERSION: 16.4
         NODE_VERSION: 20.15.0
       xcode: $XCODE_VERSION
       node: $NODE_VERSION
       cocoapods: default
+
     scripts:
       - name: Clean install and sync Capacitor iOS
         script: |
@@ -22,7 +22,15 @@ workflows:
           pod install --repo-update
           cd ../..
 
-      - name: Detect Xcode workspace/project and scheme
+      - name: Install signing assets from app settings
+        script: |
+          set -e
+          # Requires you added the .p12 (Apple Distribution) and App Store .mobileprovision in the Codemagic app UI
+          keychain initialize
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Detect Xcode workspace and scheme (use CocoaPods workspace, not project.xcworkspace)
         script: |
           set -euo pipefail
           WS="$(find ios -maxdepth 3 -name "*.xcworkspace" ! -path "*/project.xcworkspace" | head -n 1 || true)"
@@ -48,30 +56,15 @@ workflows:
           echo "Using scheme: '$DETECTED_SCHEME'"
           echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
 
-          xcodebuild -showBuildSettings -workspace "$DETECTED_WORKSPACE" -scheme "$DETECTED_SCHEME" | \
-            egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
-
-      - name: Build iOS archive (Release) with MANUAL distribution signing
+      - name: Build iOS archive (Release) with Automatic signing (per-target mapping from use-profiles)
         script: |
           set -euo pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
           RESULT_BUNDLE="$CM_BUILD_DIR/ArchiveResult.xcresult"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
-          SIGN_ARGS=(
-            CODE_SIGN_STYLE=Manual
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID"
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
-            CODE_SIGN_IDENTITY="Apple Distribution"
-          )
-
-          if echo "$DETECTED_WORKSPACE" | grep -q "project.xcworkspace$"; then
-            echo "❌ Wrong workspace detected: $DETECTED_WORKSPACE"
-            echo "Expected ios/App/App.xcworkspace produced by CocoaPods."
-            exit 1
-          fi
-
+          # IMPORTANT: Do NOT pass PROVISIONING_PROFILE_SPECIFIER or CODE_SIGN_IDENTITY here.
+          # xcode-project use-profiles already set the correct profile for the App target.
           xcodebuild \
             -workspace "$DETECTED_WORKSPACE" \
             -scheme "$DETECTED_SCHEME" \
@@ -79,7 +72,9 @@ workflows:
             -destination "generic/platform=iOS" \
             -archivePath "$ARCHIVE_PATH" \
             -resultBundlePath "$RESULT_BUNDLE" \
-            "${SIGN_ARGS[@]}" \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
 
           STATUS=${PIPESTATUS[0]}
@@ -99,6 +94,7 @@ workflows:
           EXPORT_PATH="$CM_BUILD_DIR/build/export"
           mkdir -p "$EXPORT_PATH"
 
+          # Export with automatic signing; archive already resolved signing
           cat > "$CM_BUILD_DIR/exportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -106,15 +102,10 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>uploadBitcode</key><false/>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
+            <key>signingStyle</key><string>automatic</string>
             <key>teamID</key><string>$APPLE_TEAM_ID</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$BUNDLE_ID</key><string>$PROFILE_SPECIFIER</string>
-            </dict>
           </dict>
           </plist>
           EOF
