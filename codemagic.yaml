@@ -26,46 +26,68 @@ workflows:
     scripts:
       - name: Show tool versions
         script: |
+          set -euxo pipefail
           node -v
           npm -v
           pod --version
           xcodebuild -version
 
       - name: Install dependencies
-        script: npm ci
+        script: |
+          set -euxo pipefail
+          npm ci
 
       - name: Sync Capacitor iOS
-        script: npx cap sync ios
+        script: |
+          set -euxo pipefail
+          npx cap sync ios
 
       - name: Install CocoaPods
         script: |
+          set -euxo pipefail
           cd ios/App
           pod repo update
-          pod install --verbose
+          pod install
           cd ../..
+          echo "Verify workspace exists:"
+          ls -la ios/App | grep -E "App.xcworkspace|App.xcodeproj" || (echo "❌ Workspace missing"; exit 1)
 
       - name: Build iOS archive (Release)
         script: |
-          ARCHIVE_PATH="$CM_BUILD_DIR/ios/App/build/App.xcarchive"
-          echo "Building archive to: $ARCHIVE_PATH"
+          set -euxo pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+          DERIVED="$CM_BUILD_DIR/DerivedData"
+          mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
+          echo "Building archive to: $ARCHIVE_PATH"
+          # Use tee so we still save the raw xcodebuild log; pipefail keeps failures
           xcodebuild -workspace "$IOS_WORKSPACE" \
             -scheme "$IOS_SCHEME" \
             -configuration Release \
             -destination "generic/platform=iOS" \
+            -derivedDataPath "$DERIVED" \
             -archivePath "$ARCHIVE_PATH" \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            clean archive | xcpretty
+            -allowProvisioningUpdates \
+            clean archive \
+            | tee xcodebuild-archive.log \
+            | xcpretty
 
-          echo "Archive directory:"
-          ls -la $(dirname "$ARCHIVE_PATH")
+          echo "Archive directory listing:"
+          ls -la "$(dirname "$ARCHIVE_PATH")"
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not produced. Last 200 lines of xcodebuild log:"
+            tail -n 200 xcodebuild-archive.log
+            exit 1
+          fi
 
       - name: Export IPA (App Store)
         script: |
-          ARCHIVE_PATH="$CM_BUILD_DIR/ios/App/build/App.xcarchive"
-          EXPORT_DIR="$CM_BUILD_DIR/ios/App/build/Export"
+          set -euxo pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+          EXPORT_DIR="$CM_BUILD_DIR/build/Export"
           mkdir -p "$EXPORT_DIR"
 
           cat > ExportOptions.plist <<PLIST
@@ -75,28 +97,33 @@ workflows:
           <dict>
             <key>method</key><string>app-store</string>
             <key>signingStyle</key><string>automatic</string>
-            <key>stripSwiftSymbols</key><true/>
             <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+            <key>stripSwiftSymbols</key><true/>
           </dict>
           </plist>
           PLIST
 
-          echo "Exporting IPA..."
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$EXPORT_DIR" | xcpretty
+            -exportPath "$EXPORT_DIR" \
+            | tee xcodebuild-export.log \
+            | xcpretty
 
           echo "IPA contents:"
           ls -la "$EXPORT_DIR"
+          test -f "$EXPORT_DIR/App.ipa" || test -n "$(ls -1 "$EXPORT_DIR"/*.ipa 2>/dev/null)" || (echo "❌ No IPA exported"; tail -n 200 xcodebuild-export.log; exit 1)
 
     artifacts:
-      - ios/App/build/Export/*.ipa
-      - ios/App/build/App.xcarchive
+      - build/Export/*.ipa
+      - build/App.xcarchive
+      - xcodebuild-archive.log
+      - xcodebuild-export.log
 
     publishing:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        beta_groups:
-          - Internal Testers
+        # Optional: set a group if you have one created in ASC
+        # beta_groups:
+        #   - Internal Testers
