@@ -14,9 +14,9 @@ workflows:
         IOS_WORKSPACE: ios/App/App.xcworkspace
         DEVELOPMENT_TEAM: QZ55W58398
 
-    # 👇 Must match the integration's exact name in Codemagic Settings → Integrations
+    # 🔁 REPLACE the placeholder with your real integration name
     integrations:
-      app_store_connect: FireOpsCalc_iOS-KEY
+      app_store_connect: YOUR_REAL_ASC_INTEGRATION_NAME
 
     scripts:
       - name: Tool versions
@@ -86,7 +86,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration        # <- required literal for your validator
+        auth: integration        # literal string; do not change this
         submit_to_testflight: true
         # beta_groups:
         #   - Internal Testers
