@@ -1,97 +1,39 @@
 workflows:
-  ios_release:
-    name: iOS Release (App Store / TestFlight)
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-
+  ios-release:
+    name: FireOpsCalc iOS Release
     environment:
-      xcode: 16.4
-      node: 20.11.1
-      cocoapods: default
-
-      groups:
-        - ios-signing   # contains APP_STORE_CONNECT_* (for TestFlight upload)
-
       vars:
-        BUNDLE_ID: "com.fireopscalc.app"
-        APPLE_TEAM_ID: "QZ55W58398"                 # <-- your Apple Team ID
-        PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore" # <-- EXACT profile name you uploaded
-
-      # Let Codemagic match the uploaded cert/profile automatically
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: "$BUNDLE_ID"
-
-    cache:
-      cache_paths:
-        - ~/.npm
-        - ~/.cache/CocoaPods
-        - ios/App/Pods
-
+        APPLE_TEAM_ID: QZ55W58398
+        BUNDLE_ID: com.fireopscalc.app
+        PROFILE_SPECIFIER: FireOpsCalcApp_AppStore
+        XCODE_VERSION: 16.4
+        NODE_VERSION: 20.15.0
+      xcode: $XCODE_VERSION
+      node: $NODE_VERSION
+      cocoapods: default
     scripts:
-      - name: Show tool versions
-        script: |
-          set -e
-          echo "node: $(node -v)"
-          echo "npm:  $(npm -v)"
-          echo "npx:  $(npx --version)"
-          xcodebuild -version
-
-      - name: Install dependencies
-        script: npm ci
-
-      - name: Build web assets (try common scripts; skip if none)
-        script: |
-          echo "Available npm scripts:"
-          node -e "try{const s=require('./package.json').scripts||{};console.log(Object.keys(s).join(', ')||'(none)')}catch(e){console.log('(no package.json)')}"
-          (
-            npm run build \
-            || npm run build:web \
-            || npm run ionic:build \
-            || npm run prod \
-            || npm run production \
-            || npm run compile
-          ) || echo "No web build script found; continuing without web asset build."
-
-      # Install the cert(s) and provisioning profile(s) you added in the app UI
-      - name: Install signing assets from app settings
-        script: |
-          set -e
-          keychain initialize
-          keychain add-certificates
-          xcode-project use-profiles
-
-      - name: Sync Capacitor iOS
-        script: npx cap sync ios
-
-      - name: Install CocoaPods
-        script: |
-          set -e
-          if [ -d ios/App ]; then
-            cd ios/App
-          elif [ -d ios ]; then
-            cd ios
-          fi
-          pod install --repo-update
-
-      - name: Detect Xcode workspace/project and scheme (trim spaces)
+      - name: Clean install and sync Capacitor iOS
         script: |
           set -euo pipefail
-          WS="$(find ios -maxdepth 3 -name "*.xcworkspace" | head -n 1 || true)"
-          if [ -n "$WS" ]; then
-            echo "Detected workspace: $WS"
-            echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
-            SCHEMES_RAW="$(xcodebuild -list -workspace "$WS" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
-          else
-            PRJ="$(find ios -maxdepth 3 -name "*.xcodeproj" | head -n 1 || true)"
-            if [ -z "$PRJ" ]; then
-              echo "❌ No .xcworkspace or .xcodeproj found under ios/"
-              exit 1
-            fi
-            echo "Detected project: $PRJ"
-            echo "DETECTED_PROJECT=$PRJ" >> $CM_ENV
-            SCHEMES_RAW="$(xcodebuild -list -project "$PRJ" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2)"
+          npm ci
+          npx cap sync ios
+          cd ios/App
+          pod repo update
+          pod install --repo-update
+          cd ../..
+
+      - name: Detect Xcode workspace/project and scheme
+        script: |
+          set -euo pipefail
+          WS="$(find ios -maxdepth 3 -name "*.xcworkspace" ! -path "*/project.xcworkspace" | head -n 1 || true)"
+          if [ -z "$WS" ]; then
+            echo "❌ No real .xcworkspace found (CocoaPods). Did 'pod install' run in ios/App?"
+            exit 1
           fi
+          echo "Detected workspace: $WS"
+          echo "DETECTED_WORKSPACE=$WS" >> $CM_ENV
+
+          SCHEMES_RAW="$(xcodebuild -list -workspace "$WS" 2>/dev/null | sed -n '/Schemes:/,$p' | tail -n +2 || true)"
           SCHEMES="$(printf "%s\n" "$SCHEMES_RAW" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d')"
           echo "Detected schemes:"; printf "%s\n" "$SCHEMES" || true
           if printf "%s\n" "$SCHEMES" | grep -qx "App"; then
@@ -106,6 +48,9 @@ workflows:
           echo "Using scheme: '$DETECTED_SCHEME'"
           echo "DETECTED_SCHEME=$DETECTED_SCHEME" >> $CM_ENV
 
+          xcodebuild -showBuildSettings -workspace "$DETECTED_WORKSPACE" -scheme "$DETECTED_SCHEME" | \
+            egrep -i 'PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER' || true
+
       - name: Build iOS archive (Release) with MANUAL distribution signing
         script: |
           set -euo pipefail
@@ -113,7 +58,6 @@ workflows:
           RESULT_BUNDLE="$CM_BUILD_DIR/ArchiveResult.xcresult"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
-          # Manual distribution signing: force the correct profile & identity
           SIGN_ARGS=(
             CODE_SIGN_STYLE=Manual
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
@@ -122,27 +66,22 @@ workflows:
             CODE_SIGN_IDENTITY="Apple Distribution"
           )
 
-          if [ -n "${DETECTED_WORKSPACE:-}" ]; then
-            xcodebuild \
-              -workspace "$DETECTED_WORKSPACE" \
-              -scheme "$DETECTED_SCHEME" \
-              -configuration Release \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              "${SIGN_ARGS[@]}" \
-              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
-          else
-            xcodebuild \
-              -project "$DETECTED_PROJECT" \
-              -scheme "$DETECTED_SCHEME" \
-              -configuration Release \
-              -destination "generic/platform=iOS" \
-              -archivePath "$ARCHIVE_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              "${SIGN_ARGS[@]}" \
-              clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
+          if echo "$DETECTED_WORKSPACE" | grep -q "project.xcworkspace$"; then
+            echo "❌ Wrong workspace detected: $DETECTED_WORKSPACE"
+            echo "Expected ios/App/App.xcworkspace produced by CocoaPods."
+            exit 1
           fi
+
+          xcodebuild \
+            -workspace "$DETECTED_WORKSPACE" \
+            -scheme "$DETECTED_SCHEME" \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            -resultBundlePath "$RESULT_BUNDLE" \
+            "${SIGN_ARGS[@]}" \
+            clean archive | tee "$CM_BUILD_DIR/xcbuild.raw.log"
+
           STATUS=${PIPESTATUS[0]}
           if [ $STATUS -ne 0 ]; then
             echo "❌ xcodebuild failed. Last 200 lines:"
@@ -150,72 +89,50 @@ workflows:
             echo "Result bundle at: $RESULT_BUNDLE"
             exit $STATUS
           fi
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not found at $ARCHIVE_PATH"
-            echo "Result bundle at: $RESULT_BUNDLE"
-            exit 1
-          fi
+          [ -d "$ARCHIVE_PATH" ] || { echo "❌ Archive not found at $ARCHIVE_PATH"; exit 1; }
           echo "✅ Archive created at: $ARCHIVE_PATH"
 
       - name: Export IPA (App Store)
         script: |
-          set -e
-          EXPORT_PLIST="$CM_BUILD_DIR/exportOptions.plist"
-          cat > "$EXPORT_PLIST" <<'EOF'
+          set -euo pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+          EXPORT_PATH="$CM_BUILD_DIR/build/export"
+          mkdir -p "$EXPORT_PATH"
+
+          cat > "$CM_BUILD_DIR/exportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>stripSwiftSymbols</key><true/>
+            <key>uploadBitcode</key><false/>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
-            <key>destination</key><string>export</string>
-            <key>manageAppVersionAndBuildNumber</key><true/>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.fireopscalc.app</key><string>FireOpsCalcApp_AppStore</string>
+              <key>$BUNDLE_ID</key><string>$PROFILE_SPECIFIER</string>
             </dict>
           </dict>
           </plist>
           EOF
 
-          EXPORT_DIR="$CM_BUILD_DIR/tmp_export"
-          mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/build/App.xcarchive" \
-            -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR" | tee "$CM_BUILD_DIR/xcbuild.export.log"
-          STATUS=${PIPESTATUS[0]}
-          if [ $STATUS -ne 0 ]; then
-            echo "❌ Export failed. Last 200 lines:"
-            tail -n 200 "$CM_BUILD_DIR/xcbuild.export.log" || true
-            exit $STATUS
-          fi
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$CM_BUILD_DIR/exportOptions.plist" \
+            -exportPath "$EXPORT_PATH"
 
-          echo "Export directory contents:"; ls -R "$EXPORT_DIR" || true
-          FINAL_DIR="$CM_BUILD_DIR/build/ipa"
-          mkdir -p "$FINAL_DIR"
-          IPA_PATH="$(find "$EXPORT_DIR" -maxdepth 2 -name '*.ipa' | head -n 1 || true)"
-          if [ -n "$IPA_PATH" ]; then
-            cp "$IPA_PATH" "$FINAL_DIR/"
-            echo "✅ IPA copied to: $FINAL_DIR"
-          else
-            echo "❌ No .ipa found in export."
+          IPA_FILE="$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)"
+          if [ -z "$IPA_FILE" ]; then
+            echo "❌ No IPA found in export folder:"
+            ls -la "$EXPORT_PATH" || true
             exit 1
           fi
+          echo "✅ IPA exported successfully: $IPA_FILE"
 
     artifacts:
-      - build/ipa/*.ipa
+      - build/export/*.ipa
+      - build/ArchiveResult.xcresult
       - build/App.xcarchive
-      - ArchiveResult.xcresult
-      - xcbuild.raw.log
-      - xcbuild.export.log
-
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY   # for TestFlight upload
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
