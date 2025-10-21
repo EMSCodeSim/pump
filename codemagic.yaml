@@ -20,6 +20,7 @@ workflows:
         - ~/.cocoapods
         - ios/App/Pods
 
+    # Uses your connected integration “FireOpsCalc_iOS-KEY”
     integrations:
       app_store_connect: FireOpsCalc_iOS-KEY
 
@@ -49,18 +50,23 @@ workflows:
           pod repo update
           pod install
           cd ../..
-          echo "Verify workspace exists:"
+          echo "Verify workspace/scheme:"
           ls -la ios/App | grep -E "App.xcworkspace|App.xcodeproj" || (echo "❌ Workspace missing"; exit 1)
+          xcodebuild -list -workspace "$IOS_WORKSPACE" | tee schemes.txt
+          grep -q "^\\s*${IOS_SCHEME}$" schemes.txt || (echo "❌ Scheme '${IOS_SCHEME}' not found"; cat schemes.txt; exit 1)
 
       - name: Build iOS archive (Release)
         script: |
           set -euxo pipefail
           ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
           DERIVED="$CM_BUILD_DIR/DerivedData"
+          LOG="xcodebuild-archive.log"
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
           echo "Building archive to: $ARCHIVE_PATH"
-          # Use tee so we still save the raw xcodebuild log; pipefail keeps failures
+
+          # Do NOT exit before we print the failing lines
+          set +e
           xcodebuild -workspace "$IOS_WORKSPACE" \
             -scheme "$IOS_SCHEME" \
             -configuration Release \
@@ -72,16 +78,20 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             -allowProvisioningUpdates \
             clean archive \
-            | tee xcodebuild-archive.log \
+            | tee "$LOG" \
             | xcpretty
+          XC_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ $XC_STATUS -ne 0 ]; then
+            echo "❌ xcodebuild exited with $XC_STATUS. Last 200 log lines:"
+            tail -n 200 "$LOG" || true
+            exit $XC_STATUS
+          fi
 
           echo "Archive directory listing:"
           ls -la "$(dirname "$ARCHIVE_PATH")"
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not produced. Last 200 lines of xcodebuild log:"
-            tail -n 200 xcodebuild-archive.log
-            exit 1
-          fi
+          test -d "$ARCHIVE_PATH" || (echo "❌ Archive not produced"; tail -n 200 "$LOG"; exit 1)
 
       - name: Export IPA (App Store)
         script: |
@@ -112,18 +122,16 @@ workflows:
 
           echo "IPA contents:"
           ls -la "$EXPORT_DIR"
-          test -f "$EXPORT_DIR/App.ipa" || test -n "$(ls -1 "$EXPORT_DIR"/*.ipa 2>/dev/null)" || (echo "❌ No IPA exported"; tail -n 200 xcodebuild-export.log; exit 1)
+          test -n "$(ls -1 "$EXPORT_DIR"/*.ipa 2>/dev/null)" || (echo "❌ No IPA exported"; tail -n 200 xcodebuild-export.log; exit 1)
 
     artifacts:
       - build/Export/*.ipa
       - build/App.xcarchive
       - xcodebuild-archive.log
       - xcodebuild-export.log
+      - schemes.txt
 
     publishing:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # Optional: set a group if you have one created in ASC
-        # beta_groups:
-        #   - Internal Testers
