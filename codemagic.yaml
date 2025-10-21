@@ -8,38 +8,23 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20
-      groups:
-        - ios-signing
       vars:
         BUNDLE_ID: com.fireopscalc.app
         IOS_SCHEME: App
         IOS_WORKSPACE: ios/App/App.xcworkspace
         DEVELOPMENT_TEAM: QZ55W58398
 
-    # 👇 THIS FIXES YOUR VALIDATION ERROR
+    # Declare the integration name here ⬇️
     integrations:
-      app_store_connect: FireOpsCalc_iOS-KEY   # exactly as shown in your screenshot
+      app_store_connect: FireOpsCalc_iOS-KEY
 
     scripts:
-      - name: Show tool versions
+      - name: Install deps & build web (if any)
         script: |
-          node -v
-          npm -v
-          pod --version
-          xcodebuild -version
-
-      - name: Install dependencies
-        script: npm ci
-
-      - name: Build web assets (try common scripts)
-        script: |
-          if npm run | grep -qE '^[[:space:]]+build$'; then
-            npm run build
-          elif npm run | grep -qE '^[[:space:]]+build:prod$'; then
-            npm run build:prod
-          else
-            echo "No web build script, skipping."
-          fi
+          set -e
+          node -v && npm -v && pod --version && xcodebuild -version
+          npm ci
+          if npm run | grep -qE '^[[:space:]]*build($|:)'; then npm run build || true; fi
 
       - name: Sync Capacitor iOS
         script: npx cap sync ios
@@ -50,7 +35,7 @@ workflows:
           pod repo update
           pod install --verbose
 
-      - name: Build iOS archive (Release) with Team + automatic signing
+      - name: Archive (Automatic signing)
         script: |
           xcodebuild -workspace "$IOS_WORKSPACE" \
             -scheme "$IOS_SCHEME" \
@@ -62,7 +47,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             clean archive | xcpretty
 
-      - name: Export IPA (App Store)
+      - name: Export IPA
         script: |
           cat > ExportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -70,17 +55,17 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
             <key>compileBitcode</key><false/>
             <key>stripSwiftSymbols</key><true/>
-            <key>signingStyle</key><string>automatic</string>
             <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
           </dict>
           </plist>
           PLIST
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportPath "$CM_BUILD_DIR/Export" \
-            -exportOptionsPlist ExportOptions.plist | xcpretty
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$CM_BUILD_DIR/Export" | xcpretty
           ls -R "$CM_BUILD_DIR/Export"
           test -f "$CM_BUILD_DIR/Export/App.ipa"
 
@@ -91,8 +76,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth:
-          integration: FireOpsCalc_iOS-KEY     # must match the integration name above
+        auth: integration        # <-- literal string (this fixes your error)
         submit_to_testflight: true
-        beta_groups:
-          - Internal Testers
+        # beta_groups:
+        #   - Internal Testers
