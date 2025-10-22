@@ -5,24 +5,19 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      # 👇 This must match the green Apple key you added in App settings
-      app_store_connect: "FireOpsCalc_iOS-KEY"
+      app_store_connect: "FireOpsCalc_iOS-KEY"   # from your App settings → Integrations
 
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
-        # ---- iOS project coordinates (Capacitor defaults) ----
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
 
-        # ---- Signing coordinates (all lowercase, per your screenshots) ----
         PRODUCT_BUNDLE_IDENTIFIER: com.fireopscalc.app
-        PROVISIONING_PROFILE_SPECIFIER: fireopscalc_appstore_profile
         DEVELOPMENT_TEAM: QZ55W58398
 
-        # ---- Paths used below ----
         ARCHIVE_PATH: /Users/builder/clone/build/App.xcarchive
 
     scripts:
@@ -34,15 +29,10 @@ workflows:
           pod --version
           xcodebuild -version
 
-      # ------- Web assets for Capacitor -------
       - name: Install dependencies
         script: |
           set -e
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
       - name: Build web assets (try common scripts)
         script: |
@@ -55,7 +45,6 @@ workflows:
             echo "No build script found, skipping web asset build."
           fi
 
-      # ------- Capacitor iOS sync & pods -------
       - name: Sync Capacitor iOS
         script: |
           set -e
@@ -68,25 +57,17 @@ workflows:
           pod install --repo-update
           cd -
 
-      # ------- Code signing: install p12 from Team settings (now present) -------
-      - name: Install signing assets from app settings
-        script: |
-          set -e
-          keychain add-certificates
-          keychain list
-
-      # ------- Fetch provisioning profile from App Store Connect via integration -------
-      - name: Fetch signing files from App Store Connect (automatic)
+      # 🔑 Fetch/CREATE signing files via your App Store Connect integration (no .p12 needed)
+      - name: Fetch signing files from App Store Connect
         script: |
           set -e
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
             --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
             --create
-          # apply fetched profiles to the Xcode project
+          # Apply the fetched profiles to the Xcode project; don't fail if it just warns
           xcode-project use-profiles --warn-only
 
-      # ------- Build archive (Release) -------
       - name: Build iOS archive (Release)
         script: |
           set -e
@@ -104,17 +85,14 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             -allowProvisioningUpdates \
             clean archive | xcpretty
-          echo "Archive directory contents:"
           ls -la "$(dirname "$ARCHIVE_PATH")"
 
-      # ------- Export IPA (App Store) -------
       - name: Export IPA (App Store)
         script: |
           set -e
           xcode-project build-ipa \
             --archive-path "$ARCHIVE_PATH" \
             --export-method app-store
-          echo "Export directory contents:"
           ls -la Export || true
 
     artifacts:
@@ -126,10 +104,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration         # <-- uses integrations.app_store_connect above
+        auth: integration
         submit_to_testflight: true
-        # Optional: set a specific group name that exists in TestFlight
         # beta_groups:
         #   - Internal Testing
-        # Optional: auto-increment build number (keeps it simple for TestFlight)
-        # increment_build_number: true
