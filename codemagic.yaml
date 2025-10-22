@@ -4,107 +4,161 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
-    integrations:
-      app_store_connect: "FireOpsCalc_iOS-KEY"   # from your App settings → Integrations
-
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
-        XCODE_SCHEME: App
+        # === iOS app identity ===
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+        DEVELOPMENT_TEAM: "QZ55W58398"
+        SCHEME: "App"
+        WORKSPACE: "ios/App/App.xcworkspace"
+        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        DERIVED_DATA: "/Users/builder/clone/DerivedData"
+        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
+        IPA_NAME: "FireOpsCalc.ipa"
 
-        PRODUCT_BUNDLE_IDENTIFIER: com.fireopscalc.app
-        DEVELOPMENT_TEAM: QZ55W58398
+        # Toggle upload to TestFlight (true/false)
+        PUBLISH_TO_TESTFLIGHT: "true"
 
-        ARCHIVE_PATH: /Users/builder/clone/build/App.xcarchive
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
+        - ~/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
+        - ios/App/Pods
+        - node_modules
 
     scripts:
+      # 1) Show tool versions
       - name: Show tool versions
         script: |
-          set -e
-          node -v
-          npm -v
+          echo "Node $(node -v)"
+          echo "NPM  $(npm -v)"
           pod --version
           xcodebuild -version
 
+      # 2) Install JS deps
       - name: Install dependencies
         script: |
-          set -e
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm ci
 
+      # 3) Build web assets (tries common scripts)
+        # If your project uses a different build cmd, edit below.
       - name: Build web assets (try common scripts)
         script: |
           set -e
-          if npm run | grep -qE '(^|\s)build(\s|:)'; then
+          if npm run | grep -qE '^ *build:'; then
             npm run build
-          elif npm run | grep -qE '(^|\s)build:web(\s|:)'; then
-            npm run build:web
+          elif npm run | grep -qE '^ *build$'; then
+            npm run build
           else
-            echo "No build script found, skipping web asset build."
+            echo "No build script found, skipping."
           fi
 
+      # 4) Capacitor sync
       - name: Sync Capacitor iOS
         script: |
-          set -e
           npx cap sync ios
 
+      # 5) CocoaPods
       - name: Install CocoaPods
         script: |
-          set -e
           cd ios/App
-          pod install --repo-update
+          pod repo update
+          pod install
           cd -
 
-      # 🔑 Fetch/CREATE signing files via your App Store Connect integration (no .p12 needed)
+      # 6) Fetch signing files FROM Apple (uses Codemagic Developer Portal integration)
       - name: Fetch signing files from App Store Connect
         script: |
           set -e
+          app-store-connect --version
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
-            --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
+            --bundleId "$PRODUCT_BUNDLE_IDENTIFIER" \
             --create
-          # Apply the fetched profiles to the Xcode project; don't fail if it just warns
+          # Point the Xcode project/workspace to the fetched profiles
           xcode-project use-profiles --warn-only
 
+      # 7) Build archive
       - name: Build iOS archive (Release)
         script: |
           set -e
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
           echo "Building archive to: $ARCHIVE_PATH"
           xcodebuild \
-            -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
             -configuration Release \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath /Users/builder/clone/DerivedData \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
             -archivePath "$ARCHIVE_PATH" \
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             -allowProvisioningUpdates \
             clean archive | xcpretty
-          ls -la "$(dirname "$ARCHIVE_PATH")"
 
+      # 8) Export IPA
       - name: Export IPA (App Store)
         script: |
           set -e
-          xcode-project build-ipa \
-            --archive-path "$ARCHIVE_PATH" \
-            --export-method app-store
-          ls -la Export || true
+          mkdir -p "$IPA_EXPORT_DIR"
+          cat > ExportOptions.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><true/>
+            <key>stripSwiftSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$IPA_EXPORT_DIR" | xcpretty
+
+          # Rename exported IPA to a stable name if necessary
+          EXPORTED="$(ls "$IPA_EXPORT_DIR"/*.ipa | head -n1)"
+          if [ -f "$EXPORTED" ]; then
+            mv "$EXPORTED" "$IPA_EXPORT_DIR/$IPA_NAME"
+            echo "IPA at: $IPA_EXPORT_DIR/$IPA_NAME"
+          else
+            echo "No .ipa produced!"
+            exit 1
+          fi
+
+      # 9) (Optional) Upload to TestFlight
+      - name: Publish to TestFlight (optional)
+        script: |
+          if [ "$PUBLISH_TO_TESTFLIGHT" != "true" ]; then
+            echo "Skipping TestFlight upload."
+            exit 0
+          fi
+          app-store-connect publish \
+            --type IOS \
+            --bundleId "$PRODUCT_BUNDLE_IDENTIFIER" \
+            --path "$IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
-      - build/ios/ipa/*.ipa
-      - $ARCHIVE_PATH
-      - Export/*.ipa
-      - Export/*.dSYM.zip
-      - /tmp/xcodebuild_logs/*.log
+      - build/**/*
+      - Export/**/*
+      - $IPA_EXPORT_DIR/$IPA_NAME
+      - $DERIVED_DATA/Logs/**/*
+      - ExportOptions.plist
 
     publishing:
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        # beta_groups:
-        #   - Internal Testing
+      # Keep this section minimal; the upload is done in scripts.
+      email:
+        recipients:
+          - "you@example.com"
+        notify:
+          success: true
+          failure: true
