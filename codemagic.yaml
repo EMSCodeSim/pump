@@ -1,89 +1,93 @@
 workflows:
   ios_release:
     name: iOS Release (App Store / TestFlight)
-    max_build_duration: 60
     instance_type: mac_mini_m2
+    max_build_duration: 60
 
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
-        # === iOS app identity ===
+        # App identity
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
-        SCHEME: "App"
         WORKSPACE: "ios/App/App.xcworkspace"
+        SCHEME: "App"
+
+        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         DERIVED_DATA: "/Users/builder/clone/DerivedData"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # Toggle upload to TestFlight (true/false)
+        # Toggle TestFlight upload
         PUBLISH_TO_TESTFLIGHT: "true"
+
+    integrations:
+      # Must match the Apple key integration name you added in Codemagic
+      app_store_connect: "FireOpsCalc_iOS-KEY"
 
     cache:
       cache_paths:
-        - ~/.gradle/caches
-        - ~/.gradle/wrapper
-        - ~/.pub-cache
         - $HOME/Library/Caches/CocoaPods
         - ios/App/Pods
         - node_modules
 
     scripts:
-      # 1) Show tool versions
       - name: Show tool versions
         script: |
+          set -e
           echo "Node $(node -v)"
-          echo "NPM  $(npm -v)"
+          echo "npm  $(npm -v)"
           pod --version
+          app-store-connect --version
           xcodebuild -version
 
-      # 2) Install JS deps
       - name: Install dependencies
         script: |
-          npm ci
+          set -e
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-      # 3) Build web assets (tries common scripts)
-        # If your project uses a different build cmd, edit below.
-      - name: Build web assets (try common scripts)
+      - name: Build web assets (if script exists)
         script: |
           set -e
-          if npm run | grep -qE '^ *build:'; then
+          if npm run | grep -qE '^ *build($|:)'; then
             npm run build
-          elif npm run | grep -qE '^ *build$'; then
-            npm run build
+          elif npm run | grep -qE '^ *build:web($|:)'; then
+            npm run build:web
           else
-            echo "No build script found, skipping."
+            echo "No build script found; skipping."
           fi
 
-      # 4) Capacitor sync
       - name: Sync Capacitor iOS
         script: |
+          set -e
           npx cap sync ios
 
-      # 5) CocoaPods
       - name: Install CocoaPods
         script: |
+          set -e
           cd ios/App
           pod repo update
           pod install
           cd -
 
-      # 6) Fetch signing files FROM Apple (uses Codemagic Developer Portal integration)
+      # ---- Automatic code signing via integration (no manual .p12 needed) ----
       - name: Fetch signing files from App Store Connect
         script: |
           set -e
-          app-store-connect --version
-          app-store-connect fetch-signing-files \
+          # NOTE: bundle ID is positional for this CLI version
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" \
             --type IOS_APP_STORE \
-            --bundleId "$PRODUCT_BUNDLE_IDENTIFIER" \
             --create
-          # Point the Xcode project/workspace to the fetched profiles
+          # Install the fetched certificate(s) into the keychain
+          keychain add-certificates
+          # Install fetched provisioning profile(s)
+          profile install
+          # Point the Xcode project to the installed profiles
           xcode-project use-profiles --warn-only
 
-      # 7) Build archive
       - name: Build iOS archive (Release)
         script: |
           set -e
@@ -93,7 +97,7 @@ workflows:
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
-            -destination 'generic/platform=iOS' \
+            -destination "generic/platform=iOS" \
             -derivedDataPath "$DERIVED_DATA" \
             -archivePath "$ARCHIVE_PATH" \
             CODE_SIGN_STYLE=Automatic \
@@ -102,7 +106,6 @@ workflows:
             -allowProvisioningUpdates \
             clean archive | xcpretty
 
-      # 8) Export IPA
       - name: Export IPA (App Store)
         script: |
           set -e
@@ -125,8 +128,7 @@ workflows:
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$IPA_EXPORT_DIR" | xcpretty
 
-          # Rename exported IPA to a stable name if necessary
-          EXPORTED="$(ls "$IPA_EXPORT_DIR"/*.ipa | head -n1)"
+          EXPORTED="$(ls "$IPA_EXPORT_DIR"/*.ipa | head -n1 || true)"
           if [ -f "$EXPORTED" ]; then
             mv "$EXPORTED" "$IPA_EXPORT_DIR/$IPA_NAME"
             echo "IPA at: $IPA_EXPORT_DIR/$IPA_NAME"
@@ -135,7 +137,6 @@ workflows:
             exit 1
           fi
 
-      # 9) (Optional) Upload to TestFlight
       - name: Publish to TestFlight (optional)
         script: |
           if [ "$PUBLISH_TO_TESTFLIGHT" != "true" ]; then
@@ -144,21 +145,20 @@ workflows:
           fi
           app-store-connect publish \
             --type IOS \
-            --bundleId "$PRODUCT_BUNDLE_IDENTIFIER" \
+            --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
             --path "$IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
-      - build/**/*
-      - Export/**/*
+      - $ARCHIVE_PATH
       - $IPA_EXPORT_DIR/$IPA_NAME
       - $DERIVED_DATA/Logs/**/*
       - ExportOptions.plist
 
     publishing:
-      # Keep this section minimal; the upload is done in scripts.
       email:
         recipients:
-          - "you@example.com"
+          - "davidagallaher@hotmail.com"
         notify:
           success: true
           failure: true
+
