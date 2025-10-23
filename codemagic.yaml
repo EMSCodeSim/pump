@@ -1,8 +1,12 @@
 workflows:
   ios_release:
-    name: iOS Release (API key env vars)
+    name: iOS Release (App Store / TestFlight)
     instance_type: mac_mini_m2
     max_build_duration: 60
+
+    integrations:
+      # <-- Use the exact name of your App Store Connect integration from Codemagic
+      app_store_connect: "FireOpsCalc_iOS-KEY"
 
     environment:
       xcode: 16.4
@@ -21,14 +25,6 @@ workflows:
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # Toggle TestFlight upload (true/false)
-        PUBLISH_TO_TESTFLIGHT: "true"
-
-      # REQUIRED ENV VARS (set these in App settings → Environment variables)
-      # - APP_STORE_CONNECT_KEY_IDENTIFIER  (Key ID, e.g. ABC123XYZ)
-      # - APP_STORE_CONNECT_ISSUER_ID       (Issuer ID UUID)
-      # - APP_STORE_CONNECT_PRIVATE_KEY     (entire .p8 contents with BEGIN/END lines, Secure + multiline)
-
     cache:
       cache_paths:
         - $HOME/Library/Caches/CocoaPods
@@ -41,7 +37,6 @@ workflows:
           set -e
           echo "Node $(node -v)"; echo "npm $(npm -v)"
           pod --version
-          app-store-connect --version || true
           xcodebuild -version
 
       - name: Install dependencies
@@ -130,18 +125,6 @@ workflows:
             exit 1
           fi
 
-      - name: Publish to TestFlight (using API key env vars)
-        script: |
-          if [ "$PUBLISH_TO_TESTFLIGHT" != "true" ]; then
-            echo "Skipping TestFlight upload."
-            exit 0
-          fi
-          # app-store-connect CLI reads APP_STORE_CONNECT_* env vars automatically
-          app-store-connect publish \
-            --type IOS \
-            --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
-            --path "$IPA_EXPORT_DIR/$IPA_NAME"
-
     artifacts:
       - $ARCHIVE_PATH
       - $IPA_EXPORT_DIR/$IPA_NAME
@@ -149,10 +132,8 @@ workflows:
       - ExportOptions.plist
 
     publishing:
-      # Using API key via env vars; no integration reference here.
       app_store_connect:
-        auth: api_key
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        private_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        auth: integration         # <— required literal
         submit_to_testflight: true
+        # beta_groups:
+        #   - Internal Testing
