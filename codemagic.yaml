@@ -4,18 +4,15 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Uses the App Store Connect API key you saved in Codemagic as "FireCalc"
     integrations:
       app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
-      # Auto-resolve signing using your stored cert/profile for this bundle id
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.fireopscalc.app
       vars:
-        # Adjust if your scheme/workspace names differ
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         ARCHIVE_PATH: $CM_BUILD_DIR/build/App.xcarchive
@@ -23,19 +20,40 @@ workflows:
 
     cache:
       cache_paths:
-        - ~/.gradle/caches
-        - ~/.gradle/wrapper
-        - ~/.pub-cache
+        - ~/.npm
         - ~/Library/Caches/CocoaPods
         - ios/Pods -> ios/Podfile.lock
+        - ios/App/Pods -> ios/App/Podfile.lock
 
     scripts:
-      - name: Install CocoaPods
+      - name: Install Node deps
         script: |
-          cd ios
-          pod install --repo-update || pod install
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-      - name: Apply signing settings from stored profiles
+      - name: Capacitor iOS sync (creates Podfile if needed)
+        script: |
+          npx cap sync ios
+
+      - name: Install CocoaPods (auto-detect Podfile location)
+        script: |
+          set -e
+          if [ -f "ios/App/Podfile" ]; then
+            echo "Found Podfile in ios/App — running pod install there"
+            cd ios/App
+            pod install
+          elif [ -f "ios/Podfile" ]; then
+            echo "Found Podfile in ios — running pod install there"
+            cd ios
+            pod install
+          else
+            echo "No Podfile found after cap sync — skipping pods (not required for this project?)"
+          fi
+
+      - name: Apply signing settings
         script: xcode-project use-profiles
 
       - name: Build archive
@@ -60,6 +78,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration         # REQUIRED (uses the "FireCalc" integration above)
+        auth: integration
         submit_to_testflight: true
-        # submit_to_app_store: true  # uncomment when ready for App Store submission
+        # submit_to_app_store: true  # enable when you're ready
