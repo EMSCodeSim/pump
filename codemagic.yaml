@@ -4,40 +4,62 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
+    # Uses the App Store Connect API key you saved in Codemagic as "FireCalc"
     integrations:
       app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
+      # Auto-resolve signing using your stored cert/profile for this bundle id
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.fireopscalc.app
+      vars:
+        # Adjust if your scheme/workspace names differ
+        XCODE_WORKSPACE: ios/App/App.xcworkspace
+        XCODE_SCHEME: App
+        ARCHIVE_PATH: $CM_BUILD_DIR/build/App.xcarchive
+        EXPORT_DIR: $CM_BUILD_DIR/Export
+
+    cache:
+      cache_paths:
+        - ~/.gradle/caches
+        - ~/.gradle/wrapper
+        - ~/.pub-cache
+        - ~/Library/Caches/CocoaPods
+        - ios/Pods -> ios/Podfile.lock
 
     scripts:
-      - name: Install pods
+      - name: Install CocoaPods
         script: |
           cd ios
           pod install --repo-update || pod install
-      - name: Apply signing settings
+
+      - name: Apply signing settings from stored profiles
         script: xcode-project use-profiles
+
       - name: Build archive
         script: |
-          xcodebuild -workspace ios/App/App.xcworkspace \
-            -scheme App \
+          xcodebuild -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath $CM_BUILD_DIR/build/App.xcarchive archive
+            -archivePath "$ARCHIVE_PATH" \
+            archive
+
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
-            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
-            -exportOptionsPlist $CM_EXPORT_OPTIONS \
-            -exportPath $CM_BUILD_DIR/Export
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$CM_EXPORT_OPTIONS" \
+            -exportPath "$EXPORT_DIR"
 
     artifacts:
       - Export/*.ipa
+      - $CM_BUILD_DIR/build/*.xcarchive
 
     publishing:
       app_store_connect:
-        auth: integration
+        auth: integration         # REQUIRED (uses the "FireCalc" integration above)
         submit_to_testflight: true
+        # submit_to_app_store: true  # uncomment when ready for App Store submission
