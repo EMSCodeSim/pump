@@ -13,6 +13,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: com.fireopscalc.app
       vars:
+        DEVELOPMENT_TEAM: QZ55W58398
         XCODE_WORKSPACE: ios/App/App.xcworkspace
         XCODE_SCHEME: App
         ARCHIVE_PATH: $CM_BUILD_DIR/build/App.xcarchive
@@ -53,8 +54,10 @@ workflows:
             echo "No Podfile found after cap sync — skipping pods (not required for this project?)"
           fi
 
-      - name: Apply signing settings
-        script: xcode-project use-profiles
+      - name: Apply signing settings (force Team ID & manual signing)
+        script: |
+          # Apply stored provisioning profiles/certificates and set team id
+          xcode-project use-profiles --team-id "$DEVELOPMENT_TEAM"
 
       - name: Build archive
         script: |
@@ -80,4 +83,4 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # submit_to_app_store: true  # enable when you're ready
+        # submit_to_app_store: true
