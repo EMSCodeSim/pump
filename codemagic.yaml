@@ -54,19 +54,21 @@ workflows:
             echo "No Podfile found after cap sync — skipping pods (not required for this project?)"
           fi
 
-      - name: Apply signing settings (force Team ID & manual signing)
+      - name: Apply signing settings (use stored profiles)
         script: |
-          # Apply stored provisioning profiles/certificates and set team id
-          xcode-project use-profiles --team-id "$DEVELOPMENT_TEAM"
+          # This injects the provisioning profile specifiers into the Xcode project
+          xcode-project use-profiles
 
-      - name: Build archive
+      - name: Build archive (force Team & Manual signing)
         script: |
           xcodebuild -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -archivePath "$ARCHIVE_PATH" \
-            archive
+            archive \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            CODE_SIGN_STYLE=Manual
 
       - name: Export IPA
         script: |
