@@ -1,139 +1,43 @@
 workflows:
   ios_release:
-    name: iOS Release (App Store / TestFlight)
+    name: iOS Release
     instance_type: mac_mini_m2
     max_build_duration: 60
 
     integrations:
-      # <-- Use the exact name of your App Store Connect integration from Codemagic
-      app_store_connect: "FireOpsCalc_iOS-KEY"
+      app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
-      cocoapods: default
-      node: 20.11.1
-      vars:
-        # --- App identity ---
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-        DEVELOPMENT_TEAM: "QZ55W58398"
-        WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"
-
-        # --- Paths ---
-        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        DERIVED_DATA: "/Users/builder/clone/DerivedData"
-        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
-        IPA_NAME: "FireOpsCalc.ipa"
-
-    cache:
-      cache_paths:
-        - $HOME/Library/Caches/CocoaPods
-        - ios/App/Pods
-        - node_modules
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.fireopscalc.app
 
     scripts:
-      - name: Tool versions
+      - name: Install pods
         script: |
-          set -e
-          echo "Node $(node -v)"; echo "npm $(npm -v)"
-          pod --version
-          xcodebuild -version
-
-      - name: Install dependencies
+          cd ios
+          pod install --repo-update || pod install
+      - name: Apply signing settings
+        script: xcode-project use-profiles
+      - name: Build archive
         script: |
-          set -e
-          if [ -f package-lock.json ]; then npm ci; else npm install; fi
-
-      - name: Build web assets (if script exists)
-        script: |
-          set -e
-          if npm run | grep -qE '^ *build($|:)'; then
-            npm run build
-          elif npm run | grep -qE '^ *build:web($|:)'; then
-            npm run build:web
-          else
-            echo "No build script found; skipping."
-          fi
-
-      - name: Sync Capacitor iOS
-        script: |
-          set -e
-          npx cap sync ios
-
-      - name: Install CocoaPods
-        script: |
-          set -e
-          cd ios/App
-          pod repo update
-          pod install
-          cd -
-
-      # 🔐 Install certs/profiles you attached in App settings → Code signing → iOS
-      - name: Install signing assets from App settings
-        script: |
-          set -e
-          keychain add-certificates          # installs your .p12 into the build keychain
-          profile install                    # installs selected provisioning profiles
-          xcode-project use-profiles --warn-only
-
-      - name: Build iOS archive (Release)
-        script: |
-          set -e
-          mkdir -p "$(dirname "$ARCHIVE_PATH")"
-          echo "Building archive to: $ARCHIVE_PATH"
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+          xcodebuild -workspace ios/App/App.xcworkspace \
+            -scheme App \
             -configuration Release \
-            -destination "generic/platform=iOS" \
-            -derivedDataPath "$DERIVED_DATA" \
-            -archivePath "$ARCHIVE_PATH" \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            -allowProvisioningUpdates \
-            clean archive | xcpretty
-
-      - name: Export IPA (App Store)
+            -sdk iphoneos \
+            -archivePath $CM_BUILD_DIR/build/App.xcarchive archive
+      - name: Export IPA
         script: |
-          set -e
-          mkdir -p "$IPA_EXPORT_DIR"
-          cat > ExportOptions.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><true/>
-            <key>stripSwiftSymbols</key><true/>
-          </dict>
-          </plist>
-          PLIST
           xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$IPA_EXPORT_DIR" | xcpretty
-
-          IPA="$(ls "$IPA_EXPORT_DIR"/*.ipa | head -n1 || true)"
-          if [ -f "$IPA" ]; then
-            mv "$IPA" "$IPA_EXPORT_DIR/$IPA_NAME"
-            echo "IPA at: $IPA_EXPORT_DIR/$IPA_NAME"
-          else
-            echo "No .ipa produced!"
-            exit 1
-          fi
+            -archivePath $CM_BUILD_DIR/build/App.xcarchive \
+            -exportOptionsPlist $CM_EXPORT_OPTIONS \
+            -exportPath $CM_BUILD_DIR/Export
 
     artifacts:
-      - $ARCHIVE_PATH
-      - $IPA_EXPORT_DIR/$IPA_NAME
-      - $DERIVED_DATA/Logs/**/*
-      - ExportOptions.plist
+      - Export/*.ipa
 
     publishing:
       app_store_connect:
-        auth: integration         # <— required literal
+        auth: integration
         submit_to_testflight: true
-        # beta_groups:
-        #   - Internal Testing
