@@ -10,10 +10,7 @@ workflows:
     environment:
       xcode: 16.4
       ios_signing:
-        distribution_type: app_store
-        # Optional but fine to keep if you want
-        bundle_identifier: com.fireopscalc.app
-        # IMPORTANT: must be a LIST of profile reference names stored in Codemagic
+        # Use the exact Codemagic reference name you saved (lowercase in your screenshot)
         provisioning_profiles:
           - FireOpsCalcprofile
       vars:
@@ -55,7 +52,7 @@ workflows:
             cd ios
             pod install
           else
-            echo "No Podfile found after cap sync — skipping pods (project may not use Pods)"
+            echo "No Podfile found after cap sync — skipping pods"
           fi
 
       - name: Apply signing settings (inject profile)
@@ -91,4 +88,3 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # submit_to_app_store: true
