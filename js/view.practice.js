@@ -1,8 +1,8 @@
 // /js/view.practice.js
 // Practice page for hydraulics drills (phone-friendly).
-// - Hose lengths limited to 50' multiples in practice mode.
+// - Hose lengths limited to 50' multiples in practice mode (no 25' or 75').
 // - New Question resets previous answer & work.
-// - Exports both a named `render` and default `{ render }` to match your router.
+// - Exports: named `render` and default `{ render }` (router can call mod.render(app)).
 
 import {
   COEFF,
@@ -24,64 +24,25 @@ import {
 
 const SIZES = ['1.75', '2.5', '5'];
 
-function injectStyle(root, cssText) {
-  const s = document.createElement('style');
-  s.textContent = cssText;
-  root.appendChild(s);
-}
-
 function el(html) {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
-
 function option(v, text) {
   const o = document.createElement('option');
   o.value = v;
   o.textContent = text ?? v;
   return o;
 }
-
-function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
-
 function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function rndInt(min, max){ return Math.floor(Math.random()*(max-min+1)) + min; }
-
 function round1(n){ return Math.round(n*10)/10; }
 function round0(n){ return Math.round(n); }
 
 // ———————————————————————————————————————————————————————
-// PDP math helpers
+// PDP helpers
 // ———————————————————————————————————————————————————————
-
-function currentNozzle(selection, manualNP) {
-  if (selection === 'manual') {
-    return { name: 'Manual', NP: Number(manualNP) || 0, gpm: null, id: 'manual' };
-  }
-  const n = NOZ[selection];
-  return n || { name: 'None', NP: 0, gpm: null, id: 'none' };
-}
-
-function calcPDP({ segs, gpm, elevFt, applianceOn, nozzleNP }) {
-  const NP = nozzleNP || 0;
-  const mainFL = FL_total(gpm, segs);
-  const elevPsi = (Number(elevFt) || 0) * PSI_PER_FT;
-  const appl = applianceOn ? computeApplianceLoss(gpm) : 0;
-  const PDP = mainFL + elevPsi + appl + NP;
-  return {
-    PDP: round0(PDP),
-    parts: { mainFL: round1(mainFL), elevPsi: round1(elevPsi), appl: round1(appl), NP: round1(NP) }
-  };
-}
-
-// ———————————————————————————————————————————————————————
-// Scenario generator (practice problems)
-// ———————————————————————————————————————————————————————
-
-function genSeg(size, ft){
-  return { size, lengthFt: ft };
-}
+function genSeg(size, ft){ return { size, lengthFt: ft }; }
 
 function makeWyeScenario() {
   // 2-line wye, equal length branches; 50' multiples only (removed 75')
@@ -95,7 +56,7 @@ function makeWyeScenario() {
   const mainLen = rnd([100, 150, 200]);
 
   const elevFt = rnd([ -10, 0, 10, 20 ]);
-  const applianceOn = true; // at the wye; +10 if totalGPM > 350 (auto rule)
+  const applianceOn = true; // +10 if totalGPM > 350 (auto rule)
   const nozzleNP = rnd([ 50, 75, 100 ]);
 
   const segs = [
@@ -111,23 +72,22 @@ function makeWyeScenario() {
     elevFt,
     nozzleNP,
     applianceOn,
-    segs,
-    branch: { gpmEach, count: 2, size: branchSize, len: branchLen },
-    main: { size: mainSize, len: mainLen }
+    segs
   };
 }
 
 function makeSingleLineScenario() {
   const size = rnd(['1.75','2.5']);
-  const gpm = size === '1.75' ? rnd([120,125,130,140,150,160,180]) : rnd([200,250,265,300,325,350]);
+  const gpm = size === '1.75'
+    ? rnd([120,125,130,140,150,160,180])
+    : rnd([200,250,265,300,325,350]);
   const elevFt = rnd([-10, 0, 10, 20, 30]);
 
-  // 50’ multiples only
-  const lenChoices = [100,150,200,250,300];
+  const lenChoices = [100,150,200,250,300]; // 50’ multiples only
   const lengthFt = rnd(lenChoices);
 
   const nozzleNP = rnd([50, 75, 100]);
-  const applianceOn = gpm > 350; // realistic cut-in
+  const applianceOn = gpm > 350;
 
   const segs = [ genSeg(size, lengthFt) ];
   return {
@@ -146,8 +106,7 @@ function makeMasterStreamScenario() {
   const gpm = rnd([400, 500, 600, 700, 800]);
   const elevFt = rnd([-10,0,10,20]);
 
-  // 50’ multiples only
-  const lenChoices = [100,150,200,250,300];
+  const lenChoices = [100,150,200,250,300]; // 50’ multiples only
   const lengthFt = rnd(lenChoices);
 
   const nozzleNP = rnd([80, 100]);
@@ -173,19 +132,6 @@ function generateScenario() {
   return makeSingleLineScenario();
 }
 
-// ———————————————————————————————————————————————————————
-// Render practice UI
-// ———————————————————————————————————————————————————————
-
-function drawScenario(overlay, S){
-  overlay.innerHTML = `
-    <g>
-      <rect x="0" y="0" width="100%" height="100%" fill="#f8fafc" rx="12"></rect>
-      <text x="12" y="24" font-size="14" fill="#0f172a">${S.text}</text>
-    </g>
-  `;
-}
-
 function buildReveal(S){
   const appl = S.applianceOn ? computeApplianceLoss(S.gpm) : 0;
   const NP = S.nozzleNP || 0;
@@ -204,21 +150,18 @@ function buildReveal(S){
   return { total, lines };
 }
 
-function renderWork(el, lines){
-  el.innerHTML = lines.map(l=>`<div>${l}</div>`).join('');
+function drawScenario(overlay, S){
+  overlay.innerHTML = `
+    <g>
+      <rect x="0" y="0" width="100%" height="100%" fill="#f8fafc" rx="12"></rect>
+      <text x="12" y="24" font-size="14" fill="#0f172a">${S.text}</text>
+    </g>
+  `;
 }
 
-function renderEquations(S){
-  if(!S) return `<div>Equations will reference the current scenario.</div>`;
-  const list = [
-    `FL = C × (Q/100)^2 × L`,
-    `PDP = ΣFL + Elevation + Appliance + NP`,
-    `Elevation ≈ ${PSI_PER_FT} psi/ft`
-  ];
-  return `<div>${list.map(x=>`<div>• ${x}</div>`).join('')}</div>`;
-}
-
-// Named export expected by your router:
+// ———————————————————————————————————————————————————————
+// RENDER (named export)
+// ———————————————————————————————————————————————————————
 export function render(container) {
   container.innerHTML = `
     <style>
@@ -255,7 +198,6 @@ export function render(container) {
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)"></svg>
       </div>
 
-      <!-- Equations (hidden by default) -->
       <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none"></div>
 
       <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
@@ -318,7 +260,6 @@ export function render(container) {
         </div>
       </div>
 
-      <!-- Segments editor -->
       <div id="segWrap" style="margin-top:12px"></div>
 
       <div class="row" style="margin-top:10px">
@@ -343,9 +284,7 @@ export function render(container) {
   let scenario = null;
   let practiceAnswer = null;
 
-  // ————————————————————————————————————
   // Segments editor
-  // ————————————————————————————————————
   const segWrap = container.querySelector('#segWrap');
   const hoseSizeSel = container.querySelector('#hoseSize');
   hoseSizeSel.value = '1.75';
@@ -416,17 +355,21 @@ export function render(container) {
     manualNPWrap.style.display = nozSel.value === 'manual' ? 'block' : 'none';
   });
 
-  // ————————————————————————————————————
   // Scenario lifecycle
-  // ————————————————————————————————————
   const TOL = 5; // ± allowable
 
   function makePractice(){
     const S = generateScenario();
-    scenario = { ...S, segs: S.segs }; // keep reference format
+    scenario = S;
 
     if(eqVisible){
-      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.innerHTML = `
+        <div>
+          <div>• FL = C × (Q/100)^2 × L</div>
+          <div>• PDP = ΣFL + Elevation + Appliance + NP</div>
+          <div>• Elevation ≈ ${PSI_PER_FT} psi/ft</div>
+        </div>
+      `;
     }
 
     const rev = buildReveal(S);
@@ -450,7 +393,7 @@ export function render(container) {
     const rev = buildReveal(scenario);
     if(diff<=TOL){
       statusEl.textContent = `✅ Correct! PP ≈ ${practiceAnswer} psi`;
-      renderWork(workEl, rev.lines);
+      workEl.innerHTML = rev.lines.map(l=>`<div>${l}</div>`).join('');
     }else{
       statusEl.textContent = `❌ Not quite. Try again or tap Reveal.`;
     }
@@ -459,40 +402,31 @@ export function render(container) {
   container.querySelector('#showBuildBtn').addEventListener('click', ()=>{
     if(!scenario){ statusEl.textContent = 'Generate a problem first.'; return; }
     const rev = buildReveal(scenario);
-    renderWork(workEl, rev.lines);
+    workEl.innerHTML = rev.lines.map(l=>`<div>${l}</div>`).join('');
   });
 
-  // Toggle equations
-  const eqToggleBtn = container.querySelector('#eqToggleBtn');
+  // Toggle equations (single declaration)
   eqToggleBtn.addEventListener('click', ()=>{
-    const now = eqBox.style.display !== 'block';
-    if(now){
-      eqBox.innerHTML = renderEquations(scenario);
+    eqVisible = !eqVisible;
+    if(eqVisible){
+      eqBox.innerHTML = `
+        <div>
+          <div>• FL = C × (Q/100)^2 × L</div>
+          <div>• PDP = ΣFL + Elevation + Appliance + NP</div>
+          <div>• Elevation ≈ ${PSI_PER_FT} psi/ft</div>
+        </div>
+      `;
       eqBox.style.display = 'block';
       eqToggleBtn.textContent = 'Hide Equations';
-      eqVisible = true;
     }else{
       eqBox.style.display = 'none';
       eqToggleBtn.textContent = 'Equations';
-      eqVisible = false;
     }
   });
 
   // Optional external events
   const onNew = ()=> makePractice();
-  const onEq  = ()=>{
-    const now = eqBox.style.display !== 'block';
-    if(now){
-      eqBox.innerHTML = renderEquations(scenario);
-      eqBox.style.display = 'block';
-      eqToggleBtn.textContent = 'Hide Equations';
-      eqVisible = true;
-    }else{
-      eqBox.style.display = 'none';
-      eqToggleBtn.textContent = 'Equations';
-      eqVisible = false;
-    }
-  };
+  const onEq  = ()=> eqToggleBtn.click();
 
   window.addEventListener('practice:newProblem', onNew);
   window.addEventListener('toggle:equations', onEq);
@@ -508,5 +442,5 @@ export function render(container) {
   };
 }
 
-// Default export as an object with a render method (safe for routers expecting `mod.render(app)`)
+// default: object with a render method (works with routers using mod.render(app))
 export default { render };
