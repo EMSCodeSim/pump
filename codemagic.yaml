@@ -10,7 +10,6 @@ workflows:
     environment:
       xcode: 16.4
       ios_signing:
-        # We are using stored profile(s) by reference name (as saved in Codemagic UI)
         provisioning_profiles:
           - FireOpsCalcprofile
       vars:
@@ -19,6 +18,8 @@ workflows:
         XCODE_SCHEME: App
         ARCHIVE_PATH: $CM_BUILD_DIR/build/App.xcarchive
         EXPORT_DIR: $CM_BUILD_DIR/Export
+        PRODUCT_BUNDLE_IDENTIFIER: com.fireopscalc.app
+        PROFILE_SPECIFIER: FireOpsCalcApp_AppStore
 
     cache:
       cache_paths:
@@ -44,45 +45,23 @@ workflows:
         script: |
           set -e
           if [ -f "ios/App/Podfile" ]; then
-            echo "Running pod install in ios/App"
             cd ios/App
             pod install
           elif [ -f "ios/Podfile" ]; then
-            echo "Running pod install in ios"
             cd ios
             pod install
           else
-            echo "No Podfile found (ok if project doesn't use Pods)"
+            echo "No Podfile found"
           fi
 
-      - name: Inject signing profiles (Codemagic → Xcode project)
+      - name: Apply stored signing profiles
         script: |
           xcode-project use-profiles
 
-      - name: Detect Provisioning Profile Specifier
+      - name: Build archive (manual signing enforced)
         script: |
           set -e
-          echo "=== SHOW BUILD SETTINGS (for specifier detection) ==="
-          xcodebuild -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
-            -showBuildSettings | tee /tmp/buildsettings.txt
-
-          SPEC=$(grep -m1 'PROVISIONING_PROFILE_SPECIFIER =' /tmp/buildsettings.txt | sed 's/.*= *//')
-          echo "Detected PROVISIONING_PROFILE_SPECIFIER: '$SPEC'"
-
-          if [ -z "$SPEC" ]; then
-            echo "ERROR: Could not detect PROVISIONING_PROFILE_SPECIFIER from build settings."
-            echo "Dumping signing-related lines for troubleshooting:"
-            grep -E 'PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM' /tmp/buildsettings.txt || true
-            exit 1
-          fi
-
-          # Persist for later steps
-          echo "CM_PROVISIONING_SPECIFIER=$SPEC" >> $CM_ENV
-          echo "Saved CM_PROVISIONING_SPECIFIER to environment."
-
-      - name: Build archive (manual signing + forced specifier)
-        script: |
+          echo "Using signing with profile: $PROFILE_SPECIFIER"
           xcodebuild -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
@@ -92,7 +71,8 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$CM_PROVISIONING_SPECIFIER"
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
       - name: Export IPA
         script: |
@@ -109,4 +89,3 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        # submit_to_app_store: true  # enable later if you want automatic App Store submission
