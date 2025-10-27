@@ -47,7 +47,7 @@ workflows:
             echo "No Podfile found (ok if project doesn't use Pods)"
           fi
 
-      - name: Apply stored signing profile(s)
+      - name: Apply stored signing profiles
         script: |
           xcode-project use-profiles
 
@@ -65,7 +65,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
-      - name: Create ExportOptions.plist (map ONLY app bundle to profile; no signingStyle)
+      - name: Create ExportOptions.plist (no provisioning profiles)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -76,14 +76,9 @@ workflows:
             <string>app-store-connect</string>
             <key>teamID</key>
             <string>$DEVELOPMENT_TEAM</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key>
-              <string>FireOpsCalcApp_AppStore</string>
-            </dict>
-            <key>stripSwiftSymbols</key>
-            <true/>
             <key>uploadSymbols</key>
+            <true/>
+            <key>stripSwiftSymbols</key>
             <true/>
             <key>manageAppVersionAndBuildNumber</key>
             <false/>
@@ -93,12 +88,14 @@ workflows:
           </plist>
           EOF
 
-      - name: Export IPA
+      - name: Export IPA (no profile enforcement)
         script: |
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$EXPORT_PATH"
+            -exportPath "$EXPORT_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
     artifacts:
       - Export/*.ipa
