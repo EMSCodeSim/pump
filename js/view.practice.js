@@ -2,7 +2,8 @@
 // Practice page for hydraulics drills (phone-friendly).
 // - Hose lengths limited to 50' multiples in practice mode (no 25' or 75').
 // - New Question resets previous answer & work.
-// - Exports: named `render` and default `{ render }` (router can call mod.render(app)).
+// - Safe nozzle list rendering (skips undefined keys in NOZ_LIST).
+// - Exports: named `render` and default `{ render }` so routers using mod.render(app) work.
 
 import {
   COEFF,
@@ -40,7 +41,7 @@ function round1(n){ return Math.round(n*10)/10; }
 function round0(n){ return Math.round(n); }
 
 // ———————————————————————————————————————————————————————
-// PDP helpers
+// Problem/Math helpers
 // ———————————————————————————————————————————————————————
 function genSeg(size, ft){ return { size, lengthFt: ft }; }
 
@@ -250,7 +251,12 @@ export function render(container) {
           <label>Nozzle</label>
           <select id="nozSel">
             <option value="none">None</option>
-            ${NOZ_LIST.map(k=>`<option value="${k}">${NOZ[k].name} (NP ${NOZ[k].NP})</option>`).join('')}
+            ${
+              (Array.isArray(NOZ_LIST) ? NOZ_LIST : [])
+                .filter(k => NOZ && NOZ[k])
+                .map(k => `<option value="${k}">${NOZ[k].name} (NP ${NOZ[k].NP})</option>`)
+                .join('') || '<option disabled>No nozzles defined</option>'
+            }
             <option value="manual">Manual NP…</option>
           </select>
         </div>
