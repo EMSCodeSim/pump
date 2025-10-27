@@ -9,7 +9,6 @@ workflows:
 
     environment:
       xcode: 16.4
-      # Use stored provisioning profile(s) by Codemagic reference name
       ios_signing:
         provisioning_profiles:
           - FireOpsCalcprofile
@@ -34,7 +33,7 @@ workflows:
         script: |
           npm ci || npm install
 
-      - name: Capacitor sync (ensures iOS platform + updates Xcode project)
+      - name: Capacitor sync (ensure iOS platform)
         script: |
           npx cap sync ios
 
@@ -48,7 +47,7 @@ workflows:
             echo "No Podfile found (ok if project doesn't use Pods)"
           fi
 
-      - name: Apply stored signing profile(s) to Xcode project
+      - name: Apply stored signing profile(s)
         script: |
           xcode-project use-profiles
 
@@ -66,7 +65,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
-      - name: Create ExportOptions.plist (no provisioningProfiles to avoid framework errors)
+      - name: Create ExportOptions.plist (map ONLY app bundle to profile; no signingStyle)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -74,9 +73,14 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>teamID</key>
             <string>$DEVELOPMENT_TEAM</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key>
+              <string>FireOpsCalcApp_AppStore</string>
+            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadSymbols</key>
