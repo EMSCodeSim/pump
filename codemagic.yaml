@@ -66,7 +66,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
-      - name: Create ExportOptions.plist (map ONLY the app bundle to profile)
+      - name: Create ExportOptions.plist (no provisioningProfiles to avoid framework errors)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -74,21 +74,16 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store-connect</string>
+            <string>app-store</string>
             <key>teamID</key>
             <string>$DEVELOPMENT_TEAM</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key>
-              <string>FireOpsCalcApp_AppStore</string>
-            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadSymbols</key>
             <true/>
             <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>compileBitcode</key>
             <false/>
           </dict>
           </plist>
@@ -109,4 +104,3 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-
