@@ -128,7 +128,7 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
-						ProvisioningStyle = Automatic;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -354,7 +354,11 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = com.fireops.calc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fireopscalc.app;
+        DEVELOPMENT_TEAM = QZ55W58398;
+        CODE_SIGN_STYLE = Manual;
+        CODE_SIGN_IDENTITY = "Apple Distribution";
+        PROVISIONING_PROFILE_SPECIFIER = FireOpsCalcApp_AppStore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
@@ -373,7 +377,11 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fireops.calc;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fireopscalc.app;
+        DEVELOPMENT_TEAM = QZ55W58398;
+        CODE_SIGN_STYLE = Manual;
+        CODE_SIGN_IDENTITY = "Apple Distribution";
+        PROVISIONING_PROFILE_SPECIFIER = FireOpsCalcApp_AppStore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
