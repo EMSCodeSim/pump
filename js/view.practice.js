@@ -1,16 +1,8 @@
 // /js/view.practice.js
-// Phone-friendly Practice page for hydraulics drills.
-// Uses your shared store helpers (NFPA 0.05 psi/ft + appliance loss: +10 psi only if total GPM > 350).
-//
-// What this page lets you practice:
-//   • Pick hose size + segments (one or more), GPM, and elevation
-//   • Optional appliance at the line (auto 0/10 psi rule)
-//   • Optional nozzle NP (from your nozzle catalog) or manual NP override
-//   • See PDP and a clear “Why?” breakdown
-//
-// Mobile UX:
-//   • Prevents iOS zoom (16px inputs), bigger tap targets, clean spacing
-//   • Works without changing global app state (this page is sandboxed)
+// Practice page for hydraulics drills (phone-friendly).
+// - Hose lengths limited to 50' multiples in practice mode.
+// - New Question resets previous answer & work.
+// - Exports both a named `render` and default `{ render }` to match your router.
 
 import {
   COEFF,
@@ -59,9 +51,9 @@ function rndInt(min, max){ return Math.floor(Math.random()*(max-min+1)) + min; }
 function round1(n){ return Math.round(n*10)/10; }
 function round0(n){ return Math.round(n); }
 
-// ———————————————————————————————————————————————————————————————
-// PDP math helpers (reuse your shared store abstractions)
-// ———————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————————————————
+// PDP math helpers
+// ———————————————————————————————————————————————————————
 
 function currentNozzle(selection, manualNP) {
   if (selection === 'manual') {
@@ -83,31 +75,28 @@ function calcPDP({ segs, gpm, elevFt, applianceOn, nozzleNP }) {
   };
 }
 
-// ———————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————————————————
 // Scenario generator (practice problems)
-// ———————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————————————————
 
 function genSeg(size, ft){
   return { size, lengthFt: ft };
 }
 
 function makeWyeScenario() {
-  // 2-line wye, equal length branches
+  // 2-line wye, equal length branches; 50' multiples only (removed 75')
   const mainSize = '2.5';
   const branchSize = '1.75';
   const gpmEach = rnd([120, 125, 130, 140, 150, 160]);
   const totalGPM = gpmEach * 2;
 
-  // ONLY 50' MULTIPLES — removed 75
-  let lenChoices = [50,100,150];
-
+  const lenChoices = [50,100,150]; // no 75'
   const branchLen = rnd(lenChoices);
   const mainLen = rnd([100, 150, 200]);
 
   const elevFt = rnd([ -10, 0, 10, 20 ]);
-  const applianceOn = true; // at the wye if GPM > 350 this will add +10 automatically
-
-  const nozzleNP = rnd([ 50, 75, 100 ]); // fog/auto/solid mix
+  const applianceOn = true; // at the wye; +10 if totalGPM > 350 (auto rule)
+  const nozzleNP = rnd([ 50, 75, 100 ]);
 
   const segs = [
     genSeg(mainSize, mainLen),
@@ -153,7 +142,6 @@ function makeSingleLineScenario() {
 }
 
 function makeMasterStreamScenario() {
-  // master stream often on 2.5" or 5"
   const size = rnd(['2.5', '5']);
   const gpm = rnd([400, 500, 600, 700, 800]);
   const elevFt = rnd([-10,0,10,20]);
@@ -185,11 +173,53 @@ function generateScenario() {
   return makeSingleLineScenario();
 }
 
-// ———————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————————————————
 // Render practice UI
-// ———————————————————————————————————————————————————————————————
+// ———————————————————————————————————————————————————————
 
-function render(container) {
+function drawScenario(overlay, S){
+  overlay.innerHTML = `
+    <g>
+      <rect x="0" y="0" width="100%" height="100%" fill="#f8fafc" rx="12"></rect>
+      <text x="12" y="24" font-size="14" fill="#0f172a">${S.text}</text>
+    </g>
+  `;
+}
+
+function buildReveal(S){
+  const appl = S.applianceOn ? computeApplianceLoss(S.gpm) : 0;
+  const NP = S.nozzleNP || 0;
+  const fl = FL_total(S.gpm, S.segs);
+  const elevPsi = (S.elevFt||0) * PSI_PER_FT;
+  const total = round0(fl + elevPsi + appl + NP);
+  const lines = [
+    `Flow: ${S.gpm} gpm`,
+    `Friction loss: ${round1(fl)} psi`,
+    `Elevation: ${round1(elevPsi)} psi (${S.elevFt||0} ft)`,
+    `Appliance: ${round1(appl)} psi`,
+    `Nozzle pressure: ${round1(NP)} psi`,
+    `—`,
+    `Pump Pressure ≈ ${total} psi`
+  ];
+  return { total, lines };
+}
+
+function renderWork(el, lines){
+  el.innerHTML = lines.map(l=>`<div>${l}</div>`).join('');
+}
+
+function renderEquations(S){
+  if(!S) return `<div>Equations will reference the current scenario.</div>`;
+  const list = [
+    `FL = C × (Q/100)^2 × L`,
+    `PDP = ΣFL + Elevation + Appliance + NP`,
+    `Elevation ≈ ${PSI_PER_FT} psi/ft`
+  ];
+  return `<div>${list.map(x=>`<div>• ${x}</div>`).join('')}</div>`;
+}
+
+// Named export expected by your router:
+export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
@@ -212,7 +242,6 @@ function render(container) {
           <b>Practice Mode</b>
           <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
         </div>
-        <!-- BUTTON ORDER & LABELS UPDATED: New Question → Equations → Reveal -->
         <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="newScenarioBtn">New Question</button>
           <button class="btn" id="eqToggleBtn">Equations</button>
@@ -374,7 +403,7 @@ function render(container) {
   });
 
   hoseSizeSel.addEventListener('change', ()=>{
-    // when base size changes, update existing segs' size to keep math simple
+    // when base size changes, update existing segs' size
     segs = segs.map(s=>({ ...s, size: hoseSizeSel.value }));
     renderSegs();
   });
@@ -388,66 +417,24 @@ function render(container) {
   });
 
   // ————————————————————————————————————
-  // Drawing
+  // Scenario lifecycle
   // ————————————————————————————————————
-  function drawScenario(S){
-    overlay.innerHTML = `
-      <g>
-        <rect x="0" y="0" width="100%" height="100%" fill="#f8fafc" rx="12"></rect>
-        <text x="12" y="24" font-size="14" fill="#0f172a">${S.text}</text>
-      </g>
-    `;
-  }
-
-  // Reveal builder (explain work)
-  function buildReveal(S){
-    const appl = S.applianceOn ? computeApplianceLoss(S.gpm) : 0;
-    const NP = S.nozzleNP || 0;
-    const fl = FL_total(S.gpm, S.segs);
-    const elevPsi = (S.elevFt||0) * PSI_PER_FT;
-    const total = round0(fl + elevPsi + appl + NP);
-    const lines = [
-      `Flow: ${S.gpm} gpm`,
-      `Friction loss: ${round1(fl)} psi`,
-      `Elevation: ${round1(elevPsi)} psi (${S.elevFt||0} ft)`,
-      `Appliance: ${round1(appl)} psi`,
-      `Nozzle pressure: ${round1(NP)} psi`,
-      `—`,
-      `Pump Pressure ≈ ${total} psi`
-    ];
-    return { total, lines };
-  }
-
-  function renderWork(lines){
-    workEl.innerHTML = lines.map(l=>`<div>${l}</div>`).join('');
-  }
-
-  // Equations panel
-  function renderEquations(S){
-    if(!S) return `<div>Equations will reference the current scenario.</div>`;
-    const list = [
-      `FL = C × (Q/100)^2 × L`,
-      `PDP = ΣFL + Elevation + Appliance + NP`,
-      `Elevation ≈ ${PSI_PER_FT} psi/ft`
-    ];
-    return `<div>${list.map(x=>`<div>• ${x}</div>`).join('')}</div>`;
-  }
-
-  // Scenario creation + reset UI state
   const TOL = 5; // ± allowable
+
   function makePractice(){
     const S = generateScenario();
-    scenario = S;
+    scenario = { ...S, segs: S.segs }; // keep reference format
 
-    // Refresh equations panel (scenario-aware) if visible
     if(eqVisible){
       eqBox.innerHTML = renderEquations(scenario);
     }
 
     const rev = buildReveal(S);
     practiceAnswer = rev.total;
-    drawScenario(S);
+    drawScenario(overlay, S);
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
+
+    // Reset previous work/answer
     statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
     const guessEl = container.querySelector('#ppGuess');
@@ -455,6 +442,7 @@ function render(container) {
   }
 
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
+
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
     const guess = +(container.querySelector('#ppGuess').value||0);
     if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
@@ -462,7 +450,7 @@ function render(container) {
     const rev = buildReveal(scenario);
     if(diff<=TOL){
       statusEl.textContent = `✅ Correct! PP ≈ ${practiceAnswer} psi`;
-      renderWork(rev.lines);
+      renderWork(workEl, rev.lines);
     }else{
       statusEl.textContent = `❌ Not quite. Try again or tap Reveal.`;
     }
@@ -471,33 +459,38 @@ function render(container) {
   container.querySelector('#showBuildBtn').addEventListener('click', ()=>{
     if(!scenario){ statusEl.textContent = 'Generate a problem first.'; return; }
     const rev = buildReveal(scenario);
-    renderWork(rev.lines);
+    renderWork(workEl, rev.lines);
   });
 
   // Toggle equations
+  const eqToggleBtn = container.querySelector('#eqToggleBtn');
   eqToggleBtn.addEventListener('click', ()=>{
-    eqVisible = !eqVisible;
-    if(eqVisible){
+    const now = eqBox.style.display !== 'block';
+    if(now){
       eqBox.innerHTML = renderEquations(scenario);
       eqBox.style.display = 'block';
       eqToggleBtn.textContent = 'Hide Equations';
+      eqVisible = true;
     }else{
       eqBox.style.display = 'none';
       eqToggleBtn.textContent = 'Equations';
+      eqVisible = false;
     }
   });
 
-  // Header quick buttons (optional external events)
+  // Optional external events
   const onNew = ()=> makePractice();
   const onEq  = ()=>{
-    eqVisible = !eqVisible;
-    if(eqVisible){
+    const now = eqBox.style.display !== 'block';
+    if(now){
       eqBox.innerHTML = renderEquations(scenario);
       eqBox.style.display = 'block';
       eqToggleBtn.textContent = 'Hide Equations';
+      eqVisible = true;
     }else{
       eqBox.style.display = 'none';
       eqToggleBtn.textContent = 'Equations';
+      eqVisible = false;
     }
   };
 
@@ -515,4 +508,5 @@ function render(container) {
   };
 }
 
+// Default export as an object with a render method (safe for routers expecting `mod.render(app)`)
 export default { render };
