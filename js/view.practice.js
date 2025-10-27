@@ -2,7 +2,8 @@
 // Practice Mode (phone-friendly) with:
 // - 50' multiples only (no 25' / 75')
 // - New Question clears prior answer/work
-// - Original hose colors and button logic restored
+// - 2½″ hose = BLUE, 1¾″ hose = RED
+// - Equations box = white text on black background
 // - Non-overlapping label "bubbles" at line ends
 
 import {
@@ -73,7 +74,6 @@ function makeScenario(){
     const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
     const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]);
     const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
-    // simple nozzle options representative of your old logic
     const noz175 = [
       {gpm:185, NP:50, label:'185@50'},
       {gpm:150, NP:75, label:'150@75'},
@@ -149,7 +149,7 @@ function generateScenario(){
   return S;
 }
 
-// ---------- reveal builder (restored logic) ----------
+// ---------- reveal builder ----------
 function flSteps(gpm, size, lenFt, label){
   const C = COEFF[size];
   const per100 = C * Math.pow(gpm/100, 2);
@@ -294,17 +294,30 @@ export function render(container) {
     <style>
       .practice-actions .btn { min-height: 40px; }
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
-      .mini { background: #f8fafc; border-radius: 12px; padding: 8px 10px; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
-      /* Original hose styling */
+      /* Hose styling — 1¾″ red, 2½″ blue */
       .hoseBase { fill: none; stroke-width: 10; stroke-linecap: round; }
       .hose175 { stroke: #ef4444; } /* red */
-      .hose25  { stroke: #eab308; } /* yellow */
+      .hose25  { stroke: #3b82f6; } /* blue */
       .shadow  { stroke: rgba(0,0,0,.22); stroke-width: 12; }
+
+      /* Equations box: white text on black */
+      #eqBox {
+        background:#0b0f14;
+        color:#ffffff;
+        border-radius:12px;
+        padding:10px 12px;
+        border:1px solid rgba(255,255,255,.15);
+      }
+      #eqBox code {
+        background: transparent;
+        color: #e6f3ff;
+        padding: 0 2px;
+      }
     </style>
 
     <section class="card">
@@ -329,7 +342,7 @@ export function render(container) {
         </svg>
       </div>
 
-      <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none"></div>
+      <div id="eqBox" style="margin-top:6px; display:none"></div>
 
       <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
       <div id="work" class="math" style="margin-top:8px"></div>
@@ -339,7 +352,7 @@ export function render(container) {
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
           <label>Your PP answer (psi)</label>
-          <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1">
+          <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;">
         </div>
         <div class="field" style="max-width:160px">
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL})</button>
@@ -489,7 +502,7 @@ export function render(container) {
     addBubble(G_labelsP, junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
   }
 
-  // ---------- equations (restored behavior) ----------
+  // ---------- equations ----------
   function renderEquations(S){
     const base = `
       <div><b>Friction Loss (per section):</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
@@ -497,7 +510,7 @@ export function render(container) {
       <div style="margin-top:4px"><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
     `;
     if(!S){
-      return base + `<div style="margin-top:6px" class="status">Generate a problem to see scenario-specific equations.</div>`;
+      return base + `<div style="margin-top:6px">Generate a problem to see scenario-specific equations.</div>`;
     }
     if(S.type === 'single'){
       return `${base}
@@ -529,7 +542,7 @@ export function render(container) {
     drawScenario(S);
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
 
-    // Reset previous work/answer (per your request)
+    // Reset previous work/answer
     statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
     const guessEl = container.querySelector('#ppGuess');
