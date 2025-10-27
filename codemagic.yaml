@@ -5,13 +5,13 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: FireCalc   # your Codemagic integration name
+      app_store_connect: FireCalc   # <- your Codemagic ASC integration name
 
     environment:
       xcode: 16.4
       ios_signing:
-        provisioning_profiles:
-          - FireOpsCalcprofile      # reference name you created in Codemagic
+        distribution_type: app_store
+        bundle_identifier: com.fireopscalc.app   # <- EXACT bundle id
       vars:
         DEVELOPMENT_TEAM: QZ55W58398
         XCODE_WORKSPACE: ios/App/App.xcworkspace
@@ -32,9 +32,11 @@ workflows:
         script: |
           npm ci || npm install
 
-      - name: Capacitor sync (ensure configs push correct bundle id)
+      - name: Capacitor sync (push correct bundle id into Xcode)
         script: |
-          echo "cap config appId should be $EXPECTED_BUNDLE_ID"
+          # Ensure BOTH of these are set in your repo:
+          #   ios/App/capacitor.config.json -> "appId": "com.fireopscalc.app"
+          #   ios/App/config.xml            -> <widget id="com.fireopscalc.app" ...>
           npx cap sync ios
 
       - name: Install CocoaPods
@@ -47,48 +49,15 @@ workflows:
             echo "No Podfile found (ok if project doesn't use Pods)"
           fi
 
-      - name: Apply stored signing profile(s) to Xcode project
+      - name: Apply signing from Codemagic (profiles + certs)
         script: |
+          # This installs the correct App Store profile & certificate
           xcode-project use-profiles
+          echo "Installed provisioning profiles:"
+          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
 
-      - name: Detect exact provisioning profile (UUID & Name) for the app bundle id
+      - name: Build archive (Manual signing; no explicit profile args)
         script: |
-          set -e
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "Looking for profile matching bundle id: $EXPECTED_BUNDLE_ID in $PROFILE_DIR"
-          FOUND_UUID=""
-          FOUND_NAME=""
-          for f in "$PROFILE_DIR"/*.mobileprovision; do
-            # Read profile plist
-            /usr/libexec/PlistBuddy -c 'Print' /dev/stdin <<< "$(/usr/bin/security cms -D -i "$f")" > /tmp/_prof.plist 2>/dev/null || continue
-            BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/_prof.plist 2>/dev/null || true)
-            NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' /tmp/_prof.plist 2>/dev/null || true)
-            UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/_prof.plist 2>/dev/null || true)
-            TEAM_PREFIX="${BUNDLE%%.*}"               # TeamID prefix in AppID (e.g., QZ55W58398)
-            BUNDLE_ID="${BUNDLE#*.}"                  # actual bundle id part
-            if [ "$BUNDLE_ID" = "$EXPECTED_BUNDLE_ID" ] || [ "$BUNDLE" = "$DEVELOPMENT_TEAM.$EXPECTED_BUNDLE_ID" ]; then
-              FOUND_UUID="$UUID"
-              FOUND_NAME="$NAME"
-              echo "Matched profile:"
-              echo "  Name: $FOUND_NAME"
-              echo "  UUID: $FOUND_UUID"
-              echo "  AppID: $BUNDLE"
-              break
-            fi
-          done
-          if [ -z "$FOUND_UUID" ]; then
-            echo "ERROR: No installed provisioning profile matches $EXPECTED_BUNDLE_ID"
-            echo "Make sure the Codemagic reference 'FireOpsCalcprofile' is fetched and contains com.fireopscalc.app"
-            exit 1
-          fi
-          echo "export PROFILE_UUID=$FOUND_UUID" >> $CM_ENV
-          echo "export PROFILE_NAME=$FOUND_NAME" >> $CM_ENV
-
-      - name: Build archive (force Manual signing + profile UUID & Name)
-        script: |
-          echo "Using profile:"
-          echo "  PROFILE_NAME=$PROFILE_NAME"
-          echo "  PROFILE_UUID=$PROFILE_UUID"
           xcodebuild -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
@@ -98,35 +67,30 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE_ID" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-            PROVISIONING_PROFILE="$PROFILE_UUID" \
-            CODE_SIGNING_ALLOWED=YES
+            PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE_ID"
 
-      - name: VERIFY archive — bundle id and embedded profile
+      - name: Verify archive bundle id and embedded profile
         script: |
           APP="$ARCHIVE_PATH/Products/Applications/App.app"
           INFO_PLIST="$APP/Info.plist"
           if [ ! -f "$INFO_PLIST" ]; then
-            echo "Could not find Info.plist in archive"; ls -R "$ARCHIVE_PATH" || true; exit 1
+            echo "Missing $INFO_PLIST"; ls -R "$ARCHIVE_PATH"; exit 1
           fi
           ACTUAL=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" 2>/dev/null || true)
           echo "Archived CFBundleIdentifier: '$ACTUAL'"
           if [ "$ACTUAL" != "$EXPECTED_BUNDLE_ID" ]; then
-            echo "ERROR: Archive bundle id ('$ACTUAL') does not match expected '$EXPECTED_BUNDLE_ID'"; exit 1
+            echo "ERROR: Archive bundle id ('$ACTUAL') != '$EXPECTED_BUNDLE_ID'"; exit 1
           fi
           if [ ! -f "$APP/embedded.mobileprovision" ]; then
-            echo "ERROR: embedded.mobileprovision is MISSING in the archived app."; exit 1
+            echo "ERROR: embedded.mobileprovision is missing in archive"; exit 1
           fi
-          echo "Embedded mobileprovision summary:"
+          echo "Embedded profile summary:"
           /usr/bin/security cms -D -i "$APP/embedded.mobileprovision" > /tmp/_emb.plist
           /usr/libexec/PlistBuddy -c 'Print :Name' /tmp/_emb.plist || true
           /usr/libexec/PlistBuddy -c 'Print :UUID' /tmp/_emb.plist || true
           /usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' /tmp/_emb.plist || true
-          echo "Codesign check:"
-          /usr/bin/codesign -dv --verbose=4 "$APP" 2>&1 | sed -n 's/^ *TeamIdentifier=\(.*\)$/TeamIdentifier=\1/p; s/^ *Authority=\(.*\)$/Authority=\1/p'
 
-      - name: Create ExportOptions.plist (NO provisioningProfiles)
+      - name: Create ExportOptions.plist (no provisioningProfiles)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -148,7 +112,8 @@ workflows:
           </dict>
           </plist>
           EOF
-          echo "=== ExportOptions.plist ==="; cat ExportOptions.plist; echo "==========================="
+          echo "=== ExportOptions.plist ==="
+          cat ExportOptions.plist
 
       - name: Export IPA
         script: |
