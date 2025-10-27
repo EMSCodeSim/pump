@@ -58,7 +58,7 @@ workflows:
         script: |
           xcode-project use-profiles
 
-      - name: Build archive
+      - name: Build archive (manual signing)
         script: |
           set -e
           xcodebuild -workspace "$XCODE_WORKSPACE" \
@@ -73,7 +73,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
-      - name: Create export options plist
+      - name: Create export options plist (no provisioningProfiles)
         script: |
           cat <<EOF >ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -81,15 +81,16 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key>
-            <string>app-store</string>
+            <string>app-store-connect</string>
             <key>teamID</key>
             <string>$DEVELOPMENT_TEAM</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key>
-              <string>$PROFILE_SPECIFIER</string>
-            </dict>
-            <key>compileBitcode</key>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
             <false/>
           </dict>
           </plist>
@@ -101,7 +102,7 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath "$EXPORT_DIR"
-    
+
     artifacts:
       - Export/*.ipa
       - $CM_BUILD_DIR/build/*.xcarchive
