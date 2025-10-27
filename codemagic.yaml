@@ -58,10 +58,9 @@ workflows:
         script: |
           xcode-project use-profiles
 
-      - name: Build archive (manual signing enforced)
+      - name: Build archive
         script: |
           set -e
-          echo "Using signing with profile: $PROFILE_SPECIFIER"
           xcodebuild -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
@@ -74,13 +73,35 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_SPECIFIER"
 
+      - name: Create export options plist
+        script: |
+          cat <<EOF >ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>$DEVELOPMENT_TEAM</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key>
+              <string>$PROFILE_SPECIFIER</string>
+            </dict>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+
       - name: Export IPA
         script: |
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist "$CM_EXPORT_OPTIONS" \
+            -exportOptionsPlist ExportOptions.plist \
             -exportPath "$EXPORT_DIR"
-
+    
     artifacts:
       - Export/*.ipa
       - $CM_BUILD_DIR/build/*.xcarchive
