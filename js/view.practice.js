@@ -1,6 +1,10 @@
 // /js/view.practice.js
-// Phone-friendly Practice page for hydraulics drills.
-// Uses your shared store helpers (NFPA 0.05 psi/ft + appliance loss: +10 psi only if total GPM > 350).
+// Practice page for hydraulics drills (phone-friendly).
+// - Hose lengths limited to 50' multiples in practice mode (no 25' or 75').
+// - New Question resets previous answer & work.
+// - Safe nozzle list rendering (skips undefined keys in NOZ_LIST).
+// - Bubble labels have collision-avoidance (no overlapping).
+// - Exports: named `render` and default `{ render }` so routers using mod.render(app) work.
 
 import {
   COEFF,
@@ -11,8 +15,7 @@ import {
   computeApplianceLoss,
 } from './store.js';
 
-// NOTE: We do NOT call any helpers that assume a specific "root" interface.
-// import { applyMobileFormStyles, enhanceNumericInputs, padTouchTargets } from './mobile-ui.js';
+// NOTE: No external UI helpers are called here.
 
 const SIZES = ['1.75', '2.5', '5'];
 
@@ -21,122 +24,249 @@ function injectStyle(root, cssText) {
   s.textContent = cssText;
   root.appendChild(s);
 }
-
 function el(html) {
   const t = document.createElement('template');
   t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
-
 function option(v, text) {
   const o = document.createElement('option');
   o.value = v;
   o.textContent = text ?? v;
   return o;
 }
+function rnd(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function round1(n){ return Math.round(n*10)/10; }
+function round0(n){ return Math.round(n); }
 
-// If the editor is ever used, keep it on 50' steps only.
-function renderSegmentRow(idx, seg = { size: '1.75', lengthFt: 200 }) {
-  const row = el(`
-    <div class="row seg" data-i="${idx}">
-      <div class="field" style="min-width:140px">
-        <label>Diameter</label>
-        <select class="segSize"></select>
-      </div>
-      <div class="field" style="min-width:140px">
-        <label>Length (ft)</label>
-        <input class="segLen" type="number" inputmode="decimal" step="50" min="0" value="\${Number(seg.lengthFt)||0}">
-      </div>
-      <div class="field" style="min-width:120px; display:flex; align-items:flex-end">
-        <button class="btn segDel" type="button" title="Remove segment">Remove</button>
-      </div>
-    </div>
-  `);
-  const sel = row.querySelector('.segSize');
-  SIZES.forEach(s => sel.appendChild(option(s, s)));
-  sel.value = String(seg.size || '1.75');
-  return row;
+// -----------------------------
+// Problem/Math helpers
+// -----------------------------
+function genSeg(size, ft){ return { size, lengthFt: ft }; }
+
+function makeWyeScenario() {
+  const mainSize = '2.5';
+  const branchSize = '1.75';
+  const gpmEach = rnd([120, 125, 130, 140, 150, 160]);
+  const totalGPM = gpmEach * 2;
+
+  const lenChoices = [50,100,150]; // no 75'
+  const branchLen = rnd(lenChoices);
+  const mainLen = rnd([100, 150, 200]);
+
+  const elevFt = rnd([ -10, 0, 10, 20 ]);
+  const applianceOn = true;
+  const nozzleNP = rnd([ 50, 75, 100 ]);
+
+  const segs = [
+    genSeg(mainSize, mainLen),
+    genSeg(branchSize, branchLen),
+    genSeg(branchSize, branchLen),
+  ];
+
+  return {
+    type: 'wye2',
+    mainSize, mainLen, elevFt, nozzleNP, applianceOn,
+    bnA: { len: branchLen, noz: { gpm: gpmEach, NP: nozzleNP } },
+    bnB: { len: branchLen, noz: { gpm: gpmEach, NP: nozzleNP } },
+    flow: totalGPM,
+    PDP: 0 // computed on reveal
+  };
 }
 
-function fmt0(n){ return String(Math.round(Number(n)||0)); }
+function makeSingleLineScenario() {
+  const size = rnd(['1.75','2.5']);
+  const gpm = size === '1.75'
+    ? rnd([120,125,130,140,150,160,180])
+    : rnd([200,250,265,300,325,350]);
+  const elevFt = rnd([-10, 0, 10, 20, 30]);
 
-// Tolerance for answer checking
-const TOL = 5; // ±5 psi
+  const lenChoices = [100,150,200,250,300];
+  const lengthFt = rnd(lenChoices);
 
-export async function render(container) {
+  const nozzleNP = rnd([50, 75, 100]);
+  const applianceOn = gpm > 350;
+
+  const segs = [ genSeg(size, lengthFt) ];
+  return {
+    type: 'single',
+    mainSize: size,
+    mainLen: lengthFt,
+    elevFt,
+    mainNoz: { NP: nozzleNP, gpm },
+    flow: gpm,
+    applianceOn,
+    segs
+  };
+}
+
+function makeMasterStreamScenario() {
+  const elevFt = rnd([-10,0,10,20,30]);
+  const ms = rnd([
+    { gpm: 500, NP: 80, appliance: 25 },
+    { gpm: 750, NP: 80, appliance: 25 },
+    { gpm: 1000, NP: 80, appliance: 25 },
+  ]);
+  const lenChoices = [100,150,200,250,300];
+  const L = rnd(lenChoices);
+  return {
+    type: 'master',
+    elevFt,
+    ms,
+    line1: { len: L, gpm: ms.gpm/2 },
+    line2: { len: L, gpm: ms.gpm/2 }
+  };
+}
+
+function generateScenario() {
+  const which = rnd(['wye', 'single', 'master', 'single', 'wye']);
+  if (which === 'wye') return makeWyeScenario();
+  if (which === 'master') return makeMasterStreamScenario();
+  return makeSingleLineScenario();
+}
+
+function buildReveal(S){
+  const E = (S.elevFt||0) * PSI_PER_FT;
+  if(S.type==='single'){
+    const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
+    const total = S.mainNoz.NP + mainFL + E;
+    return {
+      total: Math.round(total),
+      lines: [
+        `Flow: ${S.flow} gpm`,
+        `Friction loss: ${round1(mainFL)} psi`,
+        `Elevation: ${round1(E)} psi (${S.elevFt||0} ft)`,
+        `Appliance: 0 psi`,
+        `Nozzle pressure: ${S.mainNoz.NP} psi`,
+        `—`,
+        `Pump Pressure ≈ ${Math.round(total)} psi`
+      ]
+    };
+  }
+  if(S.type==='wye2'){
+    const flow = S.bnA.noz.gpm + S.bnB.noz.gpm;
+    const mainFL = FL_total(flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
+    const needA = S.bnA.noz.NP + FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
+    const needB = S.bnB.noz.NP + FL_total(S.bnB.noz.gpm, [{size:'1.75', lengthFt:S.bnB.len}]);
+    const higher = Math.max(needA, needB);
+    const total = higher + mainFL + 10 + E;
+    return {
+      total: Math.round(total),
+      lines: [
+        `Flow: ${flow} gpm`,
+        `Friction loss (main): ${round1(mainFL)} psi`,
+        `Higher branch need: ${round1(higher)} psi`,
+        `Wye loss: 10 psi`,
+        `Elevation: ${round1(E)} psi (${S.elevFt||0} ft)`,
+        `—`,
+        `Pump Pressure ≈ ${Math.round(total)} psi`
+      ]
+    };
+  }
+  if(S.type==='master'){
+    const totalGPM = S.ms.gpm;
+    const per = totalGPM/2;
+    const aFL = FL_total(per, [{size:'2.5', lengthFt:S.line1.len}]);
+    const bFL = FL_total(per, [{size:'2.5', lengthFt:S.line2.len}]);
+    const worst = Math.max(aFL,bFL);
+    const total = S.ms.NP + worst + S.ms.appliance + E;
+    return {
+      total: Math.round(total),
+      lines: [
+        `Flow: ${totalGPM} gpm (per line ${per})`,
+        `Friction loss (worst line): ${round1(worst)} psi`,
+        `Appliance: ${S.ms.appliance} psi`,
+        `Elevation: ${round1(E)} psi (${S.elevFt||0} ft)`,
+        `Nozzle pressure: ${S.ms.NP} psi`,
+        `—`,
+        `Pump Pressure ≈ ${Math.round(total)} psi`
+      ]
+    };
+  }
+}
+
+// -----------------------------
+// Render
+// -----------------------------
+export function render(container) {
   container.innerHTML = `
-    <section class="stack">
-      <section class="card" style="padding-bottom:6px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-          <div>
-            <b>Practice Mode</b>
-            <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
-          </div>
-          <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn" id="newScenarioBtn">New Question</button>
-            <button class="btn" id="eqToggleBtn">Equations</button>
-            <button class="btn" id="revealBtn">Reveal</button>
-          </div>
+    <style>
+      .practice-actions .btn { min-height: 40px; }
+      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
+      .mini { background: #f8fafc; border-radius: 12px; padding: 8px 10px; }
+      .status { font-size: 14px; color: #0f172a; }
+      .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field input, .field select { font-size: 16px; padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; }
+      .row { display:flex; gap: 12px; flex-wrap: wrap; align-items:flex-end; }
+      .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
+      .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
+      .seg { background: #f1f5f9; border-radius: 12px; padding: 8px; }
+      .seg .field label { font-size: 12px; color: #334155; }
+
+      /* Hose drawing */
+      .hoseBase { fill: none; stroke-width: 10; stroke-linecap: round; }
+      .hose175 { stroke: #ef4444; }
+      .hose25  { stroke: #eab308; }
+      .shadow  { stroke: rgba(0,0,0,.22); stroke-width: 12; }
+
+      .bubble-bg { fill:#eaf2ff; stroke:#111; stroke-width:.5 }
+      .bubble-text { fill:#0b0f14; font-size:12px }
+    </style>
+
+    <section class="card">
+      <div class="row" style="align-items:center; justify-content:space-between">
+        <div>
+          <b>Practice Mode</b>
+          <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
         </div>
-      </section>
-
-      <section class="wrapper card">
-        <div class="stage" id="stageP">
-          <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
-            <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
-            <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g>
-          </svg>
+        <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="newScenarioBtn">New Question</button>
+          <button class="btn" id="eqToggleBtn">Equations</button>
+          <button class="btn" id="revealBtn">Reveal</button>
         </div>
+      </div>
+    </section>
 
-        <div class="hoseLegend" style="margin-top:8px">
-          <span class="legSwatch sw175"></span> 1¾″
-          <span class="legSwatch sw25"></span> 2½″
-          <span class="legSwatch sw5"></span> 5″
+    <section class="wrapper card">
+      <div class="stage" id="stageP">
+        <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
+          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
+          <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g>
+        </svg>
+      </div>
+
+      <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none"></div>
+
+      <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
+      <div id="work" class="math" style="margin-top:8px"></div>
+    </section>
+
+    <section class="card">
+      <div class="row" style="align-items:flex-end">
+        <div class="field" style="max-width:220px">
+          <label>Your PP answer (psi)</label>
+          <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1">
         </div>
-
-        <!-- Scenario-aware equations (hidden by default) -->
-        <div id="eqBox" class="mini" style="margin-top:6px;opacity:.95; display:none"></div>
-
-        <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
-        <div id="work" class="math" style="margin-top:8px"></div>
-      </section>
-
-      <section class="card">
-        <div class="row" style="align-items:flex-end">
-          <div class="field" style="max-width:220px">
-            <label>Your PP answer (psi)</label>
-            <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1">
-          </div>
-          <div class="field" style="max-width:160px">
-            <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL})</button>
-          </div>
+        <div class="field" style="max-width:160px">
+          <button class="btn primary" id="checkBtn" style="width:160px">Check</button>
         </div>
-        <div id="practiceStatus" class="status" style="margin-top:8px">No scenario loaded.</div>
-      </section>
+        <div class="field" style="max-width:160px">
+          <button class="btn" id="showBuildBtn" style="width:160px">Show Build</button>
+        </div>
+        <div class="field">
+          <div id="status" class="status">Awaiting your answer…</div>
+        </div>
+      </div>
     </section>
   `;
 
   // Minimal, safe styling helper (no root.querySelectorAll usage)
   injectStyle(container, `
-    :root { --tap: 44px; --tapS: 40px; --fieldPad: 10px; --radius: 12px; }
     input, select, textarea, button { font-size:16px; } /* prevent iOS zoom */
-    .btn { min-height: var(--tap); min-width: var(--tapS); padding: 10px 14px; border-radius: var(--radius); }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
-    .practice-actions { display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
-    .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
-    .field input[type="text"], .field input[type="number"], .field select, .field textarea {
-      width:100%; padding: var(--fieldPad) calc(var(--fieldPad) + 2px);
-      border:1px solid rgba(255,255,255,.22); border-radius: var(--radius);
-      background:#0b1420; color:#eaf2ff; outline:none;
-    }
-    .field input:focus, .field select:focus, .field textarea:focus {
-      border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
-    }
-    .kpi b { font-size: 20px; }
-    hr { border:0; border-top:1px solid rgba(255,255,255,.12); }
   `);
 
-  // ===== DOM refs
+  // DOM refs
   const stageEl = container.querySelector('#stageP');
   const svg = container.querySelector('#overlayPractice');
   const truckImg = container.querySelector('#truckImgP');
@@ -144,8 +274,8 @@ export async function render(container) {
   const G_branchesP = container.querySelector('#branchesP');
   const G_labelsP = container.querySelector('#labelsP');
   const practiceInfo = container.querySelector('#practiceInfo');
-  const statusEl = container.querySelector('#practiceStatus');
   const workEl = container.querySelector('#work');
+  const statusEl = container.querySelector('#status');
   const eqBox = container.querySelector('#eqBox');
   const eqToggleBtn = container.querySelector('#eqToggleBtn');
 
@@ -154,11 +284,10 @@ export async function render(container) {
   let scenario = null;
   let eqVisible = false;
 
-  // ===== geometry helpers
+  // geometry helpers
   const TRUCK_W = 390;
   const TRUCK_H = 260;
   const PX_PER_50FT = 45;
-  const CURVE_PULL = 36;
   const BRANCH_LIFT = 10;
 
   function truckTopY(viewH){ return viewH - TRUCK_H; }
@@ -179,139 +308,69 @@ export async function render(container) {
     return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
   }
 
-  // ===== utils
-  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-  function weightedPick(weightedArray){
-    const total = weightedArray.reduce((a,x)=>a+x.w,0);
-    let r = Math.random()*total;
-    for(const x of weightedArray){ if((r-=x.w)<=0) return x.v; }
-    return weightedArray[weightedArray.length-1].v;
+  // -----------------------------
+  // Bubble label collision-avoidance
+  // -----------------------------
+  const placedBoxes = [];
+  function overlaps(a,b){
+    return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
   }
-  const sizeLabelLocal = sz => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
-
-  // ===== scenario generator — ONLY 50' multiples (no 75')
-  function makeScenario(){
-    const kind = weightedPick([
-      { v:'single', w:45 },
-      { v:'wye2',   w:25 },
-      { v:'master', w:30 }
-    ]);
-
-    if(kind==='single'){
-      const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
-      const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]); // 50 multiples only
-      const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
-      const mainNozzles_175 = [
-        {gpm:185, NP:50, label:'ChiefXD 185@50'},
-        {gpm:150, NP:75, label:'Fog 150@75'},
-        {gpm:185, NP:75, label:'Fog 185@75'}
-      ];
-      const mainNozzles_25 = [
-        {gpm:265, NP:50, label:'SB 1 1/8 265@50'},
-        {gpm:250, NP:75, label:'Fog 250@75'}
-      ];
-      const mainNoz = mainSize==='2.5' ? pick(mainNozzles_25) : pick(mainNozzles_175);
-      const flow = mainNoz.gpm;
-      const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
-      const PDP = Math.round(mainNoz.NP + mainFL + elevFt*PSI_PER_FT);
-      return { type:'single', mainSize, mainLen, elevFt, mainNoz, flow, PDP };
-    }
-
-    if(kind==='wye2'){
-      const mainSize = weightedPick([{v:'1.75',w:70},{v:'2.5',w:30}]);
-      const mainLen  = weightedPick([{v:150,w:25},{v:200,w:50},{v:250,w:20},{v:300,w:5}]); // 50 multiples only
-      const elevFt   = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
-      const wyeLoss = 10;
-
-      const nozChoices = [
-        {gpm:150, NP:75, label:'Fog 150@75'},
-        {gpm:185, NP:50, label:'ChiefXD 185@50'},
-        {gpm:185, NP:75, label:'Fog 185@75'}
-      ];
-      const lenChoices = [50,100,150]; // removed 75
-
-      const bnA = { len: pick(lenChoices), noz: pick(nozChoices) };
-      const bnB = { len: pick(lenChoices), noz: pick(nozChoices) };
-
-      const flow = bnA.noz.gpm + bnB.noz.gpm;
-      const mainFL = FL_total(flow, [{size:mainSize, lengthFt:mainLen}]);
-
-      const needA = bnA.noz.NP + FL_total(bnA.noz.gpm, [{size:'1.75', lengthFt:bnA.len}]);
-      const needB = bnB.noz.NP + FL_total(bnB.noz.gpm, [{size:'1.75', lengthFt:bnB.len}]);
-      const PDP = Math.round(Math.max(needA,needB) + mainFL + wyeLoss + elevFt*PSI_PER_FT);
-
-      return { type:'wye2', mainSize, mainLen, elevFt, wyeLoss, bnA, bnB, flow, PDP };
-    }
-
-    if(kind==='master'){
-      const elevFt = weightedPick([{v:0,w:30},{v:10,w:30},{v:20,w:25},{v:30,w:10},{v:40,w:5}]);
-      const ms = pick([
-        { gpm: 500, NP: 80, appliance: 25 },
-        { gpm: 750, NP: 80, appliance: 25 },
-        { gpm: 1000, NP: 80, appliance: 25 }
-      ]);
-      const totalGPM = ms.gpm;
-      const perLine = totalGPM/2;
-      const lenChoices = [100,150,200,250,300]; // 50 multiples only
-      const L = pick(lenChoices);
-      const flPer = FL_total(perLine, [{size:'2.5', lengthFt:L}]);
-      const PDP = Math.round(ms.NP + flPer + ms.appliance + elevFt*PSI_PER_FT);
-
-      return {
-        type:'master',
-        elevFt,
-        ms, // {gpm, NP, appliance}
-        line1: { len: L, gpm: perLine },
-        line2: { len: L, gpm: perLine },
-        PDP
-      };
-    }
+  function offsetForAttempt(n){
+    // Stagger slightly left/right every couple of attempts
+    const dx = ((n % 4) - 1.5) * 8; // -12, -4, 4, 12...
+    const dy = -12;                // nudge upward each iteration
+    return { dx, dy };
   }
-
-  function generateScenario(){
-    let S;
-    for(let i=0;i<18;i++){
-      S = makeScenario();
-      if(S.PDP <= 270) return S;
-    }
-    return S;
-  }
-
-  // ===== label helpers
-  const placedLabels = [];
-  function placeY(y){
-    let yy = y;
-    const step = 14; let safety = 0;
-    while(placedLabels.some(v => Math.abs(v-yy) < step) && safety<10){ yy -= step; safety++; }
-    placedLabels.push(yy);
-    return yy;
-  }
-  function addLabel(x, y, text){
+  function addLabel(x, y, text, side='C'){
     const pad = 4;
-    const g = document.createElementNS(ns,'g');
+
+    // Create text offscreen first to measure
     const t = document.createElementNS(ns,'text');
-    t.setAttribute('x', x); t.setAttribute('y', placeY(y));
-    t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#0b0f14'); t.setAttribute('font-size','12');
+    t.setAttribute('x', -1000);
+    t.setAttribute('y', -1000);
+    t.setAttribute('class','bubble-text');
+    t.setAttribute('text-anchor','middle');
     t.textContent = text;
     G_labelsP.appendChild(t);
-    const bb = t.getBBox();
+
+    let bb = t.getBBox();
+    let box = { x: x - bb.width/2 - pad, y: y - bb.height - pad, w: bb.width + pad*2, h: bb.height + pad*2 };
+    let tries = 0;
+
+    // Try to find a non-overlapping position
+    while(placedBoxes.some(b => overlaps(b, box)) && tries < 24){
+      const {dx, dy} = offsetForAttempt(tries++);
+      // prefer shifting left for left branch, right for right branch
+      const bias = side==='L' ? -10 : side==='R' ? 10 : 0;
+      box.x += dx + bias;
+      box.y += dy;
+    }
+
+    // Apply final position
     const r = document.createElementNS(ns,'rect');
-    r.setAttribute('x', bb.x - pad); r.setAttribute('y', bb.y - pad);
-    r.setAttribute('width', bb.width + pad*2); r.setAttribute('height', bb.height + pad*2);
-    r.setAttribute('fill', '#eaf2ff'); r.setAttribute('stroke', '#111'); r.setAttribute('stroke-width', '.5');
+    r.setAttribute('x', box.x);
+    r.setAttribute('y', box.y);
+    r.setAttribute('width', box.w);
+    r.setAttribute('height', box.h);
     r.setAttribute('rx','4'); r.setAttribute('ry','4');
-    g.appendChild(r); g.appendChild(t); G_labelsP.appendChild(g);
+    r.setAttribute('class','bubble-bg');
+
+    t.setAttribute('x', box.x + box.w/2);
+    t.setAttribute('y', box.y + box.h - pad - 1);
+
+    G_labelsP.appendChild(r);
+    G_labelsP.appendChild(t);
+    placedBoxes.push(box);
   }
 
-  // ===== draw
+  // draw
   function drawScenario(S){
     while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
     while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
     while(G_labelsP.firstChild) G_labelsP.removeChild(G_labelsP.firstChild);
-    placedLabels.length = 0;
+    placedBoxes.length = 0;
     workEl.innerHTML = '';
 
-    // Compute a simple viewBox height
     const baseH = TRUCK_H + 20;
     const extra = Math.max(
       S.type==='single' ? (S.mainLen/50)*PX_PER_50FT : 0,
@@ -324,7 +383,6 @@ export async function render(container) {
     stageEl.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    // Main path if present
     if(S.type==='single' || S.type==='wye2'){
       const totalPx = (S.mainLen/50)*PX_PER_50FT;
       const geom = mainCurve(totalPx, viewH);
@@ -342,16 +400,16 @@ export async function render(container) {
         const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bGeom.d); G_branchesP.appendChild(bSh);
         const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose175'); b.setAttribute('d', bGeom.d); G_branchesP.appendChild(b);
 
-        addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)}`);
-        addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
-        addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+        // Labels with collision-avoidance (side-biased)
+        addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'}`, 'C');
+        addLabel(aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'L');
+        addLabel(bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'R');
       } else {
-        addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabelLocal(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+        addLabel(geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${S.mainSize==='2.5'?'2½″':'1¾″'} — ${S.flow} gpm — NP ${S.mainNoz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
       }
       return;
     }
 
-    // Master stream
     if(S.type==='master'){
       const {x:sx,y:sy} = pumpXY(viewH);
       const outLeftX  = sx - 26;
@@ -368,141 +426,33 @@ export async function render(container) {
       const bSh = document.createElementNS(ns,'path'); bSh.setAttribute('class','hoseBase shadow'); bSh.setAttribute('d', bPath); G_branchesP.appendChild(bSh);
       const b = document.createElementNS(ns,'path'); b.setAttribute('class','hoseBase hose25'); b.setAttribute('d', bPath); G_branchesP.appendChild(b);
 
+      // Junction dot
       const nozzle = document.createElementNS(ns,'circle');
       nozzle.setAttribute('cx', junctionX); nozzle.setAttribute('cy', junctionY);
       nozzle.setAttribute('r', 4); nozzle.setAttribute('fill', '#eaf2ff'); nozzle.setAttribute('stroke', '#111'); nozzle.setAttribute('stroke-width', '.8');
       G_hosesP.appendChild(nozzle);
 
-      addLabel(outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`);
-      addLabel(outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`);
-      addLabel(junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} psi — Appliance ${S.ms.appliance} psi${S.elevFt?` — Elev ${S.elevFt}′`:''}`);
+      // Labels with collision-avoidance and side bias
+      addLabel(outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`, 'L');
+      addLabel(outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`, 'R');
+      addLabel(junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
     }
   }
 
-  // ===== equations (scenario-aware, no numbers)
-  function renderEquations(S){
-    const base = `
-      <div><b>Friction Loss (per section):</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
-      <div style="margin-top:2px"><b>Elevation (psi):</b> <code>Elev = 0.05 × height(ft)</code></div>
-      <div style="margin-top:4px"><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
-    `;
-    if(!S){
-      return base + `<div style="margin-top:6px" class="status">Generate a problem to see scenario-specific equations.</div>`;
-    }
-    if(S.type === 'single'){
-      return `${base}
-        <hr style="opacity:.2;margin:8px 0">
-        <div><b>Single Line:</b> <code>PP = NP + MainFL ± Elev</code></div>`;
-    }
-    if(S.type === 'wye2'){
-      return `${base}
-        <hr style="opacity:.2;margin:8px 0">
-        <div><b>Two-Branch Wye:</b> <code>PP = max(Need_A, Need_B) + MainFL + 10 ± Elev</code></div>`;
-    }
-    return `${base}
-      <hr style="opacity:.2;margin:8px 0">
-      <div><b>Master Stream (two equal 2½″ lines):</b> <code>PP = NP(ms) + max(FL_line) + Appliance ± Elev</code></div>`;
-  }
-
-  // ===== reveal breakdown (with numbers)
-  function flSteps(gpm, size, lenFt, label){
-    const C = COEFF[size];
-    const per100 = C * Math.pow(gpm/100, 2);
-    const flLen = per100 * (lenFt/100);
-    return {
-      text1: `${label} FL = C × (GPM/100)² × (length/100)`,
-      text2: `= ${C} × (${gpm}/100)² × (${lenFt}/100)`,
-      value: Math.round(flLen)
-    };
-  }
-
-  function buildReveal(S){
-    const E = S.elevFt * PSI_PER_FT;
-    if(S.type==='single'){
-      const mFL = flSteps(S.flow, S.mainSize, S.mainLen, 'Main');
-      const total = S.mainNoz.NP + mFL.value + E;
-      return {
-        total: Math.round(total),
-        html: `
-          <div><b>PP Breakdown (Single line)</b></div>
-          <ul class="simpleList">
-            <li>Nozzle Pressure = <b>${S.mainNoz.NP} psi</b></li>
-            <li>${mFL.text1}</li>
-            <li>${mFL.text2} → <b>${mFL.value} psi</b></li>
-            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
-          </ul>
-          <div><b>PP = ${S.mainNoz.NP} + ${mFL.value} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
-        `
-      };
-    }
-
-    if(S.type==='wye2'){
-      const flow = S.bnA.noz.gpm + S.bnB.noz.gpm;
-      const mainFL = flSteps(flow, S.mainSize, S.mainLen, 'Main');
-      const aFL = flSteps(S.bnA.noz.gpm, '1.75', S.bnA.len, 'Branch A');
-      const bFL = flSteps(S.bnB.noz.gpm, '1.75', S.bnB.len, 'Branch B');
-      const needA = S.bnA.noz.NP + aFL.value;
-      const needB = S.bnB.noz.NP + bFL.value;
-      const higher = Math.max(needA, needB);
-      const total = higher + mainFL.value + 10 + E;
-      return {
-        total: Math.round(total),
-        html: `
-          <div><b>PP Breakdown (Two-branch wye)</b></div>
-          <ul class="simpleList">
-            <li>Branch A need = NP ${S.bnA.noz.NP} + FL_A = <b>${Math.round(needA)} psi</b></li>
-            <li>  • ${aFL.text1}</li>
-            <li>  • ${aFL.text2} → <b>${aFL.value} psi</b></li>
-            <li>Branch B need = NP ${S.bnB.noz.NP} + FL_B = <b>${Math.round(needB)} psi</b></li>
-            <li>  • ${bFL.text1}</li>
-            <li>  • ${bFL.text2} → <b>${bFL.value} psi</b></li>
-            <li>Take higher branch = <b>${Math.round(higher)} psi</b></li>
-            <li>${mainFL.text1}</li>
-            <li>${mainFL.text2} → <b>${mainFL.value} psi</b></li>
-            <li>Wye loss = +<b>10 psi</b></li>
-            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
-          </ul>
-          <div><b>PP = ${Math.round(higher)} + ${mainFL.value} + 10 ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
-        `
-      };
-    }
-
-    if(S.type==='master'){
-      const totalGPM = S.ms.gpm;
-      const perLine = totalGPM/2;
-      const a = flSteps(perLine, '2.5', S.line1.len, 'Line 1');
-      const b = flSteps(perLine, '2.5', S.line2.len, 'Line 2');
-      const worst = Math.max(a.value, b.value);
-      const total = S.ms.NP + worst + S.ms.appliance + E;
-      return {
-        total: Math.round(total),
-        html: `
-          <div><b>PP Breakdown (Master stream; two equal 2½″ lines)</b></div>
-          <ul class="simpleList">
-            <li>Total GPM = <b>${totalGPM} gpm</b> → per-line = <b>${perLine} gpm</b></li>
-            <li>Master NP = <b>${S.ms.NP} psi</b></li>
-            <li>Appliance loss = <b>${S.ms.appliance} psi</b></li>
-            <li>${a.text1}</li>
-            <li>${a.text2} → <b>${a.value} psi</b></li>
-            <li>${b.text1}</li>
-            <li>${b.text2} → <b>${b.value} psi</b></li>
-            <li>Take higher line FL = <b>${Math.round(worst)} psi</b></li>
-            <li>Elevation = ${E>=0?'+':''}${Math.round(E)} psi</li>
-          </ul>
-          <div><b>PP = ${S.ms.NP} + ${Math.round(worst)} + ${S.ms.appliance} ${E>=0?'+':''}${Math.round(E)} = <span class="ok">${Math.round(total)} psi</span></b></div>
-        `
-      };
-    }
-  }
-
-  // ===== interactions
+  // Interactions
+  const TOL = 5;
   function makePractice(){
     const S = generateScenario();
     scenario = S;
 
-    // Scenario-aware equations if visible
     if(eqVisible){
-      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.innerHTML = `
+        <div>
+          <div>• FL = C × (Q/100)² × L</div>
+          <div>• PDP = ΣFL + Elevation + Appliance + NP</div>
+          <div>• Elevation ≈ ${PSI_PER_FT} psi/ft</div>
+        </div>
+      `;
     }
 
     const rev = buildReveal(S);
@@ -510,41 +460,45 @@ export async function render(container) {
     drawScenario(S);
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
 
-    // Reset previous work/answer (per your request)
+    // Reset previous work/answer
     statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
     const guessEl = container.querySelector('#ppGuess');
-    if (guessEl) guessEl.value = '';
+    if(guessEl) guessEl.value = '';
   }
 
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
+
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
     const guess = +(container.querySelector('#ppGuess').value||0);
     if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
     const diff = Math.abs(guess - practiceAnswer);
     const rev = buildReveal(scenario);
     if(diff<=TOL){
-      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
-      workEl.innerHTML = '';
+      statusEl.textContent = `✅ Correct! PP ≈ ${practiceAnswer} psi`;
+      workEl.innerHTML = rev.lines.map(l=>`<div>${l}</div>`).join('');
     }else{
-      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
-      workEl.innerHTML = rev.html;
-      workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+      statusEl.textContent = `❌ Not quite. Try again or tap Reveal.`;
+      workEl.innerHTML = rev.lines.map(l=>`<div>${l}</div>`).join('');
     }
   });
-  container.querySelector('#revealBtn').addEventListener('click', ()=>{
-    if(!scenario) return;
+
+  container.querySelector('#showBuildBtn').addEventListener('click', ()=>{
+    if(!scenario){ statusEl.textContent = 'Generate a problem first.'; return; }
     const rev = buildReveal(scenario);
-    workEl.innerHTML = rev.html;
-    statusEl.innerHTML = `<b>Answer:</b> ${rev.total} psi`;
-    workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+    workEl.innerHTML = rev.lines.map(l=>`<div>${l}</div>`).join('');
   });
 
-  // Equations toggle — scenario-aware, no numbers
   eqToggleBtn.addEventListener('click', ()=>{
     eqVisible = !eqVisible;
     if(eqVisible){
-      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.innerHTML = `
+        <div>
+          <div>• FL = C × (Q/100)² × L</div>
+          <div>• PDP = ΣFL + Elevation + Appliance + NP</div>
+          <div>• Elevation ≈ ${PSI_PER_FT} psi/ft</div>
+        </div>
+      `;
       eqBox.style.display = 'block';
       eqToggleBtn.textContent = 'Hide Equations';
     }else{
@@ -553,13 +507,13 @@ export async function render(container) {
     }
   });
 
-  // External events (optional)
+  // Optional external events
   const onNew = ()=> makePractice();
   const onEq  = ()=> eqToggleBtn.click();
   window.addEventListener('practice:newProblem', onNew);
   window.addEventListener('toggle:equations', onEq);
 
-  // initial state
+  // initial
   practiceAnswer = null; scenario = null;
 
   return {
