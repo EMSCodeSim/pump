@@ -5,13 +5,13 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # <- your Codemagic integration name
 
     environment:
       xcode: 16.4
       ios_signing:
         provisioning_profiles:
-          - FireOpsCalcprofile
+          - FireOpsCalcprofile      # <- the profile you fetched in Codemagic
       vars:
         DEVELOPMENT_TEAM: QZ55W58398
         XCODE_WORKSPACE: ios/App/App.xcworkspace
@@ -33,11 +33,11 @@ workflows:
         script: |
           npm ci || npm install
 
-      - name: Capacitor sync (push corrected bundle id into Xcode)
+      - name: Capacitor sync (ensure configs push correct bundle id)
         script: |
-          # Make sure you changed BOTH:
-          # 1) capacitor.config.* -> appId: com.fireopscalc.app
-          # 2) ios/App/config.xml  -> <widget id="com.fireopscalc.app" ...>
+          # Make sure:
+          # - ios/App/capacitor.config.json -> "appId": "com.fireopscalc.app"
+          # - ios/App/config.xml -> <widget id="com.fireopscalc.app" ...>
           npx cap sync ios
 
       - name: Install CocoaPods
@@ -50,7 +50,7 @@ workflows:
             echo "No Podfile found (ok if project doesn't use Pods)"
           fi
 
-      - name: Apply stored signing profile(s)
+      - name: Apply stored signing profile(s) to Xcode project
         script: |
           xcode-project use-profiles
 
@@ -80,11 +80,11 @@ workflows:
           echo "Archived CFBundleIdentifier: '$ACTUAL'"
           if [ "$ACTUAL" != "com.fireopscalc.app" ]; then
             echo "ERROR: Archive bundle id ('$ACTUAL') does not match expected 'com.fireopscalc.app'."
-            echo "Fix capacitor.config.* (appId) and ios/App/config.xml (widget id), then re-run."
+            echo "Fix capacitor.config.json and config.xml, run 'npx cap sync ios', then rebuild."
             exit 1
           fi
 
-      - name: Create ExportOptions.plist (map ONLY app bundle to profile)
+      - name: Create ExportOptions.plist (NO provisioningProfiles here)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
@@ -95,11 +95,6 @@ workflows:
             <string>app-store-connect</string>
             <key>teamID</key>
             <string>$DEVELOPMENT_TEAM</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key>
-              <string>FireOpsCalcApp_AppStore</string>
-            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadSymbols</key>
@@ -111,8 +106,11 @@ workflows:
           </dict>
           </plist>
           EOF
+          echo "=== ExportOptions.plist ==="
+          cat ExportOptions.plist
+          echo "==========================="
 
-      - name: Export IPA
+      - name: Export IPA (no profile enforcement at export)
         script: |
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
