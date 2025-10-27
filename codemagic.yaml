@@ -5,15 +5,15 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # Codemagic ASC integration name
 
     environment:
       xcode: 16.4
       ios_signing:
         certificates:
-          - FireCalcCertiticate      # ✅ EXACT reference name
+          - FireCalcCertiicate      # EXACT reference from Codemagic (one 't', two 'i')
         provisioning_profiles:
-          - FireOpsCalcprofile       # ✅ EXACT reference name
+          - FireOpsCalcprofile      # EXACT reference from Codemagic
       vars:
         DEVELOPMENT_TEAM: QZ55W58398
         EXPECTED_BUNDLE_ID: com.fireopscalc.app
@@ -26,27 +26,38 @@ workflows:
       cache_paths:
         - ~/.npm
         - ios/Pods -> ios/Podfile.lock
+        - ios/App/Pods -> ios/App/Podfile.lock
 
     scripts:
-      - name: Install Node Dependencies
-        script: npm install
-
-      - name: Cap Sync
+      - name: Install Node dependencies
         script: |
+          npm ci || npm install
+
+      - name: Capacitor sync (ensure bundle id flows into Xcode)
+        script: |
+          # Repo should have:
+          #   ios/App/capacitor.config.json -> "appId": "com.fireopscalc.app"
+          #   ios/App/config.xml            -> <widget id="com.fireopscalc.app" ...>
           npx cap sync ios
-          cat ios/App/capacitor.config.json
+          cat ios/App/capacitor.config.json || true
 
-      - name: Install Pods
+      - name: Install CocoaPods (if present)
         script: |
-          cd ios/App && pod install
+          if [ -f "ios/App/Podfile" ]; then
+            cd ios/App && pod install
+          elif [ -f "ios/Podfile" ]; then
+            cd ios && pod install
+          else
+            echo "No Podfile found (ok if not using Pods)"
+          fi
 
-      - name: Install Signing Assets
+      - name: Install referenced signing assets (certificate + profile)
         script: |
           xcode-project use-profiles
           echo "Profiles installed:"
-          ls "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
 
-      - name: Build Archive (manual signing)
+      - name: Build archive (manual signing)
         script: |
           xcodebuild -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
@@ -60,33 +71,46 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE_ID" \
             CODE_SIGNING_ALLOWED=YES | xcpretty
 
-      - name: Validate Signing
+      - name: Validate archive signing
         script: |
           APP="$ARCHIVE_PATH/Products/Applications/App.app"
-          if [ ! -f "$APP/embedded.mobileprovision" ]; then
-            echo "❌ Missing embedded.mobileprovision"
-            exit 1
+          INFO_PLIST="$APP/Info.plist"
+          if [ ! -f "$INFO_PLIST" ]; then
+            echo "Missing $INFO_PLIST"; ls -R "$ARCHIVE_PATH"; exit 1
           fi
-          security cms -D -i "$APP/embedded.mobileprovision" > /tmp/prov.plist
-          echo "✅ Embedded profile UUID:"
-          /usr/libexec/PlistBuddy -c "Print :UUID" /tmp/prov.plist
-          echo "✅ Embedded profile app identifier:"
-          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/prov.plist
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST" 2>/dev/null || true)
+          echo "Archived CFBundleIdentifier: $BUNDLE"
+          [ "$BUNDLE" = "$EXPECTED_BUNDLE_ID" ] || { echo "Bundle id mismatch"; exit 1; }
 
-      - name: Create ExportOptions
+          if [ ! -f "$APP/embedded.mobileprovision" ]; then
+            echo "❌ Missing embedded.mobileprovision (profile not embedded)"; exit 1
+          fi
+
+          security cms -D -i "$APP/embedded.mobileprovision" > /tmp/prov.plist
+          echo "✅ Embedded profile name:"
+          /usr/libexec/PlistBuddy -c "Print :Name" /tmp/prov.plist || true
+          echo "✅ Embedded profile UUID:"
+          /usr/libexec/PlistBuddy -c "Print :UUID" /tmp/prov.plist || true
+          echo "✅ Embedded application-identifier:"
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /tmp/prov.plist || true
+
+      - name: Create ExportOptions.plist (no provisioningProfiles map)
         script: |
           cat <<EOF > ExportOptions.plist
           <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
             <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
             <key>compileBitcode</key><false/>
           </dict>
           </plist>
           EOF
+          cat ExportOptions.plist
 
       - name: Export IPA
         script: |
@@ -97,6 +121,7 @@ workflows:
 
     artifacts:
       - Export/*.ipa
+      - $CM_BUILD_DIR/build/*.xcarchive
 
     publishing:
       app_store_connect:
