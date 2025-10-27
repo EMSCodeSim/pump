@@ -11,9 +11,11 @@ workflows:
       xcode: 16.4
       ios_signing:
         distribution_type: app_store
-        signing_certificate: Apple Distribution
+        # Optional but fine to keep if you want
+        bundle_identifier: com.fireopscalc.app
+        # IMPORTANT: must be a LIST of profile reference names stored in Codemagic
         provisioning_profiles:
-          com.fireopscalc.app: FireOpsCalcprofile   # <-- exact reference name
+          - FireOpsCalcprofile
       vars:
         DEVELOPMENT_TEAM: QZ55W58398
         XCODE_WORKSPACE: ios/App/App.xcworkspace
@@ -56,7 +58,7 @@ workflows:
             echo "No Podfile found after cap sync — skipping pods (project may not use Pods)"
           fi
 
-      - name: Apply signing settings (inject profile & specifier)
+      - name: Apply signing settings (inject profile)
         script: |
           xcode-project use-profiles
           echo "== Current signing settings =="
