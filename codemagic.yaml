@@ -1,109 +1,87 @@
 workflows:
   ios_release:
-    name: iOS Release Build & Upload to TestFlight
+    name: iOS Release (Build & Upload to TestFlight)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    integrations:
-      app_store_connect: FireCalc
-
     environment:
       xcode: 16.4
-      ios_signing:
-        certificates:
-          - FireCalcCertiicate
-        provisioning_profiles:
-          - FireOpsCalcprofile
-      vars:
-        DEVELOPMENT_TEAM: QZ55W58398
-        EXPECTED_BUNDLE_ID: com.fireopscalc.app
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
-        XCODE_SCHEME: App
-        ARCHIVE_PATH: $CM_BUILD_DIR/build/App.xcarchive
-        EXPORT_PATH: $CM_BUILD_DIR/Export
+      cocoapods: default
+      node: 20.11.1
 
-    cache:
-      cache_paths:
-        - ~/.npm
-        - ios/Pods -> ios/Podfile.lock
-        - ios/App/Pods -> ios/App/Podfile.lock
+      # --- App identity / paths ---
+      vars:
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+        DEVELOPMENT_TEAM: "QZ55W58398"
+        WORKSPACE: "ios/App/App.xcworkspace"
+        SCHEME: "App"
+        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
+        IPA_NAME: "FireOpsCalc.ipa"
+
+      # Let Codemagic fetch and use the proper App Store profile for your bundle id.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: "com.fireopscalc.app"
 
     scripts:
-      - name: Install Node dependencies
+      - name: Capacitor sync (ensure bundle id flows into Xcode)
         script: |
           npm ci || npm install
-
-      - name: Capacitor sync (ensure bundle ID flows into Xcode)
-        script: |
           npx cap sync ios
-          cat ios/App/capacitor.config.json || true
 
       - name: Install CocoaPods (if present)
         script: |
-          if [ -f "ios/App/Podfile" ]; then
-            cd ios/App && pod install
-          elif [ -f "ios/Podfile" ]; then
-            cd ios && pod install
-          else
-            echo "No Podfile found (ok if not using Pods)"
+          if [ -d "ios/App" ]; then
+            cd ios/App
+            pod repo update || true
+            pod install
+            cd ../../
           fi
 
-      - name: Install referenced signing assets (certificate + profile)
+      - name: Build archive (Automatic signing)
         script: |
-          xcode-project use-profiles
-          echo "✅ Installed provisioning profiles:"
-          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
-
-      - name: Build Xcode archive
-        script: |
-          xcodebuild -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
             -configuration Release \
-            -sdk iphoneos \
             -archivePath "$ARCHIVE_PATH" \
+            clean archive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            archive | xcpretty
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            CODE_SIGN_STYLE=Automatic \
+            | xcpretty
 
-      - name: Verify signing
+      - name: Export IPA (App Store)
         script: |
-          APP="$ARCHIVE_PATH/Products/Applications/App.app"
-          INFO_PLIST="$APP/Info.plist"
-          echo "Bundle ID found:"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO_PLIST"
-          echo "Provisioning profile:"
-          security cms -D -i "$APP/embedded.mobileprovision" | grep Name || true
-
-      - name: Create ExportOptions.plist
-        script: |
-          cat <<EOF > ExportOptions.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>teamID</key><string>$DEVELOPMENT_TEAM</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-            <key>manageAppVersionAndBuildNumber</key><false/>
-          </dict>
-          </plist>
+          # Create export options on the fly
+          cat > /tmp/ExportOptions.plist <<'EOF'
+          {
+            "method": "app-store",
+            "compileBitcode": false,
+            "uploadBitcode": false,
+            "uploadSymbols": true,
+            "destination": "export",
+            "stripSwiftSymbols": true
+          }
           EOF
 
-      - name: Export IPA
-        script: |
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath "$EXPORT_PATH" | xcpretty
+            -exportPath "$IPA_EXPORT_DIR" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            | xcpretty
+
+          # Rename the ipa for clarity
+          mv "$IPA_EXPORT_DIR"/*.ipa "$IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - Export/*.ipa
-      - $CM_BUILD_DIR/build/*.xcarchive
+      - build/*.xcarchive
 
     publishing:
       app_store_connect:
-        auth: integration
+        api_key_id: HGYL5BPFZ
+        issuer_id: a786600e-e10a-42b2-a2bf-443a1da2554b
+        key_name: FireCalc
         submit_to_testflight: true
