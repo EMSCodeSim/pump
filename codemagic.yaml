@@ -29,7 +29,7 @@ workflows:
 
         # Web build config (adjust if your project uses different commands/dirs)
         WEB_BUILD_CMD: "npm run build"
-        WEB_DIR: "www"                     # change if your capacitor.config.* sets a different webDir (e.g., "dist")
+        WEB_DIR: "www"   # fallback to dist/build if not found
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
@@ -44,11 +44,14 @@ workflows:
         script: |
           if [ -f package.json ]; then
             echo "Installing Node deps..."
-            npm ci
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci || npm install
+            else
+              npm install
+            fi
             echo "Building web assets..."
-            # Try common build scripts if WEB_BUILD_CMD fails
             if ! ${WEB_BUILD_CMD}; then
-              echo "Primary WEB_BUILD_CMD failed, trying common fallbacks..."
+              echo "Primary WEB_BUILD_CMD failed, trying fallbacks..."
               npm run build:prod || npm run build:ios || npm run build --if-present || true
             fi
           else
@@ -65,19 +68,29 @@ workflows:
             echo "No capacitor.config.* in repo root. If you are using Capacitor, add it so sync can generate iOS assets."
           fi
 
+          # Determine a built web dir to copy (try WEB_DIR, then common fallbacks)
+          CANDIDATES=("$WEB_DIR" "dist" "build" "www")
+          FOUND_WEB=""
+          for d in "${CANDIDATES[@]}"; do
+            if [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ]; then
+              FOUND_WEB="$d"; break
+            fi
+          done
+
           # Fallback: if ios/App/App/public missing but built assets exist, copy them
           if [ ! -d "ios/App/App/public" ]; then
-            echo "ios/App/App/public not found. Attempting to copy from built web dir..."
-            if [ -d "$WEB_DIR" ]; then
+            echo "ios/App/App/public not found."
+            if [ -n "$FOUND_WEB" ]; then
+              echo "Copying assets from '$FOUND_WEB' -> ios/App/App/public"
               mkdir -p ios/App/App/public
-              rsync -a "$WEB_DIR"/ ios/App/App/public/
+              rsync -a "$FOUND_WEB"/ ios/App/App/public/
             else
-              echo "WARNING: WEB_DIR '$WEB_DIR' not found; public assets may still be missing."
+              echo "WARNING: No built web assets directory found; public assets may be missing."
             fi
           fi
 
           # Debug: list expected files
-          echo "Listing ios/App/App/ after sync:"
+          echo "Listing ios/App/App/ after sync/copy:"
           ls -la ios/App/App/ || true
 
           # Minimal safety nets if Xcode target expects these files
@@ -102,6 +115,16 @@ workflows:
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
+
+      - name: (Optional) Bump iOS build number from Codemagic BUILD_NUMBER
+        script: |
+          if [ -n "$BUILD_NUMBER" ]; then
+            echo "Setting CFBundleVersion to $BUILD_NUMBER"
+            # Try agvtool first
+            (cd ios/App && agvtool new-version -all "$BUILD_NUMBER") || true
+            # Ensure the Info.plist has the value (fallback)
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/App/App/Info.plist || true
+          fi
 
       - name: Build and export IPA (App Store)
         script: |
