@@ -40,18 +40,36 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Build IPA
+      - name: Create ExportOptions.plist (App Store)
+        script: |
+          cat > /tmp/ExportOptions.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>QZ55W58398</string>
+            <key>compileBitcode</key><false/>
+            <key>uploadBitcode</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          echo "Wrote /tmp/ExportOptions.plist"
+
+      - name: Build and export IPA
         script: |
           mkdir -p "$IPA_EXPORT_DIR"
 
-          # Build & export IPA (no unsupported flags)
+          # Build & export; write IPA directly to the export dir
           xcode-project build-ipa \
             --workspace "$WORKSPACE" \
             --scheme "$SCHEME" \
-            --archive-xcargs "-allowProvisioningUpdates"
+            --ipa-directory "$IPA_EXPORT_DIR" \
+            --export-options-plist "/tmp/ExportOptions.plist"
 
-          # Grab newest IPA produced by the step and move it to our export dir
-          IPA_PATH="$(ls -1t *.ipa 2>/dev/null | head -n 1)"
+          # Find the newest IPA in the export dir and rename consistently
+          IPA_PATH="$(ls -1t "$IPA_EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
             echo "❌ No .ipa produced by xcode-project build-ipa"
             exit 1
