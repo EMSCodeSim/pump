@@ -40,19 +40,27 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Build archive and export IPA
+      - name: Build IPA
         script: |
           mkdir -p "$IPA_EXPORT_DIR"
+
+          # Build & export IPA (no unsupported flags)
           xcode-project build-ipa \
             --workspace "$WORKSPACE" \
             --scheme "$SCHEME" \
-            --archive-path "$IPA_EXPORT_DIR/App.xcarchive" \
-            --export-method app-store
-          mv *.ipa "$IPA_EXPORT_DIR/$IPA_NAME"
+            --archive-xcargs "-allowProvisioningUpdates"
+
+          # Grab newest IPA produced by the step and move it to our export dir
+          IPA_PATH="$(ls -1t *.ipa 2>/dev/null | head -n 1)"
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ No .ipa produced by xcode-project build-ipa"
+            exit 1
+          fi
+          mv "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+          echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - "$IPA_EXPORT_DIR/$IPA_NAME"
-      - "$IPA_EXPORT_DIR/App.xcarchive"
 
     publishing:
       app_store_connect:
