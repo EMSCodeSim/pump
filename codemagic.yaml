@@ -27,7 +27,6 @@ workflows:
         SCHEME: "App"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
       ios_signing:
         certificates:
           - FireCalcCertiicate
@@ -41,8 +40,9 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Build archive
+      - name: Build archive and export IPA
         script: |
+          mkdir -p "$IPA_EXPORT_DIR"
           xcode-project build-ipa \
             --workspace "$WORKSPACE" \
             --scheme "$SCHEME" \
@@ -52,6 +52,7 @@ workflows:
 
     artifacts:
       - "$IPA_EXPORT_DIR/$IPA_NAME"
+      - "$IPA_EXPORT_DIR/App.xcarchive"
 
     publishing:
       app_store_connect:
@@ -59,4 +60,3 @@ workflows:
         submit_to_testflight: true
         beta_groups:
           - Internal Testers
-        changelog: "Initial FireOpsCalc TestFlight build"
