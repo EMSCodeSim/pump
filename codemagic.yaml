@@ -102,12 +102,11 @@ workflows:
           # Some templates expect a config.xml (Cordova interop); create a minimal one if missing
           if [ ! -f "ios/App/App/config.xml" ]; then
             echo "Generating minimal config.xml for Cordova interop..."
-            cat > ios/App/App/config.xml <<'XML'
-<?xml version='1.0' encoding='utf-8'?>
-<widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-  <name>FireOpsCalc</name>
-</widget>
-XML
+            printf '%s\n' \
+'<?xml version="1.0" encoding="utf-8"?>' \
+'<widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">' \
+'  <name>FireOpsCalc</name>' \
+'</widget>' > ios/App/App/config.xml
           fi
 
       - name: Install CocoaPods
@@ -129,19 +128,18 @@ XML
           mkdir -p "$IPA_EXPORT_DIR"
 
           # Create ExportOptions.plist for App Store export
-          cat > /tmp/ExportOptions.plist <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key><string>app-store</string>
-  <key>signingStyle</key><string>automatic</string>
-  <key>teamID</key><string>QZ55W58398</string>
-  <key>compileBitcode</key><false/>
-  <key>uploadBitcode</key><false/>
-</dict>
-</plist>
-PLIST
+          printf '%s\n' \
+'<?xml version="1.0" encoding="UTF-8"?>' \
+'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+'<plist version="1.0">' \
+'<dict>' \
+'  <key>method</key><string>app-store</string>' \
+'  <key>signingStyle</key><string>automatic</string>' \
+'  <key>teamID</key><string>QZ55W58398</string>' \
+'  <key>compileBitcode</key><false/>' \
+'  <key>uploadBitcode</key><false/>' \
+'</dict>' \
+'</plist>' > /tmp/ExportOptions.plist
 
           # Build & export; write IPA into the export dir
           xcode-project build-ipa \
