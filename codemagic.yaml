@@ -21,24 +21,10 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # Xcode / app metadata
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-        DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
-        CONFIGURATION: "Release"
-
-        # Web build config (adjust if your project uses different commands/dirs)
-        WEB_BUILD_CMD: "npm run build"
-        WEB_DIR: "www"   # falls back to dist/build/www if not found
-
-        # IPA output
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
-        # Provisioning: EXACT name of the uploaded profile (as shown in Codemagic UI)
-        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcprofile"
-
       ios_signing:
         certificates:
           - FireCalcCertiicate
@@ -46,70 +32,57 @@ workflows:
           - FireOpsCalcprofile
 
     scripts:
-      - name: Install Node dependencies & build web assets
+      - name: Install Node deps & build web (if present)
         script: |
           if [ -f package.json ]; then
-            echo "Installing Node deps..."
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
               npm ci || npm install
             else
               npm install
             fi
-            echo "Building web assets..."
-            if ! ${WEB_BUILD_CMD}; then
-              echo "Primary WEB_BUILD_CMD failed, trying fallbacks..."
-              npm run build:prod || npm run build:ios || npm run build --if-present || true
-            fi
+            npm run build --if-present
           else
-            echo "No package.json found, skipping web build."
+            echo "No package.json, skipping web build."
           fi
 
-      - name: Ensure Capacitor CLI & sync iOS
+      - name: Capacitor sync iOS (ensures public/ & capacitor.config.json)
         script: |
-          # Use npx to avoid global installs
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
-            echo "Running Capacitor sync..."
             npx cap sync ios
           else
-            echo "No capacitor.config.* in repo root. If you are using Capacitor, add it so sync can generate iOS assets."
+            echo "No capacitor.config.* found — assuming native files already in place."
           fi
 
-          # Determine a built web dir to copy (try WEB_DIR, then common fallbacks)
-          FOUND_WEB=""
-          for d in "$WEB_DIR" dist build www; do
-            if [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ]; then
-              FOUND_WEB="$d"
-              break
-            fi
-          done
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install --repo-update || pod install
+          cd ../..
 
-          # Fallback: if ios/App/App/public missing but built assets exist, copy them
-          if [ ! -d "ios/App/App/public" ]; then
-            echo "ios/App/App/public not found."
-            if [ -n "$FOUND_WEB" ]; then
-              echo "Copying assets from '$FOUND_WEB' -> ios/App/App/public"
-              mkdir -p ios/App/App/public
-              rsync -a "$FOUND_WEB"/ ios/App/App/public/
-            else
-              echo "WARNING: No built web assets directory found; public assets may be missing."
-            fi
+      - name: Build IPA (let Xcode project’s Manual signing handle profiles)
+        script: |
+          mkdir -p "$IPA_EXPORT_DIR"
+          xcode-project build-ipa \
+            --workspace "$WORKSPACE" \
+            --scheme "$SCHEME" \
+            --ipa-directory "$IPA_EXPORT_DIR" \
+            --verbose
+
+          IPA_PATH="$(ls -1t "$IPA_EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ No .ipa produced"
+            ls -la "$IPA_EXPORT_DIR" || true
+            exit 1
           fi
+          mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+          echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
-          # Debug: list expected files
-          echo "Listing ios/App/App/ after sync/copy:"
-          ls -la ios/App/App/ || true
+    artifacts:
+      - "$IPA_EXPORT_DIR/$IPA_NAME"
 
-          # Minimal safety nets if Xcode target expects these files
-          if [ ! -f "ios/App/App/capacitor.config.json" ] && [ -f "capacitor.config.json" ]; then
-            echo "Copying capacitor.config.json into iOS target folder..."
-            cp capacitor.config.json ios/App/App/capacitor.config.json || true
-          fi
-
-          # Some templates expect a config.xml (Cordova interop); create a minimal one if missing
-          if [ ! -f "ios/App/App/config.xml" ]; then
-            echo "Generating minimal config.xml for Cordova interop (base64 decode)…"
-            # XML: <?xml version="1.0" encoding="utf-8"?>
-            # <widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-            #   <name>FireOpsCalc</name>
-            # </widget>
-            printf '%s' 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHdpZGdldCBpZD0iY29tLmZpcmVvcHNjYWxjLmFwcCIgdmVyc2lvbj0iMS4wLjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy9ucy93aWRnZXRzIiB4bWxuczpjZHY9Imh0dHA6Ly9jb3Jkb3ZhLmFwYWNoZS5vcmcvbnMvMS4wIj4KIC
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
