@@ -584,7 +584,19 @@ export async function render(container){
   `;
 
   /* ----------------------------- Styles ---------------------------------- */
+    /* ----------------------------- Styles ---------------------------------- */
   injectStyle(container, `
+    :root, body { overflow-x: hidden; }
+    [data-calc-root] { max-width: 100%; overflow-x: hidden; }
+    .wrapper.card { max-width: 100%; overflow-x: hidden; }
+    .stage { width: 100%; overflow: hidden; }
+    #stageSvg { width: 100%; display: block; }  /* make SVG scale to container width */
+
+    input, select, textarea, button { font-size:16px; }
+    .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
+    .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    ...
+
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
     .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
