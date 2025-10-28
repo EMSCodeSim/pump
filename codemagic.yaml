@@ -31,11 +31,13 @@ workflows:
         # Web build config (adjust if your project uses different commands/dirs)
         WEB_BUILD_CMD: "npm run build"
         WEB_DIR: "www"   # falls back to dist/build/www if not found
+
+        # IPA output
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # Paths for raw xcodebuild fallback
-        ARCHIVE_PATH: "/Users/bbuilder/clone/build/App.xcarchive"
+        # Provisioning: use the EXACT name of the uploaded profile (as shown in Codemagic UI)
+        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcprofile"
 
       ios_signing:
         certificates:
@@ -105,8 +107,12 @@ workflows:
 
           # Some templates expect a config.xml (Cordova interop); create a minimal one if missing
           if [ ! -f "ios/App/App/config.xml" ]; then
-            echo "Generating minimal config.xml for Cordova interop (base64 decode)..."
-            printf '%s' 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHdpZGdldCBpZD0iY29tLmZpcmVvcHNjYWxjLmFwcCIgdmVyc2lvbj0iMS4wLjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy9ucy93aWRnZXRzIiB4bWxuczpjZHY9Imh0dHA6Ly9jb3Jkb3ZhLmFwYWNoZS5vcmcvbnMvMS4wIj4KICA8bmFtZT5GaXJlT3BzQ2FsYzwvbmFtZT4KPC93aWRnZXQ+Cg==' | base64 --decode > ios/App/App/config.xml
+            echo "Generating minimal config.xml for Cordova interop..."
+            printf '%s\n' \
+'<?xml version="1.0" encoding="utf-8"?>' \
+'<widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">' \
+'  <name>FireOpsCalc</name>' \
+'</widget>' > ios/App/App/config.xml
           fi
 
       - name: Install CocoaPods
@@ -132,9 +138,14 @@ workflows:
           xcodebuild -list -workspace "$WORKSPACE" || true
           echo "SCHEME set to: $SCHEME"
 
-          echo "=== Preparing ExportOptions.plist ==="
-          printf '%s' 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAtLy9BcHBsZS8vRFREIFBMSVNUIDEuMC8vRU4gImh0dHA6Ly93d3cuYXBwbGUuY29tL0RURHMvUHJvcGVydHlMaXN0LTEuMC5kdGQiPgo8cGxpc3Qgd2Vyc2lvbj0iMS4wIj4KPGRpY3Q+CiAgPGtleTxtZXRob2Q8L2tleT48c3RyaW5nPmFwcC1zdG9yZTwvc3RyaW5nPgogIDxrZXk+c2lnbmluZ1N0eWxlPC9rZXk+PHN0cmluZz5hdXRvbWF0aWM8L3N0cmluZz4KICA8a2V5PnRlYW1JRDwva2V5PjxzdHJpbmc+UVo1NVc1ODM5ODwvc3RyaW5nPgogIDxrZXk+Y29tcGlsZUJpdGNvZGU8L2tleT48ZmFsc2UvPgogIDxrZXk+dXBsb2FkQml0Y29kZTwva2V5PjxmYWxzZS8+CjwvZGljdD4KPC9wbGlzdD4K' | base64 --decode > /tmp/ExportOptions.plist
-          plutil -p /tmp/ExportOptions.plist || true
+          echo "=== Preparing ExportOptions.plist via PlistBuddy (no XML in YAML) ==="
+          rm -f /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Print" /tmp/ExportOptions.plist
 
           echo "=== Attempt #1: xcode-project build-ipa (verbose) ==="
           set +e
@@ -150,20 +161,21 @@ workflows:
 
           if [ $XC_HELPER_STATUS -ne 0 ]; then
             echo "xcode-project helper failed (exit $XC_HELPER_STATUS). Falling back to raw xcodebuild…"
+
             ARCHIVE_PATH="/Users/builder/clone/build/App.xcarchive"
             EXPORT_PATH="$IPA_EXPORT_DIR/export_tmp"
-
             rm -rf "$ARCHIVE_PATH" "$EXPORT_PATH"
             mkdir -p "$EXPORT_PATH"
 
-            echo "=== Archive with xcodebuild ==="
+            echo "=== Archive with xcodebuild (Manual signing to match target) ==="
             xcodebuild -workspace "$WORKSPACE" \
               -scheme "$SCHEME" \
               -configuration "$CONFIGURATION" \
               -archivePath "$ARCHIVE_PATH" \
               DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
               PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-              CODE_SIGN_STYLE=Automatic \
+              CODE_SIGN_STYLE=Manual \
+              PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
               archive
 
             echo "=== Export with xcodebuild -exportArchive ==="
@@ -172,7 +184,6 @@ workflows:
               -exportOptionsPlist "/tmp/ExportOptions.plist" \
               -exportPath "$EXPORT_PATH"
 
-            # Move IPA to final name/location
             IPA_PATH="$(ls -1t "$EXPORT_PATH"/*.ipa 2>/dev/null | head -n 1)"
             if [ -z "$IPA_PATH" ]; then
               echo "❌ Raw export did not produce an IPA. Contents of $EXPORT_PATH:"
@@ -182,7 +193,6 @@ workflows:
             mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
             echo "✅ Exported (fallback): $IPA_EXPORT_DIR/$IPA_NAME"
           else
-            # Helper succeeded — rename newest ipa to stable name
             IPA_PATH="$(ls -1t "$IPA_EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
             if [ -z "$IPA_PATH" ]; then
               echo "❌ Helper reported success but no IPA found in $IPA_EXPORT_DIR"
