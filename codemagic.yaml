@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: iOS Release (API key env vars)
+    name: FireOpsCalc iOS Release
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -13,67 +13,50 @@ workflows:
           include: true
           source: true
 
+    integrations:
+      app_store_connect: FireCalc
+
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-      groups:
-        # This must match the group name in Codemagic UI
-        - ios-signing
       vars:
-        # --- App identity ---
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
-
-        # --- Xcode project/paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
-        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # Toggle TestFlight upload ("true" or "false")
-        PUBLISH_TO_TESTFLIGHT: "true"
+      ios_signing:
+        certificates:
+          - FireCalcCertiicate
+        provisioning_profiles:
+          - FireOpsCalcprofile
 
     scripts:
-      - name: Install CocoaPods (if needed)
+      - name: Install CocoaPods
         script: |
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Prepare code signing (automatic via App Store Connect API key)
-        script: |
-          keychain initialize
-          app-store-connect fetch-signing-files \
-            --type IOS_APP_STORE \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_API_KEY" \
-            --bundle-identifier "$PRODUCT_BUNDLE_IDENTIFIER" \
-            --create
-          keychain add-certificates
-
-      - name: Build .ipa
+      - name: Build archive
         script: |
           xcode-project build-ipa \
             --workspace "$WORKSPACE" \
             --scheme "$SCHEME" \
-            --archive-path "$ARCHIVE_PATH"
-          mkdir -p "$IPA_EXPORT_DIR"
+            --archive-path "$IPA_EXPORT_DIR/App.xcarchive" \
+            --export-method app-store
           mv *.ipa "$IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - "$IPA_EXPORT_DIR/$IPA_NAME"
-      - "$ARCHIVE_PATH"
 
     publishing:
       app_store_connect:
-        # Uses the three secrets you added to the ios-signing group
-        api_key: $APP_STORE_CONNECT_API_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: $PUBLISH_TO_TESTFLIGHT
-        # Optional: auto-add to internal testers group if it exists
-        # beta_groups:
-        #   - Internal Testers
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
+        changelog: "Initial FireOpsCalc TestFlight build"
