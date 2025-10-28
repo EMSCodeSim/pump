@@ -26,12 +26,16 @@ workflows:
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
+        CONFIGURATION: "Release"
 
         # Web build config (adjust if your project uses different commands/dirs)
         WEB_BUILD_CMD: "npm run build"
         WEB_DIR: "www"   # falls back to dist/build/www if not found
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
+
+        # Paths for raw xcodebuild fallback
+        ARCHIVE_PATH: "/Users/bbuilder/clone/build/App.xcarchive"
 
       ios_signing:
         certificates:
@@ -119,30 +123,75 @@ workflows:
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/App/App/Info.plist || true
           fi
 
-      - name: Build and export IPA (App Store)
+      - name: Build and export IPA (App Store) with verbose logs and raw fallback
         script: |
+          set -e
           mkdir -p "$IPA_EXPORT_DIR"
 
-          # Create ExportOptions.plist for App Store export via base64 decode (avoids YAML/XML quoting)
-          printf '%s' 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAtLy9BcHBsZS8vRFREIFBMSVNUIDEuMC8vRU4gImh0dHA6Ly93d3cuYXBwbGUuY29tL0RURHMvUHJvcGVydHlMaXN0LTEuMC5kdGQiPgo8cGxpc3Qgd2Vyc2lvbj0iMS4wIj4KPGRpY3Q+CiAgPGtleTxtZXRob2Q8L2tleT48c3RyaW5nPmFwcC1zdG9yZTwvc3RyaW5nPgogIDxrZXk+c2lnbmluZ1N0eWxlPC9rZXk+PHN0cmluZz5hdXRvbWF0aWM8L3N0cmluZz4KICA8a2V5PnRlYW1JRDwva2V5PjxzdHJpbmc+UVo1NVc1ODM5ODwvc3RyaW5nPgogIDxrZXk+Y29tcGlsZUJpdGNvZGU8L2tleT48ZmFsc2UvPgogIDxrZXk+dXBsb2FkQml0Y29kZTwva2V5PjxmYWxzZS8+CjwvZGljdD4KPC9wbGlzdD4K' | base64 --decode > /tmp/ExportOptions.plist
+          echo "=== Discovering workspace/scheme ==="
+          xcodebuild -list -workspace "$WORKSPACE" || true
+          echo "SCHEME set to: $SCHEME"
 
-          # Build & export; write IPA into the export dir
+          echo "=== Preparing ExportOptions.plist ==="
+          printf '%s' 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHBsaXN0IFBVQkxJQyAtLy9BcHBsZS8vRFREIFBMSVNUIDEuMC8vRU4gImh0dHA6Ly93d3cuYXBwbGUuY29tL0RURHMvUHJvcGVydHlMaXN0LTEuMC5kdGQiPgo8cGxpc3Qgd2Vyc2lvbj0iMS4wIj4KPGRpY3Q+CiAgPGtleTxtZXRob2Q8L2tleT48c3RyaW5nPmFwcC1zdG9yZTwvc3RyaW5nPgogIDxrZXk+c2lnbmluZ1N0eWxlPC9rZXk+PHN0cmluZz5hdXRvbWF0aWM8L3N0cmluZz4KICA8a2V5PnRlYW1JRDwva2V5PjxzdHJpbmc+UVo1NVc1ODM5ODwvc3RyaW5nPgogIDxrZXk+Y29tcGlsZUJpdGNvZGU8L2tleT48ZmFsc2UvPgogIDxrZXk+dXBsb2FkQml0Y29kZTwva2V5PjxmYWxzZS8+CjwvZGljdD4KPC9wbGlzdD4K' | base64 --decode > /tmp/ExportOptions.plist
+          plutil -p /tmp/ExportOptions.plist || true
+
+          echo "=== Attempt #1: xcode-project build-ipa (verbose) ==="
+          set +e
           xcode-project build-ipa \
             --workspace "$WORKSPACE" \
             --scheme "$SCHEME" \
+            --config "$CONFIGURATION" \
             --ipa-directory "$IPA_EXPORT_DIR" \
-            --export-options-plist "/tmp/ExportOptions.plist"
+            --export-options-plist "/tmp/ExportOptions.plist" \
+            --verbose
+          XC_HELPER_STATUS=$?
+          set -e
 
-          # Rename newest ipa to a stable name
-          IPA_PATH="$(ls -1t "$IPA_EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
-          if [ -z "$IPA_PATH" ]; then
-            echo "❌ No .ipa produced by xcode-project build-ipa"
-            echo "Contents of $IPA_EXPORT_DIR:"
-            ls -la "$IPA_EXPORT_DIR" || true
-            exit 1
+          if [ $XC_HELPER_STATUS -ne 0 ]; then
+            echo "xcode-project helper failed (exit $XC_HELPER_STATUS). Falling back to raw xcodebuild…"
+            ARCHIVE_PATH="/Users/builder/clone/build/App.xcarchive"
+            EXPORT_PATH="$IPA_EXPORT_DIR/export_tmp"
+
+            rm -rf "$ARCHIVE_PATH" "$EXPORT_PATH"
+            mkdir -p "$EXPORT_PATH"
+
+            echo "=== Archive with xcodebuild ==="
+            xcodebuild -workspace "$WORKSPACE" \
+              -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" \
+              -archivePath "$ARCHIVE_PATH" \
+              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+              PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+              CODE_SIGN_STYLE=Automatic \
+              archive
+
+            echo "=== Export with xcodebuild -exportArchive ==="
+            xcodebuild -exportArchive \
+              -archivePath "$ARCHIVE_PATH" \
+              -exportOptionsPlist "/tmp/ExportOptions.plist" \
+              -exportPath "$EXPORT_PATH"
+
+            # Move IPA to final name/location
+            IPA_PATH="$(ls -1t "$EXPORT_PATH"/*.ipa 2>/dev/null | head -n 1)"
+            if [ -z "$IPA_PATH" ]; then
+              echo "❌ Raw export did not produce an IPA. Contents of $EXPORT_PATH:"
+              ls -la "$EXPORT_PATH" || true
+              exit 1
+            fi
+            mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+            echo "✅ Exported (fallback): $IPA_EXPORT_DIR/$IPA_NAME"
+          else
+            # Helper succeeded — rename newest ipa to stable name
+            IPA_PATH="$(ls -1t "$IPA_EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
+            if [ -z "$IPA_PATH" ]; then
+              echo "❌ Helper reported success but no IPA found in $IPA_EXPORT_DIR"
+              ls -la "$IPA_EXPORT_DIR" || true
+              exit 1
+            fi
+            mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+            echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
           fi
-          mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
-          echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - "$IPA_EXPORT_DIR/$IPA_NAME"
