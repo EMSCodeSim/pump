@@ -29,7 +29,7 @@ workflows:
 
         # Web build config (adjust if your project uses different commands/dirs)
         WEB_BUILD_CMD: "npm run build"
-        WEB_DIR: "www"   # fallback to dist/build if not found
+        WEB_DIR: "www"   # falls back to dist/build/www if not found
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
@@ -69,11 +69,11 @@ workflows:
           fi
 
           # Determine a built web dir to copy (try WEB_DIR, then common fallbacks)
-          CANDIDATES=("$WEB_DIR" "dist" "build" "www")
           FOUND_WEB=""
-          for d in "${CANDIDATES[@]}"; do
+          for d in "$WEB_DIR" dist build www; do
             if [ -d "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ]; then
-              FOUND_WEB="$d"; break
+              FOUND_WEB="$d"
+              break
             fi
           done
 
@@ -120,9 +120,7 @@ workflows:
         script: |
           if [ -n "$BUILD_NUMBER" ]; then
             echo "Setting CFBundleVersion to $BUILD_NUMBER"
-            # Try agvtool first
             (cd ios/App && agvtool new-version -all "$BUILD_NUMBER") || true
-            # Ensure the Info.plist has the value (fallback)
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/App/App/Info.plist || true
           fi
 
