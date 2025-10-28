@@ -106,6 +106,4 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        ipa_path: $CM_BUILD_DIR/Export/*.ipa
         submit_to_testflight: true
-        verbose_log: true
