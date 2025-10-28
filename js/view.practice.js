@@ -5,6 +5,7 @@
 // - 2½″ hose = BLUE, 1¾″ hose = RED
 // - Equations box = white text on black background
 // - Non-overlapping label "bubbles" at line ends
+// - NOZZLE graphics drawn at line ends (and master stream junction)
 
 import {
   COEFF,
@@ -279,13 +280,68 @@ function addBubble(G_labelsP, x, y, text, side='C'){
   r.setAttribute('fill', '#eaf2ff'); r.setAttribute('stroke', '#111'); r.setAttribute('stroke-width', '.5');
 
   t.setAttribute('x', box.x + box.w/2);
-  t.setAttribute('y', box.y + box.h - pad - 1);
+  t.setAttribute('y', box.y + box.h - 4 - 1);
 
   const g = document.createElementNS(ns,'g');
   g.appendChild(r); g.appendChild(t);
   G_labelsP.appendChild(g);
 
   placedBoxes.push(box);
+}
+
+// ---------- nozzle graphics ----------
+// Draws a small nozzle oriented UP (no rotation math needed).
+// Scales slightly by hose size; colors match hose color on the coupling.
+function drawNozzle(G, x, y, hoseSize, scale = 1) {
+  const group = document.createElementNS(ns, 'g');
+  group.setAttribute('transform', `translate(${x},${y})`);
+
+  // choose hose class / color
+  const hoseClass = hoseSize === '2.5' ? 'hose25' : 'hose175';
+  const couplingStroke = hoseSize === '2.5' ? '#3b82f6' : '#ef4444';
+
+  // coupling (short stub where hose meets nozzle)
+  const coupling = document.createElementNS(ns, 'rect');
+  coupling.setAttribute('x', -4 * scale);
+  coupling.setAttribute('y', -8 * scale);
+  coupling.setAttribute('width', 8 * scale);
+  coupling.setAttribute('height', 6 * scale);
+  coupling.setAttribute('rx', 2 * scale);
+  coupling.setAttribute('ry', 2 * scale);
+  coupling.setAttribute('fill', '#f3f4f6');
+  coupling.setAttribute('stroke', couplingStroke);
+  coupling.setAttribute('stroke-width', 1);
+
+  // nozzle body (slight taper)
+  const body = document.createElementNS(ns, 'polygon');
+  // points relative to (0,0): draw upward
+  const pts = [
+    [-3*scale, -8*scale],
+    [ 3*scale, -8*scale],
+    [ 5*scale, -14*scale],
+    [-5*scale, -14*scale]
+  ].map(p=>p.join(',')).join(' ');
+  body.setAttribute('points', pts);
+  body.setAttribute('fill', '#9ca3af');
+  body.setAttribute('stroke', '#111');
+  body.setAttribute('stroke-width', .6);
+
+  // tip
+  const tip = document.createElementNS(ns, 'polygon');
+  const tpts = [
+    [-2*scale, -14*scale],
+    [ 2*scale, -14*scale],
+    [ 0,       -18*scale],
+  ].map(p=>p.join(',')).join(' ');
+  tip.setAttribute('points', tpts);
+  tip.setAttribute('fill', '#6b7280');
+  tip.setAttribute('stroke', '#111');
+  tip.setAttribute('stroke-width', .6);
+
+  group.appendChild(coupling);
+  group.appendChild(body);
+  group.appendChild(tip);
+  G.appendChild(group);
 }
 
 // ---------- rendering ----------
@@ -338,7 +394,7 @@ export function render(container) {
       <div class="stage" id="stageP">
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
           <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
-          <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g>
+          <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g><g id="nozzlesP"></g>
         </svg>
       </div>
 
@@ -373,6 +429,7 @@ export function render(container) {
   const G_hosesP = container.querySelector('#hosesP');
   const G_branchesP = container.querySelector('#branchesP');
   const G_labelsP = container.querySelector('#labelsP');
+  const G_nozzlesP = container.querySelector('#nozzlesP');
 
   const practiceInfo = container.querySelector('#practiceInfo');
   const statusEl = container.querySelector('#practiceStatus');
@@ -387,9 +444,9 @@ export function render(container) {
   // -------- draw --------
   function drawScenario(S){
     // clear layers
-    while(G_hosesP.firstChild) G_hosesP.removeChild(G_hosesP.firstChild);
-    while(G_branchesP.firstChild) G_branchesP.removeChild(G_branchesP.firstChild);
-    while(G_labelsP.firstChild) G_labelsP.removeChild(G_labelsP.firstChild);
+    for (const g of [G_hosesP, G_branchesP, G_labelsP, G_nozzlesP]) {
+      while(g.firstChild) g.removeChild(g.firstChild);
+    }
     placedBoxes.length = 0;
     workEl.innerHTML = '';
 
@@ -421,6 +478,11 @@ export function render(container) {
       main.setAttribute('d', geom.d);
       G_hosesP.appendChild(main);
 
+      // nozzle for single or for the wye junction head (we’ll put nozzles on branches for wye)
+      if (S.type==='single') {
+        drawNozzle(G_nozzlesP, geom.endX, geom.endY, S.mainSize, S.mainSize==='2.5' ? 1.1 : 1);
+      }
+
       if(S.type==='wye2'){
         // A
         const aPx = (S.bnA.len/50)*PX_PER_50FT;
@@ -445,6 +507,10 @@ export function render(container) {
         b.setAttribute('class','hoseBase hose175');
         b.setAttribute('d', bGeom.d);
         G_branchesP.appendChild(b);
+
+        // branch nozzles
+        drawNozzle(G_nozzlesP, aGeom.endX, aGeom.endY, '1.75', 1);
+        drawNozzle(G_nozzlesP, bGeom.endX, bGeom.endY, '1.75', 1);
 
         // bubbles (non-overlap)
         addBubble(G_labelsP, geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`, 'C');
@@ -486,17 +552,10 @@ export function render(container) {
     b.setAttribute('d', bPath);
     G_branchesP.appendChild(b);
 
-    // junction dot
-    const nozzle = document.createElementNS(ns,'circle');
-    nozzle.setAttribute('cx', junctionX);
-    nozzle.setAttribute('cy', junctionY);
-    nozzle.setAttribute('r', 4);
-    nozzle.setAttribute('fill', '#eaf2ff');
-    nozzle.setAttribute('stroke', '#111');
-    nozzle.setAttribute('stroke-width', '.8');
-    G_hosesP.appendChild(nozzle);
+    // nozzle at master stream junction (a bit larger)
+    drawNozzle(G_nozzlesP, junctionX, junctionY, '2.5', 1.25);
 
-    // bubbles
+    // junction bubble labels
     addBubble(G_labelsP, outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`, 'L');
     addBubble(G_labelsP, outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`, 'R');
     addBubble(G_labelsP, junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
