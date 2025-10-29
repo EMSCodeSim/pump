@@ -52,6 +52,8 @@ workflows:
           else
             echo "No capacitor.config.* found — assuming native files already in place."
           fi
+          echo "Listing ios/App/App/ after sync:"
+          ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
         script: |
