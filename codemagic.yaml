@@ -91,19 +91,30 @@ workflows:
           fi
           echo "✅ Archive created at $ARCHIVE_PATH"
 
-      - name: Create ExportOptions.plist (app-store, let Xcode handle signing)
+      # 👇 THIS is the piece we’re changing
+      - name: Create ExportOptions.plist (app-store, app-only profile)
         script: |
           set -e
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
           /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
+
+          # required
           /usr/libexec/PlistBuddy -c "Add :method string app-store" "$EXPORT_PLIST"
-          # don't force a provisioning profile here – Capacitor/Cordova frameworks hate that
+
+          # do NOT set signingStyle=manual here (that was making frameworks mad)
+
+          # tell it ONLY the app bundle gets this profile
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
+
+          # nice-to-haves
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
-          echo "=== ExportOptions.plist used for export ==="
+
+          echo "=== ExportOptions.plist (final) ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
       - name: Export IPA
@@ -130,7 +141,6 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        # new xcode warns "app-store" is deprecated -> codemagic will still handle this
         submit_to_testflight: true
         beta_groups:
           - Internal Testers
