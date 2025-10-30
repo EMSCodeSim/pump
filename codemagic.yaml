@@ -82,21 +82,22 @@ workflows:
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not created"
             xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" | \
-              grep -E 'PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
+              grep -E 'PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
             exit 1
           fi
           echo "✅ Archive created at $ARCHIVE_PATH"
 
-      - name: Create ExportOptions.plist (use embedded signatures)
+      - name: Create ExportOptions.plist (release-testing)
         script: |
           set -e
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
           /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :method string developer-id" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string release-testing" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
