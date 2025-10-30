@@ -21,17 +21,12 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # Xcode
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         CONFIGURATION: "Release"
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-
-        # Provisioning profile (exact name as in Codemagic UI)
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcprofile"
-
-        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -97,62 +92,64 @@ workflows:
           echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
-      - name: Archive with xcodebuild (try MANUAL first, then AUTO if it conflicts)
+      - name: Archive with xcodebuild (force iOS destination, manual → auto)
         script: |
           set -e
-          if command -v xcpretty >/dev/null 2>&1; then XP="| xcpretty"; else XP=""; fi
 
-          echo "=== ARCHIVE ATTEMPT 1: MANUAL signing ==="
+          echo "=== ARCHIVE ATTEMPT 1: MANUAL signing, iOS generic device ==="
           echo "TEAM: $DEVELOPMENT_TEAM"
           echo "BUNDLE_ID: $PRODUCT_BUNDLE_IDENTIFIER"
           echo "PROFILE: $PROVISIONING_PROFILE_SPECIFIER"
           rm -rf "$ARCHIVE_PATH"
-          # shellcheck disable=SC2086
+
+          # 1) manual
           set +e
-          eval xcodebuild -workspace \""$WORKSPACE"\" \
-            -scheme \""$SCHEME"\" \
-            -configuration \""$CONFIGURATION"\" \
-            -archivePath \""$ARCHIVE_PATH"\" \
-            DEVELOPMENT_TEAM=\""$DEVELOPMENT_TEAM"\" \
-            PRODUCT_BUNDLE_IDENTIFIER=\""$PRODUCT_BUNDLE_IDENTIFIER"\" \
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER=\""$PROVISIONING_PROFILE_SPECIFIER"\" \
-            archive $XP
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
+            archive
           STATUS=$?
           set -e
 
           if [ $STATUS -ne 0 ] || [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "=== Manual signing archive failed, trying AUTO (to match project build settings) ==="
+            echo "=== Manual archive failed (status $STATUS). Trying AUTO signing archive ==="
             rm -rf "$ARCHIVE_PATH"
-            # shellcheck disable=SC2086
-            eval xcodebuild -workspace \""$WORKSPACE"\" \
-              -scheme \""$SCHEME"\" \
-              -configuration \""$CONFIGURATION"\" \
-              -archivePath \""$ARCHIVE_PATH"\" \
-              DEVELOPMENT_TEAM=\""$DEVELOPMENT_TEAM"\" \
-              PRODUCT_BUNDLE_IDENTIFIER=\""$PRODUCT_BUNDLE_IDENTIFIER"\" \
+            xcodebuild \
+              -workspace "$WORKSPACE" \
+              -scheme "$SCHEME" \
+              -configuration "$CONFIGURATION" \
+              -destination 'generic/platform=iOS' \
+              -archivePath "$ARCHIVE_PATH" \
+              DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+              PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
               CODE_SIGN_STYLE=Automatic \
-              archive $XP
+              archive
           fi
 
-          # final check
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive was not created at $ARCHIVE_PATH"
+            # show build settings to help debug why
+            xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" || true
             exit 1
           fi
+
           echo "✅ Archive created at $ARCHIVE_PATH"
 
       - name: Export IPA with xcodebuild -exportArchive
         script: |
           set -e
-          if command -v xcpretty >/dev/null 2>&1; then XP="| xcpretty"; else XP=""; fi
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
-
-          # shellcheck disable=SC2086
-          eval xcodebuild -exportArchive \
-            -archivePath \""$ARCHIVE_PATH"\" \
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist /Users/builder/ExportOptions.plist \
-            -exportPath \""$EXPORT_DIR"\" $XP
+            -exportPath "$EXPORT_DIR"
 
           IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
