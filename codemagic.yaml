@@ -87,19 +87,17 @@ workflows:
           fi
           echo "✅ Archive created at $ARCHIVE_PATH"
 
-      - name: Create ExportOptions.plist (minimal, no provisioningProfiles)
+      - name: Create ExportOptions.plist (use embedded signatures)
         script: |
           set -e
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
           /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          # use the new name Xcode hints at
-          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string developer-id" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
-          echo "=== ExportOptions.plist (minimal) ==="
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
       - name: Export IPA
@@ -115,7 +113,6 @@ workflows:
           if [ -z "$IPA_PATH" ]; then
             echo "❌ Export did not produce IPA"
             ls -la "$EXPORT_DIR" || true
-            # dump export log so we can see exactly which item asked for a profile
             LOG_DIR="$(find /var/folders -name '*.xcdistributionlogs' -maxdepth 5 2>/dev/null | head -n 1)"
             echo "=== Export logs at: $LOG_DIR ==="
             exit 1
