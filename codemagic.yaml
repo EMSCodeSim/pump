@@ -21,28 +21,22 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # --- Xcode / project info ---
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         CONFIGURATION: "Release"
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-
-        # --- THIS MUST MATCH CODemagic NAME (you just uploaded it) ---
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
-
-        # --- Paths ---
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-      # use the certificate + profile you have in Codemagic
       ios_signing:
         certificates:
-          - FireCalcCertiicate          # keep exact name from Codemagic
+          - FireCalcCertiicate
         provisioning_profiles:
-          - FireOpsCalcApp_AppStore     # exact name you just created
+          - FireOpsCalcApp_AppStore
 
     scripts:
       - name: Install Node deps & build web (if present)
@@ -62,10 +56,7 @@ workflows:
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
-          else
-            echo "No capacitor.config.* found — assuming native iOS already present."
           fi
-          echo "Contents of ios/App/App/:"
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -74,33 +65,12 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Create ExportOptions.plist (manual, App Store)
-        script: |
-          set -e
-          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
-          rm -f "$EXPORT_PLIST"
-          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :method string app-store" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
-          echo "=== ExportOptions.plist ==="
-          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
-
-      - name: Archive (manual signing, force iOS, use uploaded profile)
+      - name: Archive (manual, use uploaded profile)
         script: |
           set -e
           echo "=== ARCHIVE using FireOpsCalcApp_AppStore ==="
-          echo "TEAM: $DEVELOPMENT_TEAM"
-          echo "BUNDLE: $PRODUCT_BUNDLE_IDENTIFIER"
-          echo "PROFILE: $PROVISIONING_PROFILE_SPECIFIER"
-
           rm -rf "$ARCHIVE_PATH"
 
-          # archive with the profile the project expects (now Codemagic has it)
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -114,13 +84,27 @@ workflows:
             archive
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not created at $ARCHIVE_PATH"
+            echo "❌ Archive not created"
             xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" | \
               grep -E 'PROVISIONING_PROFILE|PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
             exit 1
           fi
-
           echo "✅ Archive created at $ARCHIVE_PATH"
+
+      - name: Create ExportOptions.plist (app-store, let Xcode handle signing)
+        script: |
+          set -e
+          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
+          rm -f "$EXPORT_PLIST"
+          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store" "$EXPORT_PLIST"
+          # don't force a provisioning profile here – Capacitor/Cordova frameworks hate that
+          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
+          echo "=== ExportOptions.plist used for export ==="
+          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
       - name: Export IPA
         script: |
@@ -146,6 +130,7 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
+        # new xcode warns "app-store" is deprecated -> codemagic will still handle this
         submit_to_testflight: true
         beta_groups:
           - Internal Testers
