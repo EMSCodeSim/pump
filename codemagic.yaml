@@ -4,9 +4,6 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    integrations:
-      app_store_connect: FireCalc
-
     triggering:
       events:
         - push
@@ -16,17 +13,26 @@ workflows:
           include: true
           source: true
 
+    integrations:
+      app_store_connect: FireCalc
+
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
+        # Xcode / project paths
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"
         CONFIGURATION: "Release"
+
+        # we will auto-detect SCHEME below, so we don’t hardcode it here
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+
+        # this is the profile you just uploaded to Codemagic
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
+
+        # Archive / export paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -42,17 +48,25 @@ workflows:
       - name: Install Node deps & build web (if present)
         script: |
           if [ -f package.json ]; then
-            npm ci || npm install
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci || npm install
+            else
+              npm install
+            fi
             npm run build --if-present
           else
             echo "No package.json, skipping web build."
           fi
 
-      - name: Capacitor sync iOS
+      - name: Capacitor sync iOS (ensures ios/App/App/public etc.)
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
+          else
+            echo "No capacitor.config.* found — assuming native iOS already present."
           fi
+
+          echo "Listing ios/App/App after sync:"
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -61,15 +75,48 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Archive (manual, use uploaded profile)
+      - name: Create ExportOptions.plist (manual, app store connect)
+        script: |
+          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
+          rm -f "$EXPORT_PLIST"
+          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          echo "==== ExportOptions.plist ===="
+          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
+
+      - name: List Xcode schemes (debug)
+        script: |
+          echo "=== Listing schemes in workspace ==="
+          xcodebuild -list -workspace "ios/App/App.xcworkspace" || true
+
+      - name: Archive (manual, use uploaded profile, auto-detect scheme)
         script: |
           set -e
-          echo "=== ARCHIVE using FireOpsCalcApp_AppStore ==="
+
+          # detect scheme name from workspace (take the first one)
+          DETECTED_SCHEME=$(xcodebuild -list -workspace "ios/App/App.xcworkspace" \
+            | awk -F': ' '/Schemes:/{flag=1;next}/^$/{flag=0}flag {gsub(/^[ \t]+/, "", $0); print $0}' \
+            | head -n1)
+
+          echo "Detected scheme: '$DETECTED_SCHEME'"
+
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "❌ Could not detect an Xcode scheme in ios/App/App.xcworkspace"
+            exit 1
+          fi
+
+          echo "=== ARCHIVE using $PROVISIONING_PROFILE_SPECIFIER ==="
           rm -rf "$ARCHIVE_PATH"
 
           xcodebuild \
             -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -scheme "$DETECTED_SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -archivePath "$ARCHIVE_PATH" \
@@ -79,45 +126,23 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             archive
 
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not created"
-            xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" | \
-              grep -E 'PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER' || true
-            exit 1
-          fi
-          echo "✅ Archive created at $ARCHIVE_PATH"
-
-      - name: Create ExportOptions.plist (release-testing)
-        script: |
-          set -e
-          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
-          rm -f "$EXPORT_PLIST"
-          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :method string release-testing" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
-          echo "=== ExportOptions.plist ==="
-          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
-
       - name: Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
+
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist /Users/builder/ExportOptions.plist \
+            -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
             -exportPath "$EXPORT_DIR"
 
           IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
-            echo "❌ Export did not produce IPA"
+            echo "❌ Export did not produce an IPA. Contents of $EXPORT_DIR:"
             ls -la "$EXPORT_DIR" || true
-            LOG_DIR="$(find /var/folders -name '*.xcdistributionlogs' -maxdepth 5 2>/dev/null | head -n 1)"
-            echo "=== Export logs at: $LOG_DIR ==="
             exit 1
           fi
+
           mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
           echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
