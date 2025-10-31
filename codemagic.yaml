@@ -21,18 +21,17 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # Xcode / project paths
+        # App info
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+        DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
+        SCHEME: "App"
         CONFIGURATION: "Release"
 
-        # we will auto-detect SCHEME below, so we don’t hardcode it here
-        DEVELOPMENT_TEAM: "QZ55W58398"
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-
-        # this is the profile you just uploaded to Codemagic
+        # Signing
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
 
-        # Archive / export paths
+        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -45,28 +44,25 @@ workflows:
           - FireOpsCalcApp_AppStore
 
     scripts:
-      - name: Install Node deps & build web (if present)
+      - name: Install Node dependencies & build web assets
         script: |
           if [ -f package.json ]; then
-            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
-              npm ci || npm install
-            else
-              npm install
-            fi
+            echo "Installing dependencies..."
+            npm ci || npm install
+            echo "Building web assets..."
             npm run build --if-present
           else
-            echo "No package.json, skipping web build."
+            echo "No package.json found, skipping web build."
           fi
 
-      - name: Capacitor sync iOS (ensures ios/App/App/public etc.)
+      - name: Sync Capacitor iOS
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
-            echo "No capacitor.config.* found — assuming native iOS already present."
+            echo "No capacitor.config.* found. Assuming native files already exist."
           fi
-
-          echo "Listing ios/App/App after sync:"
+          echo "Listing iOS project structure:"
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -75,7 +71,7 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Create ExportOptions.plist (manual, app store connect)
+      - name: Create ExportOptions.plist
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
@@ -90,33 +86,14 @@ workflows:
           echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: List Xcode schemes (debug)
-        script: |
-          echo "=== Listing schemes in workspace ==="
-          xcodebuild -list -workspace "ios/App/App.xcworkspace" || true
-
-      - name: Archive (manual, use uploaded profile, auto-detect scheme)
+      - name: Archive App (manual signing)
         script: |
           set -e
-
-          # detect scheme name from workspace (take the first one)
-          DETECTED_SCHEME=$(xcodebuild -list -workspace "ios/App/App.xcworkspace" \
-            | awk -F': ' '/Schemes:/{flag=1;next}/^$/{flag=0}flag {gsub(/^[ \t]+/, "", $0); print $0}' \
-            | head -n1)
-
-          echo "Detected scheme: '$DETECTED_SCHEME'"
-
-          if [ -z "$DETECTED_SCHEME" ]; then
-            echo "❌ Could not detect an Xcode scheme in ios/App/App.xcworkspace"
-            exit 1
-          fi
-
-          echo "=== ARCHIVE using $PROVISIONING_PROFILE_SPECIFIER ==="
+          echo "=== ARCHIVING FireOpsCalc ==="
           rm -rf "$ARCHIVE_PATH"
-
           xcodebuild \
             -workspace "$WORKSPACE" \
-            -scheme "$DETECTED_SCHEME" \
+            -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -archivePath "$ARCHIVE_PATH" \
@@ -126,11 +103,11 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             archive
 
-      - name: Export IPA
+      - name: Export IPA (manual signing)
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
-
+          echo "=== EXPORTING IPA ==="
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
