@@ -1,89 +1,150 @@
-=== 1) List schemes in workspace ===
-Command line invocation:
-    /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -list -workspace ios/App/App.xcworkspace
+workflows:
+  ios_release:
+    name: FireOpsCalc iOS Release (auto scheme, auto sign pods, manual export)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
 
-Information about workspace "App":
-    Schemes:
-        App
-        Capacitor
-        CapacitorCordova
-        Pods-App
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
 
-✅ Using detected scheme: App
-Command line invocation:
-    /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination generic/platform=iOS -archivePath /Users/builder/clone/build/App.xcarchive DEVELOPMENT_TEAM=QZ55W58398 PRODUCT_BUNDLE_IDENTIFIER=com.fireopscalc.app CODE_SIGN_STYLE=Automatic "CODE_SIGN_IDENTITY=Apple Distribution" archive
+    integrations:
+      app_store_connect: FireCalc
 
-Build settings from command line:
-    CODE_SIGN_IDENTITY = Apple Distribution
-    CODE_SIGN_STYLE = Automatic
-    DEVELOPMENT_TEAM = QZ55W58398
-    PRODUCT_BUNDLE_IDENTIFIER = com.fireopscalc.app
+    environment:
+      xcode: 16.4
+      cocoapods: default
+      node: 20.11.1
+      vars:
+        WORKSPACE: "ios/App/App.xcworkspace"
+        PROJECT: "ios/App/App.xcodeproj"
+        CONFIGURATION: "Release"
 
-note: Using codesigning identity override: Apple Distribution
-ComputePackagePrebuildTargetDependencyGraph
+        DEVELOPMENT_TEAM: "QZ55W58398"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-Prepare packages
+        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
+        CODE_SIGN_IDENTITY: "Apple Distribution"
 
-CreateBuildRequest
+        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
+        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
+        IPA_NAME: "FireOpsCalc.ipa"
 
-SendProjectDescription
+      ios_signing:
+        certificates:
+          - FireCalcCertiicate
+        provisioning_profiles:
+          - FireOpsCalcApp_AppStore
 
-CreateBuildOperation
+    scripts:
+      - name: Install Node deps & build web (if present)
+        script: |
+          if [ -f package.json ]; then
+            npm ci || npm install
+            npm run build --if-present
+          else
+            echo "No package.json — skipping web build."
+          fi
 
-ComputeTargetDependencyGraph
-note: Building targets in dependency order
-note: Target dependency graph (4 targets)
-    Target 'App' in project 'App'
-        ➜ Implicit dependency on target 'Pods-App' in project 'Pods' via file 'Pods_App.framework' in build phase 'Link Binary'
-        ➜ Implicit dependency on target 'Capacitor' in project 'Pods' via options '-framework Capacitor' in build setting 'OTHER_LDFLAGS'
-        ➜ Implicit dependency on target 'CapacitorCordova' in project 'Pods' via options '-framework Cordova' in build setting 'OTHER_LDFLAGS'
-    Target 'Pods-App' in project 'Pods'
-        ➜ Explicit dependency on target 'Capacitor' in project 'Pods'
-        ➜ Explicit dependency on target 'CapacitorCordova' in project 'Pods'
-    Target 'Capacitor' in project 'Pods'
-        ➜ Explicit dependency on target 'CapacitorCordova' in project 'Pods'
-    Target 'CapacitorCordova' in project 'Pods' (no dependencies)
+      - name: Capacitor sync iOS
+        script: |
+          if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
+            npx cap sync ios
+          else
+            echo "No capacitor.config.* found — assuming native already present."
+          fi
+          ls -la ios/App/App/ || true
 
-GatherProvisioningInputs
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install --repo-update || pod install
+          cd ../..
 
-CreateBuildDescription
+      - name: Create ExportOptions.plist for App Store
+        script: |
+          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
+          rm -f "$EXPORT_PLIST"
+          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode-16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -x c -c /dev/null
+      - name: Archive (auto-detect scheme, let Pods sign automatically)
+        script: |
+          set -e
+          echo "=== 1) List schemes in workspace ==="
+          xcodebuild -list -workspace "$WORKSPACE" || true
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/ibtool --version --output-format xml1
+          DETECTED_SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null \
+            | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
+            | head -n 1)
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode-16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -x c -c /dev/null
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "No scheme found in workspace. Trying project..."
+            xcodebuild -list -project "$PROJECT" || true
+            DETECTED_SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null \
+              | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
+              | head -n 1)
+          fi
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/builder/clone/ios/App/App/Assets.xcassets
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "❌ Could not detect any scheme in workspace or project."
+            exit 1
+          fi
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -arch arm64 -isysroot /Applications/Xcode-16.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.5.sdk -x objective-c -c /dev/null
+          echo "✅ Using detected scheme: $DETECTED_SCHEME"
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/libtool -V
+          rm -rf "$ARCHIVE_PATH"
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$DETECTED_SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
+            archive
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+      - name: Export IPA (apply App Store profile here)
+        script: |
+          set -e
+          mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
+            -exportPath "$EXPORT_DIR"
 
-ExecuteExternalTool /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+          IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ Export did not produce an IPA. Contents of $EXPORT_DIR:"
+            ls -la "$EXPORT_DIR" || true
+            exit 1
+          fi
 
-Build description signature: 730190dc8f9314b1d18cf9627dfe1bc9
-Build description path: /Users/builder/Library/Developer/Xcode/DerivedData/App-dfqlwfgrvlmjunbkfzimjqcghcbo/Build/Intermediates.noindex/ArchiveIntermediates/App/IntermediateBuildFilesPath/XCBuildData/730190dc8f9314b1d18cf9627dfe1bc9.xcbuilddata
-/Users/builder/clone/ios/App/App.xcodeproj: error: App has conflicting provisioning settings. App is automatically signed, but provisioning profile FireOpsCalcApp_AppStore has been manually specified. Set the provisioning profile value to "Automatic" in the build settings editor, or switch to manual signing in the Signing & Capabilities editor. (in target 'App' from project 'App')
-note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'App' from project 'App')
-warning: Run script build phase '[CP] Embed Pods Frameworks' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'App' from project 'App')
-/Users/builder/clone/ios/App/Pods/Pods.xcodeproj: error: Pods-App has conflicting provisioning settings. Pods-App is automatically signed for development, but a conflicting code signing identity Apple Distribution has been manually specified. Set the code signing identity value to "Apple Development" in the build settings editor, or switch to manual signing in the Signing & Capabilities editor. (in target 'Pods-App' from project 'Pods')
-note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'Pods-App' from project 'Pods')
-/Users/builder/clone/ios/App/Pods/Pods.xcodeproj: error: Capacitor has conflicting provisioning settings. Capacitor is automatically signed for development, but a conflicting code signing identity Apple Distribution has been manually specified. Set the code signing identity value to "Apple Development" in the build settings editor, or switch to manual signing in the Signing & Capabilities editor. (in target 'Capacitor' from project 'Pods')
-note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'Capacitor' from project 'Pods')
-/Users/builder/clone/ios/App/Pods/Pods.xcodeproj: error: CapacitorCordova has conflicting provisioning settings. CapacitorCordova is automatically signed for development, but a conflicting code signing identity Apple Distribution has been manually specified. Set the code signing identity value to "Apple Development" in the build settings editor, or switch to manual signing in the Signing & Capabilities editor. (in target 'CapacitorCordova' from project 'Pods')
-note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'CapacitorCordova' from project 'Pods')
-** ARCHIVE FAILED **
+          mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+          echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
+    artifacts:
+      - "/Users/builder/clone/Export/FireOpsCalc.ipa"
 
-The following build commands failed:
-	Archiving workspace App with scheme App
-(1 failure)
-
-
-Build failed :|
-Step 7 script `Archive (auto-detect scheme, BUT let Pods sign automatically)` exited with status code 65
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers
