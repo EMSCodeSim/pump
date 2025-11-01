@@ -21,17 +21,14 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # App info
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-        DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
+        PROJECT: "ios/App/App.xcodeproj"
         SCHEME: "App"
         CONFIGURATION: "Release"
-
-        # Signing
+        DEVELOPMENT_TEAM: "QZ55W58398"
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
 
-        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -44,25 +41,22 @@ workflows:
           - FireOpsCalcApp_AppStore
 
     scripts:
-      - name: Install Node dependencies & build web assets
+      - name: Install Node deps & build web (if present)
         script: |
           if [ -f package.json ]; then
-            echo "Installing dependencies..."
             npm ci || npm install
-            echo "Building web assets..."
             npm run build --if-present
           else
-            echo "No package.json found, skipping web build."
+            echo "No package.json, skipping web build."
           fi
 
-      - name: Sync Capacitor iOS
+      - name: Capacitor sync iOS
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
-            echo "No capacitor.config.* found. Assuming native files already exist."
+            echo "No capacitor.config.* found — assuming native iOS already present."
           fi
-          echo "Listing iOS project structure:"
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -70,6 +64,93 @@ workflows:
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
+
+      - name: Create shared Xcode scheme on the build machine
+        script: |
+          set -e
+          SCHEME_DIR="ios/App/App.xcodeproj/xcshareddata/xcschemes"
+          mkdir -p "$SCHEME_DIR"
+          cat > "$SCHEME_DIR/App.xcscheme" <<'XML'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <Scheme
+             LastUpgradeVersion = "1600"
+             version = "1.7">
+             <BuildAction
+                parallelizeBuildables = "YES"
+                buildImplicitDependencies = "YES">
+                <BuildActionEntries>
+                   <BuildActionEntry
+                      buildForTesting = "YES"
+                      buildForRunning = "YES"
+                      buildForProfiling = "YES"
+                      buildForArchiving = "YES"
+                      buildForAnalyzing = "YES">
+                      <BuildableReference
+                         BuildableIdentifier = "primary"
+                         BlueprintIdentifier = "App"
+                         BuildableName = "App.app"
+                         BlueprintName = "App"
+                         ReferencedContainer = "container:App.xcodeproj">
+                      </BuildableReference>
+                   </BuildActionEntry>
+                </BuildActionEntries>
+             </BuildAction>
+             <TestAction
+                buildConfiguration = "Debug"
+                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+                shouldUseLaunchSchemeArgsEnv = "YES">
+                <Testables>
+                </Testables>
+             </TestAction>
+             <LaunchAction
+                buildConfiguration = "Debug"
+                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+                launchStyle = "0"
+                useCustomWorkingDirectory = "NO"
+                ignoresPersistentStateOnLaunch = "NO"
+                debugDocumentVersioning = "YES">
+                <BuildableProductRunnable
+                   runnableDebuggingMode = "0">
+                   <BuildableReference
+                      BuildableIdentifier = "primary"
+                      BlueprintIdentifier = "App"
+                      BuildableName = "App.app"
+                      BlueprintName = "App"
+                      ReferencedContainer = "container:App.xcodeproj">
+                   </BuildableReference>
+                </BuildableProductRunnable>
+             </LaunchAction>
+             <ProfileAction
+                buildConfiguration = "Release"
+                shouldUseLaunchSchemeArgsEnv = "YES"
+                savedToolIdentifier = ""
+                useCustomWorkingDirectory = "NO"
+                debugDocumentVersioning = "YES">
+                <BuildableProductRunnable
+                   runnableDebuggingMode = "0">
+                   <BuildableReference
+                      BuildableIdentifier = "primary"
+                      BlueprintIdentifier = "App"
+                      BuildableName = "App.app"
+                      BlueprintName = "App"
+                      ReferencedContainer = "container:App.xcodeproj">
+                   </BuildableReference>
+                </BuildableProductRunnable>
+             </ProfileAction>
+             <AnalyzeAction
+                buildConfiguration = "Debug">
+             </AnalyzeAction>
+             <ArchiveAction
+                buildConfiguration = "Release"
+                revealArchiveInOrganizer = "YES">
+             </ArchiveAction>
+          </Scheme>
+          XML
+
+          echo "=== Schemes in workspace after creating one ==="
+          xcodebuild -list -workspace "$WORKSPACE" || true
 
       - name: Create ExportOptions.plist
         script: |
@@ -83,7 +164,6 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
-          echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
       - name: Archive App (manual signing)
@@ -103,11 +183,10 @@ workflows:
             PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             archive
 
-      - name: Export IPA (manual signing)
+      - name: Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
-          echo "=== EXPORTING IPA ==="
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
@@ -119,7 +198,6 @@ workflows:
             ls -la "$EXPORT_DIR" || true
             exit 1
           fi
-
           mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
           echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
