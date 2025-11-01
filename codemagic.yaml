@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release
+    name: FireOpsCalc iOS Release (auto-detect scheme)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -21,14 +21,19 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
+        # iOS project locations
         WORKSPACE: "ios/App/App.xcworkspace"
         PROJECT: "ios/App/App.xcodeproj"
-        SCHEME: "App"
         CONFIGURATION: "Release"
+
+        # your app
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+
+        # signing (your uploaded profile name)
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
 
+        # paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -47,7 +52,7 @@ workflows:
             npm ci || npm install
             npm run build --if-present
           else
-            echo "No package.json, skipping web build."
+            echo "No package.json — skipping web build."
           fi
 
       - name: Capacitor sync iOS
@@ -65,93 +70,6 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Create shared Xcode scheme on the build machine
-        script: |
-          set -e
-          SCHEME_DIR="ios/App/App.xcodeproj/xcshareddata/xcschemes"
-          mkdir -p "$SCHEME_DIR"
-          cat > "$SCHEME_DIR/App.xcscheme" <<'XML'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <Scheme
-             LastUpgradeVersion = "1600"
-             version = "1.7">
-             <BuildAction
-                parallelizeBuildables = "YES"
-                buildImplicitDependencies = "YES">
-                <BuildActionEntries>
-                   <BuildActionEntry
-                      buildForTesting = "YES"
-                      buildForRunning = "YES"
-                      buildForProfiling = "YES"
-                      buildForArchiving = "YES"
-                      buildForAnalyzing = "YES">
-                      <BuildableReference
-                         BuildableIdentifier = "primary"
-                         BlueprintIdentifier = "App"
-                         BuildableName = "App.app"
-                         BlueprintName = "App"
-                         ReferencedContainer = "container:App.xcodeproj">
-                      </BuildableReference>
-                   </BuildActionEntry>
-                </BuildActionEntries>
-             </BuildAction>
-             <TestAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                shouldUseLaunchSchemeArgsEnv = "YES">
-                <Testables>
-                </Testables>
-             </TestAction>
-             <LaunchAction
-                buildConfiguration = "Debug"
-                selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-                selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-                launchStyle = "0"
-                useCustomWorkingDirectory = "NO"
-                ignoresPersistentStateOnLaunch = "NO"
-                debugDocumentVersioning = "YES">
-                <BuildableProductRunnable
-                   runnableDebuggingMode = "0">
-                   <BuildableReference
-                      BuildableIdentifier = "primary"
-                      BlueprintIdentifier = "App"
-                      BuildableName = "App.app"
-                      BlueprintName = "App"
-                      ReferencedContainer = "container:App.xcodeproj">
-                   </BuildableReference>
-                </BuildableProductRunnable>
-             </LaunchAction>
-             <ProfileAction
-                buildConfiguration = "Release"
-                shouldUseLaunchSchemeArgsEnv = "YES"
-                savedToolIdentifier = ""
-                useCustomWorkingDirectory = "NO"
-                debugDocumentVersioning = "YES">
-                <BuildableProductRunnable
-                   runnableDebuggingMode = "0">
-                   <BuildableReference
-                      BuildableIdentifier = "primary"
-                      BlueprintIdentifier = "App"
-                      BuildableName = "App.app"
-                      BlueprintName = "App"
-                      ReferencedContainer = "container:App.xcodeproj">
-                   </BuildableReference>
-                </BuildableProductRunnable>
-             </ProfileAction>
-             <AnalyzeAction
-                buildConfiguration = "Debug">
-             </AnalyzeAction>
-             <ArchiveAction
-                buildConfiguration = "Release"
-                revealArchiveInOrganizer = "YES">
-             </ArchiveAction>
-          </Scheme>
-          XML
-
-          echo "=== Schemes in workspace after creating one ==="
-          xcodebuild -list -workspace "$WORKSPACE" || true
-
       - name: Create ExportOptions.plist
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
@@ -164,16 +82,40 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: Archive App (manual signing)
+      - name: Archive (auto-detect scheme)
         script: |
           set -e
-          echo "=== ARCHIVING FireOpsCalc ==="
+
+          echo "=== 1) List schemes in workspace ==="
+          xcodebuild -list -workspace "$WORKSPACE" || true
+
+          DETECTED_SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null \
+            | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
+            | head -n 1)
+
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "No scheme found in workspace. Trying project..."
+            xcodebuild -list -project "$PROJECT" || true
+            DETECTED_SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null \
+              | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
+              | head -n 1)
+          fi
+
+          if [ -z "$DETECTED_SCHEME" ]; then
+            echo "❌ Could not detect any scheme in workspace or project."
+            exit 1
+          fi
+
+          echo "✅ Using detected scheme: $DETECTED_SCHEME"
+
           rm -rf "$ARCHIVE_PATH"
+
           xcodebuild \
             -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -scheme "$DETECTED_SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -archivePath "$ARCHIVE_PATH" \
@@ -198,6 +140,7 @@ workflows:
             ls -la "$EXPORT_DIR" || true
             exit 1
           fi
+
           mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
           echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
 
