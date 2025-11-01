@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (auto-detect scheme)
+    name: FireOpsCalc iOS Release (auto-detect scheme, force distribution)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -21,17 +21,20 @@ workflows:
       cocoapods: default
       node: 20.11.1
       vars:
-        # iOS project locations
+        # iOS project
         WORKSPACE: "ios/App/App.xcworkspace"
         PROJECT: "ios/App/App.xcodeproj"
         CONFIGURATION: "Release"
 
-        # your app
+        # your team/app
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-        # signing (your uploaded profile name)
+        # your uploaded profile name in Codemagic
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
+
+        # force distribution (this is the important change)
+        CODE_SIGN_IDENTITY: "Apple Distribution"
 
         # paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
@@ -60,7 +63,7 @@ workflows:
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
-            echo "No capacitor.config.* found — assuming native iOS already present."
+            echo "No capacitor.config.* found — assuming native already present."
           fi
           ls -la ios/App/App/ || true
 
@@ -70,7 +73,7 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Create ExportOptions.plist
+      - name: Create ExportOptions.plist (App Store / manual)
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
@@ -85,7 +88,7 @@ workflows:
           echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: Archive (auto-detect scheme)
+      - name: Archive (auto-detect scheme, force Apple Distribution)
         script: |
           set -e
 
@@ -113,6 +116,7 @@ workflows:
 
           rm -rf "$ARCHIVE_PATH"
 
+          # IMPORTANT: force distribution identity + your profile
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$DETECTED_SCHEME" \
@@ -122,6 +126,7 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
             PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             archive
 
