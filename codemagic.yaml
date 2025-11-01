@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (auto-detect scheme, force distribution)
+    name: FireOpsCalc iOS Release (auto scheme, auto sign pods, manual export)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -30,10 +30,10 @@ workflows:
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-        # your uploaded profile name in Codemagic
+        # your uploaded profile name in Codemagic (App Store)
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
 
-        # force distribution (this is the important change)
+        # we still want distribution cert
         CODE_SIGN_IDENTITY: "Apple Distribution"
 
         # paths
@@ -73,7 +73,7 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Create ExportOptions.plist (App Store / manual)
+      - name: Create ExportOptions.plist for App Store
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
@@ -88,7 +88,7 @@ workflows:
           echo "==== ExportOptions.plist ===="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: Archive (auto-detect scheme, force Apple Distribution)
+      - name: Archive (auto-detect scheme, BUT let Pods sign automatically)
         script: |
           set -e
 
@@ -116,7 +116,10 @@ workflows:
 
           rm -rf "$ARCHIVE_PATH"
 
-          # IMPORTANT: force distribution identity + your profile
+          # IMPORTANT:
+          # - CODE_SIGN_STYLE=Automatic  -> so Pods/Capacitor don't get forced manual profiles
+          # - NO PROVISIONING_PROFILE_SPECIFIER on the command line
+          # - still tell it which team/bundle/id
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$DETECTED_SCHEME" \
@@ -125,12 +128,11 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_STYLE=Automatic \
             CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             archive
 
-      - name: Export IPA
+      - name: Export IPA (this is where we apply your App Store profile)
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
