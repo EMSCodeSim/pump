@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (clean signing → auto archive → manual export)
+    name: FireOpsCalc iOS Release (use-profiles → archive → export)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -23,12 +23,14 @@ workflows:
       vars:
         WORKSPACE: "ios/App/App.xcworkspace"
         PROJECT: "ios/App/App.xcodeproj"
+        SCHEME: "App"
         CONFIGURATION: "Release"
 
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
+        # this is the one you actually have in Codemagic
+        APPSTORE_PROFILE_NAME: "FireOpsCalcApp_AppStore"
 
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
@@ -66,22 +68,32 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 🔧 Clean Xcode project signing (remove manual/profile from pbxproj)
+      - name: Clean project of old manual signing
         script: |
           FILE="ios/App/App.xcodeproj/project.pbxproj"
-          echo "Before clean ====="
-          grep -n "ProvisioningStyle" "$FILE" || true
-          grep -n "PROVISIONING_PROFILE" "$FILE" || true
-
+          # get rid of old hard-coded manual stuff that was causing "conflicting provisioning settings"
           perl -pi -e 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$FILE"
-          perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = FireOpsCalcApp_AppStore;//g' "$FILE"
+          perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = .*;//g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE = .*;//g' "$FILE"
-
-          echo "After clean ====="
+          echo "After cleaning signing lines:"
           grep -n "ProvisioningStyle" "$FILE" || true
-          grep -n "PROVISIONING_PROFILE" "$FILE" || true
 
-      - name: Create ExportOptions.plist for App Store
+      - name: 🔐 Apply uploaded profiles to the project (Codemagic tool)
+        script: |
+          # CM_PROVISIONING_PROFILES_DIR is where Codemagic puts uploaded .mobileprovision files
+          # this will map your FireOpsCalcApp_AppStore profile to the right target
+          xcode-project use-profiles \
+            --project "$PROJECT" \
+            --scheme "$SCHEME" \
+            --export-method app-store-connect \
+            --profiles-dir "$CM_PROVISIONING_PROFILES_DIR" \
+            --team-id "$DEVELOPMENT_TEAM"
+
+          echo "After use-profiles, dump signing-related lines:"
+          grep -n "PROVISIONING_PROFILE" ios/App/App.xcodeproj/project.pbxproj || true
+          grep -n "ProvisioningStyle" ios/App/App.xcodeproj/project.pbxproj || true
+
+      - name: Create ExportOptions.plist (App Store)
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
@@ -90,53 +102,39 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $PROVISIONING_PROFILE_SPECIFIER" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $APPSTORE_PROFILE_NAME" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 📦 Archive (auto-detect scheme, FULLY automatic signing, allow provisioning)
+      - name: 📦 Archive (do NOT override signing from CLI)
         script: |
           set -e
 
-          echo "=== 1) List schemes in workspace ==="
-          xcodebuild -list -workspace "$WORKSPACE" || true
-
+          # auto-detect scheme just in case
           DETECTED_SCHEME=$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null \
             | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
             | head -n 1)
 
-          if [ -z "$DETECTED_SCHEME" ]; then
-            echo "No scheme found in workspace. Trying project..."
-            xcodebuild -list -project "$PROJECT" || true
-            DETECTED_SCHEME=$(xcodebuild -list -project "$PROJECT" 2>/dev/null \
-              | awk '/Schemes:/{flag=1;next}/^$/{flag=0}flag{print $1}' \
-              | head -n 1)
+          if [ -n "$DETECTED_SCHEME" ]; then
+            SCHEME="$DETECTED_SCHEME"
           fi
-
-          if [ -z "$DETECTED_SCHEME" ]; then
-            echo "❌ Could not detect any scheme in workspace or project."
-            exit 1
-          fi
-
-          echo "✅ Using detected scheme: $DETECTED_SCHEME"
 
           rm -rf "$ARCHIVE_PATH"
 
-          # 👇 THIS is the important part now: -allowProvisioningUpdates
+          # IMPORTANT:
+          #  - we do NOT pass CODE_SIGN_STYLE=Automatic here
+          #  - we do NOT pass PROVISIONING_PROFILE_SPECIFIER here
+          #  because `xcode-project use-profiles` already put the right values
           xcodebuild \
             -workspace "$WORKSPACE" \
-            -scheme "$DETECTED_SCHEME" \
+            -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination 'generic/platform=iOS' \
             -archivePath "$ARCHIVE_PATH" \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_STYLE=Automatic \
-            -allowProvisioningUpdates \
             archive
 
-      - name: 🚀 Export IPA (apply App Store profile)
+      - name: 🚀 Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
