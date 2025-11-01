@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (force-use-profile-first)
+    name: FireOpsCalc iOS Release (with signing fetch)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -14,7 +14,7 @@ workflows:
           source: true
 
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # ← this is the one you already have
 
     environment:
       xcode: 16.4
@@ -29,9 +29,6 @@ workflows:
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-        # IMPORTANT: this is the ONLY profile Codemagic said was available
-        APP_PROFILE_NAME: "FireOpsCalcprofile"
-
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
@@ -44,7 +41,7 @@ workflows:
           - FireOpsCalcprofile
 
     scripts:
-      - name: Install Node deps & build web (if present)
+      - name: Install Node deps & build web
         script: |
           if [ -f package.json ]; then
             npm ci || npm install
@@ -60,7 +57,6 @@ workflows:
           else
             echo "No capacitor.config.* found — assuming native already present."
           fi
-          echo "=== ios/App/App/ contents after sync ==="
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -69,62 +65,82 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Clean old manual signing from pbxproj
+      # 1) TRY TO GET PROFILES FROM CODemagic MOUNT
+      - name: Ensure signing files are present
+        script: |
+          echo "CM_PROVISIONING_PROFILES_DIR = '$CM_PROVISIONING_PROFILES_DIR'"
+          HAS_PROFILES=0
+          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ] && [ -n "$(ls -A "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null)" ]; then
+            echo "✅ Found mounted provisioning profiles:"
+            ls -la "$CM_PROVISIONING_PROFILES_DIR"
+            HAS_PROFILES=1
+          else
+            echo "⚠️ No mounted profiles — will try to fetch from App Store Connect..."
+          fi
+
+          if [ $HAS_PROFILES -eq 0 ]; then
+            # 2) TRY TO FETCH FROM APP STORE CONNECT
+            # These env vars are created by Codemagic when you set the integration.
+            if [ -z "$APP_STORE_CONNECT_ISSUER_ID" ] || [ -z "$APP_STORE_CONNECT_KEY_IDENTIFIER" ] || [ -z "$APP_STORE_CONNECT_PRIVATE_KEY" ]; then
+              echo "❌ App Store Connect integration missing or invalid."
+              echo "➡️ Go to Codemagic > Integrations > App Store Connect (FireCalc) and upload a VALID .p8, and make sure Issuer ID + Key ID are set."
+              exit 1
+            fi
+
+            # make dirs if missing
+            SIGNING_DIR="${CM_PROVISIONING_PROFILES_DIR:-/Users/builder/signing}"
+            mkdir -p "$SIGNING_DIR"
+
+            # try to fetch
+            set -e
+            app-store-connect fetch-signing-files \
+              --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+              --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+              --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+              --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
+              --type IOS_APP_STORE \
+              --certificate-key "/tmp/cert_key.p12" \
+              --profiles-dir "$SIGNING_DIR" || {
+                echo "❌ Failed to fetch from App Store Connect."
+                echo "Most common causes:"
+                echo "  1) The .p8 you uploaded is not a REAL App Store Connect API key (Codemagic log: 'not a valid PEM')"
+                echo "  2) The key was revoked in Apple and not updated in Codemagic"
+                echo "  3) The key DOES NOT have 'Developer ID' / 'App Manager' rights to create/download certs"
+                exit 1
+              }
+
+            echo "✅ Fetched signing files into $SIGNING_DIR"
+            export CM_PROVISIONING_PROFILES_DIR="$SIGNING_DIR"
+          fi
+
+      # 3) APPLY PROFILE TO PROJECT
+      - name: Apply profile to Xcode project
         script: |
           FILE="ios/App/App.xcodeproj/project.pbxproj"
-          echo "----- BEFORE CLEAN -----"
+          echo "---- BEFORE ----"
           grep -n "ProvisioningStyle" "$FILE" || true
           grep -n "PROVISIONING_PROFILE" "$FILE" || true
 
-          # reset to automatic + remove old specs
+          # clean old manual junk
           perl -pi -e 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = .*;//g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE = .*;//g' "$FILE"
 
-          echo "----- AFTER CLEAN -----"
+          # now actually inject what Codemagic fetched
+          if command -v xcode-project >/dev/null 2>&1; then
+            xcode-project use-profiles \
+              --project "ios/App/App.xcodeproj" \
+              --scheme "App" \
+              --export-method app-store-connect \
+              --profiles-dir "$CM_PROVISIONING_PROFILES_DIR" \
+              --team-id "$DEVELOPMENT_TEAM"
+          else
+            echo "⚠️ xcode-project tool missing, skipping automatic inject."
+          fi
+
+          echo "---- AFTER ----"
           grep -n "ProvisioningStyle" "$FILE" || true
           grep -n "PROVISIONING_PROFILE" "$FILE" || true
-
-      - name: 🔎 Check Codemagic profiles dir and fail if empty
-        script: |
-          echo "CM_PROVISIONING_PROFILES_DIR = $CM_PROVISIONING_PROFILES_DIR"
-          if [ -z "$CM_PROVISIONING_PROFILES_DIR" ]; then
-            echo "❌ CM_PROVISIONING_PROFILES_DIR is empty — Codemagic didn't mount your profiles."
-            exit 1
-          fi
-
-          echo "=== Profiles found in CM_PROVISIONING_PROFILES_DIR ==="
-          ls -la "$CM_PROVISIONING_PROFILES_DIR" || true
-
-          # look for our intended profile name (case-insensitive match)
-          FOUND=$(ls -1 "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null | grep -i "$APP_PROFILE_NAME" || true)
-          if [ -z "$FOUND" ]; then
-            echo "❌ Did not find a profile matching: $APP_PROFILE_NAME"
-            echo "These are the files Codemagic sees:"
-            ls -1 "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null || true
-            exit 1
-          fi
-          echo "✅ Found profile file: $FOUND"
-
-      - name: ✅ Apply uploaded profile to project (REQUIRED)
-        script: |
-          # make sure the tool is there
-          if ! command -v xcode-project >/dev/null 2>&1; then
-            echo "❌ codemagic 'xcode-project' tool is missing on this image."
-            exit 1
-          fi
-
-          # map the profile to the scheme/project
-          xcode-project use-profiles \
-            --project "$PROJECT" \
-            --scheme "$SCHEME" \
-            --export-method app-store-connect \
-            --profiles-dir "$CM_PROVISIONING_PROFILES_DIR" \
-            --team-id "$DEVELOPMENT_TEAM"
-
-          echo "----- pbxproj AFTER use-profiles -----"
-          grep -n "PROVISIONING_PROFILE" ios/App/App.xcodeproj/project.pbxproj || true
-          grep -n "ProvisioningStyle" ios/App/App.xcodeproj/project.pbxproj || true
 
       - name: Make ExportOptions.plist
         script: |
@@ -135,20 +151,19 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $APP_PROFILE_NAME" "$EXPORT_PLIST"
+          # we don't know exact profile filename, so just map by bundle id to "FireOpsCalcprofile"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string FireOpsCalcprofile" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 📦 Archive (now the project SHOULD have the profile)
+      - name: 📦 Archive
         script: |
           set -e
           rm -rf "$ARCHIVE_PATH"
 
-          echo "=== 1) List schemes in workspace (debug) ==="
           xcodebuild -list -workspace "$WORKSPACE" || true
 
-          echo "=== 2) Archive ==="
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -161,6 +176,7 @@ workflows:
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
+
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
