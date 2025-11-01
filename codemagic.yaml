@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (manual profiles already in Codemagic)
+    name: FireOpsCalc iOS Release (manual profiles in Codemagic)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -13,27 +13,35 @@ workflows:
           include: true
           source: true
 
+    # 👇 THIS was missing — now publishing can use the integration
+    integrations:
+      app_store_connect: FireCalc
+
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
+        # iOS project info
         WORKSPACE: "ios/App/App.xcworkspace"
         PROJECT: "ios/App/App.xcodeproj"
         SCHEME: "App"
         CONFIGURATION: "Release"
 
+        # Your Apple team + bundle
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
+        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # 👇 Use the profile that matches your uploaded name
+        # Name of the profile exactly as it is in Codemagic UI
         APPSTORE_PROFILE_NAME: "FireOpsCalcApp_AppStore"
 
+      # 👇 These are exactly what you have in the UI
       ios_signing:
         certificates:
           - FireCalcCertiicate
@@ -53,7 +61,8 @@ workflows:
       - name: Capacitor sync iOS
         script: |
           npx cap sync ios
-          ls -la ios/App/App/ || true
+          echo "== ios/App/App =="
+          ls -la ios/App/App || true
 
       - name: Install CocoaPods
         script: |
@@ -61,17 +70,56 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Clean manual signing settings
+      # 1) make sure profiles are actually mounted (but don't fail build here)
+      - name: Check mounted profiles
+        script: |
+          echo "CM_PROVISIONING_PROFILES_DIR: $CM_PROVISIONING_PROFILES_DIR"
+          if [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
+            echo "== Mounted profiles =="
+            ls -la "$CM_PROVISIONING_PROFILES_DIR"
+          else
+            echo "⚠️ Profiles dir not mounted (yet). We'll still try to apply profiles."
+          fi
+
+      # 2) apply the mounted Codemagic profiles to the Xcode project
+      #    this is the thing that was missing before
+      - name: Apply Codemagic profiles to Xcode project
+        script: |
+          xcode-project use-profiles --path "ios/App/App.xcodeproj" || true
+
+      # 3) make sure project itself is not hard-coded to someone else's profile
+      - name: Clean hardcoded profiles from project.pbxproj
         script: |
           FILE="ios/App/App.xcodeproj/project.pbxproj"
+          # turn any Manual style to Automatic
           perl -pi -e 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$FILE"
+          # remove old specifiers
           perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = .*;//g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE = .*;//g' "$FILE"
 
-      - name: Verify Codemagic signing mount
+      - name: Archive with Xcode (use workspace/scheme, let applied profiles handle signing)
         script: |
-          echo "=== Profiles mounted ==="
-          ls -la "$CM_PROVISIONING_PROFILES_DIR" || echo "⚠️ No profiles mounted!"
+          set -e
+          rm -rf "$ARCHIVE_PATH"
+
+          # just to log schemes
+          xcodebuild -list -workspace "$WORKSPACE" || true
+
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            archive | xcpretty || true
+
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive was not created at $ARCHIVE_PATH"
+            exit 1
+          fi
+          echo "✅ Archive created at $ARCHIVE_PATH"
 
       - name: Create ExportOptions.plist
         script: |
@@ -84,44 +132,29 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $APPSTORE_PROFILE_NAME" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          echo "== ExportOptions.plist =="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 📦 Archive
-        script: |
-          set -e
-          rm -rf "$ARCHIVE_PATH"
-          xcodebuild -list -workspace "$WORKSPACE" || true
-
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration "$CONFIGURATION" \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$ARCHIVE_PATH" \
-            DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM \
-            PRODUCT_BUNDLE_IDENTIFIER=$PRODUCT_BUNDLE_IDENTIFIER \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$APPSTORE_PROFILE_NAME" \
-            archive
-
-      - name: 🚀 Export IPA
+      - name: Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
+
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "/Users/builder/ExportOptions.plist" \
-            -exportPath "$EXPORT_DIR"
+            -exportPath "$EXPORT_DIR" \
+            | xcpretty || true
 
           IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
-            echo "❌ No IPA created!"
-            ls -la "$EXPORT_DIR"
+            echo "❌ No IPA produced"
+            ls -la "$EXPORT_DIR" || true
             exit 1
           fi
 
           mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
-          echo "✅ Exported: $IPA_EXPORT_DIR/$IPA_NAME"
+          echo "✅ Exported IPA to $IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - "/Users/builder/clone/Export/FireOpsCalc.ipa"
