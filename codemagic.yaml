@@ -4,8 +4,9 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # ✅ this is required because you’re using
+    # you had a validation error earlier — this makes
     # publishing: app_store_connect: auth: integration
+    # actually valid
     integrations:
       app_store_connect: FireCalc
 
@@ -26,13 +27,14 @@ workflows:
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         BUNDLE_ID: "com.fireopscalc.app"
-        EXPORT_DIR: "/Users/builder/clone/Export"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
     scripts:
       - name: 1) Install Node deps & build web
         script: |
+          set -e
           if [ -f package.json ]; then
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
               npm ci || npm install
@@ -46,39 +48,56 @@ workflows:
 
       - name: 2) Capacitor sync iOS
         script: |
+          set -e
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
             echo "No capacitor config, skipping npx cap sync ios"
           fi
-          echo "Contents of ios/App/App:"
+          echo "=== ios/App/App after sync ==="
           ls -la ios/App/App || true
 
       - name: 3) Install CocoaPods
         script: |
+          set -e
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 4) Fetch signing files from App Store Connect (this fixes CM_PROVISIONING_PROFILES_DIR=empty)
+      - name: 4) Fetch signing files from App Store Connect and apply
         script: |
-          # pulls BOTH the certificate and the provisioning profile from ASC
+          set -e
+
+          echo "=== fetch app_store profile for com.fireopscalc.app using certificate FireCalcCertiicate ==="
+          # your CM account shows the name EXACTLY like this:
+          #   FireCalcCertiicate
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
             --bundle-id "$BUNDLE_ID" \
-            --certificate-key "FireCalcCertiicate"
+            --certificate-key "FireCalcCertiicate" || echo "⚠️ app_store fetch failed (will still try to continue)"
 
-          # import the downloaded certificate(s) to keychain
+          # (optional) also grab a dev profile, doesn’t hurt
+          app-store-connect fetch-signing-files \
+            --type IOS_APP_DEVELOPMENT \
+            --bundle-id "$BUNDLE_ID" \
+            --certificate-key "FireCalcCertiicate" || echo "⚠️ dev fetch failed"
+
+          echo "=== import certs to keychain ==="
           keychain add-certificates
 
-          # tell Xcode project to actually USE the downloaded profiles
+          echo "=== apply profiles to Xcode project ==="
           xcode-project use-profiles
 
-          echo "Provisioning dir content:"
-          ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
+          echo "=== what Codemagic actually mounted ==="
+          echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
+          ls -R "$CM_PROVISIONING_PROFILES_DIR" || echo "⚠️ directory empty"
 
-      - name: 5) Create ExportOptions.plist
+          echo "=== available signing identities ==="
+          security find-identity -v -p codesigning || true
+
+      - name: 5) Create ExportOptions.plist (App Store Connect)
         script: |
+          set -e
           EXPORT_PLIST="/Users/builder/export_options.plist"
           rm -f "$EXPORT_PLIST"
           /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
@@ -86,11 +105,13 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :teamID string QZ55W58398" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
-          echo "==== ExportOptions.plist ===="
+          echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 6) Archive (let applied profiles handle signing)
+      - name: 6) Archive (fail fast, show log, show archive dir)
         script: |
+          set -e
+          echo "=== xcodebuild archive starting ==="
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -100,8 +121,19 @@ workflows:
             archive \
             | xcpretty
 
+          # make sure archive was really created
+          if [ ! -d "$ARCHIVE_PATH" ]; then
+            echo "❌ Archive not found at $ARCHIVE_PATH"
+            echo "=== Contents of /Users/builder/clone/build ==="
+            ls -R /Users/builder/clone/build || true
+            exit 1
+          fi
+
+          echo "✅ Archive created at $ARCHIVE_PATH"
+
       - name: 7) Export IPA
         script: |
+          set -e
           mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
