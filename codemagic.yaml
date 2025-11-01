@@ -4,7 +4,6 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # needed so publishing: app_store_connect works
     integrations:
       app_store_connect: FireCalc
 
@@ -29,14 +28,12 @@ workflows:
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-      # 👇 this is what makes CM actually MOUNT the items you showed in your screenshots
+      # 👇 MUST match Codemagic UI exactly
       ios_signing:
         certificates:
-          # fix the earlier typo "FireCalcCertiicate"
-          # use the name as it appears in Codemagic UI
-          - FireOpsCalcCertificate
+          # use the name Codemagic said is available
+          - FireCalcCertiicate
         provisioning_profiles:
-          # you had both of these in your logs/screens:
           - FireOpsCalcApp_AppStore
           - FireOpsCalcprofile
 
@@ -73,39 +70,37 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 4) Try to fetch from App Store Connect (POSitional syntax!) and show what CM mounted
+      - name: 4) Fetch from App Store Connect (positional arg) + show what CM mounted
         script: |
-          # don't "set -e" here, we want to CONTINUE even if fetch fails
-          echo "=== 4a) Try: app-store-connect fetch-signing-files (App Store) ==="
+          echo "=== 4a) fetch APP STORE profile for com.fireopscalc.app ==="
           app-store-connect fetch-signing-files com.fireopscalc.app \
             --type IOS_APP_STORE \
             --create \
-            || echo "⚠️ fetch (IOS_APP_STORE) failed — will keep going"
+            || echo "⚠️ app store fetch failed (will continue)"
 
-          echo "=== 4b) Try: app-store-connect fetch-signing-files (Development) ==="
+          echo "=== 4b) fetch DEV profile (optional) ==="
           app-store-connect fetch-signing-files com.fireopscalc.app \
             --type IOS_APP_DEVELOPMENT \
             --create \
-            || echo "⚠️ fetch (IOS_APP_DEVELOPMENT) failed — will keep going"
+            || echo "⚠️ dev fetch failed (will continue)"
 
-          echo "=== 4c) Import any certs CM mounted ==="
-          keychain add-certificates || echo "⚠️ keychain add-certificates had nothing to import"
+          echo "=== 4c) import certs CM mounted ==="
+          keychain add-certificates || echo "⚠️ no certs imported"
 
-          echo "=== 4d) Apply to Xcode project (may fail if nothing was mounted) ==="
-          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually means no profiles)"
+          echo "=== 4d) apply profiles to Xcode project (best-effort) ==="
+          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually: no profiles)"
 
-          echo "=== 4e) What did CM actually mount? ==="
+          echo "=== 4e) list CM_PROVISIONING_PROFILES_DIR ==="
           echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
           if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
             ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
           else
-            echo "❌ CM_PROVISIONING_PROFILES_DIR is empty — check codemagic UI code signing NAMES"
+            echo "❌ CM didn’t mount any profiles — check names in ios_signing: against Code signing page"
           fi
 
-          echo "=== 4f) List profiles from ASC (diagnostic) ==="
+          echo "=== 4f) ASC profiles (diagnostic) ==="
           app-store-connect profiles --json || true
-
-          echo "=== 4g) List certs from ASC (diagnostic) ==="
+          echo "=== 4g) ASC certificates (diagnostic) ==="
           app-store-connect certificates --json || true
 
       - name: 5) Create ExportOptions.plist (App Store Connect)
@@ -121,10 +116,10 @@ workflows:
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 6) Archive (stop here if no profile)
+      - name: 6) Archive with Xcode (use workspace + scheme)
         script: |
           set -e
-          echo "=== xcodebuild archive starting ==="
+          echo "=== xcodebuild archive ==="
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -135,12 +130,10 @@ workflows:
             | xcpretty
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not found at $ARCHIVE_PATH"
+            echo "❌ Archive was not created at $ARCHIVE_PATH"
             ls -R /Users/builder/clone/build || true
-            # hard fail so we don't get the fake 'no .ipa' error later
             exit 1
           fi
-          echo "✅ Archive created at $ARCHIVE_PATH"
 
       - name: 7) Export IPA
         script: |
