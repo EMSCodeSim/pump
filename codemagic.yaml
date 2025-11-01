@@ -4,9 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # you had a validation error earlier — this makes
-    # publishing: app_store_connect: auth: integration
-    # actually valid
+    # needed for publishing: auth: integration
     integrations:
       app_store_connect: FireCalc
 
@@ -64,36 +62,36 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 4) Fetch signing files from App Store Connect and apply
+      - name: 4) Get signing from ASC (no certificate-key) and apply
         script: |
           set -e
 
-          echo "=== fetch app_store profile for com.fireopscalc.app using certificate FireCalcCertiicate ==="
-          # your CM account shows the name EXACTLY like this:
-          #   FireCalcCertiicate
+          echo "=== 4a) fetch APP STORE signing for $BUNDLE_ID ==="
+          # let Codemagic choose the cert/profile that belongs to this team + bundle id
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
             --bundle-id "$BUNDLE_ID" \
-            --certificate-key "FireCalcCertiicate" || echo "⚠️ app_store fetch failed (will still try to continue)"
+            --create || echo "⚠️ app store fetch failed"
 
-          # (optional) also grab a dev profile, doesn’t hurt
+          echo "=== 4b) fetch DEV signing (optional) ==="
           app-store-connect fetch-signing-files \
             --type IOS_APP_DEVELOPMENT \
             --bundle-id "$BUNDLE_ID" \
-            --certificate-key "FireCalcCertiicate" || echo "⚠️ dev fetch failed"
+            --create || echo "⚠️ dev fetch failed"
 
-          echo "=== import certs to keychain ==="
+          echo "=== 4c) import whatever we now have ==="
           keychain add-certificates
 
-          echo "=== apply profiles to Xcode project ==="
-          xcode-project use-profiles
+          echo "=== 4d) apply profiles to Xcode project ==="
+          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed"
 
-          echo "=== what Codemagic actually mounted ==="
+          echo "=== 4e) show what Codemagic mounted ==="
           echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
-          ls -R "$CM_PROVISIONING_PROFILES_DIR" || echo "⚠️ directory empty"
-
-          echo "=== available signing identities ==="
-          security find-identity -v -p codesigning || true
+          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
+            ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
+          else
+            echo "❌ CM_PROVISIONING_PROFILES_DIR is empty — profiles not mounted"
+          fi
 
       - name: 5) Create ExportOptions.plist (App Store Connect)
         script: |
@@ -108,7 +106,7 @@ workflows:
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 6) Archive (fail fast, show log, show archive dir)
+      - name: 6) Archive (stop if missing profile)
         script: |
           set -e
           echo "=== xcodebuild archive starting ==="
@@ -121,14 +119,11 @@ workflows:
             archive \
             | xcpretty
 
-          # make sure archive was really created
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not found at $ARCHIVE_PATH"
-            echo "=== Contents of /Users/builder/clone/build ==="
             ls -R /Users/builder/clone/build || true
             exit 1
           fi
-
           echo "✅ Archive created at $ARCHIVE_PATH"
 
       - name: 7) Export IPA
@@ -147,7 +142,6 @@ workflows:
             ls -la "$EXPORT_DIR" || true
             exit 1
           fi
-
           mv -f "$IPA_PATH" "$EXPORT_DIR/$IPA_NAME"
           echo "✅ IPA at $EXPORT_DIR/$IPA_NAME"
 
