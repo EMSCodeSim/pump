@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (codemagic profile → archive → export)
+    name: FireOpsCalc iOS Release (force-use-profile-first)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -29,8 +29,8 @@ workflows:
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
-        # 👇 THIS is the one Codemagic said actually exists
-        APPSTORE_PROFILE_NAME: "FireOpsCalcprofile"
+        # IMPORTANT: this is the ONLY profile Codemagic said was available
+        APP_PROFILE_NAME: "FireOpsCalcprofile"
 
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
@@ -60,6 +60,7 @@ workflows:
           else
             echo "No capacitor.config.* found — assuming native already present."
           fi
+          echo "=== ios/App/App/ contents after sync ==="
           ls -la ios/App/App/ || true
 
       - name: Install CocoaPods
@@ -68,13 +69,14 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: Clean leftover manual signing from pbxproj
+      - name: Clean old manual signing from pbxproj
         script: |
           FILE="ios/App/App.xcodeproj/project.pbxproj"
           echo "----- BEFORE CLEAN -----"
           grep -n "ProvisioningStyle" "$FILE" || true
           grep -n "PROVISIONING_PROFILE" "$FILE" || true
 
+          # reset to automatic + remove old specs
           perl -pi -e 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = .*;//g' "$FILE"
           perl -pi -e 's/PROVISIONING_PROFILE = .*;//g' "$FILE"
@@ -83,16 +85,36 @@ workflows:
           grep -n "ProvisioningStyle" "$FILE" || true
           grep -n "PROVISIONING_PROFILE" "$FILE" || true
 
-      - name: 👀 Show Codemagic profiles dir
+      - name: 🔎 Check Codemagic profiles dir and fail if empty
         script: |
           echo "CM_PROVISIONING_PROFILES_DIR = $CM_PROVISIONING_PROFILES_DIR"
-          ls -la "$CM_PROVISIONING_PROFILES_DIR" || true
-          echo "Files in profiles dir (with grep):"
-          ls -1 "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null | grep -i fire || true
+          if [ -z "$CM_PROVISIONING_PROFILES_DIR" ]; then
+            echo "❌ CM_PROVISIONING_PROFILES_DIR is empty — Codemagic didn't mount your profiles."
+            exit 1
+          fi
 
-      - name: 🔐 Apply uploaded profile to project (xcode-project use-profiles)
+          echo "=== Profiles found in CM_PROVISIONING_PROFILES_DIR ==="
+          ls -la "$CM_PROVISIONING_PROFILES_DIR" || true
+
+          # look for our intended profile name (case-insensitive match)
+          FOUND=$(ls -1 "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null | grep -i "$APP_PROFILE_NAME" || true)
+          if [ -z "$FOUND" ]; then
+            echo "❌ Did not find a profile matching: $APP_PROFILE_NAME"
+            echo "These are the files Codemagic sees:"
+            ls -1 "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null || true
+            exit 1
+          fi
+          echo "✅ Found profile file: $FOUND"
+
+      - name: ✅ Apply uploaded profile to project (REQUIRED)
         script: |
-          # This will open the project and write the profile into the right target
+          # make sure the tool is there
+          if ! command -v xcode-project >/dev/null 2>&1; then
+            echo "❌ codemagic 'xcode-project' tool is missing on this image."
+            exit 1
+          fi
+
+          # map the profile to the scheme/project
           xcode-project use-profiles \
             --project "$PROJECT" \
             --scheme "$SCHEME" \
@@ -100,11 +122,11 @@ workflows:
             --profiles-dir "$CM_PROVISIONING_PROFILES_DIR" \
             --team-id "$DEVELOPMENT_TEAM"
 
-          echo "----- pbxproj after use-profiles -----"
+          echo "----- pbxproj AFTER use-profiles -----"
           grep -n "PROVISIONING_PROFILE" ios/App/App.xcodeproj/project.pbxproj || true
           grep -n "ProvisioningStyle" ios/App/App.xcodeproj/project.pbxproj || true
 
-      - name: Create ExportOptions.plist (App Store, using real profile name)
+      - name: Make ExportOptions.plist
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
           rm -f "$EXPORT_PLIST"
@@ -113,19 +135,20 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $APPSTORE_PROFILE_NAME" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:$PRODUCT_BUNDLE_IDENTIFIER string $APP_PROFILE_NAME" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 📦 Archive (use what project now contains)
+      - name: 📦 Archive (now the project SHOULD have the profile)
         script: |
           set -e
           rm -rf "$ARCHIVE_PATH"
 
-          # we already know App exists, but we still list
+          echo "=== 1) List schemes in workspace (debug) ==="
           xcodebuild -list -workspace "$WORKSPACE" || true
 
+          echo "=== 2) Archive ==="
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
