@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (auto scheme, auto sign pods, manual export)
+    name: FireOpsCalc iOS Release (clean signing → archive auto → export manual)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -28,8 +28,8 @@ workflows:
         DEVELOPMENT_TEAM: "QZ55W58398"
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
 
+        # this is your uploaded App Store profile name in Codemagic
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
-        CODE_SIGN_IDENTITY: "Apple Distribution"
 
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
@@ -67,6 +67,28 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
+      - name: 🔧 Clean Xcode project signing (remove manual/profile from pbxproj)
+        script: |
+          # some earlier edits hard-coded manual signing & a profile into the project
+          # strip them so we can actually archive with Automatic
+          FILE="ios/App/App.xcodeproj/project.pbxproj"
+          echo "Before clean ====="
+          grep -n "ProvisioningStyle" "$FILE" || true
+          grep -n "PROVISIONING_PROFILE_SPECIFIER" "$FILE" || true
+
+          # 1) switch target ProvisioningStyle to Automatic
+          perl -pi -e 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$FILE"
+
+          # 2) remove any hard-coded profile name (your App Store profile)
+          perl -pi -e 's/PROVISIONING_PROFILE_SPECIFIER = FireOpsCalcApp_AppStore;//g' "$FILE"
+
+          # 3) also remove any leftover PROVISIONING_PROFILE = ...; if it’s there
+          perl -pi -e 's/PROVISIONING_PROFILE = .*;//g' "$FILE"
+
+          echo "After clean ====="
+          grep -n "ProvisioningStyle" "$FILE" || true
+          grep -n "PROVISIONING_PROFILE" "$FILE" || true
+
       - name: Create ExportOptions.plist for App Store
         script: |
           EXPORT_PLIST="/Users/builder/ExportOptions.plist"
@@ -81,9 +103,10 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: Archive (auto-detect scheme, let Pods sign automatically)
+      - name: 📦 Archive (auto-detect scheme, FULLY automatic signing)
         script: |
           set -e
+
           echo "=== 1) List schemes in workspace ==="
           xcodebuild -list -workspace "$WORKSPACE" || true
 
@@ -108,6 +131,10 @@ workflows:
 
           rm -rf "$ARCHIVE_PATH"
 
+          # IMPORTANT:
+          # - no CODE_SIGN_IDENTITY override here
+          # - no PROVISIONING_PROFILE_SPECIFIER here
+          # - CODE_SIGN_STYLE=Automatic so Pods, Capacitor, and main target don't fight
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$DETECTED_SCHEME" \
@@ -117,10 +144,9 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="$CODE_SIGN_IDENTITY" \
             archive
 
-      - name: Export IPA (apply App Store profile here)
+      - name: 🚀 Export IPA (this is where we apply your App Store profile)
         script: |
           set -e
           mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
