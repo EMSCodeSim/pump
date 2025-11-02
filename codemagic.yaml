@@ -4,7 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # You need this because you set publishing -> auth: integration
+    # Needed because we're publishing with `auth: integration`
     integrations:
       app_store_connect: FireCalc
 
@@ -32,7 +32,7 @@ workflows:
         IPA_NAME: "FireOpsCalc.ipa"
 
     scripts:
-      - name: 0) Show Codemagic signing folders
+      - name: "0) show Codemagic signing folders"
         script: |
           echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
           if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
@@ -42,16 +42,20 @@ workflows:
           fi
           ls -la /Users/builder/Library/MobileDevice/Certificates 2>/dev/null || true
 
-      - name: 1) Best-effort: fetch signing from ASC
+      - name: "1) best-effort: fetch signing from ASC"
         script: |
           set +e
+          # try to pull app-store profile
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create || echo "⚠️ app-store fetch failed"
+          # try to pull dev profile too
           app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_DEVELOPMENT --create || echo "⚠️ dev fetch failed"
+          # import whatever got downloaded
           keychain add-certificates || echo "⚠️ add-certificates failed"
+          # map profiles into xcode project
           xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed"
           set -e
 
-      - name: 2) Install Node deps & build web
+      - name: "2) install Node deps & build web"
         script: |
           if [ -f package.json ]; then
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
@@ -64,7 +68,7 @@ workflows:
             echo "No package.json, skipping web build."
           fi
 
-      - name: 3) Capacitor sync iOS
+      - name: "3) Capacitor sync iOS"
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
@@ -74,13 +78,13 @@ workflows:
           echo "=== ios/App/App contents ==="
           ls -la ios/App/App || true
 
-      - name: 4) Install CocoaPods
+      - name: "4) install CocoaPods"
         script: |
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 5) Create ExportOptions.plist
+      - name: "5) create ExportOptions.plist"
         script: |
           EXPORT_PLIST="/Users/builder/export_options.plist"
           rm -f "$EXPORT_PLIST"
@@ -92,12 +96,12 @@ workflows:
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 6) Show Xcode signing settings
+      - name: "6) show Xcode signing settings"
         script: |
           xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -showBuildSettings | \
             grep -E "CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING" || true
 
-      - name: 7) Archive with Xcode (raw)
+      - name: "7) archive with Xcode (raw)"
         script: |
           set -e
           mkdir -p "$ARCHIVE_DIR"
@@ -114,7 +118,7 @@ workflows:
             exit 1
           fi
 
-      - name: 8) Export IPA
+      - name: "8) export IPA"
         script: |
           set -e
           mkdir -p "$EXPORT_DIR"
