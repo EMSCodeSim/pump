@@ -25,38 +25,40 @@ workflows:
         SCHEME: "App"
         TEAM_ID: "QZ55W58398"
         BUNDLE_ID: "com.fireopscalc.app"
-        GOOD_PROFILE_NAME: "FireOpsCalcprofile"   # <- this is the one you actually have
+        # this is the profile Codemagic actually shows in your screenshots
+        GOOD_PROFILE_NAME: "FireOpsCalcprofile"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
       ios_signing:
         certificates:
-          - FireCalcCertiicate          # <- keep the exact typo, that's what Codemagic has
+          # keep the exact name Codemagic has (typo and all)
+          - FireCalcCertiicate
         provisioning_profiles:
-          - FireOpsCalcprofile          # <- the one we want Xcode to use
+          - FireOpsCalcprofile
 
     scripts:
-      - name: "0) show what Codemagic mounted"
+      - name: "0) show mounted signing stuff"
         script: |
           echo "CM_PROVISIONING_PROFILES_DIR='$CM_PROVISIONING_PROFILES_DIR'"
-          echo "Certificates:"
+          echo "== mounted certs =="
           ls -la /Users/builder/Library/MobileDevice/Certificates 2>/dev/null || true
-          echo "Profiles (mounted):"
+          echo "== mounted profiles =="
           ls -la "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null || true
 
-      - name: "1) copy mounted profiles to Xcode's dir"
+      - name: "1) copy profiles into Xcode’s folder"
         script: |
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
             cp "$CM_PROVISIONING_PROFILES_DIR"/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles"/ 2>/dev/null || true
           else
-            echo "⚠️ no CM_PROVISIONING_PROFILES_DIR mounted"
+            echo "⚠️ CM_PROVISIONING_PROFILES_DIR not mounted"
           fi
-          echo "Profiles in Xcode dir now:"
+          echo "== Xcode provisioning profiles now =="
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
 
-      - name: "2) install Node deps & build web (if any)"
+      - name: "2) install Node deps & build web (if present)"
         script: |
           if [ -f package.json ]; then
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
@@ -66,7 +68,7 @@ workflows:
             fi
             npm run build --if-present
           else
-            echo "no package.json, skipping web build"
+            echo "no package.json; skipping web build"
           fi
 
       - name: "3) Capacitor sync iOS"
@@ -74,7 +76,7 @@ workflows:
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
-            echo "no capacitor config found, assuming native is already there"
+            echo "no capacitor config; assuming ios is already set up"
           fi
           echo "=== ios/App/App after sync ==="
           ls -la ios/App/App || true
@@ -85,34 +87,20 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      - name: "5) PATCH project.pbxproj to use the profile you actually have"
+      - name: "5) patch project.pbxproj to use FireOpsCalcprofile"
         script: |
           PBX="ios/App/App.xcodeproj/project.pbxproj"
-          echo "Patching $PBX ..."
+          echo "patching $PBX ..."
           if [ ! -f "$PBX" ]; then
-            echo "❌ $PBX not found"
+            echo "❌ project file not found at $PBX"
             exit 1
           fi
-          python3 - <<'PY'
-from pathlib import Path
+          # replace the old hardcoded profile name with the one Codemagic actually has
+          sed -i.bak 's/FireOpsCalcApp_AppStore/FireOpsCalcprofile/g' "$PBX"
+          echo "after patch, occurrences of FireOpsCalc:"
+          grep -n "FireOpsCalc" "$PBX" || true
 
-pbx = Path("ios/App/App.xcodeproj/project.pbxproj")
-text = pbx.read_text()
-
-old = "FireOpsCalcApp_AppStore"   # the bad one still in your project
-new = "FireOpsCalcprofile"        # the one Codemagic actually has
-
-if old in text:
-    text = text.replace(old, new)
-    pbx.write_text(text)
-    print(f"✅ replaced '{old}' -> '{new}'")
-else:
-    print(f"ℹ️ '{old}' not found, nothing to replace")
-PY
-          echo "=== verify ==="
-          grep -n "FireOpsCalc" ios/App/App.xcodeproj/project.pbxproj || true
-
-      - name: "6) create ExportOptions.plist (App Store)"
+      - name: "6) create ExportOptions.plist (app-store)"
         script: |
           EXPORT_PLIST="/Users/builder/export_options.plist"
           rm -f "$EXPORT_PLIST"
@@ -124,7 +112,7 @@ PY
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: "7) archive with Xcode (LET THE PROJECT USE ITS PROFILE)"
+      - name: "7) archive with Xcode (let project use patched profile)"
         script: |
           set -e
           mkdir -p /Users/builder/clone/build
