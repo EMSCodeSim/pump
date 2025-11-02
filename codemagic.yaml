@@ -4,7 +4,6 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # you already have this in UI, we must reference it here
     integrations:
       app_store_connect: FireCalc
 
@@ -26,54 +25,54 @@ workflows:
         SCHEME: "App"
         BUNDLE_ID: "com.fireopscalc.app"
         TEAM_ID: "QZ55W58398"
-
+        ARCHIVE_DIR: "/Users/builder/clone/build"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
     scripts:
-      # 0) show what CM mounted BEFORE we start
-      - name: 0) Show mounted signing stuff
+      - name: 0) Show what Codemagic mounted
         script: |
-          echo "=== BEFORE FETCH ==="
+          echo "=== 0) Mounted signing stuff ==="
           echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
           if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
             ls -la "$CM_PROVISIONING_PROFILES_DIR" || true
           else
-            echo "⚠️ CM_PROVISIONING_PROFILES_DIR is empty right now"
+            echo "⚠️ No profiles visible yet (this is what was causing 'App.app requires a provisioning profile')"
           fi
+          echo "=== 0b) Show mobiledevice certs ==="
+          ls -la /Users/builder/Library/MobileDevice/Certificates 2>/dev/null || true
 
-      # 1) get signing from App Store Connect (using workspace integration), then import
-      - name: 1) Fetch signing from ASC and apply
+      - name: 1) Fetch signing from App Store Connect (best effort)
         script: |
-          set -e
-          echo "=== 1a) ASC fetch (App Store) ==="
+          set +e
+          echo "=== 1a) ASC fetch app-store ==="
           app-store-connect fetch-signing-files com.fireopscalc.app \
             --type IOS_APP_STORE \
             --create \
-            || echo "⚠️ ASC fetch app-store failed, will continue"
+            || echo "⚠️ ASC app-store fetch failed (ok, continue)"
 
-          echo "=== 1b) ASC fetch (DEV, optional) ==="
+          echo "=== 1b) ASC fetch dev (optional) ==="
           app-store-connect fetch-signing-files com.fireopscalc.app \
             --type IOS_APP_DEVELOPMENT \
             --create \
-            || echo "⚠️ ASC fetch dev failed, ok"
+            || echo "⚠️ ASC dev fetch failed (ok, continue)"
 
-          echo "=== 1c) import whatever Codemagic mounted ==="
+          echo "=== 1c) import certs to keychain ==="
           keychain add-certificates || echo "⚠️ keychain add-certificates failed"
 
-          echo "=== 1d) apply profiles to Xcode project ==="
-          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually means no profiles)"
+          echo "=== 1d) apply profiles to Xcode project (if present) ==="
+          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually means no mounted profiles)"
 
-          echo "=== 1e) AFTER FETCH: what profiles do we actually have? ==="
+          echo "=== 1e) AFTER FETCH, show again ==="
           echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
           if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
             ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
           else
-            echo "❌ STILL EMPTY — this is why export later says “App.app requires a provisioning profile”"
+            echo "❌ STILL EMPTY — Codemagic didn’t mount a profile, export will complain later."
           fi
+          set -e
 
-      # 2) build web (your normal front / Capacitor)
       - name: 2) Install Node deps & build web
         script: |
           if [ -f package.json ]; then
@@ -87,7 +86,6 @@ workflows:
             echo "No package.json, skipping web build."
           fi
 
-      # 3) Capacitor sync so ios/App/App/public exists
       - name: 3) Capacitor sync iOS
         script: |
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
@@ -98,7 +96,6 @@ workflows:
           echo "=== ios/App/App after sync ==="
           ls -la ios/App/App || true
 
-      # 4) pods
       - name: 4) Install CocoaPods
         script: |
           set -e
@@ -106,7 +103,6 @@ workflows:
           pod install --repo-update || pod install
           cd ../..
 
-      # 5) make ExportOptions.plist
       - name: 5) Create ExportOptions.plist
         script: |
           set -e
@@ -120,37 +116,40 @@ workflows:
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      # 6) archive (now that use-profiles ran)
-      - name: 6) Archive with Xcode (use workspace/scheme)
+      - name: 6) Show build settings (to see signing error in plain text)
+        script: |
+          echo "=== 6) xcodebuild -showBuildSettings (this will tell us EXACTLY what signing Xcode thinks it has) ==="
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -showBuildSettings | grep -E "CODE_SIGN|DEVELOPMENT_TEAM|PRODUCT_BUNDLE_IDENTIFIER|PROVISIONING" || true
+
+      - name: 7) Archive with Xcode (no xcpretty, make dir first)
         script: |
           set -e
-          echo "=== xcodebuild archive ==="
+          mkdir -p "$ARCHIVE_DIR"
+          echo "=== 7) xcodebuild archive (raw output) ==="
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -destination generic/platform=iOS \
             -archivePath "$ARCHIVE_PATH" \
-            archive \
-            | xcpretty
+            archive
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive was not created at $ARCHIVE_PATH"
-            ls -R /Users/builder/clone/build || true
+            ls -R "$ARCHIVE_DIR" || true
             exit 1
           fi
+          echo "✅ Archive created at $ARCHIVE_PATH"
 
-      # 7) export
-      - name: 7) Export IPA
+      - name: 8) Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR"
-          echo "=== xcodebuild exportArchive ==="
+          echo "=== 8) xcodebuild exportArchive ==="
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist /Users/builder/export_options.plist \
-            -exportPath "$EXPORT_DIR" \
-            | xcpretty
+            -exportPath "$EXPORT_DIR"
 
           IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
           if [ -z "$IPA_PATH" ]; then
@@ -158,7 +157,6 @@ workflows:
             ls -la "$EXPORT_DIR" || true
             exit 1
           fi
-
           mv -f "$IPA_PATH" "$EXPORT_DIR/$IPA_NAME"
           echo "✅ IPA at $EXPORT_DIR/$IPA_NAME"
 
