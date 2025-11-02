@@ -4,6 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
+    # you already have this in UI, we must reference it here
     integrations:
       app_store_connect: FireCalc
 
@@ -24,23 +25,57 @@ workflows:
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         BUNDLE_ID: "com.fireopscalc.app"
+        TEAM_ID: "QZ55W58398"
+
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-      # 👇 MUST match Codemagic UI exactly
-      ios_signing:
-        certificates:
-          # use the name Codemagic said is available
-          - FireCalcCertiicate
-        provisioning_profiles:
-          - FireOpsCalcApp_AppStore
-          - FireOpsCalcprofile
-
     scripts:
-      - name: 1) Install Node deps & build web
+      # 0) show what CM mounted BEFORE we start
+      - name: 0) Show mounted signing stuff
+        script: |
+          echo "=== BEFORE FETCH ==="
+          echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
+          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
+            ls -la "$CM_PROVISIONING_PROFILES_DIR" || true
+          else
+            echo "⚠️ CM_PROVISIONING_PROFILES_DIR is empty right now"
+          fi
+
+      # 1) get signing from App Store Connect (using workspace integration), then import
+      - name: 1) Fetch signing from ASC and apply
         script: |
           set -e
+          echo "=== 1a) ASC fetch (App Store) ==="
+          app-store-connect fetch-signing-files com.fireopscalc.app \
+            --type IOS_APP_STORE \
+            --create \
+            || echo "⚠️ ASC fetch app-store failed, will continue"
+
+          echo "=== 1b) ASC fetch (DEV, optional) ==="
+          app-store-connect fetch-signing-files com.fireopscalc.app \
+            --type IOS_APP_DEVELOPMENT \
+            --create \
+            || echo "⚠️ ASC fetch dev failed, ok"
+
+          echo "=== 1c) import whatever Codemagic mounted ==="
+          keychain add-certificates || echo "⚠️ keychain add-certificates failed"
+
+          echo "=== 1d) apply profiles to Xcode project ==="
+          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually means no profiles)"
+
+          echo "=== 1e) AFTER FETCH: what profiles do we actually have? ==="
+          echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
+          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
+            ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
+          else
+            echo "❌ STILL EMPTY — this is why export later says “App.app requires a provisioning profile”"
+          fi
+
+      # 2) build web (your normal front / Capacitor)
+      - name: 2) Install Node deps & build web
+        script: |
           if [ -f package.json ]; then
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
               npm ci || npm install
@@ -52,9 +87,9 @@ workflows:
             echo "No package.json, skipping web build."
           fi
 
-      - name: 2) Capacitor sync iOS
+      # 3) Capacitor sync so ios/App/App/public exists
+      - name: 3) Capacitor sync iOS
         script: |
-          set -e
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
@@ -63,60 +98,30 @@ workflows:
           echo "=== ios/App/App after sync ==="
           ls -la ios/App/App || true
 
-      - name: 3) Install CocoaPods
+      # 4) pods
+      - name: 4) Install CocoaPods
         script: |
           set -e
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
 
-      - name: 4) Fetch from App Store Connect (positional arg) + show what CM mounted
-        script: |
-          echo "=== 4a) fetch APP STORE profile for com.fireopscalc.app ==="
-          app-store-connect fetch-signing-files com.fireopscalc.app \
-            --type IOS_APP_STORE \
-            --create \
-            || echo "⚠️ app store fetch failed (will continue)"
-
-          echo "=== 4b) fetch DEV profile (optional) ==="
-          app-store-connect fetch-signing-files com.fireopscalc.app \
-            --type IOS_APP_DEVELOPMENT \
-            --create \
-            || echo "⚠️ dev fetch failed (will continue)"
-
-          echo "=== 4c) import certs CM mounted ==="
-          keychain add-certificates || echo "⚠️ no certs imported"
-
-          echo "=== 4d) apply profiles to Xcode project (best-effort) ==="
-          xcode-project use-profiles || echo "⚠️ xcode-project use-profiles failed (usually: no profiles)"
-
-          echo "=== 4e) list CM_PROVISIONING_PROFILES_DIR ==="
-          echo "CM_PROVISIONING_PROFILES_DIR=$CM_PROVISIONING_PROFILES_DIR"
-          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
-            ls -R "$CM_PROVISIONING_PROFILES_DIR" || true
-          else
-            echo "❌ CM didn’t mount any profiles — check names in ios_signing: against Code signing page"
-          fi
-
-          echo "=== 4f) ASC profiles (diagnostic) ==="
-          app-store-connect profiles --json || true
-          echo "=== 4g) ASC certificates (diagnostic) ==="
-          app-store-connect certificates --json || true
-
-      - name: 5) Create ExportOptions.plist (App Store Connect)
+      # 5) make ExportOptions.plist
+      - name: 5) Create ExportOptions.plist
         script: |
           set -e
           EXPORT_PLIST="/Users/builder/export_options.plist"
           rm -f "$EXPORT_PLIST"
           /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :teamID string QZ55W58398" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
           echo "=== ExportOptions.plist ==="
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
 
-      - name: 6) Archive with Xcode (use workspace + scheme)
+      # 6) archive (now that use-profiles ran)
+      - name: 6) Archive with Xcode (use workspace/scheme)
         script: |
           set -e
           echo "=== xcodebuild archive ==="
@@ -135,10 +140,12 @@ workflows:
             exit 1
           fi
 
+      # 7) export
       - name: 7) Export IPA
         script: |
           set -e
           mkdir -p "$EXPORT_DIR"
+          echo "=== xcodebuild exportArchive ==="
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist /Users/builder/export_options.plist \
