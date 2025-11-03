@@ -4,9 +4,6 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    integrations:
-      app_store_connect: FireCalc
-
     triggering:
       events:
         - push
@@ -16,145 +13,199 @@ workflows:
           include: true
           source: true
 
+    # IMPORTANT: this must match the name of your ASC integration in Codemagic
+    integrations:
+      app_store_connect: FireCalc
+
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
+
       vars:
+        # Xcode / project metadata
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
-        TEAM_ID: "QZ55W58398"
-        BUNDLE_ID: "com.fireopscalc.app"
-        # this is the profile Codemagic actually shows in your screenshots
-        GOOD_PROFILE_NAME: "FireOpsCalcprofile"
+        CONFIGURATION: "Release"
+
+        # Bundle/team
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+        DEVELOPMENT_TEAM: "QZ55W58398"
+
+        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        EXPORT_DIR: "/Users/builder/clone/Export"
+        EXPORT_DIR: "/Users/builder/clone/Export/export_tmp"
+        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
+        # Capacitor web output directory (adjust if your build writes elsewhere)
+        WEB_DIR: "dist"
+
       ios_signing:
+        # Use the exact names you see in the Codemagic UI
         certificates:
-          # keep the exact name Codemagic has (typo and all)
-          - FireCalcCertiicate
+          - FireCalcCertiicate   # (spelling matches what's available in your account)
         provisioning_profiles:
-          - FireOpsCalcprofile
+          - FireOpsCalcprofile   # App Store profile for com.fireopscalc.app
 
     scripts:
-      - name: "0) show mounted signing stuff"
+      - name: 0) Install Node deps & build web (if present)
         script: |
-          echo "CM_PROVISIONING_PROFILES_DIR='$CM_PROVISIONING_PROFILES_DIR'"
-          echo "== mounted certs =="
-          ls -la /Users/builder/Library/MobileDevice/Certificates 2>/dev/null || true
-          echo "== mounted profiles =="
-          ls -la "$CM_PROVISIONING_PROFILES_DIR" 2>/dev/null || true
-
-      - name: "1) copy profiles into Xcode’s folder"
-        script: |
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          if [ -n "$CM_PROVISIONING_PROFILES_DIR" ] && [ -d "$CM_PROVISIONING_PROFILES_DIR" ]; then
-            cp "$CM_PROVISIONING_PROFILES_DIR"/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles"/ 2>/dev/null || true
-          else
-            echo "⚠️ CM_PROVISIONING_PROFILES_DIR not mounted"
-          fi
-          echo "== Xcode provisioning profiles now =="
-          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles" || true
-
-      - name: "2) install Node deps & build web (if present)"
-        script: |
+          set -euo pipefail
           if [ -f package.json ]; then
+            echo "Installing dependencies..."
             if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
               npm ci || npm install
             else
               npm install
             fi
+            echo "Building web..."
             npm run build --if-present
           else
-            echo "no package.json; skipping web build"
+            echo "No package.json found — skipping web build."
           fi
 
-      - name: "3) Capacitor sync iOS"
+      - name: 1) Capacitor sync iOS (ensures App/public & capacitor.config.json)
         script: |
+          set -euo pipefail
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
             npx cap sync ios
           else
-            echo "no capacitor config; assuming ios is already set up"
+            echo "No capacitor.config.* in repo root — assuming native iOS already present."
           fi
-          echo "=== ios/App/App after sync ==="
+
+          # If your web build didn’t put files into ios/App/App/public, copy them
+          if [ ! -d "ios/App/App/public" ]; then
+            if [ -d "$WEB_DIR" ]; then
+              echo "Copying web assets from $WEB_DIR => ios/App/App/public"
+              mkdir -p ios/App/App/public
+              rsync -a "$WEB_DIR"/ ios/App/App/public/
+            else
+              echo "WARNING: $WEB_DIR not found and ios/App/App/public missing."
+            fi
+          fi
+
+          # Make sure Info.plist and minimal config.xml exist (some templates expect it)
+          if [ ! -f "ios/App/App/config.xml" ]; then
+            cat > ios/App/App/config.xml <<'XML'
+            <?xml version='1.0' encoding='utf-8'?>
+            <widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+              <name>FireOpsCalc</name>
+            </widget>
+            XML
+          fi
+
+          echo "Contents of ios/App/App:"
           ls -la ios/App/App || true
 
-      - name: "4) install CocoaPods"
+      - name: 2) Install CocoaPods
         script: |
+          set -euo pipefail
           cd ios/App
           pod install --repo-update || pod install
           cd ../..
 
-      - name: "5) patch project.pbxproj to use FireOpsCalcprofile"
+      - name: 3) Preflight: verify signing material mounted by Codemagic
         script: |
-          PBX="ios/App/App.xcodeproj/project.pbxproj"
-          echo "patching $PBX ..."
-          if [ ! -f "$PBX" ]; then
-            echo "❌ project file not found at $PBX"
+          set -euo pipefail
+
+          echo "== Provisioning profiles mounted by Codemagic =="
+          echo "CM_PROVISIONING_PROFILES_DIR='${CM_PROVISIONING_PROFILES_DIR:-}'"
+          if [ -z "${CM_PROVISIONING_PROFILES_DIR:-}" ] || [ ! -d "${CM_PROVISIONING_PROFILES_DIR:-}" ]; then
+            echo "❌ CM_PROVISIONING_PROFILES_DIR is empty or missing — Codemagic did not mount your profiles."
             exit 1
           fi
-          # replace the old hardcoded profile name with the one Codemagic actually has
-          sed -i.bak 's/FireOpsCalcApp_AppStore/FireOpsCalcprofile/g' "$PBX"
-          echo "after patch, occurrences of FireOpsCalc:"
-          grep -n "FireOpsCalc" "$PBX" || true
+          ls -la "$CM_PROVISIONING_PROFILES_DIR"
 
-      - name: "6) create ExportOptions.plist (app-store)"
-        script: |
-          EXPORT_PLIST="/Users/builder/export_options.plist"
-          rm -f "$EXPORT_PLIST"
-          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :method string app-store" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :teamID string $TEAM_ID" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" "$EXPORT_PLIST"
-          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$EXPORT_PLIST"
-          echo "=== ExportOptions.plist ==="
-          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST"
+          echo "== Copying profiles to Xcode location =="
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$CM_PROVISIONING_PROFILES_DIR"/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles"/ 2>/dev/null || true
+          ls -la "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-      - name: "7) archive with Xcode (let project use patched profile)"
+          echo "== Checking that 'FireOpsCalcprofile' payload is present =="
+          if ! grep -ril "FireOpsCalcprofile" "$HOME/Library/MobileDevice/Provisioning Profiles" >/dev/null; then
+            echo "❌ Could not find a profile payload containing 'FireOpsCalcprofile'."
+            echo "   Make sure the selected profile name in Codemagic matches exactly and targets com.fireopscalc.app."
+            exit 1
+          fi
+
+          echo "== Codesigning identities in keychain (expect Apple Distribution) =="
+          security find-identity -v -p codesigning || true
+
+      - name: 4) Show workspace schemes & quick build settings
         script: |
-          set -e
-          mkdir -p /Users/builder/clone/build
-          xcodebuild \
+          set -euo pipefail
+          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -list -workspace "$WORKSPACE" || true
+          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIGURATION" | head -n 80 || true
+
+      - name: 5) Archive with raw xcodebuild (full logs; do not override signing)
+        script: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$ARCHIVE_PATH")"
+
+          echo "== ARCHIVE: raw xcodebuild (no xcpretty) =="
+          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Release \
+            -configuration "$CONFIGURATION" \
             -destination generic/platform=iOS \
             -archivePath "$ARCHIVE_PATH" \
-            archive | xcpretty || true
+            archive \
+            | tee /Users/builder/clone/build/archive.log
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive was not created at $ARCHIVE_PATH"
-            ls -R /Users/builder/clone/build || true
+            echo "❌ Archive not created at $ARCHIVE_PATH"
+            echo "Last 200 lines of archive.log:"
+            tail -n 200 /Users/builder/clone/build/archive.log || true
             exit 1
           fi
 
-      - name: "8) export IPA"
+          echo "✅ Archive created at $ARCHIVE_PATH"
+
+      - name: 6) Create ExportOptions.plist and export IPA
         script: |
-          set -e
-          mkdir -p "$EXPORT_DIR"
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist /Users/builder/export_options.plist \
-            -exportPath "$EXPORT_DIR" \
-            | xcpretty || true
+          set -euo pipefail
+          mkdir -p "$EXPORT_DIR" "$IPA_EXPORT_DIR"
 
-          IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1)"
-          if [ -z "$IPA_PATH" ]; then
-            echo "❌ No IPA created"
+          EXPORT_PLIST="/Users/builder/ExportOptions.plist"
+          # Build a valid plist via PlistBuddy to avoid XML formatting issues
+          /usr/bin/plutil -create xml1 "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :teamID string $DEVELOPMENT_TEAM" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :destination string export" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Add :manageAppVersionAndBuildNumber bool false" "$EXPORT_PLIST"
+
+          echo "== ExportOptions.plist =="
+          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
+
+          echo "== EXPORT with xcodebuild -exportArchive =="
+          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild \
+            -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$EXPORT_PLIST" \
+            -exportPath "$EXPORT_DIR" \
+            | tee /Users/builder/clone/build/export.log
+
+          IPA_PATH="$(ls -1t "$EXPORT_DIR"/*.ipa 2>/dev/null | head -n 1 || true)"
+          if [ -z "${IPA_PATH:-}" ]; then
+            echo "❌ Export did not produce an IPA. Contents of $EXPORT_DIR:"
             ls -la "$EXPORT_DIR" || true
+            echo "Last 200 lines of export.log:"
+            tail -n 200 /Users/builder/clone/build/export.log || true
             exit 1
           fi
-          mv -f "$IPA_PATH" "$EXPORT_DIR/$IPA_NAME"
-          echo "✅ IPA ready: $EXPORT_DIR/$IPA_NAME"
+
+          mv -f "$IPA_PATH" "$IPA_EXPORT_DIR/$IPA_NAME"
+          echo "✅ Exported IPA: $IPA_EXPORT_DIR/$IPA_NAME"
 
     artifacts:
-      - "$EXPORT_DIR/$IPA_NAME"
+      - "$IPA_EXPORT_DIR/$IPA_NAME"
 
     publishing:
       app_store_connect:
-        auth: integration
+        auth: integration            # requires the integrations.app_store_connect above
         submit_to_testflight: true
         beta_groups:
           - Internal Testers
