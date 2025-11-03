@@ -5,6 +5,9 @@ workflows:
     max_build_duration: 60
 
     environment:
+      # Load the env-var group you created in the UI
+      groups:
+        - appstore_connect
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
@@ -16,7 +19,6 @@ workflows:
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/App.xcarchive"
         IPA_EXPORT_DIR: "$CM_BUILD_DIR/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-      # NOTE: 'team_id' is NOT allowed here. Keep this block minimal:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "com.fireopscalc.app"
@@ -42,13 +44,13 @@ workflows:
           pod install --repo-update
           cd -
 
-      - name: Fetch signing files (uses Integration)
+      - name: Fetch signing (uses Developer Portal integration)
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
-          keychain add-certificates
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
+          keychain add-certificates || true
 
-      - name: Build archive
+      - name: Build Xcode archive
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
@@ -59,7 +61,7 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER"
 
-      - name: Create exportOptions.plist (automatic signing)
+      - name: Create exportOptions.plist
         script: |
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -95,6 +97,8 @@ workflows:
 
     publishing:
       app_store_connect:
-        # <<< IMPORTANT: set this to your real integration name or ID >>>
-        integration: "YOUR_INTEGRATION_NAME_OR_ID"
+        # Uses the env vars you created in the 'appstore_connect' group
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
