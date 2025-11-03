@@ -5,10 +5,10 @@ workflows:
     max_build_duration: 60
 
     environment:
-      # Create this variable group in Codemagic and add:
+      # Create this group in Codemagic:
       #  - APP_STORE_CONNECT_PRIVATE_KEY  (entire .p8 contents)
       #  - APP_STORE_CONNECT_KEY_IDENTIFIER (e.g., HG4YL5BFZ or NMM68D7U4T3B)
-      #  - APP_STORE_CONNECT_ISSUER_ID     (your issuer UUID)
+      #  - APP_STORE_CONNECT_ISSUER_ID     (Issuer UUID)
       groups:
         - appstore_connect
       xcode: 16.4
@@ -53,50 +53,8 @@ workflows:
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
           keychain add-certificates || true
 
-      - name: Resolve matching App Store provisioning profile (persist to $CM_ENV)
-        script: |
-          set -euo pipefail
-          BUNDLE_ID="$PRODUCT_BUNDLE_IDENTIFIER"
-          TEAM_ID="$DEVELOPMENT_TEAM"
-          PROFILE_UUID=""
-          PROFILE_NAME=""
-
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          echo "Scanning profiles in: $PROFILE_DIR"
-          shopt -s nullglob
-          for mp in "$PROFILE_DIR"/*.mobileprovision; do
-            plist="$(mktemp)"
-            security cms -D -i "$mp" > "$plist" 2>/dev/null || continue
-
-            app_id=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist" 2>/dev/null || true)
-            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist" 2>/dev/null || true)
-            uuid=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$plist" 2>/dev/null || true)
-            method=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" "$plist" 2>/dev/null || true)
-            # App Store profiles have NO ProvisionsAllDevices and NO ProvisionedDevices (we don't strictly need to check)
-
-            if [[ "$app_id" == "${TEAM_ID}.${BUNDLE_ID}" ]]; then
-              PROFILE_UUID="$uuid"
-              PROFILE_NAME="$name"
-              echo "Matched profile: $name  (UUID: $uuid)"
-              rm -f "$plist"
-              break
-            fi
-            rm -f "$plist"
-          done
-          shopt -u nullglob
-
-          if [[ -z "$PROFILE_UUID" ]]; then
-            echo "ERROR: No provisioning profile found matching ${TEAM_ID}.${BUNDLE_ID}"
-            ls -la "$PROFILE_DIR" || true
-            exit 1
-          fi
-
-          # Persist for subsequent steps:
-          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
-          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
-          echo "Resolved profile => NAME: $PROFILE_NAME | UUID: $PROFILE_UUID"
-
-      - name: Build Xcode archive (force distribution signing)
+      # ⬇️ Archive with **automatic signing** so Pods aren't forced to use a profile
+      - name: Build Xcode archive (automatic signing; allow provisioning updates)
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
@@ -105,32 +63,27 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -destination 'generic/platform=iOS' \
             clean archive \
+            -allowProvisioningUpdates \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE="$PROFILE_UUID"
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER"
 
-      - name: Create exportOptions.plist (manual + profile map)
+      # Let the export step pick the App Store profile for the app target only
+      - name: Create exportOptions.plist (app-store, automatic)
         script: |
-          cat > exportOptions.plist <<EOF
+          cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
+            <key>signingStyle</key><string>automatic</string>
             <key>destination</key><string>export</string>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key><string>${PROFILE_NAME}</string>
-            </dict>
           </dict>
           </plist>
           EOF
-          echo "exportOptions.plist created with profile ${PROFILE_NAME}"
+          echo "exportOptions.plist created (automatic signing)"
 
       - name: Export IPA
         script: |
@@ -138,7 +91,8 @@ workflows:
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportPath "$IPA_EXPORT_DIR" \
-            -exportOptionsPlist exportOptions.plist
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates
           if [ -f "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" ]; then
             mv "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" "$IPA_EXPORT_DIR/$IPA_NAME"
           fi
