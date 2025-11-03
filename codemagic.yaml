@@ -5,7 +5,10 @@ workflows:
     max_build_duration: 60
 
     environment:
-      # Load the env-var group you created in the UI
+      # Create this variable group in Codemagic and add:
+      #  - APP_STORE_CONNECT_PRIVATE_KEY  (entire .p8 contents)
+      #  - APP_STORE_CONNECT_KEY_IDENTIFIER (e.g., HG4YL5BFZ)
+      #  - APP_STORE_CONNECT_ISSUER_ID     (your issuer UUID)
       groups:
         - appstore_connect
       xcode: 16.4
@@ -44,38 +47,55 @@ workflows:
           pod install --repo-update
           cd -
 
-      - name: Fetch signing (uses Developer Portal integration)
+      - name: Fetch signing (Developer Portal integration)
         script: |
           keychain initialize
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
           keychain add-certificates || true
 
-      - name: Build Xcode archive
+      - name: Choose App Store provisioning profile
+        script: |
+          # Use the exact profile name shown in Codemagic → Teams → Provisioning profiles
+          export PROFILE_NAME="FireOpsCalcprofile"
+          # If you prefer the other one, comment the line above and uncomment the next line:
+          # export PROFILE_NAME="FireOpsCalcApp_AppStore"
+          echo "Using provisioning profile: $PROFILE_NAME"
+
+      - name: Build Xcode archive (force distribution signing)
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
+            -destination 'generic/platform=iOS' \
             clean archive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER"
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
 
-      - name: Create exportOptions.plist
+      - name: Create exportOptions.plist (manual + profile map)
         script: |
-          cat > exportOptions.plist <<'EOF'
+          cat > exportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
             <key>destination</key><string>export</string>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key><string>${PROFILE_NAME}</string>
+            </dict>
           </dict>
           </plist>
           EOF
+          echo "exportOptions.plist created with profile ${PROFILE_NAME}"
 
       - name: Export IPA
         script: |
@@ -97,7 +117,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        # Uses the env vars you created in the 'appstore_connect' group
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
