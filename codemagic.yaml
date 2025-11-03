@@ -4,7 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Make the ASC key available to the workflow
+    # Use your connected ASC key (shown green as "FireCalc")
     integrations:
       app_store_connect: FireCalc
 
@@ -16,20 +16,14 @@ workflows:
         XCODE_SCHEME: App
         TEAM_ID: QZ55W58398
 
-    # Tell Codemagic which cert/profile to mount from your Team → Code signing
-    ios_signing:
-      certificates:
-        - FireCalcCertiicate            # ← match the name exactly
-      provisioning_profiles:
-        - FireOpsCalcApp_AppStore       # ← the App Store profile you showed
-
     scripts:
-      - name: CocoaPods install
+      - name: CocoaPods
         script: |
           cd ios/App
           pod repo update
           pod install
-      - name: Build & Archive (use mounted cert/profile)
+
+      - name: Archive (ASC automatic signing)
         script: |
           set -e
           xcodebuild -workspace "$XCODE_WORKSPACE" \
@@ -39,33 +33,33 @@ workflows:
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="FireOpsCalcApp_AppStore" \
+            CODE_SIGN_STYLE=Automatic \
+            -allowProvisioningUpdates \
             archive | xcpretty
-          ls -la "$CM_BUILD_DIR"
-      - name: Export IPA
+
+      - name: Export IPA (App Store Connect)
         script: |
           set -e
-          cat > exportOptions.plist <<'PLIST'
+          cat > ExportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>signingStyle</key><string>manual</string>
+            <key>signingStyle</key><string>automatic</string>
             <key>uploadSymbols</key><true/>
             <key>uploadBitcode</key><false/>
           </dict>
           </plist>
           PLIST
+
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/App.xcarchive" \
             -exportPath "$CM_BUILD_DIR/Export" \
-            -exportOptionsPlist exportOptions.plist | xcpretty
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates | xcpretty
           ls -la "$CM_BUILD_DIR/Export"
 
-    # (Optional) publish to TestFlight/App Store — works because we set the ASC integration above
     publishing:
       app_store_connect:
         auth: integration
