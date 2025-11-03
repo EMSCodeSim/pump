@@ -1,65 +1,62 @@
-workflows:
-  ios_release:
-    name: FireOpsCalc iOS Release
-    instance_type: mac_mini_m2
-    max_build_duration: 60
+scripts:
+  - name: Show schemes (sanity check)
+    script: |
+      xcodebuild -list -workspace ios/App/App.xcworkspace
 
-    # Use your connected ASC key (shown green as "FireCalc")
-    integrations:
-      app_store_connect: FireCalc
+  - name: CocoaPods
+    script: |
+      set -euo pipefail
+      cd ios/App
+      pod repo update
+      pod install
+      cd ../../
 
-    environment:
-      xcode: 16.4
-      vars:
-        BUNDLE_ID: com.fireopscalc.app
-        XCODE_WORKSPACE: ios/App/App.xcworkspace
-        XCODE_SCHEME: App
-        TEAM_ID: QZ55W58398
+  - name: Archive (ASC automatic signing)
+    script: |
+      set -euo pipefail
+      ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+      xcodebuild -workspace "ios/App/App.xcworkspace" \
+        -scheme "App" \
+        -configuration Release \
+        -destination "generic/platform=iOS" \
+        -archivePath "$ARCHIVE_PATH" \
+        DEVELOPMENT_TEAM="QZ55W58398" \
+        PRODUCT_BUNDLE_IDENTIFIER="com.fireopscalc.app" \
+        CODE_SIGN_STYLE=Automatic \
+        -allowProvisioningUpdates \
+        archive | xcpretty
+      # Prove the archive exists
+      echo "Archive contents:"
+      /usr/bin/find "$CM_BUILD_DIR/build" -maxdepth 2 -name "*.xcarchive" -print
 
-    scripts:
-      - name: CocoaPods
-        script: |
-          cd ios/App
-          pod repo update
-          pod install
+  - name: Export IPA (App Store Connect)
+    script: |
+      set -euo pipefail
+      ARCHIVE_PATH="$CM_BUILD_DIR/build/App.xcarchive"
+      EXPORT_DIR="$CM_BUILD_DIR/build/Export"
+      mkdir -p "$EXPORT_DIR"
 
-      - name: Archive (ASC automatic signing)
-        script: |
-          set -e
-          xcodebuild -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -destination generic/platform=iOS \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            DEVELOPMENT_TEAM="$TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            -allowProvisioningUpdates \
-            archive | xcpretty
+      cat > ExportOptions.plist <<'PLIST'
+      <?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+      <plist version="1.0">
+      <dict>
+        <key>method</key><string>app-store-connect</string>
+        <key>signingStyle</key><string>automatic</string>
+        <key>uploadSymbols</key><true/>
+        <key>uploadBitcode</key><false/>
+      </dict>
+      </plist>
+      PLIST
 
-      - name: Export IPA (App Store Connect)
-        script: |
-          set -e
-          cat > ExportOptions.plist <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>uploadSymbols</key><true/>
-            <key>uploadBitcode</key><false/>
-          </dict>
-          </plist>
-          PLIST
+      # Fail early if the archive isn't there
+      test -d "$ARCHIVE_PATH" || { echo "❌ Archive not found at $ARCHIVE_PATH"; exit 1; }
 
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/App.xcarchive" \
-            -exportPath "$CM_BUILD_DIR/Export" \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates | xcpretty
-          ls -la "$CM_BUILD_DIR/Export"
+      xcodebuild -exportArchive \
+        -archivePath "$ARCHIVE_PATH" \
+        -exportPath "$EXPORT_DIR" \
+        -exportOptionsPlist ExportOptions.plist \
+        -allowProvisioningUpdates | xcpretty
 
-    publishing:
-      app_store_connect:
-        auth: integration
+      echo "Exported files:"
+      ls -la "$EXPORT_DIR"
