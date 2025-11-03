@@ -5,7 +5,7 @@ workflows:
     max_build_duration: 60
 
     environment:
-      # Enable this variable group in Codemagic (secure values):
+      # Enable this secure group in Codemagic UI:
       #  - APP_STORE_CONNECT_PRIVATE_KEY  (full .p8 incl. BEGIN/END)
       #  - APP_STORE_CONNECT_KEY_IDENTIFIER
       #  - APP_STORE_CONNECT_ISSUER_ID
@@ -65,14 +65,15 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Create exportOptions.plist (App Store, automatic)
+      - name: Create exportOptions.plist (App Store Connect, automatic, include teamID)
         script: |
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-            <key>method</key><string>app-store</string>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>QZ55W58398</string>
             <key>signingStyle</key><string>automatic</string>
             <key>destination</key><string>export</string>
             <key>uploadSymbols</key><true/>
