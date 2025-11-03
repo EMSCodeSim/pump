@@ -1,41 +1,113 @@
-- name:  Export IPA (App Store Connect)
-  script: |
-    set -euo pipefail
+workflows:
+  ios_release:
+    name: FireOpsCalc iOS Release
+    instance_type: mac_mini_m2
+    max_build_duration: 60
 
-    # 1) Locate the archive created by the previous step
-    # Prefer the standard path first, then fall back to a search.
-    ARCHIVE_PATH="/Users/builder/clone/build/App.xcarchive"
-    if [ ! -d "$ARCHIVE_PATH" ]; then
-      echo "Archive not at $ARCHIVE_PATH — searching..."
-      ARCHIVE_PATH="$(find /Users/builder/clone -maxdepth 3 -type d -name '*.xcarchive' | head -n1 || true)"
-    fi
+    environment:
+      xcode: 16.4
+      cocoapods: default
+      node: 20.11.1
+      # --- Code signing / app identity ---
+      vars:
+        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
+        DEVELOPMENT_TEAM: "QZ55W58398"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        ARCHIVE_PATH: "$CM_BUILD_DIR/build/App.xcarchive"
+        IPA_EXPORT_DIR: "$CM_BUILD_DIR/Export"
+        IPA_NAME: "FireOpsCalc.ipa"
 
-    if [ -z "${ARCHIVE_PATH:-}" ] || [ ! -d "$ARCHIVE_PATH" ]; then
-      echo "❌ No .xcarchive found. Check that the ARCHIVE step succeeded."
-      exit 1
-    fi
+      # If you use Codemagic’s App Store Connect integration for signing, keep this:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: "com.fireopscalc.app"
+        team_id: "QZ55W58398"
 
-    echo "✅ Using archive: $ARCHIVE_PATH"
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
 
-    # 2) Prepare export destination
-    EXPORT_DIR="/Users/builder/clone/Export"
-    mkdir -p "$EXPORT_DIR"
+    scripts:
+      - name: Show environment
+        script: |
+          env | sort
 
-    # 3) Create export options (App Store Connect)
-    /usr/libexec/PlistBuddy -c "Clear dict" exportOptions.plist >/dev/null 2>&1 || true
-    /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" exportOptions.plist
-    /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" exportOptions.plist
-    /usr/libexec/PlistBuddy -c "Add :uploadSymbols boolean YES" exportOptions.plist
-    /usr/libexec/PlistBuddy -c "Add :destination string export" exportOptions.plist
+      - name: Install JS deps & sync Capacitor iOS
+        script: |
+          if [ -f package-lock.json ] || [ -f package.json ]; then
+            npm ci || npm install
+          fi
+          npx cap sync ios || echo "No Capacitor sync needed"
 
-    echo "Export options:"
-    /usr/libexec/PlistBuddy -c "Print" exportOptions.plist
+      - name: Install CocoaPods
+        script: |
+          cd ios/App
+          pod install --repo-update
+          cd -
 
-    # 4) Export
-    xcodebuild -exportArchive \
-      -archivePath "$ARCHIVE_PATH" \
-      -exportOptionsPlist exportOptions.plist \
-      -exportPath "$EXPORT_DIR"
+      # If using Codemagic integration-based signing, fetch profiles/certs automatically
+      - name: Fetch signing files via App Store Connect integration
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
+          keychain add-certificates
 
-    echo "Contents of $EXPORT_DIR:"
-    ls -la "$EXPORT_DIR"
+      - name: Build archive with Xcode
+        script: |
+          xcodebuild \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            clean archive \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER"
+
+      - name: Create exportOptions.plist
+        script: |
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>destination</key><string>export</string>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export IPA
+        script: |
+          mkdir -p "$IPA_EXPORT_DIR"
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$IPA_EXPORT_DIR" \
+            -exportOptionsPlist exportOptions.plist
+          if [ -f "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" ]; then
+            mv "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" "$IPA_EXPORT_DIR/$IPA_NAME"
+          fi
+          ls -la "$IPA_EXPORT_DIR"
+
+    artifacts:
+      - "$IPA_EXPORT_DIR/*.ipa"
+      - "$ARCHIVE_PATH"
+      - "exportOptions.plist"
+      - "**/dSYMs/**"
+
+    publishing:
+      app_store_connect:
+        # Use your saved Codemagic **App Store Connect integration** (required by latest validator).
+        # In Codemagic UI: Settings → Integrations → App Store Connect → copy Integration ID or name.
+        integration: "YOUR_APP_STORE_CONNECT_INTEGRATION_NAME_OR_ID"
+        submit_to_testflight: true
+        # Optionally auto-submit for review when ready:
+        # submit_to_app_store: false
