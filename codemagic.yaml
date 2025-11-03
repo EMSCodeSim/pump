@@ -8,7 +8,6 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-      # --- Code signing / app identity ---
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -17,12 +16,10 @@ workflows:
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/App.xcarchive"
         IPA_EXPORT_DIR: "$CM_BUILD_DIR/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
-      # If you use Codemagic’s App Store Connect integration for signing, keep this:
+      # NOTE: `team_id` is NOT allowed here.
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "com.fireopscalc.app"
-        team_id: "QZ55W58398"
 
     triggering:
       events:
@@ -40,7 +37,7 @@ workflows:
 
       - name: Install JS deps & sync Capacitor iOS
         script: |
-          if [ -f package-lock.json ] || [ -f package.json ]; then
+          if [ -f package.json ]; then
             npm ci || npm install
           fi
           npx cap sync ios || echo "No Capacitor sync needed"
@@ -51,12 +48,14 @@ workflows:
           pod install --repo-update
           cd -
 
-      # If using Codemagic integration-based signing, fetch profiles/certs automatically
-      - name: Fetch signing files via App Store Connect integration
+      - name: Fetch signing files (via integration if configured)
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
-          keychain add-certificates
+          # This will work *only if* you have an App Store Connect integration set in the app.
+          # If not present, it will no-op and you’ll still be able to export a signed IPA
+          # if Codemagic has cached signing from previous builds.
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
+          keychain add-certificates || true
 
       - name: Build archive with Xcode
         script: |
@@ -71,7 +70,7 @@ workflows:
 
       - name: Create exportOptions.plist
         script: |
-          cat > exportOptions.plist <<EOF
+          cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -102,12 +101,3 @@ workflows:
       - "$ARCHIVE_PATH"
       - "exportOptions.plist"
       - "**/dSYMs/**"
-
-    publishing:
-      app_store_connect:
-        # Use your saved Codemagic **App Store Connect integration** (required by latest validator).
-        # In Codemagic UI: Settings → Integrations → App Store Connect → copy Integration ID or name.
-        integration: "YOUR_APP_STORE_CONNECT_INTEGRATION_NAME_OR_ID"
-        submit_to_testflight: true
-        # Optionally auto-submit for review when ready:
-        # submit_to_app_store: false
