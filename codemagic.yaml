@@ -5,17 +5,11 @@ workflows:
     max_build_duration: 60
 
     environment:
-      # Create this group in Codemagic UI with these secure vars:
-      #  - APP_STORE_CONNECT_PRIVATE_KEY   (full .p8 contents)
-      #  - APP_STORE_CONNECT_KEY_IDENTIFIER
-      #  - APP_STORE_CONNECT_ISSUER_ID
       groups:
         - appstore_connect
-
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -24,7 +18,6 @@ workflows:
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/App.xcarchive"
         IPA_EXPORT_DIR: "$CM_BUILD_DIR/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "com.fireopscalc.app"
@@ -56,7 +49,7 @@ workflows:
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
           keychain add-certificates || true
 
-      # ✅ Build an UNSIGNED archive to avoid any Pod provisioning/profile conflicts.
+      # Build an UNSIGNED archive to avoid Pod provisioning/profile conflicts.
       - name: Build Xcode archive (unsigned)
         script: |
           xcodebuild \
@@ -69,11 +62,10 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_REQUIRED=NO
 
-      # ✅ Sign at export time for the App Store with automatic signing.
-      - name: Create exportOptions.plist (app-store, automatic)
+      # Sign at export time (App Store, automatic) and ensure a consistent IPA name.
+      - name: Create exportOptions.plist
         script: |
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -97,9 +89,15 @@ workflows:
             -exportPath "$IPA_EXPORT_DIR" \
             -exportOptionsPlist exportOptions.plist \
             -allowProvisioningUpdates
-          if [ -f "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" ]; then
+
+          # Ensure the IPA has a predictable name for the publisher
+          if [ -f "$IPA_EXPORT_DIR/App.ipa" ]; then
+            mv "$IPA_EXPORT_DIR/App.ipa" "$IPA_EXPORT_DIR/$IPA_NAME"
+          elif [ -f "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" ]; then
             mv "$IPA_EXPORT_DIR/$XCODE_SCHEME.ipa" "$IPA_EXPORT_DIR/$IPA_NAME"
           fi
+
+          echo "IPA export complete. Contents:"
           ls -la "$IPA_EXPORT_DIR"
 
     artifacts:
