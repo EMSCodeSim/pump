@@ -7,7 +7,7 @@ workflows:
     environment:
       # Create this variable group in Codemagic and add:
       #  - APP_STORE_CONNECT_PRIVATE_KEY  (entire .p8 contents)
-      #  - APP_STORE_CONNECT_KEY_IDENTIFIER (e.g., HG4YL5BFZ)
+      #  - APP_STORE_CONNECT_KEY_IDENTIFIER (e.g., HG4YL5BFZ or NMM68D7U4T3B)
       #  - APP_STORE_CONNECT_ISSUER_ID     (your issuer UUID)
       groups:
         - appstore_connect
@@ -53,13 +53,48 @@ workflows:
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
           keychain add-certificates || true
 
-      - name: Choose App Store provisioning profile
+      - name: Resolve matching App Store provisioning profile (persist to $CM_ENV)
         script: |
-          # Use the exact profile name shown in Codemagic → Teams → Provisioning profiles
-          export PROFILE_NAME="FireOpsCalcprofile"
-          # If you prefer the other one, comment the line above and uncomment the next line:
-          # export PROFILE_NAME="FireOpsCalcApp_AppStore"
-          echo "Using provisioning profile: $PROFILE_NAME"
+          set -euo pipefail
+          BUNDLE_ID="$PRODUCT_BUNDLE_IDENTIFIER"
+          TEAM_ID="$DEVELOPMENT_TEAM"
+          PROFILE_UUID=""
+          PROFILE_NAME=""
+
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "Scanning profiles in: $PROFILE_DIR"
+          shopt -s nullglob
+          for mp in "$PROFILE_DIR"/*.mobileprovision; do
+            plist="$(mktemp)"
+            security cms -D -i "$mp" > "$plist" 2>/dev/null || continue
+
+            app_id=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist" 2>/dev/null || true)
+            name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist" 2>/dev/null || true)
+            uuid=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$plist" 2>/dev/null || true)
+            method=$(/usr/libexec/PlistBuddy -c "Print :ProvisionsAllDevices" "$plist" 2>/dev/null || true)
+            # App Store profiles have NO ProvisionsAllDevices and NO ProvisionedDevices (we don't strictly need to check)
+
+            if [[ "$app_id" == "${TEAM_ID}.${BUNDLE_ID}" ]]; then
+              PROFILE_UUID="$uuid"
+              PROFILE_NAME="$name"
+              echo "Matched profile: $name  (UUID: $uuid)"
+              rm -f "$plist"
+              break
+            fi
+            rm -f "$plist"
+          done
+          shopt -u nullglob
+
+          if [[ -z "$PROFILE_UUID" ]]; then
+            echo "ERROR: No provisioning profile found matching ${TEAM_ID}.${BUNDLE_ID}"
+            ls -la "$PROFILE_DIR" || true
+            exit 1
+          fi
+
+          # Persist for subsequent steps:
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $CM_ENV
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $CM_ENV
+          echo "Resolved profile => NAME: $PROFILE_NAME | UUID: $PROFILE_UUID"
 
       - name: Build Xcode archive (force distribution signing)
         script: |
@@ -74,7 +109,7 @@ workflows:
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME"
+            PROVISIONING_PROFILE="$PROFILE_UUID"
 
       - name: Create exportOptions.plist (manual + profile map)
         script: |
