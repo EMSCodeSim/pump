@@ -16,31 +16,25 @@ workflows:
         ARCHIVE_PATH: "$CM_BUILD_DIR/build/App.xcarchive"
         IPA_EXPORT_DIR: "$CM_BUILD_DIR/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-      # NOTE: `team_id` is NOT allowed here.
+      # NOTE: 'team_id' is NOT allowed here. Keep this block minimal:
       ios_signing:
         distribution_type: app_store
         bundle_identifier: "com.fireopscalc.app"
 
     triggering:
-      events:
-        - push
-        - tag
+      events: [push, tag]
       branch_patterns:
         - pattern: main
           include: true
           source: true
 
     scripts:
-      - name: Show environment
-        script: |
-          env | sort
-
-      - name: Install JS deps & sync Capacitor iOS
+      - name: Install JS deps & sync Capacitor
         script: |
           if [ -f package.json ]; then
             npm ci || npm install
           fi
-          npx cap sync ios || echo "No Capacitor sync needed"
+          npx cap sync ios || true
 
       - name: Install CocoaPods
         script: |
@@ -48,16 +42,13 @@ workflows:
           pod install --repo-update
           cd -
 
-      - name: Fetch signing files (via integration if configured)
+      - name: Fetch signing files (uses Integration)
         script: |
           keychain initialize
-          # This will work *only if* you have an App Store Connect integration set in the app.
-          # If not present, it will no-op and you’ll still be able to export a signed IPA
-          # if Codemagic has cached signing from previous builds.
-          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
-          keychain add-certificates || true
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
+          keychain add-certificates
 
-      - name: Build archive with Xcode
+      - name: Build archive
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
@@ -68,7 +59,7 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER"
 
-      - name: Create exportOptions.plist
+      - name: Create exportOptions.plist (automatic signing)
         script: |
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -76,7 +67,7 @@ workflows:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
+            <key>signingStyle</key><string>automatic</string>
             <key>destination</key><string>export</string>
             <key>uploadSymbols</key><true/>
             <key>compileBitcode</key><false/>
@@ -101,3 +92,9 @@ workflows:
       - "$ARCHIVE_PATH"
       - "exportOptions.plist"
       - "**/dSYMs/**"
+
+    publishing:
+      app_store_connect:
+        # <<< IMPORTANT: set this to your real integration name or ID >>>
+        integration: "YOUR_INTEGRATION_NAME_OR_ID"
+        submit_to_testflight: true
