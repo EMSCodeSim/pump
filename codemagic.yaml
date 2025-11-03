@@ -5,15 +5,17 @@ workflows:
     max_build_duration: 60
 
     environment:
-      # Variable group you created in Codemagic with ASC API key vars:
-      #  - APP_STORE_CONNECT_PRIVATE_KEY
+      # Create this group in Codemagic UI with these secure vars:
+      #  - APP_STORE_CONNECT_PRIVATE_KEY   (full .p8 contents)
       #  - APP_STORE_CONNECT_KEY_IDENTIFIER
       #  - APP_STORE_CONNECT_ISSUER_ID
       groups:
         - appstore_connect
+
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
+
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -54,9 +56,8 @@ workflows:
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create || true
           keychain add-certificates || true
 
-      # IMPORTANT: Force Apple Distribution but DO NOT pass any provisioning profile here.
-      # Leaving signing style Automatic avoids forcing Pods to have a profile.
-      - name: Build Xcode archive (force Distribution, automatic signing)
+      # ✅ Build an UNSIGNED archive to avoid any Pod provisioning/profile conflicts.
+      - name: Build Xcode archive (unsigned)
         script: |
           xcodebuild \
             -workspace "$XCODE_WORKSPACE" \
@@ -65,13 +66,14 @@ workflows:
             -archivePath "$ARCHIVE_PATH" \
             -destination 'generic/platform=iOS' \
             clean archive \
-            -allowProvisioningUpdates \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution"
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Create exportOptions.plist (automatic)
+      # ✅ Sign at export time for the App Store with automatic signing.
+      - name: Create exportOptions.plist (app-store, automatic)
         script: |
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -87,7 +89,7 @@ workflows:
           </plist>
           EOF
 
-      - name: Export IPA (automatic)
+      - name: Export IPA (sign here)
         script: |
           mkdir -p "$IPA_EXPORT_DIR"
           xcodebuild -exportArchive \
