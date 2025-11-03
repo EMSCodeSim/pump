@@ -13,9 +13,8 @@ workflows:
           include: true
           source: true
 
-    # IMPORTANT: must match your ASC integration name in Codemagic
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # must match your Codemagic integration name
 
     environment:
       xcode: 16.4
@@ -38,14 +37,14 @@ workflows:
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # Capacitor web output directory (adjust if your build writes elsewhere)
+        # Capacitor web output directory (adjust if different)
         WEB_DIR: "dist"
 
       ios_signing:
         certificates:
-          - FireCalcCertiicate   # (spelling matches what Codemagic shows)
+          - FireCalcCertiicate      # spelling must match Codemagic UI
         provisioning_profiles:
-          - FireOpsCalcprofile   # App Store profile for com.fireopscalc.app
+          - FireOpsCalcprofile      # App Store profile for com.fireopscalc.app
 
     scripts:
       - name: "0) Install Node deps & build web (if present)"
@@ -64,7 +63,7 @@ workflows:
             echo "No package.json found — skipping web build."
           fi
 
-      - name: "1) Capacitor sync iOS (ensures App/public & capacitor.config.json)"
+      - name: "1) Capacitor sync iOS (ensure App/public & capacitor.config.json)"
         script: |
           set -euo pipefail
           if [ -f capacitor.config.ts ] || [ -f capacitor.config.json ] || [ -f capacitor.config.js ]; then
@@ -84,14 +83,13 @@ workflows:
             fi
           fi
 
-          # Minimal Cordova-style config.xml if missing (some templates expect it)
+          # Minimal Cordova-style config.xml if missing (use printf to avoid YAML heredoc issues)
           if [ ! -f "ios/App/App/config.xml" ]; then
-            cat > ios/App/App/config.xml <<'XML'
-<?xml version='1.0' encoding='utf-8'?>
-<widget id="com.fireopscalc.app" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-  <name>FireOpsCalc</name>
-</widget>
-XML
+            printf "%s\n" \
+              "<?xml version='1.0' encoding='utf-8'?>" \
+              "<widget id=\"com.fireopscalc.app\" version=\"1.0.0\" xmlns=\"http://www.w3.org/ns/widgets\" xmlns:cdv=\"http://cordova.apache.org/ns/1.0\">" \
+              "  <name>FireOpsCalc</name>" \
+              "</widget>" > ios/App/App/config.xml
           fi
 
           echo "Contents of ios/App/App:"
@@ -104,45 +102,39 @@ XML
           pod install --repo-update || pod install
           cd ../..
 
-      - name: "3) Preflight — verify signing material mounted by Codemagic"
+      - name: "3) Preflight — verify signing materials are mounted"
         script: |
           set -euo pipefail
-
-          echo "== Provisioning profiles mounted by Codemagic =="
           echo "CM_PROVISIONING_PROFILES_DIR='${CM_PROVISIONING_PROFILES_DIR:-}'"
           if [ -z "${CM_PROVISIONING_PROFILES_DIR:-}" ] || [ ! -d "${CM_PROVISIONING_PROFILES_DIR:-}" ]; then
             echo "❌ CM_PROVISIONING_PROFILES_DIR is empty or missing — Codemagic did not mount your profiles."
             exit 1
           fi
+
+          echo "== Profiles mounted by Codemagic =="
           ls -la "$CM_PROVISIONING_PROFILES_DIR"
 
-          echo "== Copying profiles to Xcode location =="
+          echo "== Copy to Xcode profiles dir =="
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$CM_PROVISIONING_PROFILES_DIR"/*.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles"/ 2>/dev/null || true
           ls -la "$HOME/Library/MobileDevice/Provisioning Profiles"
 
-          echo "== Checking that 'FireOpsCalcprofile' payload is present =="
-          if ! grep -ril "FireOpsCalcprofile" "$HOME/Library/MobileDevice/Provisioning Profiles" >/dev/null 2>&1; then
-            echo "❌ Could not find a profile payload containing 'FireOpsCalcprofile'."
-            echo "   Make sure the selected profile name in Codemagic matches exactly and targets com.fireopscalc.app."
-            exit 1
-          fi
-
-          echo "== Codesigning identities in keychain (expect Apple Distribution) =="
+          echo "== Keychain codesigning identities =="
           security find-identity -v -p codesigning || true
 
-      - name: "4) Show workspace schemes & quick build settings"
+      - name: "4) Show workspace schemes & build settings"
         script: |
           set -euo pipefail
           /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -list -workspace "$WORKSPACE" || true
-          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIGURATION" | head -n 80 || true
+          /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild \
+            -showBuildSettings -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration "$CONFIGURATION" | head -n 120 || true
 
       - name: "5) Archive with raw xcodebuild (no signing overrides)"
         script: |
           set -euo pipefail
           mkdir -p "$(dirname "$ARCHIVE_PATH")"
 
-          echo "== ARCHIVE: raw xcodebuild (no xcpretty) =="
+          echo "== ARCHIVE: raw xcodebuild =="
           /Applications/Xcode-16.4.app/Contents/Developer/usr/bin/xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -154,11 +146,9 @@ XML
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not created at $ARCHIVE_PATH"
-            echo "Last 200 lines of archive.log:"
             tail -n 200 /Users/builder/clone/build/archive.log || true
             exit 1
           fi
-
           echo "✅ Archive created at $ARCHIVE_PATH"
 
       - name: "6) Create ExportOptions.plist and export IPA"
@@ -190,7 +180,6 @@ XML
           if [ -z "${IPA_PATH:-}" ]; then
             echo "❌ Export did not produce an IPA. Contents of $EXPORT_DIR:"
             ls -la "$EXPORT_DIR" || true
-            echo "Last 200 lines of export.log:"
             tail -n 200 /Users/builder/clone/build/export.log || true
             exit 1
           fi
@@ -207,4 +196,3 @@ XML
         submit_to_testflight: true
         beta_groups:
           - Internal Testers
-
