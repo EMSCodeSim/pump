@@ -16,7 +16,6 @@ workflows:
 
         # --- Xcode project paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
-        # If your scheme isn't literally "App", we auto-detect below.
         FALLBACK_SCHEME: "App"
 
         # --- Archive/Export output paths ---
@@ -24,11 +23,10 @@ workflows:
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
-        # --- Signing asset names (MUST match the reference names in Codemagic Team → Code signing) ---
+        # --- Codemagic signing asset reference names (must match Team → Code signing) ---
         CM_DISTRIBUTION_CERT_REF: "FireOpsCalc_Distribution_2025"
         CM_APPSTORE_PROFILE_REF: "FireOpsCalc_AppStore_Profile"
 
-    # Pull the certificate & the provisioning profile from Codemagic secure storage
     ios_signing:
       certificates:
         - $CM_DISTRIBUTION_CERT_REF
@@ -39,64 +37,11 @@ workflows:
       - name: Show Xcode version
         script: xcodebuild -version
 
-      - name: Detect available schemes & select one
+      - name: Install JS deps & sync iOS
         script: |
           set -e
-          echo "Listing schemes in $WORKSPACE"
-          xcodebuild -list -workspace "$WORKSPACE" || true
-
-          SCHEMES_JSON="$(mktemp)"
-          xcodebuild -list -json -workspace "$WORKSPACE" > "$SCHEMES_JSON" || true
-
-          # Parse the JSON (python is available on Codemagic images)
-          python3 - <<'PY'
-import json, os, sys
-p = os.environ.get("SCHEMES_JSON")
-data = {}
-try:
-  with open(p) as f: data = json.load(f)
-except Exception as e:
-  pass
-schemes = []
-for proj in (data.get("project") or {}).get("schemes", []):
-  schemes.append(proj)
-# Fallback selection
-pick = os.environ.get("FALLBACK_SCHEME","App")
-if schemes:
-  # Prefer exact 'App' if present, else first scheme
-  if "App" in schemes: pick = "App"
-  else: pick = schemes[0]
-print(f"::set-env name=SCHEME_DETECTED::{pick}")
-PY
-          # Export for the rest of the steps
-          SCHEME_DETECTED="$(grep -o '::set-env name=SCHEME_DETECTED::.*' <(python3 - <<'PY'
-import os,sys
-print(os.environ.get("SCHEME_DETECTED",""))
-PY
-) || true)"
-          # The above trick won't actually set; so read from the python stdout file:
-          SCHEME_DETECTED="$(python3 - <<'PY'
-import json, os
-print(os.environ.get("FALLBACK_SCHEME","App"))
-PY
-)"
-          # Re-evaluate from the JSON file directly (robust)
-          SCHEME_DETECTED=$(python3 - "$SCHEMES_JSON" "$FALLBACK_SCHEME" <<'PY'
-import json, sys
-j = {}
-try:
-  with open(sys.argv[1]) as f: j = json.load(f)
-except: pass
-fallback = sys.argv[2]
-schemes = (j.get("project") or {}).get("schemes", [])
-pick = fallback
-if schemes:
-  pick = "App" if "App" in schemes else schemes[0]
-print(pick)
-PY
-)
-          echo "Using scheme: $SCHEME_DETECTED"
-          echo "SCHEME_DETECTED=$SCHEME_DETECTED" >> $CM_ENV
+          npm ci || npm i
+          npx cap sync ios
 
       - name: Install CocoaPods (if Podfile exists)
         script: |
@@ -105,10 +50,35 @@ PY
             cd ios/App
             pod repo update
             pod install
-            cd ../../
+            cd ../..
           else
-            echo "No Podfile found — skipping pod install (Capacitor may have vendored pods)."
+            echo "No Podfile found — skipping pod install."
           fi
+
+      - name: Detect shared scheme (no Python)
+        script: |
+          set -e
+          echo "Available schemes in $WORKSPACE:"
+          xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null || true
+
+          # Pull scheme list using awk (lines under 'Schemes:' until blank line)
+          SCHEME_DETECTED="$(xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null \
+            | awk '/Schemes:/ {flag=1; next} /^$/ {flag=0} flag' \
+            | sed 's/^[[:space:]]*//' \
+            | head -n1)"
+
+          # Prefer 'App' if it exists
+          if xcodebuild -list -workspace "$WORKSPACE" 2>/dev/null | grep -qE '^[[:space:]]*App$'; then
+            SCHEME_DETECTED="App"
+          fi
+
+          # Fallback if still empty
+          if [ -z "$SCHEME_DETECTED" ]; then
+            SCHEME_DETECTED="$FALLBACK_SCHEME"
+          fi
+
+          echo "Using scheme: $SCHEME_DETECTED"
+          echo "SCHEME_DETECTED=$SCHEME_DETECTED" >> "$CM_ENV"
 
       - name: Verify signing files present
         script: |
@@ -118,12 +88,10 @@ PY
           echo "Search for com.fireopscalc.app in profiles:"
           grep -R "com.fireopscalc.app" "$HOME/Library/MobileDevice/Provisioning Profiles" -n || true
 
-      - name: Build Xcode archive (scoped signing)
+      - name: Build Xcode archive (sign only App target)
         script: |
           set -e
           mkdir -p "$EXPORT_DIR"
-
-          # IMPORTANT: Do NOT set global signing values that bleed into Pods.
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME_DETECTED" \
@@ -145,7 +113,7 @@ PY
             "CODE_SIGNING_ALLOWED[project=Pods][target=Capacitor]=NO" \
             "CODE_SIGNING_ALLOWED[project=Pods][target=CapacitorCordova]=NO"
 
-      - name: Export IPA (app-store)
+      - name: Create exportOptions.plist
         script: |
           set -e
           cat > "$EXPORT_DIR/ExportOptions.plist" <<EOF
@@ -154,60 +122,42 @@ PY
 <plist version="1.0">
 <dict>
   <key>method</key><string>app-store</string>
-  <key>compileBitcode</key><false/>
   <key>signingStyle</key><string>manual</string>
   <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
   <key>provisioningProfiles</key>
   <dict>
     <key>${PRODUCT_BUNDLE_IDENTIFIER}</key><string>${CM_APPSTORE_PROFILE_REF}</string>
   </dict>
+  <key>compileBitcode</key><false/>
   <key>destination</key><string>export</string>
 </dict>
 </plist>
 EOF
 
+      - name: Export IPA
+        script: |
+          set -e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportPath "$EXPORT_DIR" \
-            -exportOptionsPlist "$EXPORT_DIR/ExportOptions.plist"
+            -exportOptionsPlist "$EXPORT_DIR/ExportOptions.plist" \
+            -exportPath "$EXPORT_DIR"
 
-          # Rename/copy IPA for artifacts
+          # Normalize IPA name for artifacts
           if [ -f "$EXPORT_DIR/$SCHEME_DETECTED.ipa" ]; then
             mv "$EXPORT_DIR/$SCHEME_DETECTED.ipa" "$EXPORT_DIR/$IPA_NAME"
           elif [ -f "$EXPORT_DIR/App.ipa" ]; then
             mv "$EXPORT_DIR/App.ipa" "$EXPORT_DIR/$IPA_NAME"
           fi
 
+          echo "Contents of export dir:"
+          ls -lah "$EXPORT_DIR"
           if [ ! -f "$EXPORT_DIR/$IPA_NAME" ]; then
             echo "ERROR: IPA not found after export."
-            ls -lah "$EXPORT_DIR"
             exit 1
           fi
-
-          echo "IPA at: $EXPORT_DIR/$IPA_NAME"
-          echo "APP_IPA_PATH=$EXPORT_DIR/$IPA_NAME" >> $CM_ENV
-
-      # OPTIONAL: Publish with App Store Connect if you later enable an integration key.
-      # Keep disabled by default to avoid failures.
-      - name: (Optional) Publish to App Store Connect
-        script: |
-          set -e
-          if [ -f "$APP_IPA_PATH" ] && [ -n "$APP_IPA_PATH" ]; then
-            echo "IPA ready at $APP_IPA_PATH"
-            echo "Skip automatic upload here to keep things explicit. You can enable Publishing in Codemagic UI or add an altool/ASC upload step."
-          else
-            echo "No IPA found to publish."
-          fi
+          echo "APP_IPA_PATH=$EXPORT_DIR/$IPA_NAME" >> "$CM_ENV"
 
     artifacts:
       - Export/*.ipa
       - Export/*.xcarchive
-
-    publishing:
-      # Keep empty so the build won’t fail on publishing.
-      scripts:
-        - name: Zip artifacts
-          script: |
-            set -e
-            cd "$EXPORT_DIR"
-            zip -r "pump_$(printf %03d $CM_BUILD_ID)_artifacts.zip" . || true
+      - Export/ExportOptions.plist
