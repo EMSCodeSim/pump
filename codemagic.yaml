@@ -1,12 +1,11 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (ASC fetch)
+    name: FireOpsCalc iOS Release (UI-managed signing)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Needed so publishing.auth: integration can upload to TestFlight
     integrations:
-      app_store_connect: FireCalc   # <-- match your ASC integration name exactly
+      app_store_connect: FireCalc   # <-- your ASC integration name (for TestFlight upload)
 
     environment:
       xcode: 16.4
@@ -27,8 +26,6 @@ workflows:
         # Optional app versioning if not set in Xcode project
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
-      groups:
-        - appstore_connect   # <-- contains APP_STORE_CONNECT_KEY_IDENTIFIER / ISSUER_ID / PRIVATE_KEY
 
     cache:
       cache_paths:
@@ -88,28 +85,13 @@ workflows:
           pod install --repo-update
           cd -
 
-      # 2) Fetch signing files from ASC and install them (bundle id is positional arg)
-      - name: Fetch signing files from Apple & install (ASC API)
+      # 2) Use certificates & profiles stored in Codemagic (UI-managed identities)
+      - name: Import certs and profiles from Codemagic
         script: |
           set -euo pipefail
-          : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?Missing APP_STORE_CONNECT_KEY_IDENTIFIER}"
-          : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID}"
-          : "${APP_STORE_CONNECT_PRIVATE_KEY:?Missing APP_STORE_CONNECT_PRIVATE_KEY}"
-
           keychain initialize
-
-          # Fetch or create the App Store (distribution) signing files for our bundle id
-          app-store-connect fetch-signing-files \
-            --type IOS_APP_STORE \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --create \
-            "$PRODUCT_BUNDLE_IDENTIFIER"
-
-          # Import certs into the keychain and install provisioning profiles
-          keychain add-certificates
-          xcode-project use-profiles
+          keychain add-certificates        # pulls your .p12 (with private key) & installs it
+          xcode-project use-profiles       # installs provisioning profiles into the project
 
           echo "🔐 Identities in keychain:"
           security find-identity -v "$(security default-keychain | tr -d '"')" || true
@@ -130,7 +112,7 @@ workflows:
           PLIST
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
-      # 4) Build archive (let xcodebuild pick up codesigning from installed profiles)
+      # 4) Build archive (xcodebuild picks up codesigning from installed profiles)
       - name: Build archive
         script: |
           set -euo pipefail
@@ -175,5 +157,5 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration
+        auth: integration    # uses your "FireCalc" integration for TestFlight upload
         submit_to_testflight: true
