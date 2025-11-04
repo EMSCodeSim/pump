@@ -8,127 +8,96 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-      groups:
-        - appstore_connect            # <-- make sure your three vars live in this group
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        EXPORT_PATH: "/Users/builder/clone/Export"
+        EXPORT_DIR: "/Users/builder/clone/Export"
+        EXPORT_OPTS_PLIST: "/Users/builder/clone/ExportOptions.plist"
+        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalc_AppStore_Profile"
+      groups:
+        - appstore_connect   # you already created this group with the 3 ASC vars
 
     cache:
       cache_paths:
+        - ~/.npm
+        - ~/.cache/CocoaPods
         - ~/Library/Caches/CocoaPods
+        - ios/Pods
 
     scripts:
-      - name: Show Xcode schemes (and install Pods if present)
+      - name: Install deps & sync iOS
         script: |
-          set -e
-          if [ -d "ios/App" ]; then
-            (cd ios/App && pod install || true)
-          fi
-          xcodebuild -list -workspace "$WORKSPACE" || true
+          npm ci || npm install
+          npx cap sync ios
 
-      - name: (Optional) Sync Capacitor iOS
+      - name: Import code-signing from Codemagic storage
         script: |
-          set -e
-          if [ -f package.json ]; then
-            npm ci || true
-            npx cap sync ios || true
-          fi
-
-      - name: Prepare code signing (uses ASC environment variables)
-        script: |
-          set -e
+          # Imports **the p12 and mobileprovision** you uploaded in Team → Code signing identities
           keychain initialize
-
-          # --- Accept official names OR your short names from the UI screenshots ---
-          ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-${APP_STORE_CONNECT_ISSL:-}}"
-          KEY_ID="${APP_STORE_CONNECT_KEY_IDENTIFIER:-${APP_STORE_CONNECT_KEY:-}}"
-          PRIVATE_KEY="${APP_STORE_CONNECT_PRIVATE_KEY:-${APP_STORE_CONNECT_PRI:-${APP_STORE_CONNECT_PRIV:-}}}"
-
-          if [ -z "$ISSUER_ID" ] || [ -z "$KEY_ID" ] || [ -z "$PRIVATE_KEY" ]; then
-            echo "❌ Missing one or more App Store Connect variables."
-            echo "Expected either:"
-            echo "  APP_STORE_CONNECT_ISSUER_ID / APP_STORE_CONNECT_KEY_IDENTIFIER / APP_STORE_CONNECT_PRIVATE_KEY"
-            echo "or these alternates (as in your UI):"
-            echo "  APP_STORE_CONNECT_ISSL / APP_STORE_CONNECT_KEY / APP_STORE_CONNECT_PRI"
-            exit 1
-          fi
-
-          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" \
-            --type IOS_APP_STORE \
-            --issuer-id "$ISSUER_ID" \
-            --key-id "$KEY_ID" \
-            --private-key "$PRIVATE_KEY" \
-            --create
-
           keychain add-certificates
-          echo "📄 Provisioning profiles:"
-          ls -lah "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          echo "Identities in keychain:"
+          security find-identity -v
 
-      - name: Build Xcode archive (Manual Distribution signing)
+      - name: Create ExportOptions.plist
         script: |
-          set -e
-          xcodebuild -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath "$ARCHIVE_PATH" \
-            -destination generic/platform=iOS \
-            clean archive \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_STYLE=Manual \
-            "CODE_SIGN_IDENTITY=Apple Distribution" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $(security default-keychain | tr -d '\"')"
-
-      - name: Export IPA
-        script: |
-          set -e
-          mkdir -p "$EXPORT_PATH"
-          cat > export_options.plist <<'EOF'
+          cat > "$EXPORT_OPTS_PLIST" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
             <key>signingStyle</key><string>manual</string>
-            <key>uploadBitcode</key><false/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key>
+              <string>FireOpsCalc_AppStore_Profile</string>
+            </dict>
             <key>compileBitcode</key><false/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
             <key>stripSwiftSymbols</key><true/>
-            <key>destination</key><string>export</string>
+            <key>uploadSymbols</key><true/>
           </dict>
           </plist>
-          EOF
+          PLIST
+          cat "$EXPORT_OPTS_PLIST"
+
+      - name: Build Xcode archive (manual signing for App target)
+        script: |
+          xcodebuild -workspace "$WORKSPACE" \
+                     -scheme "$SCHEME" \
+                     -configuration Release \
+                     -archivePath "$ARCHIVE_PATH" \
+                     -destination "generic/platform=iOS" \
+                     CODE_SIGN_STYLE=Manual \
+                     DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+                     PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+                     PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
+                     "CODE_SIGN_IDENTITY=Apple Distribution" \
+                     clean archive | xcpretty
+
+      - name: Export IPA
+        script: |
+          mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist export_options.plist \
-            -exportPath "$EXPORT_PATH"
-          echo "📦 Export contents:"
-          ls -lah "$EXPORT_PATH"
-
-      - name: Publish to TestFlight
-        script: |
-          set -e
-          IPA_PATH=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
-          if [ -z "$IPA_PATH" ]; then
-            echo "❌ No IPA found to publish"; exit 1; fi
-
-          ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-${APP_STORE_CONNECT_ISSL:-}}"
-          KEY_ID="${APP_STORE_CONNECT_KEY_IDENTIFIER:-${APP_STORE_CONNECT_KEY:-}}"
-          PRIVATE_KEY="${APP_STORE_CONNECT_PRIVATE_KEY:-${APP_STORE_CONNECT_PRI:-${APP_STORE_CONNECT_PRIV:-}}}"
-
-          app-store-connect publish \
-            --issuer-id "$ISSUER_ID" \
-            --key-id "$KEY_ID" \
-            --private-key "$PRIVATE_KEY" \
-            --file "$IPA_PATH" \
-            --submit-for-beta-review
-          echo "✅ Uploaded $IPA_PATH to TestFlight"
+            -exportOptionsPlist "$EXPORT_OPTS_PLIST" \
+            -exportPath "$EXPORT_DIR" | xcpretty
+          echo "Artifacts in $EXPORT_DIR:"
+          ls -la "$EXPORT_DIR"
 
     artifacts:
-      - build/**/*
-      - Export/**/*
-      - export_options.plist
+      - Export/*.ipa
+      - Export/*.dSYM.zip
+      - ExportOptions.plist
+
+    publishing:
+      app_store_connect:
+        # Flip to true after you see the IPA appear in artifacts once.
+        auth:
+          api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+          key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+          issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: false
