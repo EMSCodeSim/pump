@@ -8,7 +8,9 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-
+      groups:
+        # If you created a group for your ASC API key, list it here
+        # - appstore_connect
       vars:
         # --- App identity ---
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
@@ -16,22 +18,12 @@ workflows:
 
         # --- Xcode project paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"   # set explicitly; change if your shared scheme has a different name
+        SCHEME: "App"                 # change if your shared scheme is named differently
 
         # --- Archive/Export output paths ---
         ARCHIVE_PATH: "/Users/builder/clone/Export/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
-        # --- Codemagic signing asset reference names (must match Team → Code signing) ---
-        CM_DISTRIBUTION_CERT_REF: "FireOpsCalc_Distribution_2025"
-        CM_APPSTORE_PROFILE_REF: "FireOpsCalc_AppStore_Profile"
-
-    ios_signing:
-      certificates:
-        - $CM_DISTRIBUTION_CERT_REF
-      provisioning_profiles:
-        - $CM_APPSTORE_PROFILE_REF
 
     scripts:
       - name: Show Xcode version
@@ -57,15 +49,18 @@ workflows:
             echo "No Podfile found — skipping pod install."
           fi
 
-      - name: Verify signing files present
+      - name: Fetch signing files from Apple & import to keychain
         script: |
           set -e
-          echo "Provisioning profiles installed:"
-          ls -lah "$HOME/Library/MobileDevice/Provisioning Profiles" || true
-          echo "Looking for com.fireopscalc.app in profiles:"
-          grep -R "com.fireopscalc.app" "$HOME/Library/MobileDevice/Provisioning Profiles" -n || true
+          keychain initialize
+          # Pulls your Team’s distribution cert + App Store profile for the bundle id
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
+          keychain add-certificates
 
-      - name: Build Xcode archive (sign only App target)
+          echo "Installed provisioning profiles:"
+          ls -lah "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+
+      - name: Build Xcode archive (UNSIGNED to avoid Pods signing issues)
         script: |
           set -e
           mkdir -p "$EXPORT_DIR"
@@ -78,40 +73,64 @@ workflows:
             clean archive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGN_IDENTITY= \
-            CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER= \
-            \
-            "CODE_SIGN_IDENTITY[project=App][target=App]=Apple Distribution" \
-            "PROVISIONING_PROFILE_SPECIFIER[project=App][target=App]=$CM_APPSTORE_PROFILE_REF" \
-            \
-            "CODE_SIGNING_ALLOWED[project=Pods]=NO" \
-            "CODE_SIGNING_ALLOWED[project=Pods][target=Pods-App]=NO" \
-            "CODE_SIGNING_ALLOWED[project=Pods][target=Capacitor]=NO" \
-            "CODE_SIGNING_ALLOWED[project=Pods][target=CapacitorCordova]=NO"
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
-      - name: Create exportOptions.plist (no XML heredoc)
+      - name: Resolve App Store provisioning profile name
+        script: |
+          set -e
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_NAME=""
+
+          for mp in "$PROFILE_DIR"/*.mobileprovision; do
+            [ -f "$mp" ] || continue
+            plist="$(mktemp)"
+            # decode .mobileprovision to xml plist
+            if security cms -D -i "$mp" > "$plist" 2>/dev/null; then
+              app_id=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist" 2>/dev/null || true)
+              prof_name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist" 2>/dev/null || true)
+              has_devices=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$plist" >/dev/null 2>&1 && echo yes || echo no)
+              # match team.bundle and ensure it's an App Store profile (no devices)
+              if [[ "$app_id" == "${DEVELOPMENT_TEAM}.${PRODUCT_BUNDLE_IDENTIFIER}" && "$has_devices" == "no" ]]; then
+                PROFILE_NAME="$prof_name"
+                rm -f "$plist"
+                break
+              fi
+            fi
+            rm -f "$plist"
+          done
+
+          if [[ -z "$PROFILE_NAME" ]]; then
+            echo "❌ No App Store provisioning profile found for ${PRODUCT_BUNDLE_IDENTIFIER}"
+            echo "Available profiles:"
+            ls -lah "$PROFILE_DIR" || true
+            exit 1
+          fi
+
+          echo "✅ Using App Store profile: $PROFILE_NAME"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
+
+      - name: Create exportOptions.plist (programmatically)
         script: |
           set -e
           PLIST="$EXPORT_DIR/ExportOptions.plist"
-          # Create minimal plist root
+          # create minimal plist
           printf '%s' '<?xml version="1.0" encoding="UTF-8"?>' > "$PLIST"
           printf '%s' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> "$PLIST"
           printf '%s' '<plist version="1.0"><dict></dict></plist>' >> "$PLIST"
 
-          # Populate keys via PlistBuddy
           /usr/libexec/PlistBuddy -c "Add :method string app-store" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :teamID string ${DEVELOPMENT_TEAM}" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :destination string export" "$PLIST"
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:${PRODUCT_BUNDLE_IDENTIFIER} string ${CM_APPSTORE_PROFILE_REF}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:${PRODUCT_BUNDLE_IDENTIFIER} string ${PROFILE_NAME}" "$PLIST"
 
-          echo "exportOptions.plist created:"
+          echo "exportOptions.plist:"
           /usr/libexec/PlistBuddy -c "Print" "$PLIST" || true
 
-      - name: Export IPA
+      - name: Export IPA (sign during export)
         script: |
           set -e
           xcodebuild -exportArchive \
@@ -129,10 +148,14 @@ workflows:
           echo "Contents of export dir:"
           ls -lah "$EXPORT_DIR"
           if [ ! -f "$EXPORT_DIR/$IPA_NAME" ]; then
-            echo "ERROR: IPA not found after export."
+            echo "❌ IPA not found after export."
+            # Dump export logs for diagnostics if present
+            LOG_BUNDLE=$(ls -1td /var/folders/*/*/*/*/App_*_xcdistributionlogs 2>/dev/null | head -n 1 || true)
+            [ -n "$LOG_BUNDLE" ] && find "$LOG_BUNDLE" -type f -maxdepth 2 -print -exec tail -n +1 {} \; || true
             exit 1
           fi
           echo "APP_IPA_PATH=$EXPORT_DIR/$IPA_NAME" >> "$CM_ENV"
+          echo "🎯 Final IPA: $EXPORT_DIR/$IPA_NAME"
 
     artifacts:
       - Export/*.ipa
