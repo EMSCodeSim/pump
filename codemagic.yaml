@@ -15,7 +15,7 @@ workflows:
 
         # --- Xcode project paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"   # change if your shared scheme has a different name
+        SCHEME: "App"   # change if your shared scheme is named differently
 
         # --- Archive/Export output paths ---
         ARCHIVE_PATH: "/Users/builder/clone/Export/App.xcarchive"
@@ -46,12 +46,15 @@ workflows:
             echo "No Podfile found — skipping pod install."
           fi
 
-      - name: Fetch signing files from Apple & import to keychain
+      - name: Fetch signing files from Apple & import to keychain (using 'FireCalc' integration)
         script: |
           set -e
           keychain initialize
-          # Pulls your Team’s distribution cert + App Store profile for the bundle id
-          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" --type IOS_APP_STORE --create
+          # Use your Team → Integrations → Apple Developer Portal key named "FireCalc"
+          app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" \
+            --type IOS_APP_STORE \
+            --api-key "FireCalc" \
+            --create
           keychain add-certificates
 
           echo "Installed provisioning profiles:"
@@ -105,7 +108,7 @@ workflows:
           echo "✅ Using App Store profile: $PROFILE_NAME"
           echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
 
-      - name: Create exportOptions.plist (programmatically)
+      - name: Create exportOptions.plist (programmatic, no XML heredoc in YAML)
         script: |
           set -e
           PLIST="$EXPORT_DIR/ExportOptions.plist"
