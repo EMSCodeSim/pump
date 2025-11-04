@@ -8,9 +8,6 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-      groups:
-        # If you created a group for your ASC API key, list it here
-        # - appstore_connect
       vars:
         # --- App identity ---
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
@@ -18,7 +15,7 @@ workflows:
 
         # --- Xcode project paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"                 # change if your shared scheme is named differently
+        SCHEME: "App"   # change if your shared scheme has a different name
 
         # --- Archive/Export output paths ---
         ARCHIVE_PATH: "/Users/builder/clone/Export/App.xcarchive"
@@ -85,12 +82,10 @@ workflows:
           for mp in "$PROFILE_DIR"/*.mobileprovision; do
             [ -f "$mp" ] || continue
             plist="$(mktemp)"
-            # decode .mobileprovision to xml plist
             if security cms -D -i "$mp" > "$plist" 2>/dev/null; then
               app_id=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist" 2>/dev/null || true)
               prof_name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist" 2>/dev/null || true)
               has_devices=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$plist" >/dev/null 2>&1 && echo yes || echo no)
-              # match team.bundle and ensure it's an App Store profile (no devices)
               if [[ "$app_id" == "${DEVELOPMENT_TEAM}.${PRODUCT_BUNDLE_IDENTIFIER}" && "$has_devices" == "no" ]]; then
                 PROFILE_NAME="$prof_name"
                 rm -f "$plist"
@@ -114,7 +109,6 @@ workflows:
         script: |
           set -e
           PLIST="$EXPORT_DIR/ExportOptions.plist"
-          # create minimal plist
           printf '%s' '<?xml version="1.0" encoding="UTF-8"?>' > "$PLIST"
           printf '%s' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> "$PLIST"
           printf '%s' '<plist version="1.0"><dict></dict></plist>' >> "$PLIST"
@@ -149,7 +143,6 @@ workflows:
           ls -lah "$EXPORT_DIR"
           if [ ! -f "$EXPORT_DIR/$IPA_NAME" ]; then
             echo "❌ IPA not found after export."
-            # Dump export logs for diagnostics if present
             LOG_BUNDLE=$(ls -1td /var/folders/*/*/*/*/App_*_xcdistributionlogs 2>/dev/null | head -n 1 || true)
             [ -n "$LOG_BUNDLE" ] && find "$LOG_BUNDLE" -type f -maxdepth 2 -print -exec tail -n +1 {} \; || true
             exit 1
