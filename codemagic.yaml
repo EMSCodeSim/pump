@@ -20,7 +20,6 @@ workflows:
         IPA_NAME: "FireOpsCalc.ipa"
 
       ios_signing:
-        # These must match exactly what you created in Codemagic Team settings
         certificates:
           - FireOpsCalc_Distribution_2025
         provisioning_profiles:
@@ -29,11 +28,13 @@ workflows:
     scripts:
       - name: Install JS deps & sync Capacitor iOS
         script: |
+          set -e
           npm ci
           npx cap sync ios
 
       - name: Install CocoaPods (in the correct folder)
         script: |
+          set -e
           cd ios/App
           pod repo update
           pod install
@@ -41,24 +42,19 @@ workflows:
 
       - name: Detect Xcode scheme
         script: |
-          echo "Listing schemes in $WORKSPACE"
-          xcodebuild -list -json -workspace "$WORKSPACE" | tee schemes.json
-          SCHEME_DETECTED=$(python3 - <<'PY'
-import json,sys
-d=json.load(open('schemes.json'))
-schemes = d.get('workspace',{}).get('schemes',[])
-print(schemes[0] if schemes else "")
-PY
-)
+          set -e
+          xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json
+          SCHEME_DETECTED=$(python3 -c "import json; d=json.load(open('schemes.json')); print((d.get('workspace',{}).get('schemes') or [''])[0])")
           if [ -z "$SCHEME_DETECTED" ]; then
-            echo "No shared scheme found in workspace. Please open ios/App/App.xcworkspace locally and share the App scheme (Product > Scheme > Manage Schemes > check 'Shared')."
+            echo "No shared scheme found. Open ios/App/App.xcworkspace locally and share the App scheme (Product > Scheme > Manage Schemes > check 'Shared')."
             exit 1
           fi
           echo "Using scheme: $SCHEME_DETECTED"
-          echo "SCHEME_DETECTED=$SCHEME_DETECTED" >> $CM_ENV
+          echo "SCHEME_DETECTED=$SCHEME_DETECTED" >> "$CM_ENV"
 
       - name: Build Xcode archive
         script: |
+          set -e
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME_DETECTED" \
@@ -74,17 +70,18 @@ PY
 
       - name: Create exportOptions.plist
         script: |
-          cat > exportOptions.plist <<EOF
+          set -e
+          cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
             <key>signingStyle</key><string>manual</string>
-            <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+            <key>teamID</key><string>QZ55W58398</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>${PRODUCT_BUNDLE_IDENTIFIER}</key><string>FireOpsCalc_AppStore_Profile</string>
+              <key>com.fireopscalc.app</key><string>FireOpsCalc_AppStore_Profile</string>
             </dict>
             <key>compileBitcode</key><false/>
             <key>manageAppVersionAndBuildNumber</key><true/>
@@ -94,6 +91,7 @@ PY
 
       - name: Export IPA (sign & verify)
         script: |
+          set -e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist exportOptions.plist \
