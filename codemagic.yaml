@@ -8,7 +8,8 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-      # --- App identity ---
+      groups:
+        - appstore_connect            # <-- make sure your three vars live in this group
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -42,15 +43,28 @@ workflows:
         script: |
           set -e
           keychain initialize
-          : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID}"
-          : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?Missing APP_STORE_CONNECT_KEY_IDENTIFIER}"
-          : "${APP_STORE_CONNECT_PRIVATE_KEY:?Missing APP_STORE_CONNECT_PRIVATE_KEY}"
+
+          # --- Accept official names OR your short names from the UI screenshots ---
+          ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-${APP_STORE_CONNECT_ISSL:-}}"
+          KEY_ID="${APP_STORE_CONNECT_KEY_IDENTIFIER:-${APP_STORE_CONNECT_KEY:-}}"
+          PRIVATE_KEY="${APP_STORE_CONNECT_PRIVATE_KEY:-${APP_STORE_CONNECT_PRI:-${APP_STORE_CONNECT_PRIV:-}}}"
+
+          if [ -z "$ISSUER_ID" ] || [ -z "$KEY_ID" ] || [ -z "$PRIVATE_KEY" ]; then
+            echo "❌ Missing one or more App Store Connect variables."
+            echo "Expected either:"
+            echo "  APP_STORE_CONNECT_ISSUER_ID / APP_STORE_CONNECT_KEY_IDENTIFIER / APP_STORE_CONNECT_PRIVATE_KEY"
+            echo "or these alternates (as in your UI):"
+            echo "  APP_STORE_CONNECT_ISSL / APP_STORE_CONNECT_KEY / APP_STORE_CONNECT_PRI"
+            exit 1
+          fi
+
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" \
             --type IOS_APP_STORE \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --issuer-id "$ISSUER_ID" \
+            --key-id "$KEY_ID" \
+            --private-key "$PRIVATE_KEY" \
             --create
+
           keychain add-certificates
           echo "📄 Provisioning profiles:"
           ls -lah "$HOME/Library/MobileDevice/Provisioning Profiles" || true
@@ -101,10 +115,15 @@ workflows:
           IPA_PATH=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
           if [ -z "$IPA_PATH" ]; then
             echo "❌ No IPA found to publish"; exit 1; fi
+
+          ISSUER_ID="${APP_STORE_CONNECT_ISSUER_ID:-${APP_STORE_CONNECT_ISSL:-}}"
+          KEY_ID="${APP_STORE_CONNECT_KEY_IDENTIFIER:-${APP_STORE_CONNECT_KEY:-}}"
+          PRIVATE_KEY="${APP_STORE_CONNECT_PRIVATE_KEY:-${APP_STORE_CONNECT_PRI:-${APP_STORE_CONNECT_PRIV:-}}}"
+
           app-store-connect publish \
-            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --issuer-id "$ISSUER_ID" \
+            --key-id "$KEY_ID" \
+            --private-key "$PRIVATE_KEY" \
             --file "$IPA_PATH" \
             --submit-for-beta-review
           echo "✅ Uploaded $IPA_PATH to TestFlight"
