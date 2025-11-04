@@ -1,6 +1,6 @@
 workflows:
   ios_release:
-    name: iOS Release (EMSCodeSim Team)
+    name: FireOpsCalc iOS Release (App Store)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -8,6 +8,7 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
+
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -19,48 +20,43 @@ workflows:
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
 
+        PUBLISH_TO_TESTFLIGHT: "true"
+
       ios_signing:
         certificates:
           - FireOpsCalc_Distribution_2025
         provisioning_profiles:
-          - FireOpsCalcApp_AppStore
-
-      # Optional: if you want it uploaded to TestFlight automatically
-      publishing:
-        app_store_connect:
-          api_key: FireCalc
+          - FireOpsCalc_AppStore_Profile
 
     scripts:
       - name: Install dependencies
         script: |
           npm install
-          npx cap sync ios
 
-      - name: Clean build
+      - name: Build iOS release
         script: |
-          xcodebuild clean -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release
+          cd ios
+          pod install
+          cd ..
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            clean archive \
+            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
-      - name: Build Xcode archive
-        script: |
-          xcodebuild -workspace "$WORKSPACE" \
-          -scheme "$SCHEME" \
-          -configuration Release \
-          -archivePath "$ARCHIVE_PATH" \
-          -allowProvisioningUpdates \
-          DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-          PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-          CODE_SIGN_STYLE=Manual \
-          CODE_SIGN_IDENTITY="Apple Distribution"
-
-      - name: Export IPA (sign & upload)
+      - name: Export IPA (sign & verify)
         script: |
           xcodebuild -exportArchive \
-          -archivePath "$ARCHIVE_PATH" \
-          -exportOptionsPlist ios/App/AppStoreExportOptions.plist \
-          -exportPath "$IPA_EXPORT_DIR" \
-          -allowProvisioningUpdates
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist ios/App/exportOptions.plist \
+            -exportPath "$IPA_EXPORT_DIR"
 
     artifacts:
-      - $IPA_EXPORT_DIR/*.ipa
-      - $IPA_EXPORT_DIR/*.dSYM.zip
-      - $IPA_EXPORT_DIR/*.log
+      - build/**/*.ipa
+      - build/**/*.dSYM.zip
+      - build/**/*.app
