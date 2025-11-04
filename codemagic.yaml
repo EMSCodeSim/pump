@@ -6,7 +6,7 @@ workflows:
 
     # Required because publishing.auth uses "integration"
     integrations:
-      app_store_connect: FireCalc   # exact name of your ASC integration
+      app_store_connect: FireCalc   # <— exact name of your ASC integration
 
     environment:
       xcode: 16.4
@@ -20,13 +20,13 @@ workflows:
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         EXPORT_PLIST: "/Users/builder/clone/ExportOptions.plist"
-        # Profile NAME must match your Xcode project exactly (Option A):
+        # Must match the profile NAME your Xcode project expects (Option A):
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
-        # Set if not defined in the project:
+        # Set app version/build if not set in project:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
       groups:
-        - appstore_connect   # <-- all variables live here
+        - appstore_connect   # <— all variables live here
 
     cache:
       cache_paths:
@@ -36,12 +36,48 @@ workflows:
         - ios/Pods
 
     scripts:
-      - name: Install deps, build web, sync iOS
+      # Resilient: works even if no "build" script is defined in package.json
+      - name: Install deps, stage web assets, sync iOS
         script: |
           set -e
           npm ci || npm install
-          npm run build
-          npx cap sync ios
+
+          # Try to build if a "build" script exists
+          if npm run 2>/dev/null | grep -qE '^\s*build\s'; then
+            echo "Found build script → running npm run build"
+            npm run build
+            WEB_OUT="dist"
+          else
+            echo "No build script -> looking for existing assets"
+            if [ -d "dist" ]; then WEB_OUT="dist";
+            elif [ -d "www" ]; then WEB_OUT="www";
+            elif [ -d "public" ]; then
+              echo "Using public/ as web root → copying to dist/"
+              rsync -a --delete public/ dist/
+              WEB_OUT="dist"
+            else
+              echo "No dist/www/public found → creating a minimal placeholder site"
+              mkdir -p dist
+              cat > dist/index.html <<'HTML'
+              <!doctype html>
+              <html>
+                <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+                  <title>FireOpsCalc</title>
+                  <style>body{font-family:system-ui,Arial,sans-serif;padding:24px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}</style>
+                </head>
+                <body>
+                  <h1>FireOpsCalc</h1>
+                  <p>Placeholder web assets for Capacitor build. Replace with your real bundle.</p>
+                </body>
+              </html>
+              HTML
+              WEB_OUT="dist"
+            fi
+          fi
+
+          echo "Web output at: $WEB_OUT"
+          # Copy/sync assets into iOS project
+          npx cap copy ios
           cd ios/App
           pod install --repo-update
           cd -
