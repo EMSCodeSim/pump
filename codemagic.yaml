@@ -4,9 +4,9 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Needed for publishing.auth: integration
+    # Needed so publishing.auth: integration can upload to TestFlight
     integrations:
-      app_store_connect: FireCalc   # <— match your ASC integration name exactly
+      app_store_connect: FireCalc   # <-- match your ASC integration name exactly
 
     environment:
       xcode: 16.4
@@ -27,9 +27,8 @@ workflows:
         # Optional app versioning if not set in Xcode project
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
-
       groups:
-        - appstore_connect   # <— contains ASC KEY_IDENTIFIER / ISSUER_ID / PRIVATE_KEY
+        - appstore_connect   # <-- contains APP_STORE_CONNECT_KEY_IDENTIFIER / ISSUER_ID / PRIVATE_KEY
 
     cache:
       cache_paths:
@@ -84,12 +83,12 @@ workflows:
           # Copy web to iOS project (Capacitor)
           npx cap copy ios
 
-          # Ensure Cocoapods are installed
+          # Ensure CocoaPods are installed
           cd ios/App
           pod install --repo-update
           cd -
 
-      # 2) Fetch signing files from ASC and install them
+      # 2) Fetch signing files from ASC and install them (bundle id is positional arg)
       - name: Fetch signing files from Apple & install (ASC API)
         script: |
           set -euo pipefail
@@ -102,11 +101,11 @@ workflows:
           # Fetch or create the App Store (distribution) signing files for our bundle id
           app-store-connect fetch-signing-files \
             --type IOS_APP_STORE \
-            --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
             --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
             --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
             --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
-            --create
+            --create \
+            "$PRODUCT_BUNDLE_IDENTIFIER"
 
           # Import certs into the keychain and install provisioning profiles
           keychain add-certificates
@@ -176,5 +175,5 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration       # uses integrations.app_store_connect: FireCalc
+        auth: integration
         submit_to_testflight: true
