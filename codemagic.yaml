@@ -18,7 +18,7 @@ workflows:
         EXPORT_OPTS_PLIST: "/Users/builder/clone/ExportOptions.plist"
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalc_AppStore_Profile"
       groups:
-        - appstore_connect   # you already created this group with the 3 ASC vars
+        - appstore_connect   # ok to keep; not used by 'auth: integration' but harmless
 
     cache:
       cache_paths:
@@ -35,10 +35,9 @@ workflows:
 
       - name: Import code-signing from Codemagic storage
         script: |
-          # Imports **the p12 and mobileprovision** you uploaded in Team → Code signing identities
+          # Uses the p12 + .mobileprovision you uploaded in Team → Code signing identities
           keychain initialize
           keychain add-certificates
-          echo "Identities in keychain:"
           security find-identity -v
 
       - name: Create ExportOptions.plist
@@ -55,7 +54,6 @@ workflows:
               <key>com.fireopscalc.app</key>
               <string>FireOpsCalc_AppStore_Profile</string>
             </dict>
-            <key>compileBitcode</key><false/>
             <key>manageAppVersionAndBuildNumber</key><false/>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
@@ -95,9 +93,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        # Flip to true after you see the IPA appear in artifacts once.
-        auth:
-          api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-          key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-          issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        auth: integration     # ✅ Use your linked “FireCalc” ASC integration
         submit_to_testflight: false
+        # When you see the IPA in artifacts, flip submit_to_testflight to true if you want auto-upload.
