@@ -4,9 +4,9 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Use your ASC integration (required for publishing: auth: integration)
+    # Needed because publishing.auth uses "integration"
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # exact name from Teams → Integrations
 
     environment:
       xcode: 16.4
@@ -16,12 +16,13 @@ workflows:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
-        # SCHEME will be auto-detected; you can hardcode to "App" if you want.
+        SCHEME: "App"                          # <-- hard-coded to avoid detection step
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         EXPORT_PLIST: "/Users/builder/clone/ExportOptions.plist"
+        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalc_AppStore_Profile"
       groups:
-        - appstore_connect
+        - appstore_connect                     # fine to keep
 
     cache:
       cache_paths:
@@ -48,53 +49,9 @@ workflows:
         script: |
           set -e
           keychain initialize
-          # pulls all certs/profiles you added in Teams → Code signing identities
+          # Pulls all certs/profiles you uploaded in Team → Code signing identities
           keychain add-certificates
-          security find-identity -v
-          # Map installed profiles to the Xcode project (keeps Pods on Automatic)
-          xcode-project use-profiles --target "App" || true
-
-      - name: Detect workspace & scheme (and print them)
-        script: |
-          set -e
-          # Prefer workspace; fall back to project if needed
-          if [ -f "$WORKSPACE" ]; then
-            WHAT="-workspace $WORKSPACE"
-          else
-            WHAT="-project ios/App/App.xcodeproj"
-          fi
-
-          # Ask Xcode for schemes (JSON output) and pick the best match
-          xcodebuild -list $WHAT -json > schemes.json || true
-          python3 - <<'PY'
-import json, sys, os, re
-p="schemes.json"
-if not os.path.exists(p):
-    print("SCHEME=App")  # safe default
-    sys.exit(0)
-d=json.load(open(p))
-schemes=[]
-if "project" in d and "schemes" in d["project"]:
-    schemes=d["project"]["schemes"]
-if "workspace" in d and "schemes" in d["workspace"]:
-    schemes=d["workspace"]["schemes"]
-pick=None
-for s in schemes:
-    if s.lower()=="app" or "app"==s:
-        pick=s; break
-if not pick:
-    # pick first scheme that contains "app" or first overall
-    for s in schemes:
-        if "app" in s.lower():
-            pick=s; break
-if not pick and schemes:
-    pick=schemes[0]
-print(f"SCHEME={pick or 'App'}")
-PY
-          SCHEME=$(tail -n1 | sed 's/^SCHEME=//')
-          echo "Resolved scheme: ${SCHEME:-App}"
-          if [ -z "$SCHEME" ] || [ "$SCHEME" = "None" ]; then SCHEME="App"; fi
-          echo "SCHEME=$SCHEME" >> $CM_ENV
+          security find-identity -v || true
 
       - name: Create ExportOptions.plist
         script: |
@@ -117,7 +74,7 @@ PY
           </dict>
           </plist>
           PLIST
-          cat "$EXPORT_PLIST"
+          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
       - name: Build archive (manual signing for App target only)
         script: |
@@ -127,9 +84,8 @@ PY
           else
             WHAT="-project ios/App/App.xcodeproj"
           fi
-          echo "Building with: $WHAT, scheme: $SCHEME"
 
-          # Clean + archive; keep Pods targets on automatic (no PROVISIONING_PROFILE_SPECIFIER for them)
+          echo "Building with: $WHAT, scheme: $SCHEME"
           xcodebuild $WHAT \
             -scheme "$SCHEME" \
             -configuration Release \
@@ -138,17 +94,19 @@ PY
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
             "CODE_SIGN_IDENTITY=Apple Distribution" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $HOME/Library/codemagic-cli-tools/keychains/$(ls $HOME/Library/codemagic-cli-tools/keychains | head -n1)" \
-            clean archive | xcpretty
+            clean archive
 
-          # If archive is missing, show schemes/targets to debug
           if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo ":: Archive not produced. Dumping schemes and build settings for insight."
-            xcodebuild $WHAT -list
-            xcodebuild $WHAT -scheme "$SCHEME" -showBuildSettings | grep -E 'PRODUCT_NAME|PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PROVISIONING_PROFILE'
+            echo "❌ Archive not produced at $ARCHIVE_PATH"
+            echo "Dumping list and build settings for debugging:"
+            xcodebuild $WHAT -list || true
+            xcodebuild $WHAT -scheme "$SCHEME" -showBuildSettings | \
+              grep -E 'PRODUCT_NAME|PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PROVISIONING_PROFILE' || true
             exit 1
           fi
+          echo "✅ Archive created at: $ARCHIVE_PATH"
 
       - name: Export IPA
         script: |
@@ -157,7 +115,7 @@ PY
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR" | xcpretty
+            -exportPath "$EXPORT_DIR"
           echo "Artifacts in $EXPORT_DIR:"
           ls -la "$EXPORT_DIR"
 
@@ -165,7 +123,6 @@ PY
       - Export/*.ipa
       - Export/*.dSYM.zip
       - ExportOptions.plist
-      - schemes.json
 
     publishing:
       app_store_connect:
