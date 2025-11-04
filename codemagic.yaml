@@ -8,152 +8,108 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
+      # --- App identity ---
       vars:
-        # --- App identity ---
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
-
-        # --- Xcode project paths ---
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"   # change if your shared scheme is named differently
+        SCHEME: "App"
+        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        EXPORT_PATH: "/Users/builder/clone/Export"
 
-        # --- Archive/Export output paths ---
-        ARCHIVE_PATH: "/Users/builder/clone/Export/App.xcarchive"
-        EXPORT_DIR: "/Users/builder/clone/Export"
-        IPA_NAME: "FireOpsCalc.ipa"
+    cache:
+      cache_paths:
+        - ~/Library/Caches/CocoaPods
 
     scripts:
-      - name: Show Xcode version
+      - name: Show Xcode schemes (and install Pods if present)
         script: |
           set -e
-          xcodebuild -version
+          if [ -d "ios/App" ]; then
+            (cd ios/App && pod install || true)
+          fi
+          xcodebuild -list -workspace "$WORKSPACE" || true
 
-      - name: Install JS deps & sync iOS
+      - name: (Optional) Sync Capacitor iOS
         script: |
           set -e
-          npm ci || npm i
-          npx cap sync ios
-
-      - name: Install CocoaPods (if Podfile exists)
-        script: |
-          set -e
-          if [ -f "ios/App/Podfile" ]; then
-            cd ios/App
-            pod repo update
-            pod install
-            cd ../..
-          else
-            echo "No Podfile found — skipping pod install."
+          if [ -f package.json ]; then
+            npm ci || true
+            npx cap sync ios || true
           fi
 
-      - name: Fetch signing files from Apple & import to keychain (using 'FireCalc' integration)
+      - name: Prepare code signing (uses ASC environment variables)
         script: |
           set -e
           keychain initialize
-          # Use your Team → Integrations → Apple Developer Portal key named "FireCalc"
+          : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID}"
+          : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?Missing APP_STORE_CONNECT_KEY_IDENTIFIER}"
+          : "${APP_STORE_CONNECT_PRIVATE_KEY:?Missing APP_STORE_CONNECT_PRIVATE_KEY}"
           app-store-connect fetch-signing-files "$PRODUCT_BUNDLE_IDENTIFIER" \
             --type IOS_APP_STORE \
-            --api-key "FireCalc" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
             --create
           keychain add-certificates
-
-          echo "Installed provisioning profiles:"
+          echo "📄 Provisioning profiles:"
           ls -lah "$HOME/Library/MobileDevice/Provisioning Profiles" || true
 
-      - name: Build Xcode archive (UNSIGNED to avoid Pods signing issues)
+      - name: Build Xcode archive (Manual Distribution signing)
         script: |
           set -e
-          mkdir -p "$EXPORT_DIR"
-          xcodebuild \
-            -workspace "$WORKSPACE" \
+          xcodebuild -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
-            -destination 'generic/platform=iOS' \
+            -destination generic/platform=iOS \
             clean archive \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGN_STYLE=Manual \
+            "CODE_SIGN_IDENTITY=Apple Distribution" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $(security default-keychain | tr -d '\"')"
 
-      - name: Resolve App Store provisioning profile name
+      - name: Export IPA
         script: |
           set -e
-          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          PROFILE_NAME=""
-
-          for mp in "$PROFILE_DIR"/*.mobileprovision; do
-            [ -f "$mp" ] || continue
-            plist="$(mktemp)"
-            if security cms -D -i "$mp" > "$plist" 2>/dev/null; then
-              app_id=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" "$plist" 2>/dev/null || true)
-              prof_name=$(/usr/libexec/PlistBuddy -c "Print :Name" "$plist" 2>/dev/null || true)
-              has_devices=$(/usr/libexec/PlistBuddy -c "Print :ProvisionedDevices" "$plist" >/dev/null 2>&1 && echo yes || echo no)
-              if [[ "$app_id" == "${DEVELOPMENT_TEAM}.${PRODUCT_BUNDLE_IDENTIFIER}" && "$has_devices" == "no" ]]; then
-                PROFILE_NAME="$prof_name"
-                rm -f "$plist"
-                break
-              fi
-            fi
-            rm -f "$plist"
-          done
-
-          if [[ -z "$PROFILE_NAME" ]]; then
-            echo "❌ No App Store provisioning profile found for ${PRODUCT_BUNDLE_IDENTIFIER}"
-            echo "Available profiles:"
-            ls -lah "$PROFILE_DIR" || true
-            exit 1
-          fi
-
-          echo "✅ Using App Store profile: $PROFILE_NAME"
-          echo "PROFILE_NAME=$PROFILE_NAME" >> "$CM_ENV"
-
-      - name: Create exportOptions.plist (programmatic, no XML heredoc in YAML)
-        script: |
-          set -e
-          PLIST="$EXPORT_DIR/ExportOptions.plist"
-          printf '%s' '<?xml version="1.0" encoding="UTF-8"?>' > "$PLIST"
-          printf '%s' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> "$PLIST"
-          printf '%s' '<plist version="1.0"><dict></dict></plist>' >> "$PLIST"
-
-          /usr/libexec/PlistBuddy -c "Add :method string app-store" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :teamID string ${DEVELOPMENT_TEAM}" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :compileBitcode bool false" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :destination string export" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" "$PLIST"
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:${PRODUCT_BUNDLE_IDENTIFIER} string ${PROFILE_NAME}" "$PLIST"
-
-          echo "exportOptions.plist:"
-          /usr/libexec/PlistBuddy -c "Print" "$PLIST" || true
-
-      - name: Export IPA (sign during export)
-        script: |
-          set -e
+          mkdir -p "$EXPORT_PATH"
+          cat > export_options.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>uploadBitcode</key><false/>
+            <key>compileBitcode</key><false/>
+            <key>stripSwiftSymbols</key><true/>
+            <key>destination</key><string>export</string>
+          </dict>
+          </plist>
+          EOF
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist "$EXPORT_DIR/ExportOptions.plist" \
-            -exportPath "$EXPORT_DIR"
+            -exportOptionsPlist export_options.plist \
+            -exportPath "$EXPORT_PATH"
+          echo "📦 Export contents:"
+          ls -lah "$EXPORT_PATH"
 
-          # Normalize IPA name for artifacts
-          if [ -f "$EXPORT_DIR/$SCHEME.ipa" ]; then
-            mv "$EXPORT_DIR/$SCHEME.ipa" "$EXPORT_DIR/$IPA_NAME"
-          elif [ -f "$EXPORT_DIR/App.ipa" ]; then
-            mv "$EXPORT_DIR/App.ipa" "$EXPORT_DIR/$IPA_NAME"
-          fi
-
-          echo "Contents of export dir:"
-          ls -lah "$EXPORT_DIR"
-          if [ ! -f "$EXPORT_DIR/$IPA_NAME" ]; then
-            echo "❌ IPA not found after export."
-            LOG_BUNDLE=$(ls -1td /var/folders/*/*/*/*/App_*_xcdistributionlogs 2>/dev/null | head -n 1 || true)
-            [ -n "$LOG_BUNDLE" ] && find "$LOG_BUNDLE" -type f -maxdepth 2 -print -exec tail -n +1 {} \; || true
-            exit 1
-          fi
-          echo "APP_IPA_PATH=$EXPORT_DIR/$IPA_NAME" >> "$CM_ENV"
-          echo "🎯 Final IPA: $EXPORT_DIR/$IPA_NAME"
+      - name: Publish to TestFlight
+        script: |
+          set -e
+          IPA_PATH=$(find "$EXPORT_PATH" -name "*.ipa" | head -n 1 || true)
+          if [ -z "$IPA_PATH" ]; then
+            echo "❌ No IPA found to publish"; exit 1; fi
+          app-store-connect publish \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --file "$IPA_PATH" \
+            --submit-for-beta-review
+          echo "✅ Uploaded $IPA_PATH to TestFlight"
 
     artifacts:
-      - Export/*.ipa
-      - Export/*.xcarchive
-      - Export/ExportOptions.plist
+      - build/**/*
+      - Export/**/*
+      - export_options.plist
