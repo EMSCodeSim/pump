@@ -4,6 +4,10 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
+    # 👇 This satisfies: publishing.auth: integration
+    integrations:
+      app_store_connect: FireCalc   # exact name from Teams → Integrations
+
     environment:
       xcode: 16.4
       cocoapods: default
@@ -18,7 +22,7 @@ workflows:
         EXPORT_OPTS_PLIST: "/Users/builder/clone/ExportOptions.plist"
         PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalc_AppStore_Profile"
       groups:
-        - appstore_connect   # ok to keep; not used by 'auth: integration' but harmless
+        - appstore_connect   # optional; harmless to keep
 
     cache:
       cache_paths:
@@ -35,7 +39,7 @@ workflows:
 
       - name: Import code-signing from Codemagic storage
         script: |
-          # Uses the p12 + .mobileprovision you uploaded in Team → Code signing identities
+          # Uses the p12 and the .mobileprovision you added in Team → Code signing identities
           keychain initialize
           keychain add-certificates
           security find-identity -v
@@ -93,6 +97,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration     # ✅ Use your linked “FireCalc” ASC integration
-        submit_to_testflight: false
-        # When you see the IPA in artifacts, flip submit_to_testflight to true if you want auto-upload.
+        auth: integration        # ✅ now valid because integrations.app_store_connect is set
+        # set to true to auto-upload; leave false to just produce the IPA
+        submit_to_testflight: true
