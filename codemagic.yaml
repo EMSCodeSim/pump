@@ -1,29 +1,35 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release
+    name: FireOpsCalc iOS Release (ASC fetch)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
+    # Needed for publishing.auth: integration
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # <— match your ASC integration name exactly
 
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
       vars:
+        # iOS project config
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
+
+        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         EXPORT_DIR: "/Users/builder/clone/Export"
         EXPORT_PLIST: "/Users/builder/clone/ExportOptions.plist"
-        PROVISIONING_PROFILE_SPECIFIER: "FireOpsCalcApp_AppStore"
+
+        # Optional app versioning if not set in Xcode project
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
+
       groups:
-        - appstore_connect
+        - appstore_connect   # <— contains ASC KEY_IDENTIFIER / ISSUER_ID / PRIVATE_KEY
 
     cache:
       cache_paths:
@@ -33,9 +39,10 @@ workflows:
         - ios/Pods
 
     scripts:
+      # 1) Handle web assets robustly (works with or without "npm run build")
       - name: Install deps, stage web assets, sync iOS
         script: |
-          set -e
+          set -euo pipefail
           npm ci || npm install
 
           # Try to build if a "build" script exists
@@ -74,96 +81,91 @@ workflows:
           fi
 
           echo "Web output at: $WEB_OUT"
+          # Copy web to iOS project (Capacitor)
           npx cap copy ios
+
+          # Ensure Cocoapods are installed
           cd ios/App
           pod install --repo-update
           cd -
 
-      - name: Stage signing files & import p12 (with private key)
+      # 2) Fetch signing files from ASC and install them
+      - name: Fetch signing files from Apple & install (ASC API)
         script: |
-          set -e
-          : "${IOS_CERTIFICATE_P12_BASE64:?Missing IOS_CERTIFICATE_P12_BASE64}"
-          : "${IOS_CERTIFICATE_PASSWORD:?Missing IOS_CERTIFICATE_PASSWORD}"
-          : "${IOS_PROVISIONING_PROFILE_BASE64:?Missing IOS_PROVISIONING_PROFILE_BASE64}"
-
-          BUILD_DIR="$PWD"
-          CERT_PATH="$BUILD_DIR/fireopscalc_distribution_2025.p12"
-          PROV_PATH="$BUILD_DIR/FireOpsCalcApp_AppStore.mobileprovision"
-
-          # Decode Base64 (GNU/macOS)
-          echo "$IOS_CERTIFICATE_P12_BASE64"      | base64 --decode > "$CERT_PATH"      || echo "$IOS_CERTIFICATE_P12_BASE64"      | base64 -D > "$CERT_PATH"
-          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROV_PATH"      || echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -D > "$PROV_PATH"
+          set -euo pipefail
+          : "${APP_STORE_CONNECT_KEY_IDENTIFIER:?Missing APP_STORE_CONNECT_KEY_IDENTIFIER}"
+          : "${APP_STORE_CONNECT_ISSUER_ID:?Missing APP_STORE_CONNECT_ISSUER_ID}"
+          : "${APP_STORE_CONNECT_PRIVATE_KEY:?Missing APP_STORE_CONNECT_PRIVATE_KEY}"
 
           keychain initialize
-          security import "$CERT_PATH" \
-            -k "$(security default-keychain | tr -d '"')" \
-            -P "$IOS_CERTIFICATE_PASSWORD" -A -T /usr/bin/codesign -T /usr/bin/security
 
-          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< "$(security cms -D -i "$PROV_PATH")")
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$PROV_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/${UUID}.mobileprovision"
+          # Fetch or create the App Store (distribution) signing files for our bundle id
+          app-store-connect fetch-signing-files \
+            --type IOS_APP_STORE \
+            --bundle-id "$PRODUCT_BUNDLE_IDENTIFIER" \
+            --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+            --key-id "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --private-key "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            --create
+
+          # Import certs into the keychain and install provisioning profiles
+          keychain add-certificates
+          xcode-project use-profiles
 
           echo "🔐 Identities in keychain:"
           security find-identity -v "$(security default-keychain | tr -d '"')" || true
-          echo "📄 Provisioning profile installed: $UUID.mobileprovision"
 
-      - name: Create ExportOptions.plist (manual signing with fixed profile name)
+      # 3) Create export options (automatic signing)
+      - name: Create ExportOptions.plist (automatic)
         script: |
-          set -e
+          set -euo pipefail
           cat > "$EXPORT_PLIST" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0"><dict>
             <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.fireopscalc.app</key>
-              <string>FireOpsCalcApp_AppStore</string>
-            </dict>
+            <key>signingStyle</key><string>automatic</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
           </dict></plist>
           PLIST
           /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
 
-      - name: Build archive (manual signing for App target)
+      # 4) Build archive (let xcodebuild pick up codesigning from installed profiles)
+      - name: Build archive
         script: |
-          set -eo pipefail
-          WHAT="-workspace $WORKSPACE"
-          echo "Building with: $WHAT, scheme: $SCHEME"
-
-          xcodebuild $WHAT \
+          set -euo pipefail
+          xcodebuild \
+            -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
             -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_SPECIFIER" \
-            "CODE_SIGN_IDENTITY=Apple Distribution" \
             MARKETING_VERSION="$MARKETING_VERSION" \
             CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
             clean archive
 
           if [ ! -d "$ARCHIVE_PATH" ]; then
             echo "❌ Archive not produced at $ARCHIVE_PATH"
-            xcodebuild $WHAT -list || true
-            xcodebuild $WHAT -scheme "$SCHEME" -showBuildSettings | \
+            xcodebuild -workspace "$WORKSPACE" -list || true
+            xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -showBuildSettings | \
               grep -E 'PRODUCT_NAME|PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|MARKETING_VERSION|CURRENT_PROJECT_VERSION' || true
             exit 1
           fi
           echo "✅ Archive created: $ARCHIVE_PATH"
 
+      # 5) Export IPA
       - name: Export IPA
         script: |
-          set -e
+          set -euo pipefail
           mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist "$EXPORT_PLIST" \
             -exportPath "$EXPORT_DIR"
+
           echo "Artifacts in $EXPORT_DIR:"
           ls -la "$EXPORT_DIR"
 
@@ -174,5 +176,5 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration
+        auth: integration       # uses integrations.app_store_connect: FireCalc
         submit_to_testflight: true
