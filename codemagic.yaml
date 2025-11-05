@@ -4,9 +4,9 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # REQUIRED when publishing with `auth: integration`
+    # Uses your App Store Connect integration named "FireCalc"
     integrations:
-      app_store_connect: FireCalc   # <-- must match your integration name in Team settings
+      app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
@@ -16,12 +16,11 @@ workflows:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
-        # SCHEME can be wrong/empty; we auto-pick a real one below
-        SCHEME: "App"
+        SCHEME: "App"                           # fallback; we auto-pick a real shared scheme below
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
       groups:
-        - appstore_connect   # ok to keep; not strictly required with integration auth
+        - appstore_connect
 
     scripts:
       - name: Show Xcode & workspace
@@ -50,49 +49,60 @@ workflows:
       - name: List schemes & pick one that exists
         script: |
           set -euo pipefail
-          echo "== Listing schemes in $WORKSPACE =="
           xcodebuild -list -workspace "$WORKSPACE" || true
           xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json || true
           python3 - <<'PY'
           import json, os, sys
-          data = json.load(open("schemes.json"))
-          schemes = []
+          data=json.load(open("schemes.json"))
+          schemes=[]
           for k in ("workspace","project"):
               if k in data and "schemes" in data[k]:
                   schemes = data[k]["schemes"] or []
                   break
           print("Detected schemes:", schemes)
-          prefer = os.environ.get("SCHEME","").strip()
-          picked = ""
+          prefer=os.environ.get("SCHEME","").strip()
+          picked=""
           if prefer in schemes:
-              picked = prefer
-          elif any(s == "App" for s in schemes):
-              picked = "App"
+              picked=prefer
+          elif any(s=="App" for s in schemes):
+              picked="App"
           elif any("App" in s for s in schemes):
-              picked = [s for s in schemes if "App" in s][0]
+              picked=[s for s in schemes if "App" in s][0]
           elif schemes:
-              picked = schemes[0]
+              picked=schemes[0]
           if not picked:
-              print("ERROR: No shared schemes found. Share a scheme in Xcode (Manage Schemes… → Shared) so it’s committed under xcshareddata.", file=sys.stderr)
+              print("ERROR: No shared schemes found. Share the scheme in Xcode (Manage Schemes… → Shared).", file=sys.stderr)
               sys.exit(2)
           open("picked_scheme.txt","w").write(picked)
           print("Picked scheme:", picked)
           PY
           export PICKED_SCHEME="$(cat picked_scheme.txt)"
           echo "Using scheme: $PICKED_SCHEME"
-          echo "== Key build settings (Release) =="
-          xcodebuild -showBuildSettings \
-            -workspace "$WORKSPACE" \
-            -scheme "$PICKED_SCHEME" \
-            -configuration Release | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
-          echo "==================================="
+          xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$PICKED_SCHEME" -configuration Release \
+            | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
+
+      - name: Fix signing conflicts in project
+        script: |
+          set -euo pipefail
+          P=ios/App/App.xcodeproj/project.pbxproj
+          echo "Before (grep):"
+          egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
+          # Remove any hard-coded provisioning profiles
+          sed -i '' -E 's/PROVISIONING_PROFILE_SPECIFIER = [^;]+;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$P"
+          sed -i '' -E 's/PROVISIONING_PROFILE = [^;]+;/PROVISIONING_PROFILE = "";/g' "$P"
+          # Force Automatic signing
+          sed -i '' -E 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' "$P"
+          # Ensure correct team
+          sed -i '' -E 's/DEVELOPMENT_TEAM = [A-Z0-9]+;/DEVELOPMENT_TEAM = QZ55W58398;/g' "$P"
+          echo "After (grep):"
+          egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
 
       - name: Build Xcode archive (Release)
         script: |
           set -euo pipefail
           export PICKED_SCHEME="$(cat picked_scheme.txt)"
           echo "Archiving with scheme: $PICKED_SCHEME"
-          # NOTE: raw xcodebuild output (no xcpretty) to expose the real error
+          # Raw output (no xcpretty) to expose real errors
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$PICKED_SCHEME" \
@@ -103,6 +113,8 @@ workflows:
             CODE_SIGN_STYLE=Automatic \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE="" \
             clean archive
           test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
 
