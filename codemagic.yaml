@@ -1,159 +1,92 @@
 workflows:
   ios_release:
-    name: iOS App Store Release
+    name: iOS Release (Automatic signing)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Needed so publishing uses your FireCalc ASC key
+    # You already created this in Codemagic → Integrations
     integrations:
       app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
       cocoapods: default
-      node: 20.11.1
       vars:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-        DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App" # we'll auto-pick if name differs
+        SCHEME: "App"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
-        PROFILE_NAME: "FireOpsCalc_AppStore_Profile"     # <-- your App Store profile name
-        CODE_SIGN_ID: "Apple Distribution"               # <-- distribution identity
-      groups:
-        - appstore_connect
+        BUNDLE_ID: "com.fireopscalc.app"
+        DEV_TEAM: "QZ55W58398"
 
     scripts:
-      - name: Show Xcode & workspace
+      - name: Patch Xcode project to **Automatic** signing
         script: |
           set -euo pipefail
-          xcodebuild -version
-          sw_vers
-          echo "Workspace path: $WORKSPACE"
-          ls -lah "$(dirname "$WORKSPACE")"
+          PBX="ios/App/App.xcodeproj/project.pbxproj"
 
-      - name: Install web deps & sync iOS
-        script: |
-          set -euo pipefail
-          npm ci || npm install
-          npm run build || echo "No npm build script; continuing"
-          npx cap sync ios
+          # Project attributes
+          sed -i '' 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$PBX"
+
+          # Target (Debug/Release) build settings
+          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' "$PBX"
+
+          # Remove any hard-coded profiles so Xcode can manage them
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBX"
+          sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBX"
 
       - name: Install CocoaPods
         script: |
           set -euo pipefail
           cd ios/App
-          pod repo update
-          pod install
-          cd -
+          pod install --repo-update
 
-      - name: List schemes & pick one that exists
+      - name: Build Xcode archive (Release)
         script: |
           set -euo pipefail
-          xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json || true
-          python3 - <<'PY'
-          import json, os, sys
-          data=json.load(open("schemes.json"))
-          schemes=[]
-          for k in ("workspace","project"):
-              if k in data and "schemes" in data[k]:
-                  schemes = data[k]["schemes"] or []
-                  break
-          print("Detected schemes:", schemes)
-          prefer=os.environ.get("SCHEME","").strip()
-          picked=""
-          if prefer in schemes: picked=prefer
-          elif any(s=="App" for s in schemes): picked="App"
-          elif any("App" in s for s in schemes): picked=[s for s in schemes if "App" in s][0]
-          elif schemes: picked=schemes[0]
-          if not picked:
-              print("ERROR: No shared schemes found. Share a scheme in Xcode (Manage Schemes → Shared).", file=sys.stderr)
-              sys.exit(2)
-          open("picked_scheme.txt","w").write(picked)
-          print("Picked scheme:", picked)
-          PY
-          export PICKED_SCHEME="$(cat picked_scheme.txt)"
-          # Quick visibility
-          xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$PICKED_SCHEME" -configuration Release | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
-
-      - name: Force Manual signing for main target and clear old profiles
-        script: |
-          set -euo pipefail
-          P=ios/App/App.xcodeproj/project.pbxproj
-          echo "Before edits:"
-          egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
-          # Remove hard-coded profiles
-          sed -i '' -E 's/PROVISIONING_PROFILE_SPECIFIER = [^;]+;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$P"
-          sed -i '' -E 's/PROVISIONING_PROFILE = [^;]+;/PROVISIONING_PROFILE = "";/g' "$P"
-          # Set Manual to avoid Xcode trying to fetch Dev profiles
-          sed -i '' -E 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$P"
-          sed -i '' -E 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;/g' "$P"
-          # Ensure correct team
-          sed -i '' -E 's/DEVELOPMENT_TEAM = [A-Z0-9]+;/DEVELOPMENT_TEAM = QZ55W58398;/g' "$P"
-          echo "After edits:"
-          egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
-
-      - name: Build Xcode archive (Manual signing with App Store profile)
-        script: |
-          set -euo pipefail
-          export PICKED_SCHEME="$(cat picked_scheme.txt)"
-          echo "Archiving with scheme: $PICKED_SCHEME"
-          # IMPORTANT: manual signing + your App Store profile + Apple Distribution identity
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$PICKED_SCHEME" \
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
-            -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="$CODE_SIGN_ID" \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            -destination generic/platform=iOS \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            DEVELOPMENT_TEAM="$DEV_TEAM" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             clean archive
-          test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
 
-      - name: Create exportOptions.plist (App Store)
+      - name: Export signed IPA (app-store)
         script: |
           set -euo pipefail
-          cat > exportOptions.plist <<EOF
+          EXPORT_DIR="/Users/builder/clone/Export"
+          mkdir -p "$EXPORT_DIR"
+
+          cat > exportOptions.plist <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-            <key>provisioningProfiles</key>
             <dict>
-              <key>com.fireopscalc.app</key><string>${PROFILE_NAME}</string>
+              <key>method</key><string>app-store</string>
+              <key>destination</key><string>export</string>
+              <key>compileBitcode</key><false/>
+              <key>stripSwiftSymbols</key><true/>
+              <key>signingStyle</key><string>automatic</string>
             </dict>
-          </dict>
           </plist>
-          EOF
+          PLIST
 
-      - name: Export signed IPA
-        script: |
-          set -euo pipefail
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath "$IPA_EXPORT_DIR"
-          echo "Exported files:"
-          ls -lah "$IPA_EXPORT_DIR" || true
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist exportOptions.plist
 
     artifacts:
-      - $IPA_EXPORT_DIR/*.ipa
-      - $ARCHIVE_PATH
-      - schemes.json
-      - picked_scheme.txt
-      - exportOptions.plist
+      - /Users/builder/clone/Export/*.ipa
+      - /Users/builder/clone/build/*.xcarchive
 
     publishing:
       app_store_connect:
-        auth: integration           # uses integrations.app_store_connect: FireCalc
+        auth: integration
         submit_to_testflight: true
-        submit_to_app_store: false
+        beta_groups:
+          - External Testers
+
