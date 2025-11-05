@@ -1,155 +1,54 @@
-workflows:
-  ios_release:
-    name: iOS App Store Release
-    instance_type: mac_mini_m2
-    max_build_duration: 60
+- name: List schemes & pick one that exists
+  script: |
+    set -euo pipefail
+    xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json || true
+    python3 - <<'PY'
+    import json, os, sys
+    data=json.load(open("schemes.json"))
+    schemes=[]
+    for k in ("workspace","project"):
+        if k in data and "schemes" in data[k]:
+            schemes = data[k]["schemes"] or []
+            break
+    print("Schemes:", schemes)
+    prefer=os.environ.get("SCHEME","").strip()
+    picked=""
+    if prefer in schemes:
+        picked=prefer
+    elif any("App"==s for s in schemes):
+        picked="App"
+    elif any("App" in s for s in schemes):
+        picked=[s for s in schemes if "App" in s][0]
+    elif schemes:
+        picked=schemes[0]
+    if not picked:
+        print("ERROR: No shared schemes found. Share the scheme in Xcode (Manage Schemes… → Shared) so it’s committed under xcshareddata.", file=sys.stderr)
+        sys.exit(2)
+    open("picked_scheme.txt","w").write(picked)
+    print("Picked scheme:", picked)
+    PY
 
-    # <-- This ties Codemagic to your App Store Connect key named "FireCalc"
-    integrations:
-      app_store_connect: FireCalc
+- name: Build Xcode archive (print full errors)
+  script: |
+    set -euo pipefail
+    export PICKED_SCHEME="$(cat picked_scheme.txt)"
+    echo "Archiving with scheme: $PICKED_SCHEME"
+    # Show key build settings to catch mismatches
+    xcodebuild -showBuildSettings \
+      -workspace "$WORKSPACE" \
+      -scheme "$PICKED_SCHEME" \
+      -configuration Release | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
 
-    environment:
-      xcode: 16.4
-      cocoapods: default
-      node: 20.11.1
-      vars:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
-        DEVELOPMENT_TEAM: "QZ55W58398"
-        WORKSPACE: "ios/App/App.xcworkspace"
-        # SCHEME is optional; we'll auto-detect below if missing/wrong
-        SCHEME: "App"
-        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
-      groups:
-        - appstore_connect
+    # IMPORTANT: don't pipe through xcpretty so we can see the real error
+    xcodebuild \
+      -workspace "$WORKSPACE" \
+      -scheme "$PICKED_SCHEME" \
+      -configuration Release \
+      -archivePath "$ARCHIVE_PATH" \
+      -destination "generic/platform=iOS" \
+      -allowProvisioningUpdates \
+      CODE_SIGN_STYLE=Automatic \
+      DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+      clean archive
 
-    scripts:
-      - name: Show Xcode & env
-        script: |
-          set -euo pipefail
-          xcodebuild -version
-          sw_vers
-          echo "Workspace path: $WORKSPACE"
-          ls -lah "$(dirname "$WORKSPACE")"
-
-      - name: Install web deps & sync Capacitor iOS
-        script: |
-          set -euo pipefail
-          npm ci || npm install
-          # ok if you don’t have a build script
-          npm run build || echo "No npm build script, continuing."
-          npx cap sync ios
-
-      - name: Install CocoaPods
-        script: |
-          set -euo pipefail
-          cd ios/App
-          pod repo update
-          pod install
-          cd -
-
-      - name: List schemes & auto-pick one that exists
-        script: |
-          set -euo pipefail
-          echo "Listing schemes in $WORKSPACE"
-          xcodebuild -list -workspace "$WORKSPACE" || true
-          # Get JSON list so we can parse reliably
-          xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json
-          python3 - <<'PY'
-          import json, os, sys
-          data=json.load(open("schemes.json"))
-          schemes = []
-          # Try the top-level "workspace" section first, then "project"
-          for k in ("workspace","project"):
-              if k in data and "schemes" in data[k]:
-                  schemes = data[k]["schemes"] or []
-                  break
-          print("Detected schemes:", schemes)
-          prefer = os.environ.get("SCHEME","").strip()
-          picked = ""
-          # Prefer exact env match, then any that contain 'App', else first
-          for s in schemes:
-              if prefer and s == prefer:
-                  picked = s; break
-          if not picked:
-              for s in schemes:
-                  if "App" in s:
-                      picked = s; break
-          if not picked and schemes:
-              picked = schemes[0]
-          if not picked:
-              print("ERROR: No shared schemes found. In Xcode, share the scheme via 'Manage Schemes…' so it’s committed under xcshareddata.", file=sys.stderr)
-              sys.exit(2)
-          # Export for next steps
-          with open("picked_scheme.txt","w") as f: f.write(picked)
-          print("Picked scheme:", picked)
-          PY
-          export PICKED_SCHEME="$(cat picked_scheme.txt)"
-          echo "Using scheme: $PICKED_SCHEME"
-          # Dump build settings to catch signing / bundle issues early
-          xcodebuild -showBuildSettings \
-            -workspace "$WORKSPACE" \
-            -scheme "$PICKED_SCHEME" \
-            -configuration Release > build_settings.txt
-          echo "=== Snippet of build settings ==="
-          egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER" build_settings.txt || true
-          echo "================================="
-
-      - name: Build Xcode archive (Release)
-        script: |
-          set -euo pipefail
-          export PICKED_SCHEME="$(cat picked_scheme.txt)"
-          # Use Automatic signing; Codemagic integration will install the cert+profile
-          xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$PICKED_SCHEME" \
-            -configuration Release \
-            -archivePath "$ARCHIVE_PATH" \
-            -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Automatic \
-            DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            clean archive | tee xcode_archive.log | xcpretty
-          test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
-
-      - name: Create exportOptions.plist
-        script: |
-          set -euo pipefail
-          cat > exportOptions.plist <<'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store</string>
-            <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Export signed IPA
-        script: |
-          set -euo pipefail
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist exportOptions.plist \
-            -exportPath "$IPA_EXPORT_DIR" | tee xcode_export.log | xcpretty
-          echo "Exported files:"
-          ls -lah "$IPA_EXPORT_DIR" || true
-
-    artifacts:
-      - $IPA_EXPORT_DIR/*.ipa
-      - $ARCHIVE_PATH
-      - schemes.json
-      - build_settings.txt
-      - xcode_archive.log
-      - xcode_export.log
-      - exportOptions.plist
-
-    publishing:
-      app_store_connect:
-        auth: integration           # use the FireCalc integration above
-        submit_to_testflight: true  # upload to TestFlight
-        submit_to_app_store: false
+    test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
