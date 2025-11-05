@@ -5,7 +5,7 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: FireCalc   # <-- matches the name shown in Team settings
+      app_store_connect: FireCalc   # must match the name in Codemagic Team settings
 
     environment:
       xcode: 16.4
@@ -20,58 +20,72 @@ workflows:
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
       groups:
-        - appstore_connect   # your ASC vars live here (ok if unused with 'integration' auth)
+        - appstore_connect   # ok even if not used directly with integration-auth
 
     scripts:
+      - name: Verify workspace & list schemes
+        script: |
+          set -euo pipefail
+          ls -lah "$WORKSPACE" || (echo "Workspace not found at $WORKSPACE" && exit 1)
+          xcodebuild -list -workspace "$WORKSPACE"
+
       - name: Install dependencies & sync iOS
         script: |
-          set -e
+          set -euo pipefail
           npm ci || npm install
-          # If you don't have a "build" script, this won't fail the build.
-          npm run build || echo "No npm build script; skipping"
+          # Skip if no build script
+          npm run build || echo "No npm build script; continuing"
           npx cap sync ios
 
-      - name: Build Xcode archive
+      - name: Install CocoaPods
         script: |
-          set -e
-          xcodebuild -workspace "$WORKSPACE" \
+          set -euo pipefail
+          cd ios/App
+          pod repo update
+          pod install
+          cd -
+
+      - name: Build Xcode archive (Release)
+        script: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
+            -destination "generic/platform=iOS" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Automatic \
-            clean archive | xcpretty || true
+            clean archive | xcpretty
+          test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
 
       - name: Create exportOptions.plist
         script: |
-          set -e
+          set -euo pipefail
           cat > exportOptions.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
-            <key>uploadSymbols</key><true/>
             <key>destination</key><string>export</string>
             <key>signingStyle</key><string>automatic</string>
             <key>stripSwiftSymbols</key><true/>
+            <key>uploadSymbols</key><true/>
           </dict>
           </plist>
           EOF
 
       - name: Export signed IPA
         script: |
-          set -e
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "Archive not found at $ARCHIVE_PATH"
-            exit 1
-          fi
+          set -euo pipefail
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
             -exportOptionsPlist exportOptions.plist \
-            -exportPath "$IPA_EXPORT_DIR" | xcpretty || true
-          ls -lah "$IPA_EXPORT_DIR" || true
+            -exportPath "$IPA_EXPORT_DIR" | xcpretty
+          ls -lah "$IPA_EXPORT_DIR"
+          test -f "$IPA_EXPORT_DIR/$IPA_NAME" || echo "Note: Xcode may name the .ipa after the scheme; any .ipa present will be published."
 
     artifacts:
       - $IPA_EXPORT_DIR/*.ipa
@@ -80,6 +94,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration          # uses integrations.app_store_connect: FireCalc
+        auth: integration    # uses integrations.app_store_connect: FireCalc
         submit_to_testflight: true
         submit_to_app_store: false
