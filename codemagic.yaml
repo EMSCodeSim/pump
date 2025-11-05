@@ -1,38 +1,67 @@
 workflows:
   ios_release:
-    name: iOS Release (Automatic signing)
+    name: iOS Release (Manual signing via p12 + mobileprovision)
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # You already created this in Codemagic → Integrations
     integrations:
-      app_store_connect: FireCalc
+      app_store_connect: FireCalc   # for TestFlight upload
 
     environment:
       xcode: 16.4
       cocoapods: default
+      groups:
+        - appstore_connect          # holds the 3 vars defined below
       vars:
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
+        EXPORT_DIR: "/Users/builder/clone/Export"
         BUNDLE_ID: "com.fireopscalc.app"
         DEV_TEAM: "QZ55W58398"
+        # The following must exist in the appstore_connect group:
+        # IOS_CERTIFICATE_P12_BASE64
+        # IOS_CERTIFICATE_PASSWORD
+        # IOS_PROVISION_PROFILE_BASE64
 
     scripts:
-      - name: Patch Xcode project to **Automatic** signing
+      - name: Install signing assets (p12 + provisioning profile)
+        script: |
+          set -euo pipefail
+
+          # 1) Decode files from env
+          echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > dist.p12
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+
+          # 2) Set up isolated keychain and import the certificate/private key
+          KEYCHAIN_PATH="$HOME/Library/Keychains/codemagic-signing.keychain-db"
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import dist.p12 -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # 3) Install provisioning profile for the current user
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          UUID=$(/usr/bin/grep -a -A1 UUID profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
+          cp profile.mobileprovision "$PROFILES_DIR/$UUID.mobileprovision"
+
+          echo "Installed mobileprovision UUID: $UUID"
+
+      - name: Ensure Manual signing for the app target only
         script: |
           set -euo pipefail
           PBX="ios/App/App.xcodeproj/project.pbxproj"
 
-          # Project attributes
-          sed -i '' 's/ProvisioningStyle = Manual;/ProvisioningStyle = Automatic;/g' "$PBX"
+          # Make app target Manual (don’t touch Pods)
+          /usr/bin/sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBX"
+          /usr/bin/sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PBX"
 
-          # Target (Debug/Release) build settings
-          sed -i '' 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' "$PBX"
-
-          # Remove any hard-coded profiles so Xcode can manage them
-          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBX"
-          sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBX"
+          # Clear hard-coded profile names to avoid mismatches; Xcode will match by installed profile UUID
+          /usr/bin/sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBX"
+          /usr/bin/sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBX"
 
       - name: Install CocoaPods
         script: |
@@ -40,7 +69,7 @@ workflows:
           cd ios/App
           pod install --repo-update
 
-      - name: Build Xcode archive (Release)
+      - name: Build Xcode archive (Release, Manual signing)
         script: |
           set -euo pipefail
           xcodebuild -workspace "$WORKSPACE" \
@@ -48,19 +77,22 @@ workflows:
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
             -destination generic/platform=iOS \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="$DEV_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             clean archive
 
-      - name: Export signed IPA (app-store)
+      - name: Export signed IPA (App Store)
         script: |
           set -euo pipefail
-          EXPORT_DIR="/Users/builder/clone/Export"
           mkdir -p "$EXPORT_DIR"
 
-          cat > exportOptions.plist <<'PLIST'
+          # Try to read the profile Name for exportOptions provisioningProfiles mapping (optional but helpful)
+          PROFILE_NAME=$(/usr/bin/grep -a -A1 "<key>Name</key>" profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
+          : "${PROFILE_NAME:=AppStoreProfile}"
+
+          cat > exportOptions.plist <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -69,7 +101,11 @@ workflows:
               <key>destination</key><string>export</string>
               <key>compileBitcode</key><false/>
               <key>stripSwiftSymbols</key><true/>
-              <key>signingStyle</key><string>automatic</string>
+              <key>signingStyle</key><string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+              </dict>
             </dict>
           </plist>
           PLIST
@@ -89,4 +125,3 @@ workflows:
         submit_to_testflight: true
         beta_groups:
           - External Testers
-
