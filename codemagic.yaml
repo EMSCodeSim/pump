@@ -3,6 +3,11 @@ workflows:
     name: iOS App Store Release
     instance_type: mac_mini_m2
     max_build_duration: 60
+
+    # <-- REQUIRED so "auth: integration" works
+    integrations:
+      app_store_connect: FireCalc     # <-- this is the integration name from Team settings
+
     environment:
       xcode: 16.4
       cocoapods: default
@@ -15,18 +20,29 @@ workflows:
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
+      # Your ASC vars are already stored in a group; include it so other steps can read them if needed
       groups:
         - appstore_connect
 
+    # Tell Codemagic which saved cert/profile to install into the keychain
+    code_signing:
+      certificates:
+        - FireOpsCalc_Distribution_2025         # exact certificate name as shown in Team → iOS certificates
+      provisioning_profiles:
+        - FireOpsCalc_AppStore_Profile          # exact provisioning profile name in Team → iOS provisioning profiles
+
     scripts:
-      - name: Install dependencies
+      - name: Install dependencies & sync iOS
         script: |
-          npm install
-          npm run build || echo "No npm build script, skipping"
+          set -e
+          npm ci || npm install
+          # If your app has no "build" script, this will just echo and continue
+          npm run build || echo "No npm build script; skipping"
           npx cap sync ios
 
-      - name: Build iOS archive
+      - name: Build Xcode archive
         script: |
+          set -e
           xcodebuild -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
@@ -34,22 +50,45 @@ workflows:
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
             CODE_SIGN_STYLE=Manual \
-            clean archive | xcpretty
+            clean archive | xcpretty || true
 
-      - name: Export IPA
+      - name: Create exportOptions.plist
         script: |
+          set -e
+          cat > exportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+            <key>destination</key><string>export</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key><string>FireOpsCalc_AppStore_Profile</string>
+            </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Export signed IPA
+        script: |
+          set -e
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist ios/App/exportOptions.plist \
-            -exportPath "$IPA_EXPORT_DIR" \
-            | xcpretty
+            -exportOptionsPlist exportOptions.plist \
+            -exportPath "$IPA_EXPORT_DIR" | xcpretty || true
+          ls -lah "$IPA_EXPORT_DIR"
 
     artifacts:
       - $IPA_EXPORT_DIR/*.ipa
-      - build/**/FireOpsCalc.ipa
+      - $ARCHIVE_PATH
+      - exportOptions.plist
 
     publishing:
       app_store_connect:
-        auth: integration
+        auth: integration           # uses integrations.app_store_connect: FireCalc
         submit_to_testflight: true
         submit_to_app_store: false
