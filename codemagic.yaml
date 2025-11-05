@@ -5,13 +5,13 @@ workflows:
     max_build_duration: 60
 
     integrations:
-      app_store_connect: FireCalc   # for TestFlight upload
+      app_store_connect: FireCalc
 
     environment:
       xcode: 16.4
       cocoapods: default
       groups:
-        - appstore_connect          # holds the 3 vars defined below
+        - appstore_connect
       vars:
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
@@ -19,21 +19,18 @@ workflows:
         EXPORT_DIR: "/Users/builder/clone/Export"
         BUNDLE_ID: "com.fireopscalc.app"
         DEV_TEAM: "QZ55W58398"
-        # The following must exist in the appstore_connect group:
-        # IOS_CERTIFICATE_P12_BASE64
-        # IOS_CERTIFICATE_PASSWORD
-        # IOS_PROVISION_PROFILE_BASE64
 
     scripts:
       - name: Install signing assets (p12 + provisioning profile)
         script: |
-          set -euo pipefail
+          set -eo pipefail
+          : "${IOS_CERTIFICATE_P12_BASE64:?Missing IOS_CERTIFICATE_P12_BASE64}"
+          : "${IOS_CERTIFICATE_PASSWORD:?Missing IOS_CERTIFICATE_PASSWORD}"
+          : "${IOS_PROVISION_PROFILE_BASE64:?Missing IOS_PROVISION_PROFILE_BASE64}"
 
-          # 1) Decode files from env
           echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > dist.p12
           echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
 
-          # 2) Set up isolated keychain and import the certificate/private key
           KEYCHAIN_PATH="$HOME/Library/Keychains/codemagic-signing.keychain-db"
           security create-keychain -p "" "$KEYCHAIN_PATH"
           security set-keychain-settings "$KEYCHAIN_PATH"
@@ -42,36 +39,30 @@ workflows:
           security list-keychains -s "$KEYCHAIN_PATH"
           security default-keychain -s "$KEYCHAIN_PATH"
 
-          # 3) Install provisioning profile for the current user
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES_DIR"
           UUID=$(/usr/bin/grep -a -A1 UUID profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
           cp profile.mobileprovision "$PROFILES_DIR/$UUID.mobileprovision"
-
           echo "Installed mobileprovision UUID: $UUID"
 
       - name: Ensure Manual signing for the app target only
         script: |
-          set -euo pipefail
+          set -eo pipefail
           PBX="ios/App/App.xcodeproj/project.pbxproj"
-
-          # Make app target Manual (don’t touch Pods)
           /usr/bin/sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBX"
           /usr/bin/sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PBX"
-
-          # Clear hard-coded profile names to avoid mismatches; Xcode will match by installed profile UUID
           /usr/bin/sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBX"
           /usr/bin/sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBX"
 
       - name: Install CocoaPods
         script: |
-          set -euo pipefail
+          set -eo pipefail
           cd ios/App
           pod install --repo-update
 
       - name: Build Xcode archive (Release, Manual signing)
         script: |
-          set -euo pipefail
+          set -eo pipefail
           xcodebuild -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
@@ -85,10 +76,8 @@ workflows:
 
       - name: Export signed IPA (App Store)
         script: |
-          set -euo pipefail
+          set -eo pipefail
           mkdir -p "$EXPORT_DIR"
-
-          # Try to read the profile Name for exportOptions provisioningProfiles mapping (optional but helpful)
           PROFILE_NAME=$(/usr/bin/grep -a -A1 "<key>Name</key>" profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
           : "${PROFILE_NAME:=AppStoreProfile}"
 
