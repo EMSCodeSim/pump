@@ -7,7 +7,6 @@ workflows:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
-
       vars:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
@@ -16,22 +15,17 @@ workflows:
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
         IPA_NAME: "FireOpsCalc.ipa"
-
-      # Link to your environment variable group
       groups:
         - appstore_connect
-
-    integrations:
-      app_store_connect: FireOpsCalc_AppStore_Profile
 
     scripts:
       - name: Install dependencies
         script: |
           npm install
-          npm run build || echo "No build script found, skipping web build"
+          npm run build || echo "No npm build script, skipping"
           npx cap sync ios
 
-      - name: Build iOS Release
+      - name: Build iOS archive
         script: |
           xcodebuild -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
@@ -51,9 +45,8 @@ workflows:
             | xcpretty
 
     artifacts:
-      - build/**/FireOpsCalc.ipa
       - $IPA_EXPORT_DIR/*.ipa
-      - /tmp/xcodebuild_logs/*.log
+      - build/**/FireOpsCalc.ipa
 
     publishing:
       app_store_connect:
