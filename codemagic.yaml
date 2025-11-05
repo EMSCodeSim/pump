@@ -1,161 +1,62 @@
 workflows:
   ios_release:
-    name: FireOpsCalc iOS Release (UI-managed signing)
+    name: iOS App Store Release
     instance_type: mac_mini_m2
     max_build_duration: 60
-
-    integrations:
-      app_store_connect: FireCalc   # <-- your ASC integration name (for TestFlight upload)
-
     environment:
       xcode: 16.4
       cocoapods: default
       node: 20.11.1
+
       vars:
-        # iOS project config
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
         SCHEME: "App"
-
-        # Paths
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        EXPORT_DIR: "/Users/builder/clone/Export"
-        EXPORT_PLIST: "/Users/builder/clone/ExportOptions.plist"
+        IPA_EXPORT_DIR: "/Users/builder/clone/Export"
+        IPA_NAME: "FireOpsCalc.ipa"
 
-        # Optional app versioning if not set in Xcode project
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+      # Link to your environment variable group
+      groups:
+        - appstore_connect
 
-    cache:
-      cache_paths:
-        - ~/.npm
-        - ~/.cache/CocoaPods
-        - ~/Library/Caches/CocoaPods
-        - ios/Pods
+    integrations:
+      app_store_connect: FireOpsCalc_AppStore_Profile
 
     scripts:
-      # 1) Handle web assets robustly (works with or without "npm run build")
-      - name: Install deps, stage web assets, sync iOS
+      - name: Install dependencies
         script: |
-          set -euo pipefail
-          npm ci || npm install
+          npm install
+          npm run build || echo "No build script found, skipping web build"
+          npx cap sync ios
 
-          # Try to build if a "build" script exists
-          if npm run 2>/dev/null | grep -qE '(^|[[:space:]])build([[:space:]]|$)'; then
-            echo "Found build script → running npm run build"
-            npm run build
-            WEB_OUT="dist"
-          else
-            echo "No build script -> looking for existing assets"
-            if [ -d "dist" ]; then
-              WEB_OUT="dist"
-            elif [ -d "www" ]; then
-              WEB_OUT="www"
-            elif [ -d "public" ]; then
-              echo "Using public/ as web root → copying to dist/"
-              rsync -a --delete public/ dist/
-              WEB_OUT="dist"
-            else
-              echo "No dist/www/public found → creating a minimal placeholder site"
-              mkdir -p dist
-              printf '%s\n' \
-                '<!doctype html>' \
-                '<html>' \
-                '  <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>' \
-                '    <title>FireOpsCalc</title>' \
-                '    <style>body{font-family:system-ui,Arial,sans-serif;padding:24px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}</style>' \
-                '  </head>' \
-                '  <body>' \
-                '    <h1>FireOpsCalc</h1>' \
-                '    <p>Placeholder web assets for Capacitor build. Replace with your real bundle.</p>' \
-                '  </body>' \
-                '</html>' \
-              > dist/index.html
-              WEB_OUT="dist"
-            fi
-          fi
-
-          echo "Web output at: $WEB_OUT"
-          # Copy web to iOS project (Capacitor)
-          npx cap copy ios
-
-          # Ensure CocoaPods are installed
-          cd ios/App
-          pod install --repo-update
-          cd -
-
-      # 2) Use certificates & profiles stored in Codemagic (UI-managed identities)
-      - name: Import certs and profiles from Codemagic
+      - name: Build iOS Release
         script: |
-          set -euo pipefail
-          keychain initialize
-          keychain add-certificates        # pulls your .p12 (with private key) & installs it
-          xcode-project use-profiles       # installs provisioning profiles into the project
-
-          echo "🔐 Identities in keychain:"
-          security find-identity -v "$(security default-keychain | tr -d '"')" || true
-
-      # 3) Create export options (automatic signing)
-      - name: Create ExportOptions.plist (automatic)
-        script: |
-          set -euo pipefail
-          cat > "$EXPORT_PLIST" <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0"><dict>
-            <key>method</key><string>app-store</string>
-            <key>signingStyle</key><string>automatic</string>
-            <key>stripSwiftSymbols</key><true/>
-            <key>uploadSymbols</key><true/>
-          </dict></plist>
-          PLIST
-          /usr/libexec/PlistBuddy -c "Print" "$EXPORT_PLIST" || true
-
-      # 4) Build archive (xcodebuild picks up codesigning from installed profiles)
-      - name: Build archive
-        script: |
-          set -euo pipefail
-          xcodebuild \
-            -workspace "$WORKSPACE" \
+          xcodebuild -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
-            -destination "generic/platform=iOS" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            MARKETING_VERSION="$MARKETING_VERSION" \
-            CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION" \
-            clean archive
+            CODE_SIGN_STYLE=Manual \
+            clean archive | xcpretty
 
-          if [ ! -d "$ARCHIVE_PATH" ]; then
-            echo "❌ Archive not produced at $ARCHIVE_PATH"
-            xcodebuild -workspace "$WORKSPACE" -list || true
-            xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -showBuildSettings | \
-              grep -E 'PRODUCT_NAME|PRODUCT_BUNDLE_IDENTIFIER|CODE_SIGN|DEVELOPMENT_TEAM|PROVISIONING_PROFILE|MARKETING_VERSION|CURRENT_PROJECT_VERSION' || true
-            exit 1
-          fi
-          echo "✅ Archive created: $ARCHIVE_PATH"
-
-      # 5) Export IPA
       - name: Export IPA
         script: |
-          set -euo pipefail
-          mkdir -p "$EXPORT_DIR"
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist "$EXPORT_PLIST" \
-            -exportPath "$EXPORT_DIR"
-
-          echo "Artifacts in $EXPORT_DIR:"
-          ls -la "$EXPORT_DIR"
+            -exportOptionsPlist ios/App/exportOptions.plist \
+            -exportPath "$IPA_EXPORT_DIR" \
+            | xcpretty
 
     artifacts:
-      - Export/*.ipa
-      - Export/*.dSYM.zip
-      - ExportOptions.plist
+      - build/**/FireOpsCalc.ipa
+      - $IPA_EXPORT_DIR/*.ipa
+      - /tmp/xcodebuild_logs/*.log
 
     publishing:
       app_store_connect:
-        auth: integration    # uses your "FireCalc" integration for TestFlight upload
+        auth: integration
         submit_to_testflight: true
+        submit_to_app_store: false
