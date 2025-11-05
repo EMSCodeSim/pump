@@ -4,7 +4,7 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
 
-    # Uses your App Store Connect integration named "FireCalc"
+    # Needed so publishing uses your FireCalc ASC key
     integrations:
       app_store_connect: FireCalc
 
@@ -16,9 +16,11 @@ workflows:
         PRODUCT_BUNDLE_IDENTIFIER: "com.fireopscalc.app"
         DEVELOPMENT_TEAM: "QZ55W58398"
         WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"                           # fallback; we auto-pick a real shared scheme below
+        SCHEME: "App" # we'll auto-pick if name differs
         ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
         IPA_EXPORT_DIR: "/Users/builder/clone/Export"
+        PROFILE_NAME: "FireOpsCalc_AppStore_Profile"     # <-- your App Store profile name
+        CODE_SIGN_ID: "Apple Distribution"               # <-- distribution identity
       groups:
         - appstore_connect
 
@@ -49,7 +51,6 @@ workflows:
       - name: List schemes & pick one that exists
         script: |
           set -euo pipefail
-          xcodebuild -list -workspace "$WORKSPACE" || true
           xcodebuild -list -json -workspace "$WORKSPACE" > schemes.json || true
           python3 - <<'PY'
           import json, os, sys
@@ -62,75 +63,74 @@ workflows:
           print("Detected schemes:", schemes)
           prefer=os.environ.get("SCHEME","").strip()
           picked=""
-          if prefer in schemes:
-              picked=prefer
-          elif any(s=="App" for s in schemes):
-              picked="App"
-          elif any("App" in s for s in schemes):
-              picked=[s for s in schemes if "App" in s][0]
-          elif schemes:
-              picked=schemes[0]
+          if prefer in schemes: picked=prefer
+          elif any(s=="App" for s in schemes): picked="App"
+          elif any("App" in s for s in schemes): picked=[s for s in schemes if "App" in s][0]
+          elif schemes: picked=schemes[0]
           if not picked:
-              print("ERROR: No shared schemes found. Share the scheme in Xcode (Manage Schemes… → Shared).", file=sys.stderr)
+              print("ERROR: No shared schemes found. Share a scheme in Xcode (Manage Schemes → Shared).", file=sys.stderr)
               sys.exit(2)
           open("picked_scheme.txt","w").write(picked)
           print("Picked scheme:", picked)
           PY
           export PICKED_SCHEME="$(cat picked_scheme.txt)"
-          echo "Using scheme: $PICKED_SCHEME"
-          xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$PICKED_SCHEME" -configuration Release \
-            | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
+          # Quick visibility
+          xcodebuild -showBuildSettings -workspace "$WORKSPACE" -scheme "$PICKED_SCHEME" -configuration Release | egrep -i "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE" || true
 
-      - name: Fix signing conflicts in project
+      - name: Force Manual signing for main target and clear old profiles
         script: |
           set -euo pipefail
           P=ios/App/App.xcodeproj/project.pbxproj
-          echo "Before (grep):"
+          echo "Before edits:"
           egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
-          # Remove any hard-coded provisioning profiles
+          # Remove hard-coded profiles
           sed -i '' -E 's/PROVISIONING_PROFILE_SPECIFIER = [^;]+;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$P"
           sed -i '' -E 's/PROVISIONING_PROFILE = [^;]+;/PROVISIONING_PROFILE = "";/g' "$P"
-          # Force Automatic signing
-          sed -i '' -E 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g' "$P"
+          # Set Manual to avoid Xcode trying to fetch Dev profiles
+          sed -i '' -E 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$P"
+          sed -i '' -E 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Manual;/g' "$P"
           # Ensure correct team
           sed -i '' -E 's/DEVELOPMENT_TEAM = [A-Z0-9]+;/DEVELOPMENT_TEAM = QZ55W58398;/g' "$P"
-          echo "After (grep):"
+          echo "After edits:"
           egrep -n "PROVISIONING_PROFILE|CODE_SIGN_STYLE|DEVELOPMENT_TEAM" "$P" || true
 
-      - name: Build Xcode archive (Release)
+      - name: Build Xcode archive (Manual signing with App Store profile)
         script: |
           set -euo pipefail
           export PICKED_SCHEME="$(cat picked_scheme.txt)"
           echo "Archiving with scheme: $PICKED_SCHEME"
-          # Raw output (no xcpretty) to expose real errors
+          # IMPORTANT: manual signing + your App Store profile + Apple Distribution identity
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$PICKED_SCHEME" \
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
             -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$CODE_SIGN_ID" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
             PRODUCT_BUNDLE_IDENTIFIER="$PRODUCT_BUNDLE_IDENTIFIER" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            PROVISIONING_PROFILE="" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             clean archive
           test -d "$ARCHIVE_PATH" || (echo "Archive not created at $ARCHIVE_PATH" && exit 1)
 
-      - name: Create exportOptions.plist
+      - name: Create exportOptions.plist (App Store)
         script: |
           set -euo pipefail
-          cat > exportOptions.plist <<'EOF'
+          cat > exportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store</string>
             <key>destination</key><string>export</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
             <key>stripSwiftSymbols</key><true/>
             <key>uploadSymbols</key><true/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.fireopscalc.app</key><string>${PROFILE_NAME}</string>
+            </dict>
           </dict>
           </plist>
           EOF
@@ -154,6 +154,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration          # uses integrations.app_store_connect: FireCalc
+        auth: integration           # uses integrations.app_store_connect: FireCalc
         submit_to_testflight: true
         submit_to_app_store: false
