@@ -1097,28 +1097,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
   }
 
-  function syncEditorDisplayFromInputs(){
-    try{
-      const sizeMap = {'1.75':'1 3/4″','2.5':'2 1/2″','5':'5″'};
-      const sizeLabelEl = container.querySelector('#sizeLabel');
-      const lenLabelEl  = container.querySelector('#lenLabel');
-      const elevLabelEl = container.querySelector('#elevLabel');
-      if (sizeLabelEl && teSize) sizeLabelEl.textContent = sizeMap[String(teSize.value)] || (teSize.value + '″');
-      if (lenLabelEl && teLen)   lenLabelEl.textContent  = (Number(teLen.value)||0) + '′';
-      if (elevLabelEl && teElev) elevLabelEl.textContent = (Number(teElev.value)||0) + '′';
-      const lenALabel = container.querySelector('#lenALabel');
-      const lenBLabel = container.querySelector('#lenBLabel');
-      const elevALabel = container.querySelector('#elevALabel');
-      const elevBLabel = container.querySelector('#elevBLabel');
-      if (lenALabel && teLenA) lenALabel.textContent = (Number(teLenA.value)||0) + '′';
-      if (lenBLabel && teLenB) lenBLabel.textContent = (Number(teLenB.value)||0) + '′';
-      if (elevALabel && teElevA) elevALabel.textContent = (Number(teElevA.value)||0) + '′';
-      if (elevBLabel && teElevB) elevBLabel.textContent = (Number(teElevB.value)||0) + '′';
-    }catch(_){}
-  }
-
-
-
   function onOpenPopulateEditor(key, where){
     const L = seedDefaultsForKey(key);
     L.visible = true;
@@ -1127,12 +1105,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     teWhere.value = where.toUpperCase();
-    teElev.value = (typeof L.elevFt === 'number' ? L.elevFt : 0);
+    teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
 
     if(where==='main'){
-      P0};
-      teSize.value = seg.size; teLen.value = seg.lengthFt||200;
+      const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
+      teSize.value = seg.size; teLen.value = seg.lengthFt||0;
       if (L.hasWye) {
         setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       } else {
@@ -1363,8 +1341,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     stopAutoSave();
   }};
 }
-    syncEditorDisplayFromInputs();
-
 
 export default { render };
 
