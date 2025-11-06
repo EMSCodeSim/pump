@@ -135,18 +135,12 @@ function ensureDefaultNozzleFor(L, where, size){
 
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
-  if (!(L?.nozRight?.id)) {
-    const id = findNozzleId({ gpm: 185, NP: 50, preferFog: true });
-    L.nozRight = NOZ[id] || L.nozRight || (Array.isArray(NOZ_LIST) ? NOZ_LIST.find(n => n.id === id) : L.nozRight) || L.nozRight;
-  }
-}
+  if(!(L?.nozRight?.id)){
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true}
 // Special helper: Branch A defaults to Fog 185 @ 50 if empty
 function setBranchADefaultIfEmpty(L){
-  if (!(L?.nozLeft?.id)) {
-    const id = findNozzleId({ gpm: 185, NP: 50, preferFog: true });
-    L.nozLeft = NOZ[id] || L.nozLeft || (Array.isArray(NOZ_LIST) ? NOZ_LIST.find(n => n.id === id) : L.nozLeft) || L.nozLeft;
-  }
-});
+  if(!(L?.nozLeft?.id)){
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
     L.nozLeft = NOZ[id] || L.nozLeft || NOZ_LIST.find(n=>n.id===id) || L.nozLeft;
   }
 }
@@ -328,11 +322,11 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP:</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure</b> = ' + (fmt(L.nozRight?.NP||0)) + ' psi</li>
-          <li><b>Friction Loss (Main)</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+          <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ' + (fmt(L.nozRight?.NP||0)) + ' + ' + (fmt(mainSum)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt((L.nozRight?.NP||0)+mainSum+elevPsi)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
       </div>
     `;
   } else if(single){
@@ -347,12 +341,12 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure (branch)</b> = ' + (fmt(noz.NP)) + ' psi</li>
-          <li><b>Branch FL</b> = ' + (bnSecs.length ? brParts.join(' + ') : 0) + ' = <b>' + (fmt(brSum)) + ' psi</b></li>
-          <li><b>Main FL</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ' + (fmt(noz.NP)) + ' + ' + (fmt(brSum)) + ' + ' + (fmt(mainSum)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt(total)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else {
@@ -368,14 +362,14 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Wye):</b>
         <ul class="simpleList">
-          <li><b>Branch A need</b> = ' + (Math.round(aNeed)) + ' psi</li>
-          <li><b>Branch B need</b> = ' + (Math.round(bNeed)) + ' psi</li>
-          <li><b>Take the higher branch</b> = <b>' + (Math.round(maxNeed)) + ' psi</b></li>
-          <li><b>Main FL</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Wye</b> = +' + (wyeLoss) + ' psi</li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
+          <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
+          <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Wye</b> = +${wyeLoss} psi</li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ' + (fmt(maxNeed)) + ' + ' + (fmt(mainSum)) + ' + ' + (fmt(wyeLoss)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt(total)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
       </div>
     `;
   }
@@ -407,8 +401,8 @@ export async function render(container){
     <section class="stack" data-calc-root>
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <svg id="stageSvg" viewBox="0 0 ' + (TRUCK_W) + ' ' + (TRUCK_H) + '" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="' + (TRUCK_W) + '" height="' + (TRUCK_H) + '" preserveAspectRatio="xMidYMax meet"
+          <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
               onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
             <g id="hoses"></g>
             <g id="branches"></g>
@@ -836,10 +830,10 @@ export async function render(container){
       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
 
       const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
-        <span class="title">' + (L.label) + '</span>
-        <span class="tag">Main: ' + (sumFt(L.itemsMain)) + '′ (' + (segs) + ')</span>
-        <span class="tag">Flow: ' + (flow) + ' gpm</span>
-        <span class="tag">' + (L.visible? 'DEPLOYED':'not deployed') + '</span>
+        <span class="title">${L.label}</span>
+        <span class="tag">Main: ${sumFt(L.itemsMain)}′ (${segs})</span>
+        <span class="tag">Flow: ${flow} gpm</span>
+        <span class="tag">${L.visible? 'DEPLOYED':'not deployed'}</span>
       `;
       row.appendChild(head);
       linesTable.appendChild(row);
@@ -860,18 +854,18 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — Wye ' + (wye) + ' psi</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ' + (sumFt(L.itemsLeft)||0) + '′ @ ' + (L.nozLeft.gpm) + ' gpm — NP ' + (L.nozLeft.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_L_' + (key) + '"></div>
+                  <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ' + (sumFt(L.itemsRight)||0) + '′ @ ' + (L.nozRight.gpm) + ' gpm — NP ' + (L.nozRight.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_R_' + (key) + '"></div>
+                  <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -899,14 +893,14 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — via Wye</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — via Wye</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">' + (bnTitle) + ' ' + (sumFt(bnSegs)||0) + '′ @ ' + (noz.gpm) + ' gpm — NP ' + (noz.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_BR_' + (key) + '"></div>
+                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm — NP ${noz.NP} psi</div>
+                  <div class="hosebar" id="viz_BR_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -927,10 +921,10 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — NP ' + (L.nozRight.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -954,7 +948,7 @@ export async function render(container){
       const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
       html = `
         <div class="row"><span class="k">Supply Mode</span><span class="v">Tender shuttle</span></div>
-        <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>' + (Math.round(g)) + '</b> gpm</span></div>
+        <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span></div>
       `;
     }
     if (html) { box.innerHTML = html; box.style.display = 'block'; }
