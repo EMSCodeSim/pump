@@ -676,7 +676,38 @@ export async function render(container){
   const teSize      = container.querySelector('#teSize');
   const teLen       = container.querySelector('#teLen');
   const teElev      = container.querySelector('#teElev');
-  const teWye       = container.querySelector('#teWye');
+  
+teWye && teWye.addEventListener('change', function () {
+  var wyeOn = (teWye.value === 'on');
+
+  // Toggle the branch UI
+  var branchWrap = (popupEl && popupEl.querySelector) ? popupEl.querySelector('#branchPlusWrap') : null;
+  if (branchWrap) {
+    branchWrap.style.display = wyeOn ? '' : 'none';
+  }
+
+  // If turning on, ensure defaults and update labels
+  if (wyeOn) {
+    try {
+      var L = state.lines[editorContext.key];
+
+      // Set default nozzles if empty: Fog 185 @ 50
+      if (typeof setBranchADefaultIfEmpty === 'function') setBranchADefaultIfEmpty(L);
+      if (typeof setBranchBDefaultIfEmpty === 'function') setBranchBDefaultIfEmpty(L);
+
+      // Default branch lengths to 50 if none present
+      if (!(L.itemsLeft && L.itemsLeft[0]))  L.itemsLeft  = [{ size: (teSize && teSize.value) || '1.75', lengthFt: 50 }];
+      if (!(L.itemsRight && L.itemsRight[0])) L.itemsRight = [{ size: (teSize && teSize.value) || '1.75', lengthFt: 50 }];
+
+      // Update visible labels
+      var la = popupEl.querySelector('#lenALabel'); if (la) la.textContent = '50′';
+      var lb = popupEl.querySelector('#lenBLabel'); if (lb) lb.textContent = '50′';
+    } catch (_e) {}
+  }
+
+  // (keep any other original behavior here if needed)
+});
+const teWye       = container.querySelector('#teWye');
   const teLenA      = container.querySelector('#teLenA');
   const teLenB      = container.querySelector('#teLenB');
   const teNoz       = container.querySelector('#teNoz');
@@ -750,11 +781,7 @@ export async function render(container){
     } else if (snap && typeof waterSupply.import === 'function') {
       waterSupply.import(snap);
     } else if (snap) {
-      // Fallback: try common field names on state
-      if (snap.tenders) state.tenders = snap.tenders;
-      if (snap.shuttle) state.shuttle = snap.shuttle;
-    }
-  } catch {}
+      // Fallback: 
 
   // Start autosave heartbeat (includes water snapshot)
   startAutoSave(()=>{
@@ -1078,6 +1105,24 @@ export async function render(container){
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
+// SAFER label sync (no template strings)
+try {
+  var lblLen   = container.querySelector('#lenLabel');
+  var lblElev  = container.querySelector('#elevLabel');
+  var lblSize  = container.querySelector('#sizeLabel');
+  var inpLen   = container.querySelector('#teLen');
+  var inpElev  = container.querySelector('#teElev');
+  var inpSize  = container.querySelector('#teSize');
+
+  if (lblLen && inpLen)  lblLen.textContent  = String(inpLen.value || 0) + '′';
+  if (lblElev && inpElev) lblElev.textContent = String(inpElev.value || 0) + '′';
+
+  if (lblSize && inpSize) {
+    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
+    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
+  }
+} catch (_e) {}
+
 
   // Sync visible labels with current values (so - [value] + matches deployed line)
   try{
@@ -1135,6 +1180,24 @@ export async function render(container){
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
+// SAFER label sync (no template strings)
+try {
+  var lblLen   = container.querySelector('#lenLabel');
+  var lblElev  = container.querySelector('#elevLabel');
+  var lblSize  = container.querySelector('#sizeLabel');
+  var inpLen   = container.querySelector('#teLen');
+  var inpElev  = container.querySelector('#teElev');
+  var inpSize  = container.querySelector('#teSize');
+
+  if (lblLen && inpLen)  lblLen.textContent  = String(inpLen.value || 0) + '′';
+  if (lblElev && inpElev) lblElev.textContent = String(inpElev.value || 0) + '′';
+
+  if (lblSize && inpSize) {
+    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
+    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
+  }
+} catch (_e) {}
+
   
     if(wyeOn){
       // Set defaults if empty
