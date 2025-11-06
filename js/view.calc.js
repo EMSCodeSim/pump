@@ -314,11 +314,11 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP:</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure</b> = ' + (fmt(L.nozRight?.NP||0)) + ' psi</li>
-          <li><b>Friction Loss (Main)</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+          <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ' + (fmt(L.nozRight?.NP||0)) + ' + ' + (fmt(mainSum)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt((L.nozRight?.NP||0)+mainSum+elevPsi)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
       </div>
     `;
   } else if(single){
@@ -333,12 +333,12 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure (branch)</b> = ' + (fmt(noz.NP)) + ' psi</li>
-          <li><b>Branch FL</b> = ' + (bnSecs.length ? brParts.join(' + ') : 0) + ' = <b>' + (fmt(brSum)) + ' psi</b></li>
-          <li><b>Main FL</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ' + (fmt(noz.NP)) + ' + ' + (fmt(brSum)) + ' + ' + (fmt(mainSum)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt(total)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else {
@@ -354,14 +354,14 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Wye):</b>
         <ul class="simpleList">
-          <li><b>Branch A need</b> = ' + (Math.round(aNeed)) + ' psi</li>
-          <li><b>Branch B need</b> = ' + (Math.round(bNeed)) + ' psi</li>
-          <li><b>Take the higher branch</b> = <b>' + (Math.round(maxNeed)) + ' psi</b></li>
-          <li><b>Main FL</b> = ' + (mainSecs.length ? mainParts.join(' + ') : 0) + ' = <b>' + (fmt(mainSum)) + ' psi</b></li>
-          <li><b>Wye</b> = +' + (wyeLoss) + ' psi</li>
-          <li><b>Elevation</b> = ' + (elevStr) + '</li>
+          <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
+          <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
+          <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Wye</b> = +${wyeLoss} psi</li>
+          <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ' + (fmt(maxNeed)) + ' + ' + (fmt(mainSum)) + ' + ' + (fmt(wyeLoss)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt(total)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
       </div>
     `;
   }
@@ -393,8 +393,8 @@ export async function render(container){
     <section class="stack" data-calc-root>
       <section class="wrapper card">
         <div class="stage" id="stage">
-          <svg id="stageSvg" viewBox="0 0 ' + (TRUCK_W) + ' ' + (TRUCK_H) + '" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="' + (TRUCK_W) + '" height="' + (TRUCK_H) + '" preserveAspectRatio="xMidYMax meet"
+          <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
+            <image id="truckImg" href="/assets/images/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"
               onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
             <g id="hoses"></g>
             <g id="branches"></g>
@@ -424,10 +424,10 @@ export async function render(container){
             <!-- Length: - [value] +, steps of 50' -->
             <div class="te-row" id="rowLen">
               <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="200">
+              <input type="hidden" id="teLen" value="50">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">200′</div>
+                <div class="stepVal" id="lenLabel">50′</div>
                 <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
               </div>
             </div>
@@ -445,6 +445,65 @@ export async function render(container){
               <div class="steppers">
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0′</div>
+            <!-- Branch controls (visible only when Wye is active) -->
+            <section id="branchPlusWrap" style="display:none; margin-top:10px">
+              <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
+
+              <!-- Branch A -->
+              <div class="card" style="padding:8px; margin-bottom:8px">
+                <div style="font-weight:700;margin-bottom:6px">Branch A</div>
+                <div class="te-row">
+                  <label>Length (ft)</label>
+                  <input type="hidden" id="teLenA" value="50">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
+                    <div class="stepVal" id="lenALabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenAPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Elevation (ft)</label>
+                  <input type="hidden" id="teElevA" value="0">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
+                    <div class="stepVal" id="elevALabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevAPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Nozzle</label>
+                  <select id="teNozA"></select>
+                </div>
+              </div>
+
+              <!-- Branch B -->
+              <div class="card" style="padding:8px">
+                <div style="font-weight:700;margin-bottom:6px">Branch B</div>
+                <div class="te-row">
+                  <label>Length (ft)</label>
+                  <input type="hidden" id="teLenB" value="50">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
+                    <div class="stepVal" id="lenBLabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenBPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Elevation (ft)</label>
+                  <input type="hidden" id="teElevB" value="0">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
+                    <div class="stepVal" id="elevBLabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevBPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Nozzle</label>
+                  <select id="teNozB"></select>
+                </div>
+              </div>
+            </section>
+            
                 <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
               </div>
             </div>
@@ -479,6 +538,7 @@ export async function render(container){
               <button class="linebtn" data-line="right">Line 3</button>
             </div>
             <div class="actionGroup">
+              <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
 
@@ -558,6 +618,32 @@ export async function render(container){
         <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
     </section>
+
+    <!-- Presets bottom sheet -->
+    <div id="sheet" class="sheet" aria-modal="true" role="dialog">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="title">Presets</div>
+        <button class="btn" id="sheetClose">Close</button>
+      </div>
+      <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
+
+      <div class="preset-grid" id="presetGrid">
+        <div class="preset" data-preset="standpipe">Standpipe</div>
+        <div class="preset" data-preset="sprinkler">Sprinkler</div>
+        <div class="preset" data-preset="foam">Foam</div>
+        <div class="preset" data-preset="monitor">Monitor</div>
+        <div class="preset" data-preset="aerial">Aerial</div>
+      </div>
+
+      <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
+      <div class="linepick">
+        <div class="preset" data-applyline="left">Line 1</div>
+        <div class="preset" data-applyline="back">Line 2</div>
+        <div class="preset" data-applyline="right">Line 3</div>
+      </div>
+      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
+    </div>
+    <div id="sheetBackdrop" class="sheet-backdrop"></div>
   `;
 
   /* ----------------------------- Styles ---------------------------------- */
@@ -584,7 +670,10 @@ export async function render(container){
     .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
       width:100%; padding:10px 12px;
-      border:1px solid rgba(255,255,255,.22); border-radius:12px;
+      border:1px solid rgba(255,255,255,.22);
+/* phone KPI single-line */
+try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
+ border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -795,10 +884,10 @@ export async function render(container){
       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
 
       const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
-        <span class="title">' + (L.label) + '</span>
-        <span class="tag">Main: ' + (sumFt(L.itemsMain)) + '′ (' + (segs) + ')</span>
-        <span class="tag">Flow: ' + (flow) + ' gpm</span>
-        <span class="tag">' + (L.visible? 'DEPLOYED':'not deployed') + '</span>
+        <span class="title">${L.label}</span>
+        <span class="tag">Main: ${sumFt(L.itemsMain)}′ (${segs})</span>
+        <span class="tag">Flow: ${flow} gpm</span>
+        <span class="tag">${L.visible? 'DEPLOYED':'not deployed'}</span>
       `;
       row.appendChild(head);
       linesTable.appendChild(row);
@@ -819,18 +908,18 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — Wye ' + (wye) + ' psi</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ' + (sumFt(L.itemsLeft)||0) + '′ @ ' + (L.nozLeft.gpm) + ' gpm — NP ' + (L.nozLeft.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_L_' + (key) + '"></div>
+                  <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ' + (sumFt(L.itemsRight)||0) + '′ @ ' + (L.nozRight.gpm) + ' gpm — NP ' + (L.nozRight.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_R_' + (key) + '"></div>
+                  <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -858,14 +947,14 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — via Wye</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — via Wye</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">' + (bnTitle) + ' ' + (sumFt(bnSegs)||0) + '′ @ ' + (noz.gpm) + ' gpm — NP ' + (noz.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_BR_' + (key) + '"></div>
+                  <div class="barTitle">${bnTitle} ${sumFt(bnSegs)||0}′ @ ${noz.gpm} gpm — NP ${noz.NP} psi</div>
+                  <div class="hosebar" id="viz_BR_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -886,10 +975,10 @@ export async function render(container){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ' + (sumFt(L.itemsMain)) + '′ @ ' + (bflow) + ' gpm — NP ' + (L.nozRight.NP) + ' psi</div>
-                  <div class="hosebar" id="viz_main_' + (key) + '"></div>
+                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
-                <div class="simpleBox" id="pp_simple_' + (key) + '"></div>
+                <div class="simpleBox" id="pp_simple_${key}"></div>
               </div>
             </details>
           `;
@@ -913,7 +1002,7 @@ export async function render(container){
       const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
       html = `
         <div class="row"><span class="k">Supply Mode</span><span class="v">Tender shuttle</span></div>
-        <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>' + (Math.round(g)) + '</b> gpm</span></div>
+        <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span></div>
       `;
     }
     if (html) { box.innerHTML = html; box.style.display = 'block'; }
@@ -924,8 +1013,8 @@ export async function render(container){
 
   const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
   let chosenPreset=null, chosenLine=null;
-  function /*openSheet(*/){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
-  function /*closeSheet(*/){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
+  function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
+  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
   container.querySelector('#presetsBtn').addEventListener('click', openSheet);
   container.querySelector('#sheetClose').addEventListener('click', closeSheet);
   sheetBackdrop.addEventListener('click', closeSheet);
@@ -944,7 +1033,7 @@ export async function render(container){
     updateSheetApply();
   });
   function updateSheetApply(){ container.querySelector('#sheetApply').disabled = !(chosenPreset && chosenLine); }
-  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); /*closeSheet(*/); });
+  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); closeSheet(); });
 
   function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
   function applyPresetTo(preset, key){
@@ -1080,6 +1169,8 @@ export async function render(container){
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
+    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
+    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
@@ -1317,4 +1408,71 @@ function initPlusMenus(root){
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
+}
+
+
+// Branch plus-menus for Wye
+function initBranchPlusMenus(root){
+  const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
+  const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
+
+  function makeLen(elHidden, elLabel, minusBtn, plusBtn){
+    function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
+    minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
+    plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
+    draw();
+  }
+
+  function makeElev(elHidden, elLabel, minusBtn, plusBtn){
+    function parse(){ const v = parseInt(elHidden?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function step(d){ let v = parse() + d; v = Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
+    minusBtn?.addEventListener('click', ()=> step(-ELEV_STEP));
+    plusBtn?.addEventListener('click', ()=> step(+ELEV_STEP));
+    draw();
+  }
+
+  function fillNozzles(sel){
+    try{
+      if(!sel || !Array.isArray(NOZ_LIST)) return;
+    }catch(e){}
+    if(!sel) return;
+    sel.innerHTML = NOZ_LIST.map(n=>{
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
+  }
+
+  // Branch A
+  makeLen(
+    root.querySelector('#teLenA'),
+    root.querySelector('#lenALabel'),
+    root.querySelector('#lenAMinus'),
+    root.querySelector('#lenAPlus')
+  );
+  makeElev(
+    root.querySelector('#teElevA'),
+    root.querySelector('#elevALabel'),
+    root.querySelector('#elevAMinus'),
+    root.querySelector('#elevAPlus')
+  );
+  fillNozzles(root.querySelector('#teNozA'));
+
+  // Branch B
+  makeLen(
+    root.querySelector('#teLenB'),
+    root.querySelector('#lenBLabel'),
+    root.querySelector('#lenBMinus'),
+    root.querySelector('#lenBPlus')
+  );
+  makeElev(
+    root.querySelector('#teElevB'),
+    root.querySelector('#elevBLabel'),
+    root.querySelector('#elevBMinus'),
+    root.querySelector('#elevBPlus')
+  );
+  fillNozzles(root.querySelector('#teNozB'));
 }
