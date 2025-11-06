@@ -649,7 +649,16 @@ export async function render(container){
     .is-hidden{display:none!important}
   `);
 
-  /* ------------------------------ DOM refs -------------------------------- */
+  /* FRESH_ON_MOUNT */
+try {
+  const k = editorContext && editorContext.key ? editorContext.key : 'left';
+  const freshFlag = 'calc_fresh_' + k;
+  if (!sessionStorage.getItem(freshFlag)) {
+    resetCalcForKey(k);
+    sessionStorage.setItem(freshFlag, '1');
+  }
+} catch (_) {}
+/* ------------------------------ DOM refs -------------------------------- */
   const stageSvg    = container.querySelector('#stageSvg');
   const G_hoses     = container.querySelector('#hoses');
   const G_branches  = container.querySelector('#branches');
@@ -1071,6 +1080,22 @@ export async function render(container){
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
+/* SAFER_LABEL_SYNC */
+try {
+  var lblLen   = container.querySelector('#lenLabel');
+  var lblElev  = container.querySelector('#elevLabel');
+  var lblSize  = container.querySelector('#sizeLabel');
+  var inpLen   = container.querySelector('#teLen');
+  var inpElev  = container.querySelector('#teElev');
+  var inpSize  = container.querySelector('#teSize');
+  if (lblLen && inpLen)   lblLen.textContent   = String(inpLen.value || 0) + '′';
+  if (lblElev && inpElev) lblElev.textContent  = String(inpElev.value || 0) + '′';
+  if (lblSize && inpSize) {
+    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
+    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
+  }
+} catch (_e) {}
+
 
 // SAFER label sync (no template strings)
 try {
@@ -1136,6 +1161,22 @@ try {
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
+/* SAFER_LABEL_SYNC */
+try {
+  var lblLen   = container.querySelector('#lenLabel');
+  var lblElev  = container.querySelector('#elevLabel');
+  var lblSize  = container.querySelector('#sizeLabel');
+  var inpLen   = container.querySelector('#teLen');
+  var inpElev  = container.querySelector('#teElev');
+  var inpSize  = container.querySelector('#teSize');
+  if (lblLen && inpLen)   lblLen.textContent   = String(inpLen.value || 0) + '′';
+  if (lblElev && inpElev) lblElev.textContent  = String(inpElev.value || 0) + '′';
+  if (lblSize && inpSize) {
+    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
+    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
+  }
+} catch (_e) {}
+
 
 // SAFER label sync (no template strings)
 try {
@@ -1428,3 +1469,17 @@ try{
   }
 }catch(_e){}
 
+
+
+function nozzleIdFog185() {
+  try { return findNozzleId({ gpm: 185, NP: 50, preferFog: true }); } catch (_) { return 'FOG_185_50'; }
+}
+function makeDefaultCalcLine() {
+  const nozId = nozzleIdFog185();
+  return { hasWye:false, elevFt:0, itemsMain:[{ size:'1.75', lengthFt:200 }], itemsLeft:[], itemsRight:[], nozRight: NOZ[nozId] || { id: nozId } };
+}
+function resetCalcForKey(key) {
+  if (!state.lines) state.lines = {};
+  state.lines[key] = makeDefaultCalcLine();
+  if (typeof state.save === 'function') state.save();
+}
