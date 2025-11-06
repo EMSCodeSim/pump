@@ -135,12 +135,18 @@ function ensureDefaultNozzleFor(L, where, size){
 
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
-  if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true}
+  if (!(L?.nozRight?.id)) {
+    const id = findNozzleId({ gpm: 185, NP: 50, preferFog: true });
+    L.nozRight = NOZ[id] || L.nozRight || (Array.isArray(NOZ_LIST) ? NOZ_LIST.find(n => n.id === id) : L.nozRight) || L.nozRight;
+  }
+}
 // Special helper: Branch A defaults to Fog 185 @ 50 if empty
 function setBranchADefaultIfEmpty(L){
-  if(!(L?.nozLeft?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+  if (!(L?.nozLeft?.id)) {
+    const id = findNozzleId({ gpm: 185, NP: 50, preferFog: true });
+    L.nozLeft = NOZ[id] || L.nozLeft || (Array.isArray(NOZ_LIST) ? NOZ_LIST.find(n => n.id === id) : L.nozLeft) || L.nozLeft;
+  }
+});
     L.nozLeft = NOZ[id] || L.nozLeft || NOZ_LIST.find(n=>n.id===id) || L.nozLeft;
   }
 }
@@ -369,7 +375,7 @@ function ppExplainHTML(L){
           <li><b>Wye</b> = +' + (wyeLoss) + ' psi</li>
           <li><b>Elevation</b> = ' + (elevStr) + '</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ' + (fmt(maxNeed)) + ' + ' + (fmt(mainSum)) + ' + ' + (fmt(wyeLoss)) + ' ' + (elevStr) + ' = <span style="color:#9fe879)">' + (fmt(total)) + ' psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ' + (fmt(maxNeed)) + ' + ' + (fmt(mainSum)) + ' + ' + (fmt(wyeLoss)) + ' ' + (elevStr) + ' = <span style="color:#9fe879">' + (fmt(total)) + ' psi</span></b></div>
       </div>
     `;
   }
@@ -676,38 +682,7 @@ export async function render(container){
   const teSize      = container.querySelector('#teSize');
   const teLen       = container.querySelector('#teLen');
   const teElev      = container.querySelector('#teElev');
-  
-teWye && teWye.addEventListener('change', function () {
-  var wyeOn = (teWye.value === 'on');
-
-  // Toggle the branch UI
-  var branchWrap = (popupEl && popupEl.querySelector) ? popupEl.querySelector('#branchPlusWrap') : null;
-  if (branchWrap) {
-    branchWrap.style.display = wyeOn ? '' : 'none';
-  }
-
-  // If turning on, ensure defaults and update labels
-  if (wyeOn) {
-    try {
-      var L = state.lines[editorContext.key];
-
-      // Set default nozzles if empty: Fog 185 @ 50
-      if (typeof setBranchADefaultIfEmpty === 'function') setBranchADefaultIfEmpty(L);
-      if (typeof setBranchBDefaultIfEmpty === 'function') setBranchBDefaultIfEmpty(L);
-
-      // Default branch lengths to 50 if none present
-      if (!(L.itemsLeft && L.itemsLeft[0]))  L.itemsLeft  = [{ size: (teSize && teSize.value) || '1.75', lengthFt: 50 }];
-      if (!(L.itemsRight && L.itemsRight[0])) L.itemsRight = [{ size: (teSize && teSize.value) || '1.75', lengthFt: 50 }];
-
-      // Update visible labels
-      var la = popupEl.querySelector('#lenALabel'); if (la) la.textContent = '50′';
-      var lb = popupEl.querySelector('#lenBLabel'); if (lb) lb.textContent = '50′';
-    } catch (_e) {}
-  }
-
-  // (keep any other original behavior here if needed)
-});
-const teWye       = container.querySelector('#teWye');
+  const teWye       = container.querySelector('#teWye');
   const teLenA      = container.querySelector('#teLenA');
   const teLenB      = container.querySelector('#teLenB');
   const teNoz       = container.querySelector('#teNoz');
@@ -781,7 +756,11 @@ const teWye       = container.querySelector('#teWye');
     } else if (snap && typeof waterSupply.import === 'function') {
       waterSupply.import(snap);
     } else if (snap) {
-      // Fallback: 
+      // Fallback: try common field names on state
+      if (snap.tenders) state.tenders = snap.tenders;
+      if (snap.shuttle) state.shuttle = snap.shuttle;
+    }
+  } catch {}
 
   // Start autosave heartbeat (includes water snapshot)
   startAutoSave(()=>{
@@ -1105,24 +1084,6 @@ const teWye       = container.querySelector('#teWye');
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
-// SAFER label sync (no template strings)
-try {
-  var lblLen   = container.querySelector('#lenLabel');
-  var lblElev  = container.querySelector('#elevLabel');
-  var lblSize  = container.querySelector('#sizeLabel');
-  var inpLen   = container.querySelector('#teLen');
-  var inpElev  = container.querySelector('#teElev');
-  var inpSize  = container.querySelector('#teSize');
-
-  if (lblLen && inpLen)  lblLen.textContent  = String(inpLen.value || 0) + '′';
-  if (lblElev && inpElev) lblElev.textContent = String(inpElev.value || 0) + '′';
-
-  if (lblSize && inpSize) {
-    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
-    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
-  }
-} catch (_e) {}
-
 
   // Sync visible labels with current values (so - [value] + matches deployed line)
   try{
@@ -1180,24 +1141,6 @@ try {
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
-// SAFER label sync (no template strings)
-try {
-  var lblLen   = container.querySelector('#lenLabel');
-  var lblElev  = container.querySelector('#elevLabel');
-  var lblSize  = container.querySelector('#sizeLabel');
-  var inpLen   = container.querySelector('#teLen');
-  var inpElev  = container.querySelector('#teElev');
-  var inpSize  = container.querySelector('#teSize');
-
-  if (lblLen && inpLen)  lblLen.textContent  = String(inpLen.value || 0) + '′';
-  if (lblElev && inpElev) lblElev.textContent = String(inpElev.value || 0) + '′';
-
-  if (lblSize && inpSize) {
-    var smap = { '1.75': '1 3/4″', '2.5': '2 1/2″', '5': '5″' };
-    lblSize.textContent = smap[inpSize.value] || String(inpSize.value || '') + '″';
-  }
-} catch (_e) {}
-
   
     if(wyeOn){
       // Set defaults if empty
@@ -1208,8 +1151,10 @@ try {
       if(!(L.itemsLeft&&L.itemsLeft[0])) L.itemsLeft=[{size: teSize?.value||'1.75', lengthFt:50}];
       if(!(L.itemsRight&&L.itemsRight[0])) L.itemsRight=[{size: teSize?.value||'1.75', lengthFt:50}];
       // Reflect in UI labels
-      const la = container.querySelector('#lenALabel'); if (la) la.textContent = '50\u2032';
-      const lb = container.querySelector('#lenBLabel'); if (lb) lb.textContent = '50\u2032';});
+      const la = container.querySelector('#lenALabel'); if(la) la.textContent='50′';
+      const lb = container.querySelector('#lenBLabel'); if(lb) lb.textContent='50′';
+    }
+});
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
