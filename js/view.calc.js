@@ -1476,3 +1476,53 @@ function initBranchPlusMenus(root){
   );
   fillNozzles(root.querySelector('#teNozB'));
 }
+
+
+/* AUTO-RESET & PRESETS-HIDE ON LOAD */
+(function(){
+  function safeFogId(){
+    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_e){ return null; }
+  }
+  function resetAllDeployedLines(){
+    try{
+      if (!window.state || !state.lines) return;
+      var id = safeFogId();
+      for (var k in state.lines){
+        if (!Object.prototype.hasOwnProperty.call(state.lines, k)) continue;
+        var L = state.lines[k] || {};
+        L.hasWye = false;
+        L.elevFt = 0;
+        L.itemsLeft = [];
+        L.itemsRight = [];
+        L.itemsMain = [{ size: '1.75', lengthFt: 200 }];
+        if (id && window.NOZ){ L.nozMain = NOZ[id] || L.nozMain || { id: id }; }
+        state.lines[k] = L;
+      }
+      if (typeof state.save === 'function') state.save();
+    }catch(_e){}
+  }
+  function hidePresetsUI(){
+    try{
+      var css = document.createElement('style');
+      css.setAttribute('data-auto-hide','presets');
+      css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
+      document.head && document.head.appendChild(css);
+      var btn = document.getElementById('presetsBtn');
+      if (btn){ btn.replaceWith(btn.cloneNode(true)); }
+    }catch(_e){}
+  }
+  function init(){
+    resetAllDeployedLines();
+    hidePresetsUI();
+    // If your app has a render() or drawAll(), trigger a first draw safely
+    try{
+      if (typeof render === 'function') render();
+      else if (typeof drawAll === 'function') drawAll();
+    }catch(_e){}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once:true });
+  } else {
+    setTimeout(init, 0);
+  }
+})();
