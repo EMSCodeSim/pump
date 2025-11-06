@@ -426,25 +426,46 @@ export async function render(container){
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
 
-            <div class="te-row" id="rowSize"><label>Diameter</label>
-              <select id="teSize">
-                <option value="1.75">1¾″</option>
-                <option value="2.5">2½″</option>
-                <option value="5">5″</option>
-              </select>
+            
+            <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
+            <div class="te-row" id="rowSize">
+              <label>Diameter</label>
+              <input type="hidden" id="teSize" value="1.75">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
+                <div class="stepVal" id="sizeLabel">1 3/4″</div>
+                <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
+              </div>
             </div>
 
-            <div class="te-row" id="rowLen"><label>Length (ft)</label>
-              <input type="number" id="teLen" min="0" step="25" value="200">
+            <!-- Length: - [value] +, steps of 50' -->
+            <div class="te-row" id="rowLen">
+              <label>Length (ft)</label>
+              <input type="hidden" id="teLen" value="200">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
+                <div class="stepVal" id="lenLabel">200′</div>
+                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
+              </div>
             </div>
 
-            <div class="te-row" id="rowNoz"><label>Nozzle</label>
+            <!-- Nozzle: full list from charts (NOZ_LIST) -->
+            <div class="te-row" id="rowNoz">
+              <label>Nozzle</label>
               <select id="teNoz"></select>
             </div>
 
-            <div class="te-row"><label>Elevation (ft)</label>
-              <input type="number" id="teElev" step="5" value="0">
+            <!-- Elevation: - [value] +, steps of 1' -->
+            <div class="te-row" id="rowElev">
+              <label>Elevation (ft)</label>
+              <input type="hidden" id="teElev" value="0">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
+                <div class="stepVal" id="elevLabel">0′</div>
+                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
+              </div>
             </div>
+
 
             <div class="te-row"><label>Wye</label>
               <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
@@ -1267,9 +1288,77 @@ export async function render(container){
   // Dev helper to clear saved practice
   window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
 
+  
+  try{ initPlusMenus(container); }catch(e){}
   return { dispose(){
     stopAutoSave();
   }};
 }
 
 export default { render };
+
+
+/* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
+import { NOZ_LIST } from './store.js';
+function initPlusMenus(root){
+  const sizeSeq = [
+    { val: "1.75", labelPlain: "1 3/4″" },
+    { val: "2.5",  labelPlain: "2 1/2″" },
+    { val: "5",    labelPlain: "5″" }
+  ];
+  const teSize = root.querySelector('#teSize');
+  const sizeLabel = root.querySelector('#sizeLabel');
+  const sizeMinus = root.querySelector('#sizeMinus');
+  const sizePlus = root.querySelector('#sizePlus');
+  let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
+  function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
+  function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
+  sizeMinus?.addEventListener('click', ()=> stepSize(-1));
+  sizePlus?.addEventListener('click', ()=> stepSize(+1));
+  drawSize();
+
+  const teLen = root.querySelector('#teLen');
+  const lenLabel = root.querySelector('#lenLabel');
+  const lenMinus = root.querySelector('#lenMinus');
+  const lenPlus = root.querySelector('#lenPlus');
+  const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
+  function parseLen(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(teLen?.value||'0',10)||0)); }
+  function drawLen(){ if(lenLabel) lenLabel.textContent = `${parseLen()}′`; }
+  function stepLen(d){ let v = parseLen()+d; v=Math.max(LEN_MIN,Math.min(LEN_MAX,v)); if(teLen) teLen.value=String(v); drawLen(); }
+  lenMinus?.addEventListener('click', ()=> stepLen(-LEN_STEP));
+  lenPlus?.addEventListener('click', ()=> stepLen(+LEN_STEP));
+  drawLen();
+
+  const teElev = root.querySelector('#teElev');
+  const elevLabel = root.querySelector('#elevLabel');
+  const elevMinus = root.querySelector('#elevMinus');
+  const elevPlus = root.querySelector('#elevPlus');
+  const ELEV_STEP=1, ELEV_MIN=-500, ELEV_MAX=500;
+  function parseElev(){ const v=parseInt(teElev?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); }
+  function drawElev(){ if(elevLabel) elevLabel.textContent = `${parseElev()}′`; }
+  function stepElev(d){ let v=parseElev()+d; v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); if(teElev) teElev.value=String(v); drawElev(); }
+  elevMinus?.addEventListener('click', ()=> stepElev(-ELEV_STEP));
+  elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
+  drawElev();
+
+  const teNoz = root.querySelector('#teNoz');
+  if(teNoz && Array.isArray(NOZ_LIST)){
+    teNoz.innerHTML = NOZ_LIST.map(n => {
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
+  }
+
+  if(!root.__plusMenuStyles){
+    const s=document.createElement('style');
+    s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
+.steppers{display:flex;align-items:center;gap:8px;background:#0b1a29;border:1px solid var(--edge);border-radius:10px;padding:6px}
+.stepBtn{background:#0b1320;border:1px solid var(--edge);border-radius:10px;color:#e9f1ff;font-weight:700;min-width:36px;height:36px}
+.stepBtn:active{transform:translateY(1px)}
+.stepVal{flex:1;text-align:center;font-weight:700}
+@media (max-width:480px){.te-row{grid-template-columns:100px 1fr}.stepBtn{min-width:34px;height:34px}}`;
+    root.appendChild(s);
+    root.__plusMenuStyles = true;
+  }
+}
