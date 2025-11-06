@@ -10,6 +10,36 @@ const loaders = {
   settings:  () => import('./view.settings.js'),
 };
 
+// === Charts overlay support ===
+let chartsOverlay = document.getElementById('chartsOverlay');
+let chartsMount = document.getElementById('chartsMount');
+let chartsClose = document.getElementById('closeCharts');
+let chartsDispose = null;
+
+async function openCharts(){
+  if(!chartsOverlay) return;
+  chartsOverlay.style.display = 'block';
+  // Lazy load charts view into the overlay without touching the current view
+  chartsMount.innerHTML = '<div style="opacity:.7;padding:12px">Loading charts…</div>';
+  try{
+    const mod = await loaders.charts();
+    const res = await mod.render(chartsMount); // may return { dispose }
+    chartsDispose = res?.dispose || null;
+  }catch(err){
+    chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
+  }
+}
+
+function closeCharts(){
+  if(chartsDispose) { try { chartsDispose(); } catch(_){} chartsDispose = null; }
+  if(chartsMount) chartsMount.innerHTML = '';
+  if(chartsOverlay) chartsOverlay.style.display = 'none';
+}
+
+if(chartsClose){ chartsClose.addEventListener('click', closeCharts); }
+if(chartsOverlay){ chartsOverlay.addEventListener('click', (e)=>{ if(e.target === chartsOverlay) closeCharts(); }); }
+
+// ---- view swapping for calc/practice/settings ----
 async function setView(name){
   try{
     if(currentView?.dispose) { currentView.dispose(); }
@@ -23,5 +53,11 @@ async function setView(name){
   }
 }
 
-buttons.forEach(b => b.addEventListener('click', ()=> setView(b.dataset.view)));
+// Intercept bottom-nav clicks: open overlay for Charts, swap view for others
+buttons.forEach(b => b.addEventListener('click', ()=> {
+  const v = b.dataset.view;
+  if(v === 'charts'){ openCharts(); return; }
+  setView(v);
+}));
+
 setView('calc'); // initial
