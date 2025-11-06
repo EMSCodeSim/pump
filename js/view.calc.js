@@ -4,24 +4,7 @@
 // and practice-state persistence (including tender shuttle) across view switches.
 //
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
-
-import {
-  state,
-  NOZ,
-  NOZ_LIST,
-  COLORS,
-  FL,
-  FL_total,
-  sumFt,
-  splitIntoSections,
-  PSI_PER_FT,
-  seedDefaultsForKey,
-  isSingleWye,
-  activeNozzle,
-  activeSide,
-  sizeLabel
-} from './store.js';
-
+import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 
 /* ========================================================================== */
@@ -1299,7 +1282,7 @@ export default { render };
 
 
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
-import { NOZ_LIST } from './store.js';
+
 function initPlusMenus(root){
   const sizeSeq = [
     { val: "1.75", labelPlain: "1 3/4″" },
