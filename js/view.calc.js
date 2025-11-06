@@ -424,10 +424,10 @@ export async function render(container){
             <!-- Length: - [value] +, steps of 50' -->
             <div class="te-row" id="rowLen">
               <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="200">
+              <input type="hidden" id="teLen" value="50">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">200′</div>
+                <div class="stepVal" id="lenLabel">50′</div>
                 <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
               </div>
             </div>
@@ -445,6 +445,65 @@ export async function render(container){
               <div class="steppers">
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0′</div>
+            <!-- Branch controls (visible only when Wye is active) -->
+            <section id="branchPlusWrap" style="display:none; margin-top:10px">
+              <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
+
+              <!-- Branch A -->
+              <div class="card" style="padding:8px; margin-bottom:8px">
+                <div style="font-weight:700;margin-bottom:6px">Branch A</div>
+                <div class="te-row">
+                  <label>Length (ft)</label>
+                  <input type="hidden" id="teLenA" value="50">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
+                    <div class="stepVal" id="lenALabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenAPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Elevation (ft)</label>
+                  <input type="hidden" id="teElevA" value="0">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
+                    <div class="stepVal" id="elevALabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevAPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Nozzle</label>
+                  <select id="teNozA"></select>
+                </div>
+              </div>
+
+              <!-- Branch B -->
+              <div class="card" style="padding:8px">
+                <div style="font-weight:700;margin-bottom:6px">Branch B</div>
+                <div class="te-row">
+                  <label>Length (ft)</label>
+                  <input type="hidden" id="teLenB" value="50">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
+                    <div class="stepVal" id="lenBLabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenBPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Elevation (ft)</label>
+                  <input type="hidden" id="teElevB" value="0">
+                  <div class="steppers">
+                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
+                    <div class="stepVal" id="elevBLabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevBPlus">+</button>
+                  </div>
+                </div>
+                <div class="te-row">
+                  <label>Nozzle</label>
+                  <select id="teNozB"></select>
+                </div>
+              </div>
+            </section>
+            
                 <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
               </div>
             </div>
@@ -611,7 +670,10 @@ export async function render(container){
     .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
       width:100%; padding:10px 12px;
-      border:1px solid rgba(255,255,255,.22); border-radius:12px;
+      border:1px solid rgba(255,255,255,.22);
+/* phone KPI single-line */
+try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
+ border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -1107,6 +1169,8 @@ export async function render(container){
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
+    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
+    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
@@ -1344,4 +1408,71 @@ function initPlusMenus(root){
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
+}
+
+
+// Branch plus-menus for Wye
+function initBranchPlusMenus(root){
+  const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
+  const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
+
+  function makeLen(elHidden, elLabel, minusBtn, plusBtn){
+    function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
+    minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
+    plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
+    draw();
+  }
+
+  function makeElev(elHidden, elLabel, minusBtn, plusBtn){
+    function parse(){ const v = parseInt(elHidden?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function step(d){ let v = parse() + d; v = Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
+    minusBtn?.addEventListener('click', ()=> step(-ELEV_STEP));
+    plusBtn?.addEventListener('click', ()=> step(+ELEV_STEP));
+    draw();
+  }
+
+  function fillNozzles(sel){
+    try{
+      if(!sel || !Array.isArray(NOZ_LIST)) return;
+    }catch(e){}
+    if(!sel) return;
+    sel.innerHTML = NOZ_LIST.map(n=>{
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
+  }
+
+  // Branch A
+  makeLen(
+    root.querySelector('#teLenA'),
+    root.querySelector('#lenALabel'),
+    root.querySelector('#lenAMinus'),
+    root.querySelector('#lenAPlus')
+  );
+  makeElev(
+    root.querySelector('#teElevA'),
+    root.querySelector('#elevALabel'),
+    root.querySelector('#elevAMinus'),
+    root.querySelector('#elevAPlus')
+  );
+  fillNozzles(root.querySelector('#teNozA'));
+
+  // Branch B
+  makeLen(
+    root.querySelector('#teLenB'),
+    root.querySelector('#lenBLabel'),
+    root.querySelector('#lenBMinus'),
+    root.querySelector('#lenBPlus')
+  );
+  makeElev(
+    root.querySelector('#teElevB'),
+    root.querySelector('#elevBLabel'),
+    root.querySelector('#elevBMinus'),
+    root.querySelector('#elevBPlus')
+  );
+  fillNozzles(root.querySelector('#teNozB'));
 }
