@@ -599,6 +599,16 @@ export async function render(container){
             </div>
             <div class="pill">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
           </div>
+          <!-- New: global Round Trip control -->
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+            <div class="field" style="min-width:150px">
+              <label>Round trip (min)</label>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
+            </div>
+            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
+              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
+            </div>
+          </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
               <label>Tender ID / Number</label>
@@ -767,11 +777,47 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       hydrantStatic:   '#hydrantStatic',
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
-      hydrantResult:   '#hydrantResult'
-    }
+      hydrantResult:   '#hydrantResult',
+      tTripAll:        '#tTripAll',
+      tTripApplyAll:  '#tTripApplyAll'}
   });
 
-  // Helper to pick the best snapshot API if present
+  
+  // Global Round Trip apply-to-all
+  try {
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    if (tTripApplyAllEl) {
+      tTripApplyAllEl.addEventListener('click', ()=>{
+        const minutes = parseFloat((tTripAllEl && tTripAllEl.value) || '0') || 0;
+        let applied = false;
+        try {
+          if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
+            waterSupply.setAllRoundTripMinutes(minutes);
+            applied = true;
+          }
+        } catch(e){}
+        if (!applied) {
+          // Fallback: set all tender "trip" inputs in the list and dispatch input events
+          const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
+          list.forEach(inp => {
+            inp.value = String(minutes);
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          // Dispatch a custom event for any listeners
+          const evt = new CustomEvent('tender-apply-trip', { detail: { minutes } });
+          document.dispatchEvent(evt);
+        }
+        // Recompute summary if present
+        try {
+          refreshSupplySummary();
+          markDirty();
+        } catch(_){}
+      });
+    }
+  } catch(_){}
+// Helper to pick the best snapshot API if present
   function pickWaterSnapshotSafe(){
     try {
       if (typeof waterSupply.getSnapshot === 'function') return waterSupply.getSnapshot();
