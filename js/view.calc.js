@@ -1145,10 +1145,8 @@ export async function render(container){
       if(!(L.itemsLeft&&L.itemsLeft[0])) L.itemsLeft=[{size: teSize?.value||'1.75', lengthFt:50}];
       if(!(L.itemsRight&&L.itemsRight[0])) L.itemsRight=[{size: teSize?.value||'1.75', lengthFt:50}];
       // Reflect in UI labels
-      const la = container.querySelector('#lenALabel'); if(la) la.textContent='50′';
-      const lb = container.querySelector('#lenBLabel'); if(lb) lb.textContent='50′';
-    }
-});
+      const la = container.querySelector('#lenALabel'); if (la) la.textContent = '50\u2032';
+      const lb = container.querySelector('#lenBLabel'); if (lb) lb.textContent = '50\u2032';});
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
