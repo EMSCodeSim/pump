@@ -136,15 +136,7 @@ function ensureDefaultNozzleFor(L, where, size){
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true}
-// Special helper: Branch A defaults to Fog 185 @ 50 if empty
-function setBranchADefaultIfEmpty(L){
-  if(!(L?.nozLeft?.id)){
     const id = findNozzleId({gpm:185, NP:50, preferFog:true});
-    L.nozLeft = NOZ[id] || L.nozLeft || NOZ_LIST.find(n=>n.id===id) || L.nozLeft;
-  }
-}
-);
     L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
@@ -432,10 +424,10 @@ export async function render(container){
             <!-- Length: - [value] +, steps of 50' -->
             <div class="te-row" id="rowLen">
               <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="50">
+              <input type="hidden" id="teLen" value="200">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">50′</div>
+                <div class="stepVal" id="lenLabel">200′</div>
                 <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
               </div>
             </div>
@@ -1065,31 +1057,18 @@ export async function render(container){
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
     } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:50};
+      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
-      setBranchADefaultIfEmpty(L);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:50};
+      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
-
-  // Sync visible labels with current values (so - [value] + matches deployed line)
-  try{
-    const lbl = (id)=> container.querySelector(id);
-    const setTxt = (el, v) => { if(el) el.textContent = v; };
-    setTxt(lbl('#lenLabel'), `${teLen?.value||0}′`);
-    setTxt(lbl('#elevLabel'), `${teElev?.value||0}′`);
-    // size label: map 1.75 -> 1 3/4″, 2.5 -> 2 1/2″, 5 -> 5″
-    const sizeMap = {'1.75':'1 3/4″','2.5':'2 1/2″','5':'5″'};
-    setTxt(lbl('#sizeLabel'), sizeMap[teSize?.value] || `${teSize?.value||''}″`);
-  }catch{}
-
   }
 
   // Change of diameter in editor → update default nozzle (when applicable)
@@ -1135,20 +1114,7 @@ export async function render(container){
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
-  
-    if(wyeOn){
-      // Set defaults if empty
-      const L = state.lines[editorContext.key];
-      setBranchADefaultIfEmpty(L);
-      setBranchBDefaultIfEmpty(L);
-      // Default branch lengths to 50 if not set
-      if(!(L.itemsLeft&&L.itemsLeft[0])) L.itemsLeft=[{size: teSize?.value||'1.75', lengthFt:50}];
-      if(!(L.itemsRight&&L.itemsRight[0])) L.itemsRight=[{size: teSize?.value||'1.75', lengthFt:50}];
-      // Reflect in UI labels
-      const la = container.querySelector('#lenALabel'); if(la) la.textContent='50′';
-      const lb = container.querySelector('#lenBLabel'); if(lb) lb.textContent='50′';
-    }
-});
+  });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
