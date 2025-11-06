@@ -136,7 +136,15 @@ function ensureDefaultNozzleFor(L, where, size){
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true}
+// Special helper: Branch A defaults to Fog 185 @ 50 if empty
+function setBranchADefaultIfEmpty(L){
+  if(!(L?.nozLeft?.id)){
     const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+    L.nozLeft = NOZ[id] || L.nozLeft || NOZ_LIST.find(n=>n.id===id) || L.nozLeft;
+  }
+}
+);
     L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
@@ -445,65 +453,6 @@ export async function render(container){
               <div class="steppers">
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0′</div>
-            <!-- Branch controls (visible only when Wye is active) -->
-            <section id="branchPlusWrap" style="display:none; margin-top:10px">
-              <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
-
-              <!-- Branch A -->
-              <div class="card" style="padding:8px; margin-bottom:8px">
-                <div style="font-weight:700;margin-bottom:6px">Branch A</div>
-                <div class="te-row">
-                  <label>Length (ft)</label>
-                  <input type="hidden" id="teLenA" value="50">
-                  <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
-                    <div class="stepVal" id="lenALabel">50′</div>
-                    <button type="button" class="stepBtn" id="lenAPlus">+</button>
-                  </div>
-                </div>
-                <div class="te-row">
-                  <label>Elevation (ft)</label>
-                  <input type="hidden" id="teElevA" value="0">
-                  <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
-                    <div class="stepVal" id="elevALabel">0′</div>
-                    <button type="button" class="stepBtn" id="elevAPlus">+</button>
-                  </div>
-                </div>
-                <div class="te-row">
-                  <label>Nozzle</label>
-                  <select id="teNozA"></select>
-                </div>
-              </div>
-
-              <!-- Branch B -->
-              <div class="card" style="padding:8px">
-                <div style="font-weight:700;margin-bottom:6px">Branch B</div>
-                <div class="te-row">
-                  <label>Length (ft)</label>
-                  <input type="hidden" id="teLenB" value="50">
-                  <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
-                    <div class="stepVal" id="lenBLabel">50′</div>
-                    <button type="button" class="stepBtn" id="lenBPlus">+</button>
-                  </div>
-                </div>
-                <div class="te-row">
-                  <label>Elevation (ft)</label>
-                  <input type="hidden" id="teElevB" value="0">
-                  <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
-                    <div class="stepVal" id="elevBLabel">0′</div>
-                    <button type="button" class="stepBtn" id="elevBPlus">+</button>
-                  </div>
-                </div>
-                <div class="te-row">
-                  <label>Nozzle</label>
-                  <select id="teNozB"></select>
-                </div>
-              </div>
-            </section>
-            
                 <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
               </div>
             </div>
@@ -670,10 +619,7 @@ export async function render(container){
     .field label { display:block; font-weight:700; color:#dfe9ff; margin: 6px 0 4px; }
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
       width:100%; padding:10px 12px;
-      border:1px solid rgba(255,255,255,.22);
-/* phone KPI single-line */
-try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
- border-radius:12px;
+      border:1px solid rgba(255,255,255,.22); border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -1119,18 +1065,31 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
     } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
+      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:50};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
+      setBranchADefaultIfEmpty(L);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
+      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:50};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
+
+  // Sync visible labels with current values (so - [value] + matches deployed line)
+  try{
+    const lbl = (id)=> container.querySelector(id);
+    const setTxt = (el, v) => { if(el) el.textContent = v; };
+    setTxt(lbl('#lenLabel'), `${teLen?.value||0}′`);
+    setTxt(lbl('#elevLabel'), `${teElev?.value||0}′`);
+    // size label: map 1.75 -> 1 3/4″, 2.5 -> 2 1/2″, 5 -> 5″
+    const sizeMap = {'1.75':'1 3/4″','2.5':'2 1/2″','5':'5″'};
+    setTxt(lbl('#sizeLabel'), sizeMap[teSize?.value] || `${teSize?.value||''}″`);
+  }catch{}
+
   }
 
   // Change of diameter in editor → update default nozzle (when applicable)
@@ -1169,8 +1128,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
-    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
@@ -1178,7 +1135,20 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
-  });
+  
+    if(wyeOn){
+      // Set defaults if empty
+      const L = state.lines[editorContext.key];
+      setBranchADefaultIfEmpty(L);
+      setBranchBDefaultIfEmpty(L);
+      // Default branch lengths to 50 if not set
+      if(!(L.itemsLeft&&L.itemsLeft[0])) L.itemsLeft=[{size: teSize?.value||'1.75', lengthFt:50}];
+      if(!(L.itemsRight&&L.itemsRight[0])) L.itemsRight=[{size: teSize?.value||'1.75', lengthFt:50}];
+      // Reflect in UI labels
+      const la = container.querySelector('#lenALabel'); if(la) la.textContent='50′';
+      const lb = container.querySelector('#lenBLabel'); if(lb) lb.textContent='50′';
+    }
+});
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
@@ -1408,71 +1378,4 @@ function initPlusMenus(root){
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
-}
-
-
-// Branch plus-menus for Wye
-function initBranchPlusMenus(root){
-  const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
-  const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
-
-  function makeLen(elHidden, elLabel, minusBtn, plusBtn){
-    function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
-    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
-    function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
-    minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
-    plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
-    draw();
-  }
-
-  function makeElev(elHidden, elLabel, minusBtn, plusBtn){
-    function parse(){ const v = parseInt(elHidden?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); }
-    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
-    function step(d){ let v = parse() + d; v = Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
-    minusBtn?.addEventListener('click', ()=> step(-ELEV_STEP));
-    plusBtn?.addEventListener('click', ()=> step(+ELEV_STEP));
-    draw();
-  }
-
-  function fillNozzles(sel){
-    try{
-      if(!sel || !Array.isArray(NOZ_LIST)) return;
-    }catch(e){}
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>{
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-  }
-
-  // Branch A
-  makeLen(
-    root.querySelector('#teLenA'),
-    root.querySelector('#lenALabel'),
-    root.querySelector('#lenAMinus'),
-    root.querySelector('#lenAPlus')
-  );
-  makeElev(
-    root.querySelector('#teElevA'),
-    root.querySelector('#elevALabel'),
-    root.querySelector('#elevAMinus'),
-    root.querySelector('#elevAPlus')
-  );
-  fillNozzles(root.querySelector('#teNozA'));
-
-  // Branch B
-  makeLen(
-    root.querySelector('#teLenB'),
-    root.querySelector('#lenBLabel'),
-    root.querySelector('#lenBMinus'),
-    root.querySelector('#lenBPlus')
-  );
-  makeElev(
-    root.querySelector('#teElevB'),
-    root.querySelector('#elevBLabel'),
-    root.querySelector('#elevBMinus'),
-    root.querySelector('#elevBPlus')
-  );
-  fillNozzles(root.querySelector('#teNozB'));
 }
