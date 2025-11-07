@@ -597,7 +597,14 @@ export async function render(container){
               <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
               <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
             </div>
-            <div class="pill">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
+            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
+  <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
+    <span class="mini" style="opacity:.85">Round trip (min)</span>
+        <span id="tTripAll" class="pillVal" data-min="0">—</span>
+        <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
+  </div>
+</div>
           </div>
           <!-- New: global Round Trip control -->
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
@@ -783,13 +790,75 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   });
 
   
-  // Global Round Trip apply-to-all
+  
+  // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
   try {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
-        const minutes = parseFloat((tTripAllEl && tTripAllEl.value) || '0') || 0;
+        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
+        let applied = false;
+        try {
+          if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
+            waterSupply.setAllRoundTripMinutes(minutes);
+            applied = true;
+          }
+        } catch(e){}
+        if (!applied) {
+          const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
+          list.forEach(inp => {
+            inp.value = String(minutes);
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } }));
+        }
+        try { refreshSupplySummary(); markDirty(); } catch(_){}
+      });
+    }
+    let __tripAutofilled = false;
+    const tenderListEl = container.querySelector('#tenderList');
+    if (tenderListEl) {
+      tenderListEl.addEventListener('input', (e)=>{
+        const t = e.target;
+        if (__tripAutofilled || !t) return;
+        const isTrip = (t.name === 'trip') || (t.dataset.role === 'trip');
+        if (!isTrip) return;
+        const v = parseFloat(t.value);
+        if (v > 0) {
+          if (tTripAllEl && (tTripAllEl.getAttribute('data-min') === '0' || tTripAllEl.textContent === '—' || !tTripAllEl.textContent)) {
+            tTripAllEl.setAttribute('data-min', String(v));
+            tTripAllEl.textContent = String(v);
+            __tripAutofilled = true;
+          }
+        }
+      });
+    }
+  } catch(_){}
+
+  (function(){
+    try{
+      const css = `
+        .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
+        @media (max-width:520px){
+          .shuttleMeta{ width:100%; justify-content:space-between; }
+          .shuttleMeta .gpmLine{ font-weight:700; }
+          .shuttleMeta .tripCtrl input{ width:70px; }
+          .helperPanel .field label{ font-size:12px; }
+        }`;
+      const st = document.createElement('style');
+      st.textContent = css;
+      document.head.appendChild(st);
+    }catch(_){}
+  })();
+// Global Round Trip apply-to-all
+  try {
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    if (tTripApplyAllEl) {
+      tTripApplyAllEl.addEventListener('click', ()=>{
+        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
         try {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
@@ -1571,4 +1640,26 @@ function initBranchPlusMenus(root){
   } else {
     setTimeout(init, 0);
   }
+})();
+
+
+    document.addEventListener('tender-trip-stopped', (ev)=>{
+      try{
+        const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
+        if (mins && mins > 0){
+          const el = container.querySelector('#tTripAll');
+          if (el){
+            el.setAttribute('data-min', String(mins));
+            el.textContent = String(mins);
+          }
+        }
+      }catch(_){}
+    });
+    
+(function(){
+  try{
+    const st = document.createElement('style');
+    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}`;
+    document.head.appendChild(st);
+  }catch(_){}
 })();
