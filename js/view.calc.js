@@ -597,14 +597,7 @@ export async function render(container){
               <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
               <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
             </div>
-            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-  <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
-  <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
-    <span class="mini" style="opacity:.85">Round trip (min)</span>
-        <span id="tTripAll" class="pillVal" data-min="0">—</span>
-        <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-  </div>
-</div>
+            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div><div class="tripCtrl" style="display:flex;align-items:center;gap:6px"><span class="mini" style="opacity:.85">Round trip (min)</span><span id="tTripAll" class="pillVal" data-min="0">—</span><button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button></div></div>
           </div>            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
             </div>
@@ -783,12 +776,25 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
   
   
-  // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
+/* Tender Shuttle: safe, guarded listeners + text-only round trip */
+(() => {
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    if (!container || !container.querySelector) return;
+
+    const tTripAllEl       = container.querySelector('#tTripAll');         // display-only span
+    const tTripApplyAllEl  = container.querySelector('#tTripApplyAll');    // optional button
+    const tenderListEl     = container.querySelector('#tenderList');       // list container
+
+    function setTripAll(minutes){
+      if (!tTripAllEl) return;
+      const v = (Number(minutes) || 0);
+      tTripAllEl.setAttribute('data-min', String(v));
+      tTripAllEl.textContent = v > 0 ? String(v) : '—';
+    }
+
     if (tTripApplyAllEl) {
-      tTripApplyAllEl.addEventListener('click', ()=>{
+      tTripApplyAllEl.addEventListener('click', () => {
+        if (!tTripAllEl) return;
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
         try {
@@ -796,61 +802,70 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
             waterSupply.setAllRoundTripMinutes(minutes);
             applied = true;
           }
-        } catch(e){}
+        } catch (_) {}
+
         if (!applied) {
-          const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
-          list.forEach(inp => {
-            inp.value = String(minutes);
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-          });
+          if (container && container.querySelectorAll) {
+            const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
+            list.forEach(inp => {
+              inp.value = String(minutes);
+              inp.dispatchEvent(new Event('input', { bubbles: true }));
+              inp.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+          }
           document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } }));
         }
-        try { refreshSupplySummary(); markDirty(); } catch(_){}
+        try { if (typeof refreshSupplySummary === 'function') refreshSupplySummary(); } catch(_){}
+        try { if (typeof markDirty === 'function') markDirty(); } catch(_){}
       });
     }
-    let __tripAutofilled = false;
-    const tenderListEl = container.querySelector('#tenderList');
+
+    let __tripAutofilled = false; // we'll correct capitalization next
     if (tenderListEl) {
-      tenderListEl.addEventListener('input', (e)=>{
-        const t = e.target;
-        if (__tripAutofilled || !t) return;
-        const isTrip = (t.name === 'trip') || (t.dataset.role === 'trip');
+      tenderListEl.addEventListener('input', (e) => {
+        if (__tripAutofilled) return;
+        const t = e && e.target;
+        if (!t) return;
+        const isTrip = (t.name === 'trip') || (t.dataset && t.dataset.role === 'trip');
         if (!isTrip) return;
         const v = parseFloat(t.value);
         if (v > 0) {
-          if (tTripAllEl && (tTripAllEl.getAttribute('data-min') === '0' || tTripAllEl.textContent === '—' || !tTripAllEl.textContent)) {
-            tTripAllEl.setAttribute('data-min', String(v));
-            tTripAllEl.textContent = String(v);
-            __tripAutofilled = true;
-          }
+          setTripAll(v);
+          __tripAutofilled = true;
         }
       });
     }
-  } catch(_){}
 
-  (function(){
-    try{
+    document.addEventListener('tender-trip-stopped', (ev) => {
+      const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
+      if (mins && mins > 0) setTripAll(mins);
+    });
+
+    (function addCompactStyles(){
       const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
         @media (max-width:520px){
           .shuttleMeta{ width:100%; justify-content:space-between; }
           .shuttleMeta .gpmLine{ font-weight:700; }
-          .shuttleMeta .tripCtrl input{ width:70px; }
+          .shuttleMeta .tripCtrl .pillVal{ padding:2px 6px; border-radius:6px; background:rgba(255,255,255,.08); font-variant-numeric:tabular-nums; }
           .helperPanel .field label{ font-size:12px; }
         }`;
       const st = document.createElement('style');
       st.textContent = css;
       document.head.appendChild(st);
-    }catch(_){}
-  })();
+    })();
+
+  } catch (err) {
+    console.warn('Tender Shuttle guards failed:', err);
+  }
+})();
 // Global Round Trip apply-to-all
   try {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
-        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
+        const minutes = parseFloat((tTripAllEl && tTripAllEl.value) || '0') || 0;
         let applied = false;
         try {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
@@ -1632,50 +1647,4 @@ function initBranchPlusMenus(root){
   } else {
     setTimeout(init, 0);
   }
-})();
-
-
-    document.addEventListener('tender-trip-stopped', (ev)=>{
-      try{
-        const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
-        if (mins && mins > 0){
-          const el = container.querySelector('#tTripAll');
-          if (el){
-            el.setAttribute('data-min', String(mins));
-            el.textContent = String(mins);
-          }
-        }
-      }catch(_){}
-    });
-    
-(function(){
-  try{
-    const st = document.createElement('style');
-    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}`;
-    document.head.appendChild(st);
-  }catch(_){}
-})();
-
-// Remove any preset UI (dynamic safety net)
-(function removePresetUINodes(){
-  try{
-    const kill = (root)=>{
-      const nodes = root.querySelectorAll('[id*="preset" i],[class*="preset" i]');
-      nodes.forEach(n=> n.remove());
-    };
-    const root = document;
-    kill(root);
-    const mo = new MutationObserver(muts => {
-      for(const m of muts){
-        if (m.addedNodes && m.addedNodes.length){
-          m.addedNodes.forEach(n=>{
-            if (n.nodeType===1){
-              kill(n);
-            }
-          });
-        }
-      }
-    });
-    mo.observe(root.documentElement || root.body, {childList:true, subtree:true});
-  }catch(_){}
 })();
