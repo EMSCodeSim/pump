@@ -408,6 +408,13 @@ export async function render(container){
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
+            <!-- Segment Switch (shown only when Wye is ON) -->
+            <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
+              <button type="button" class="segBtn" data-seg="main">Main</button>
+              <button type="button" class="segBtn" data-seg="A">Line A</button>
+              <button type="button" class="segBtn" data-seg="B">Line B</button>
+            </div>
+
 
             
             <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
@@ -450,7 +457,7 @@ export async function render(container){
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
 
               <!-- Branch A -->
-              <div class="card" style="padding:8px; margin-bottom:8px">
+              <div class="card" id="branchASection" style="padding:8px; margin-bottom:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch A</div>
                 <div class="te-row">
                   <label>Length (ft)</label>
@@ -477,7 +484,7 @@ export async function render(container){
               </div>
 
               <!-- Branch B -->
-              <div class="card" style="padding:8px">
+              <div class="card" id="branchBSection" style="padding:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch B</div>
                 <div class="te-row">
                   <label>Length (ft)</label>
@@ -753,6 +760,75 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNoz       = container.querySelector('#teNoz');
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
+  // Segment switch elements
+  const segSwitch  = container.querySelector('#segSwitch');
+  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
+  const branchASection = container.querySelector('#branchASection');
+  const branchBSection = container.querySelector('#branchBSection');
+
+  let currentSeg = 'main'; // 'main' | 'A' | 'B'
+
+  function setSeg(seg){
+    currentSeg = seg;
+    // Highlight active button
+    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+
+    // Toggle visibility of rows depending on segment
+    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
+    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+    mainRows.forEach(sel=>{
+      const el = container.querySelector(sel);
+      if (!el) return;
+      el.style.display = (seg==='main') ? '' : 'none';
+    });
+    if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
+
+    // Branch sections — show only selected branch when wye is on
+    if (seg==='A'){
+      if (branchASection) branchASection.style.display = '';
+      if (branchBSection) branchBSection.style.display = 'none';
+    } else if (seg==='B'){
+      if (branchASection) branchASection.style.display = 'none';
+      if (branchBSection) branchBSection.style.display = '';
+    } else {
+      if (branchASection) branchASection.style.display = 'none';
+      if (branchBSection) branchBSection.style.display = 'none';
+    }
+
+    // Lock size to 1.75 on branches (hide controls)
+    const sizeMinus = container.querySelector('#sizeMinus');
+    const sizePlus  = container.querySelector('#sizePlus');
+    const sizeLabelEl = container.querySelector('#sizeLabel');
+    if (seg==='A' || seg==='B'){
+      if (teSize) teSize.value = '1.75';
+      if (sizeLabelEl) sizeLabelEl.textContent = '1 3/4″';
+      if (sizeMinus) sizeMinus.disabled = true;
+      if (sizePlus)  sizePlus.disabled  = true;
+    }else{
+      if (sizeMinus) sizeMinus.disabled = false;
+      if (sizePlus)  sizePlus.disabled  = false;
+    }
+
+    // Update the "Where" label
+    if (teWhere){
+      if (seg==='main') teWhere.value = 'Main (to Wye)';
+      else if (seg==='A') teWhere.value = 'Line A (left of wye)';
+      else if (seg==='B') teWhere.value = 'Line B (right of wye)';
+    }
+  }
+
+  function updateSegSwitchVisibility(){
+    const wyeOn = teWye && teWye.value==='on';
+    if (segSwitch){
+      segSwitch.style.display = wyeOn ? 'flex' : 'none';
+    }
+    // When turning wye off, always reset to main segment
+    if (!wyeOn) setSeg('main');
+  }
+
+  // Bind seg buttons
+  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
+
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
@@ -1272,8 +1348,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
-
-    if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
+    // Initialize segment selection based on clicked tip
+    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
+    updateSegSwitchVisibility();
+if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
     } else {
       // Minimal fallback
@@ -1659,7 +1737,12 @@ function initBranchPlusMenus(root){
 (function(){
   try{
     const st = document.createElement('style');
-    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}`;
+    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+
+    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
+    .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
+    `;
     document.head.appendChild(st);
   }catch(_){}
 })();
