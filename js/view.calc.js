@@ -1,72 +1,63 @@
-// /js/view.calc.js  (refactored entry with visible shell + render alias)
+// /js/view.calc.js (functional entry so screen isn't blank)
 
 import { injectCalcStyles } from './calc/styles.css.js';
 import { on, emit } from './calc/events.js';
 import { qs, el } from './calc/dom.js';
 import renderStage from './calc/renderStage.js';
 
-// If you still need these exports available globally, index.html already assigns them to window:
-// import { state, NOZ, COLORS } from './store.js';
-// import { WaterSupplyUI } from './waterSupply.js';
-
-/** Initialize the calc view inside a container */
+// Initialize the calculator view
 export function initCalcView(container) {
   if (!container) throw new Error('initCalcView: container is required');
 
-  // 1) Styles (once)
+  // Inject styles once
   injectCalcStyles(container);
 
-  // 2) Visible shell so the screen isn’t blank
+  // Clear and mount a visible shell
   container.innerHTML = '';
+
+  // Header bar
   const header = el('div', {
-    class: 'calc-header',
     style: {
+      background: 'rgba(255,255,255,0.05)',
       padding: '12px 16px',
-      borderBottom: '1px solid rgba(255,255,255,.12)',
+      borderBottom: '1px solid rgba(255,255,255,0.1)',
       display: 'flex',
       alignItems: 'center',
-      gap: '12px'
+      fontWeight: '600',
+      fontSize: '1.1rem'
     }
-  }, [
-    el('div', { style: { fontWeight: 600 } }, 'FireOps Calc'),
-    el('div', { style: { opacity: .7, fontSize: '0.9rem' } }, 'refactor scaffold')
-  ]);
+  }, 'FireOps Calc');
 
-  // Optional demo button to prove events are wired
-  const demoBtn = el('button', {
-    class: 'segBtn',
-    style: { marginLeft: 'auto' }
-  }, 'Open Tip Editor (demo)');
-  demoBtn.addEventListener('click', () => {
-    // Your code that actually creates #tipEditor should run before this emit.
-    // This just broadcasts the “editor opened” event so segment logic can attach.
-    emit('tipEditorOpened', { container, where: 'main' });
-  });
-  header.appendChild(demoBtn);
-
-  const stageHost = el('div', { id: 'stageHost', style: { padding: '12px 16px' } });
   container.appendChild(header);
+
+  // Stage area so something shows on screen
+  const stageHost = el('div', {
+    id: 'stageHost',
+    style: {
+      padding: '16px',
+      color: 'white'
+    }
+  });
   container.appendChild(stageHost);
 
-  // 3) Minimal stage so you see something on screen
+  // Render scaffolding stage so UI isn't blank
   renderStage(stageHost);
 
-  // 4) Legacy bridge for non-event flows (call from your existing editor open code)
-  window.__announceTipEditorOpen = function (where = 'main', ctn = container) {
+  // Legacy bridge for opening the tip editor
+  window.__announceTipEditorOpen = function(where = 'main', ctn = container) {
     emit('tipEditorOpened', { container: ctn, where });
   };
 
-  // 5) Example: react to editor enhanced (if you want to refresh the stage after edits)
+  // (optional) rerender stage after editor is enhanced
   on('editorEnhanced', () => {
-    // re-render / update any live numbers if needed
-    // (stage exposes rerender via its return value if you wire that up later)
+    // In future: rerender stage after changes
+    // For now, nothing needed.
   });
 }
 
-/** Back-compat: many callers do mod.render(container) */
+// Legacy/compat helper
 export function render(container) {
   return initCalcView(container);
 }
 
-/** Default export for legacy imports */
 export default render;
