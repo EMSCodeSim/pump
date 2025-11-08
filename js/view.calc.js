@@ -763,6 +763,22 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   
   /* ====== Segmented Branch UI (scoped, no globals) ====== */
   (function(){
+    function __getFog185Id(){
+      try{
+        if (typeof findNozzleId === 'function'){
+          return findNozzleId({ gpm:185, NP:50, preferFog:true });
+        }
+      }catch(e){}
+      // Fallback: scan NOZ_LIST for a fog-like 185@50
+      try{
+        if (Array.isArray(NOZ_LIST)){
+          const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
+          return match ? (match.id || match.name || match.label) : null;
+        }
+      }catch(e){}
+      return null;
+    }
+
     // Create UI right above the action buttons, only once per open
     function __ensureSegUI(whereInit){
       const tip = container.querySelector('#tipEditor'); if (!tip) return;
@@ -773,6 +789,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
+    const teNozA = tip.querySelector('#teNozA'); if (teNozA) teNozA.disabled = false;
+    const teNozB = tip.querySelector('#teNozB'); if (teNozB) teNozB.disabled = false;
       const sizeMinus = tip.querySelector('#sizeMinus');
       const sizePlus  = tip.querySelector('#sizePlus');
 
@@ -797,17 +815,26 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
-      function setActive(seg){
-        // highlight
-        [bMain,bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
-        // show/hide rows
-        const mainShow = (seg==='main');
-        if (wyeRow) wyeRow.style.display = mainShow? '' : 'none';
-        const rows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-        rows.forEach(sel=>{ const el = tip.querySelector(sel); if (el) el.style.display = mainShow? '' : 'none'; });
-        if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
-        if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
-        if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
+      \1
+        // Defaults and select enablement per branch
+        const teNozA = tip.querySelector('#teNozA'); const teNozB = tip.querySelector('#teNozB');
+        if (seg==='A' && teNozA){
+          if (!teNozA.value){
+            const id = __getFog185Id(); if (id) teNozA.value = id;
+          }
+          teNozA.disabled = false;
+          if (teNozB) teNozB.disabled = true; // prevent editing B while on A
+        } else if (seg==='B' && teNozB){
+          if (!teNozB.value){
+            const id = __getFog185Id(); if (id) teNozB.value = id;
+          }
+          teNozB.disabled = false;
+          if (teNozA) teNozA.disabled = true; // prevent editing A while on B
+        } else {
+          if (teNozA) teNozA.disabled = true;
+          if (teNozB) teNozB.disabled = true;
+        }
+
 
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
@@ -859,13 +886,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
-      // Initial state
-      updateWyeAndButtons();
-      // If user clicked a branch tip to open, start there; else Main
-      if (whereInit==='L') setActive('A');
-      else if (whereInit==='R') setActive('B');
-      else setActive('main');
-    }
+      \1
+      // Ensure defaults for branch nozzles if just opened into a branch
+      const teNozA0 = tip.querySelector('#teNozA'); const teNozB0 = tip.querySelector('#teNozB');
+      const id0 = __getFog185Id();
+      if (whereInit==='L' && teNozA0 && !teNozA0.value && id0) teNozA0.value = id0;
+      if (whereInit==='R' && teNozB0 && !teNozB0.value && id0) teNozB0.value = id0;
+}
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
@@ -1024,6 +1051,22 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   } catch(_){}
 
   (function(){
+    function __getFog185Id(){
+      try{
+        if (typeof findNozzleId === 'function'){
+          return findNozzleId({ gpm:185, NP:50, preferFog:true });
+        }
+      }catch(e){}
+      // Fallback: scan NOZ_LIST for a fog-like 185@50
+      try{
+        if (Array.isArray(NOZ_LIST)){
+          const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
+          return match ? (match.id || match.name || match.label) : null;
+        }
+      }catch(e){}
+      return null;
+    }
+
     try{
       const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
@@ -1849,6 +1892,8 @@ function initBranchPlusMenus(root){
   try{
     const st = document.createElement('style');
     st.textContent = `
+    #branchBlock{display:none}
+
     .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
     .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
