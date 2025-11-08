@@ -409,14 +409,6 @@ export async function render(container){
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
-            <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
-              <button type="button" class="segBtn" data-seg="main">Main</button>
-              <button type="button" class="segBtn" data-seg="A">Line A</button>
-              <button type="button" class="segBtn" data-seg="B">Line B</button>
-            </div>
-
-
-            
             <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
@@ -761,58 +753,115 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  // --- Scoped Segment Switch (no global symbols) ---
-  (function(){
-    const __segSwitchX  = container.querySelector('#segSwitch');
-    const __segBtnsX    = __segSwitchX ? Array.from(__segSwitchX.querySelectorAll('.segBtn')) : [];
-    const __branchA     = container.querySelector('#branchASection');
-    const __branchB     = container.querySelector('#branchBSection');
-    let __segX = 'main';
+  // Runtime Segment Switch creation (no globals)
+  function __ensureSegSwitch(whereInit){
+    const tipEditorEl = container.querySelector('#tipEditor');
+    if (!tipEditorEl) return;
+    // place before actions row
+    let actions = tipEditorEl.querySelector('.te-actions');
+    if (!actions) actions = tipEditorEl.lastElementChild;
 
-    function __setSegX(seg){
-      __segX = seg;
-      __segBtnsX.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-      const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-      const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-      mainRows.forEach(sel=>{ const el = container.querySelector(sel); if (el) el.style.display = (seg==='main') ? '' : 'none'; });
-      if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
-      if (seg==='A'){ if (__branchA) __branchA.style.display=''; if (__branchB) __branchB.style.display='none'; }
-      else if (seg==='B'){ if (__branchA) __branchA.style.display='none'; if (__branchB) __branchB.style.display=''; }
-      else { if (__branchA) __branchA.style.display='none'; if (__branchB) __branchB.style.display='none'; }
-      const sizeMinus = container.querySelector('#sizeMinus');
-      const sizePlus  = container.querySelector('#sizePlus');
-      const sizeLabelEl = container.querySelector('#sizeLabel');
-      if (seg==='A' || seg==='B'){
-        if (teSize) teSize.value='1.75';
-        if (sizeLabelEl) sizeLabelEl.textContent='1 3/4″';
-        if (sizeMinus) sizeMinus.disabled = true;
-        if (sizePlus)  sizePlus.disabled  = true;
-      }else{
-        if (sizeMinus) sizeMinus.disabled = false;
-        if (sizePlus)  sizePlus.disabled  = false;
-      }
-      if (teWhere){
-        if (seg==='main') teWhere.value = 'Main (to Wye)';
-        else if (seg==='A') teWhere.value = 'Line A (left of wye)';
-        else if (seg==='B') teWhere.value = 'Line B (right of wye)';
-      }
+    let wrap = tipEditorEl.querySelector('#segSwitch');
+    if (!wrap){
+      wrap = document.createElement('div');
+      wrap.id = 'segSwitch';
+      wrap.className = 'segSwitch';
+      wrap.style.display = 'none';
+
+      const mk = (label,seg)=>{
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'segBtn';
+        b.dataset.seg = seg;
+        b.textContent = label;
+        return b;
+      };
+      const bMain = mk('Main','main');
+      const bA    = mk('Line A','A');
+      const bB    = mk('Line B','B');
+      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
+      tipEditorEl.insertBefore(wrap, actions);
+      // click handlers
+      [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> __setSeg(btn.dataset.seg)));
+    }
+    __updateSegSwitch(); // set visibility based on current Wye
+    __setSeg(whereInit==='L'?'A':(whereInit==='R'?'B':'main'));
+  }
+
+  function __setSeg(seg){
+    const tipEditorEl = container.querySelector('#tipEditor');
+    const wrap = tipEditorEl?.querySelector('#segSwitch');
+    const wyeRow = tipEditorEl?.querySelector('#teWye')?.closest('.te-row');
+    const sizeRow = tipEditorEl?.querySelector('#rowSize');
+    const lenRow  = tipEditorEl?.querySelector('#rowLen');
+    const elevRow = tipEditorEl?.querySelector('#rowElev');
+    const nozRow  = tipEditorEl?.querySelector('#rowNoz');
+    const aSect   = tipEditorEl?.querySelector('#branchASection');
+    const bSect   = tipEditorEl?.querySelector('#branchBSection');
+
+    // highlight
+    if (wrap){
+      Array.from(wrap.querySelectorAll('.segBtn')).forEach(b=>{
+        b.classList.toggle('active', b.dataset.seg===seg);
+      });
     }
 
-    function __updateSegSwitchX(){
-      const wyeOn = teWye && teWye.value==='on';
-      if (__segSwitchX) __segSwitchX.style.display = wyeOn ? 'flex' : 'none';
-      if (!wyeOn) __setSegX('main');
+    // toggle rows
+    const mainShow = (seg==='main');
+    if (wyeRow) wyeRow.style.display = mainShow? '' : 'none';
+    if (sizeRow) sizeRow.style.display = mainShow? '' : 'none';
+    if (lenRow)  lenRow.style.display  = mainShow? '' : 'none';
+    if (elevRow) elevRow.style.display = mainShow? '' : 'none';
+    if (nozRow)  nozRow.style.display  = mainShow? '' : 'none';
+
+    if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
+    if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
+
+    // lock size on branches
+    if (!mainShow){
+      if (teSize) teSize.value = '1.75';
+      const label = tipEditorEl?.querySelector('#sizeLabel'); if (label) label.textContent = '1 3/4″';
+      const minus = tipEditorEl?.querySelector('#sizeMinus'); if (minus) minus.disabled = true;
+      const plus  = tipEditorEl?.querySelector('#sizePlus');  if (plus)  plus.disabled  = true;
+    }else{
+      const minus = tipEditorEl?.querySelector('#sizeMinus'); if (minus) minus.disabled = false;
+      const plus  = tipEditorEl?.querySelector('#sizePlus');  if (plus)  plus.disabled  = false;
     }
 
-    if (__segBtnsX && __segBtnsX.length){
-      __segBtnsX.forEach(btn=>btn.addEventListener('click', ()=> __setSegX(btn.dataset.seg)));
+    // where label
+    if (teWhere){
+      teWhere.value = seg==='main' ? 'Main (to Wye)' : (seg==='A' ? 'Line A (left of wye)' : 'Line B (right of wye)');
     }
+  }
 
-    // Expose small hooks on container for other handlers to call
-    container.__segSet = __setSegX;
-    container.__segUpdate = __updateSegSwitchX;
-  })();
-// Segment switch elements// 'main' | 'A' | 'B');
+  function __updateSegSwitch(){
+    const tipEditorEl = container.querySelector('#tipEditor');
+    const wrap = tipEditorEl?.querySelector('#segSwitch');
+    const wyeOn = teWye && teWye.value==='on';
+    if (wrap) wrap.style.display = wyeOn ? 'flex' : 'none';
+    if (!wyeOn) __setSeg('main');
+  }
+// Segment switch elements
+  const segSwitch  = container.querySelector('#segSwitch');
+  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
+  const branchASection = container.querySelector('#branchASection');
+  const branchBSection = container.querySelector('#branchBSection');
+
+  let currentSeg = 'main'; // 'main' | 'A' | 'B'
+
+  function setSeg(seg){
+    currentSeg = seg;
+    // Highlight active button
+    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+
+    // Toggle visibility of rows depending on segment
+    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
+    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+    mainRows.forEach(sel=>{
+      const el = container.querySelector(sel);
+      if (!el) return;
+      el.style.display = (seg==='main') ? '' : 'none';
+    });
     if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
 
     // Branch sections — show only selected branch when wye is on
@@ -847,7 +896,14 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       else if (seg==='A') teWhere.value = 'Line A (left of wye)';
       else if (seg==='B') teWhere.value = 'Line B (right of wye)';
     }
-  }// When turning wye off, always reset to main segment
+  }
+
+  function updateSegSwitchVisibility(){
+    const wyeOn = teWye && teWye.value==='on';
+    if (segSwitch){
+      segSwitch.style.display = wyeOn ? 'flex' : 'none';
+    }
+    // When turning wye off, always reset to main segment
     if (!wyeOn) setSeg('main');
   }
 
@@ -1373,8 +1429,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
-    if (container && container.__segSet) { if(where==='L') container.__segSet('A'); else if(where==='R') container.__segSet('B'); else container.__segSet('main'); }
-    if (container && container.__segUpdate) container.__segUpdate();
+    __ensureSegSwitch(where);
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
     updateSegSwitchVisibility();
@@ -1765,9 +1820,9 @@ function initBranchPlusMenus(root){
   try{
     const st = document.createElement('style');
     st.textContent = `
-    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
-    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
-    .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
+    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
+    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
 .pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
 
     .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
