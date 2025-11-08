@@ -762,11 +762,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozB      = container.querySelector('#teNozB');
   
   // --- Segment Switch logic (single instance) ---
-  const segSwitch  = container.querySelector('#segSwitch');
-  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
-  const branchASection = container.querySelector('#branchASection');
-  const branchBSection = container.querySelector('#branchBSection');
-  let currentSeg = 'main';
+  
 
   function setSeg(seg){
     currentSeg = seg;
