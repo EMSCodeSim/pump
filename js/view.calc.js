@@ -644,13 +644,6 @@ export async function render(container){
       </div>
       <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
 
-      <div class="preset-grid" id="presetGrid">
-        <div class="preset" data-preset="standpipe">Standpipe</div>
-        <div class="preset" data-preset="sprinkler">Sprinkler</div>
-        <div class="preset" data-preset="foam">Foam</div>
-        <div class="preset" data-preset="monitor">Monitor</div>
-        <div class="preset" data-preset="aerial">Aerial</div>
-      </div>
 
       <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
       <div class="linepick">
