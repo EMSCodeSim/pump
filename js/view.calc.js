@@ -408,16 +408,13 @@ export async function render(container){
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
-            <!-- Segment Switch (shown only when Wye is ON) -->
-            <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
+            <!-- Segment Switch (shown when Wye is ON) -->
+            <div id="segSwitch" class="segSwitch" style="display:none; margin:6px 0 4px; gap:6px">
               <button type="button" class="segBtn" data-seg="main">Main</button>
               <button type="button" class="segBtn" data-seg="A">Line A</button>
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
-
-
-            
-            <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
+    <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
               <input type="hidden" id="teSize" value="1.75">
@@ -761,8 +758,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  // --- Segment Switch logic (single instance) ---
-  
+  // --- Segment Switch logic (single, clean) ---
+  const segSwitch  = container.querySelector('#segSwitch');
+  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
+  const branchASection = container.querySelector('#branchASection');
+  const branchBSection = container.querySelector('#branchBSection');
+  let currentSeg = 'main';
 
   function setSeg(seg){
     currentSeg = seg;
@@ -793,7 +794,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       if (sizePlus)  sizePlus.disabled  = false;
     }
 
-    // Where field polish
+    // Update "Where"
     if (teWhere){
       if (seg==='main') teWhere.value = 'Main (to Wye)';
       else if (seg==='A') teWhere.value = 'Line A (left of wye)';
@@ -807,28 +808,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     if (!wyeOn) setSeg('main');
   }
 
-  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
-// Segment switch elements
-  const segSwitch  = container.querySelector('#segSwitch');
-  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
-  const branchASection = container.querySelector('#branchASection');
-  const branchBSection = container.querySelector('#branchBSection');
-
-  let currentSeg = 'main'; // 'main' | 'A' | 'B'
-
-  function setSeg(seg){
-    currentSeg = seg;
-    // Highlight active button
-    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
-      const el = container.querySelector(sel);
-      if (!el) return;
-      el.style.display = (seg==='main') ? '' : 'none';
-    });
+  // Bind once
+  if (segBtns && segBtns.length){
+    segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
+  }
+// Segment switch elements// 'main' | 'A' | 'B');
     if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
 
     // Branch sections — show only selected branch when wye is on
@@ -863,14 +847,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       else if (seg==='A') teWhere.value = 'Line A (left of wye)';
       else if (seg==='B') teWhere.value = 'Line B (right of wye)';
     }
-  }
-
-  function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value==='on';
-    if (segSwitch){
-      segSwitch.style.display = wyeOn ? 'flex' : 'none';
-    }
-    // When turning wye off, always reset to main segment
+  }// When turning wye off, always reset to main segment
     if (!wyeOn) setSeg('main');
   }
 
