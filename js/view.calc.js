@@ -408,13 +408,16 @@ export async function render(container){
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
-            <!-- Segment Switch (shown when Wye is ON) -->
-            <div id="segSwitch" class="segSwitch" style="display:none; margin:6px 0 4px; gap:6px">
+            <!-- Segment Switch (shown only when Wye is ON) -->
+            <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
               <button type="button" class="segBtn" data-seg="main">Main</button>
               <button type="button" class="segBtn" data-seg="A">Line A</button>
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
-    <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
+
+
+            
+            <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
               <input type="hidden" id="teSize" value="1.75">
@@ -758,60 +761,57 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  // --- Segment Switch logic (single, clean) ---
-  const segSwitch  = container.querySelector('#segSwitch');
-  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
-  const branchASection = container.querySelector('#branchASection');
-  const branchBSection = container.querySelector('#branchBSection');
-  let currentSeg = 'main';
+  // --- Scoped Segment Switch (no global symbols) ---
+  (function(){
+    const __segSwitchX  = container.querySelector('#segSwitch');
+    const __segBtnsX    = __segSwitchX ? Array.from(__segSwitchX.querySelectorAll('.segBtn')) : [];
+    const __branchA     = container.querySelector('#branchASection');
+    const __branchB     = container.querySelector('#branchBSection');
+    let __segX = 'main';
 
-  function setSeg(seg){
-    currentSeg = seg;
-    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Show only relevant controls per segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{ const el = container.querySelector(sel); if (el) el.style.display = (seg==='main') ? '' : 'none'; });
-    if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
-
-    // Show just the active branch card when on A or B
-    if (seg==='A'){ if (branchASection) branchASection.style.display=''; if (branchBSection) branchBSection.style.display='none'; }
-    else if (seg==='B'){ if (branchASection) branchASection.style.display='none'; if (branchBSection) branchBSection.style.display=''; }
-    else { if (branchASection) branchASection.style.display='none'; if (branchBSection) branchBSection.style.display='none'; }
-
-    // Lock branch diameter to 1 3/4″ and disable size controls
-    const sizeMinus = container.querySelector('#sizeMinus');
-    const sizePlus  = container.querySelector('#sizePlus');
-    const sizeLabelEl = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){
-      if (teSize) teSize.value='1.75';
-      if (sizeLabelEl) sizeLabelEl.textContent='1 3/4″';
-      if (sizeMinus) sizeMinus.disabled = true;
-      if (sizePlus)  sizePlus.disabled  = true;
-    }else{
-      if (sizeMinus) sizeMinus.disabled = false;
-      if (sizePlus)  sizePlus.disabled  = false;
+    function __setSegX(seg){
+      __segX = seg;
+      __segBtnsX.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+      const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
+      const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+      mainRows.forEach(sel=>{ const el = container.querySelector(sel); if (el) el.style.display = (seg==='main') ? '' : 'none'; });
+      if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
+      if (seg==='A'){ if (__branchA) __branchA.style.display=''; if (__branchB) __branchB.style.display='none'; }
+      else if (seg==='B'){ if (__branchA) __branchA.style.display='none'; if (__branchB) __branchB.style.display=''; }
+      else { if (__branchA) __branchA.style.display='none'; if (__branchB) __branchB.style.display='none'; }
+      const sizeMinus = container.querySelector('#sizeMinus');
+      const sizePlus  = container.querySelector('#sizePlus');
+      const sizeLabelEl = container.querySelector('#sizeLabel');
+      if (seg==='A' || seg==='B'){
+        if (teSize) teSize.value='1.75';
+        if (sizeLabelEl) sizeLabelEl.textContent='1 3/4″';
+        if (sizeMinus) sizeMinus.disabled = true;
+        if (sizePlus)  sizePlus.disabled  = true;
+      }else{
+        if (sizeMinus) sizeMinus.disabled = false;
+        if (sizePlus)  sizePlus.disabled  = false;
+      }
+      if (teWhere){
+        if (seg==='main') teWhere.value = 'Main (to Wye)';
+        else if (seg==='A') teWhere.value = 'Line A (left of wye)';
+        else if (seg==='B') teWhere.value = 'Line B (right of wye)';
+      }
     }
 
-    // Update "Where"
-    if (teWhere){
-      if (seg==='main') teWhere.value = 'Main (to Wye)';
-      else if (seg==='A') teWhere.value = 'Line A (left of wye)';
-      else if (seg==='B') teWhere.value = 'Line B (right of wye)';
+    function __updateSegSwitchX(){
+      const wyeOn = teWye && teWye.value==='on';
+      if (__segSwitchX) __segSwitchX.style.display = wyeOn ? 'flex' : 'none';
+      if (!wyeOn) __setSegX('main');
     }
-  }
 
-  function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value==='on';
-    if (segSwitch) segSwitch.style.display = wyeOn ? 'flex' : 'none';
-    if (!wyeOn) setSeg('main');
-  }
+    if (__segBtnsX && __segBtnsX.length){
+      __segBtnsX.forEach(btn=>btn.addEventListener('click', ()=> __setSegX(btn.dataset.seg)));
+    }
 
-  // Bind once
-  if (segBtns && segBtns.length){
-    segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
-  }
+    // Expose small hooks on container for other handlers to call
+    container.__segSet = __setSegX;
+    container.__segUpdate = __updateSegSwitchX;
+  })();
 // Segment switch elements// 'main' | 'A' | 'B');
     if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
 
@@ -1373,8 +1373,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
-    if(where==='L') setSeg('A'); else if(where==='R') setSeg('B'); else setSeg('main');
-    updateSegSwitchVisibility();
+    if (container && container.__segSet) { if(where==='L') container.__segSet('A'); else if(where==='R') container.__segSet('B'); else container.__segSet('main'); }
+    if (container && container.__segUpdate) container.__segUpdate();
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
     updateSegSwitchVisibility();
