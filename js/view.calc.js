@@ -605,7 +605,14 @@ export async function render(container){
         <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
   </div>
 </div>
-          </div>            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
+          </div>
+          <!-- New: global Round Trip control -->
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+            <div class="field" style="min-width:150px">
+              <label>Round trip (min)</label>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
+            </div>
+            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
             </div>
           </div>
@@ -637,18 +644,19 @@ export async function render(container){
       </div>
       <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
 
-      
-        
-        
-        
-        
+      <div class="preset-grid" id="presetGrid">
+        <div class="preset" data-preset="standpipe">Standpipe</div>
+        <div class="preset" data-preset="sprinkler">Sprinkler</div>
+        <div class="preset" data-preset="foam">Foam</div>
+        <div class="preset" data-preset="monitor">Monitor</div>
+        <div class="preset" data-preset="aerial">Aerial</div>
       </div>
 
       <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
       <div class="linepick">
-        
-        
-        
+        <div class="preset" data-applyline="left">Line 1</div>
+        <div class="preset" data-applyline="back">Line 2</div>
+        <div class="preset" data-applyline="right">Line 3</div>
       </div>
       <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
     </div>
@@ -1653,29 +1661,5 @@ function initBranchPlusMenus(root){
     const st = document.createElement('style');
     st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}`;
     document.head.appendChild(st);
-  }catch(_){}
-})();
-
-// Remove any preset UI (dynamic safety net)
-(function removePresetUINodes(){
-  try{
-    const kill = (root)=>{
-      const nodes = root.querySelectorAll('[id*="preset" i],[class*="preset" i]');
-      nodes.forEach(n=> n.remove());
-    };
-    const root = document;
-    kill(root);
-    const mo = new MutationObserver(muts => {
-      for(const m of muts){
-        if (m.addedNodes && m.addedNodes.length){
-          m.addedNodes.forEach(n=>{
-            if (n.nodeType===1){
-              kill(n);
-            }
-          });
-        }
-      }
-    });
-    mo.observe(root.documentElement || root.body, {childList:true, subtree:true});
   }catch(_){}
 })();
