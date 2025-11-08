@@ -927,11 +927,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
       // Remove any prior segSwitch from previous opens, then recreate
       let wrap = tip.querySelector('#segSwitch');
-      if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      if (wrap && wrapparentNode) wrapparentNode.removeChild(wrap);
       wrap = document.createElement('div');
-      wrap.id = 'segSwitch';
-      wrap.className = 'segSwitch';
-      wrap.style.display = 'none'; // default hidden, shown when Wye ON
+      wrapid = 'segSwitch';
+      wrapclassName = 'segSwitch';
+      wrapstyle.display = 'none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
@@ -943,10 +943,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
       const bB    = mk('Line B','B');
-      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
+      wrapappendChild(bMain); wrapappendChild(bA); wrapappendChild(bB);
       tip.insertBefore(wrap, actions);
 
-      \1
+      
         // Defaults and select enablement per branch
         const teNozA = tip.querySelector('#teNozA'); const teNozB = tip.querySelector('#teNozB');
         if (seg==='A' && teNozA){
@@ -990,7 +990,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (!sizeOK){
           // force off & hide everything Wye-related
           if (wyeSelect) wyeSelect.value = 'off';
-          wrap.style.display = 'none';
+          wrapstyle.display = 'none';
           if (branchBlock) branchBlock.style.display = 'none';
         }
         // hide or show the Wye row itself
@@ -1001,7 +1001,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       function updateWyeAndButtons(){
         const isOn = tip.querySelector('#teWye')?.value === 'on';
         const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        wrapstyle.display = (isOn && sizeOK) ? 'flex' : 'none';
         if (!(isOn && sizeOK)){
           // collapse back to Main if user turned Wye off or size is not 2.5
           setActive('main');
@@ -1017,7 +1017,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
-      \1
+      
       // Ensure defaults for branch nozzles if just opened into a branch
       const teNozA0 = tip.querySelector('#teNozA'); const teNozB0 = tip.querySelector('#teNozB');
       const id0 = __getFog185Id();
@@ -1373,7 +1373,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
         if(L.hasWye && !single){
           const wye = (L.wyeLoss ?? 10);
-          wrap.innerHTML = `
+          wrapinnerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -1412,7 +1412,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           const noz = activeNozzle(L);
           const wye = (L.wyeLoss ?? 10);
 
-          wrap.innerHTML = `
+          wrapinnerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -1440,7 +1440,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
-          wrap.innerHTML = `
+          wrapinnerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
