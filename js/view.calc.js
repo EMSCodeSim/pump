@@ -673,6 +673,11 @@ export async function render(container){
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */
   injectStyle(container, `
+    #branchBlock{display:none}
+    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
+    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
+
     :root, body { overflow-x: hidden; }
     [data-calc-root] { max-width: 100%; overflow-x: hidden; }
     .wrapper.card { max-width: 100%; overflow-x: hidden; }
@@ -761,7 +766,133 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  /* ====== Segmented Branch UI (scoped, no globals) ====== */
+  
+  // === Segmented Branch Enhancement (scoped) ===
+  (function(){
+    function getFog185Id(){
+      try{
+        if (typeof findNozzleId === 'function'){
+          return findNozzleId({ gpm:185, NP:50, preferFog:true });
+        }
+      }catch(e){}
+      try{
+        if (Array.isArray(NOZ_LIST)){
+          const m = NOZ_LIST.find(n => (Number(n?.gpm)===185 && Number(n?.NP)===50) || /185\s*@\s*50/i.test(String(n?.name||n?.label||'')));
+          return m ? (m.id || m.name || m.label) : null;
+        }
+      }catch(e){}
+      return null;
+    }
+
+    function enhance(whereInit){
+      const tip = container.querySelector('#tipEditor'); if (!tip) return;
+      const segWrap = tip.querySelector('#segSwitch');               // button group
+      const btns    = segWrap ? Array.from(segWrap.querySelectorAll('.segBtn')) : [];
+      const branchBlock = tip.querySelector('#branchBlock');
+      const aSect = tip.querySelector('#branchASection');
+      const bSect = tip.querySelector('#branchBSection');
+      const sizeMinus = tip.querySelector('#sizeMinus');
+      const sizePlus  = tip.querySelector('#sizePlus');
+      const sizeHidden = tip.querySelector('#teSize');
+      const wyeSel = tip.querySelector('#teWye');
+      const wyeRow = wyeSel ? wyeSel.closest('.te-row') : null;
+
+      const rowSize = tip.querySelector('#rowSize');
+      const rowLen  = tip.querySelector('#rowLen');
+      const rowElev = tip.querySelector('#rowElev');
+      const rowNoz  = tip.querySelector('#rowNoz');
+
+      function gateWyeBySize(){
+        const ok = (sizeHidden && String(sizeHidden.value) === '2.5');
+        if (!ok){
+          if (wyeSel) wyeSel.value = 'off';
+          if (segWrap) segWrap.style.display = 'none';
+          if (branchBlock) branchBlock.style.display = 'none';
+        }
+        if (wyeRow) wyeRow.style.display = ok ? '' : 'none';
+        return ok;
+      }
+
+      function setSeg(seg){
+        // highlight current button
+        btns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+
+        const mainShow = (seg === 'main');
+        // main rows visible only on 'Main'
+        if (wyeRow) wyeRow.style.display = mainShow ? '' : 'none';
+        if (rowSize) rowSize.style.display = mainShow ? '' : 'none';
+        if (rowLen)  rowLen.style.display  = mainShow ? '' : 'none';
+        if (rowElev) rowElev.style.display = mainShow ? '' : 'none';
+        if (rowNoz)  rowNoz.style.display  = mainShow ? '' : 'none';
+
+        // show only selected branch card
+        if (branchBlock) branchBlock.style.display = (seg === 'A' || seg === 'B') ? '' : 'none';
+        if (aSect) aSect.style.display = (seg === 'A') ? '' : 'none';
+        if (bSect) bSect.style.display = (seg === 'B') ? '' : 'none';
+
+        // lock branch size to 1 3/4
+        const sizeLabel = tip.querySelector('#sizeLabel');
+        if (!mainShow){
+          if (sizeHidden) sizeHidden.value = '1.75';
+          if (sizeLabel) sizeLabel.textContent = '1 3/4″';
+          if (sizeMinus) sizeMinus.disabled = true;
+          if (sizePlus)  sizePlus.disabled  = true;
+        }else{
+          if (sizeMinus) sizeMinus.disabled = false;
+          if (sizePlus)  sizePlus.disabled  = false;
+        }
+
+        // Branch nozzle selects: enable only active branch, set default if empty
+        const selA = tip.querySelector('#teNozA');
+        const selB = tip.querySelector('#teNozB');
+        const fog = getFog185Id();
+        if (seg === 'A'){
+          if (selA){
+            if (!selA.value && fog) selA.value = fog;
+            selA.disabled = false;
+          }
+          if (selB) selB.disabled = true;
+        } else if (seg === 'B'){
+          if (selB){
+            if (!selB.value && fog) selB.value = fog;
+            selB.disabled = false;
+          }
+          if (selA) selA.disabled = true;
+        } else {
+          if (selA) selA.disabled = true;
+          if (selB) selB.disabled = true;
+        }
+
+        // Where label polish
+        if (typeof teWhere !== 'undefined' && teWhere){
+          teWhere.value = (seg === 'main') ? 'Main (to Wye)' : (seg === 'A' ? 'Line A (left of wye)' : 'Line B (right of wye)');
+        }
+      }
+
+      function updateButtons(){
+        const sizeOk = gateWyeBySize();
+        const on = (wyeSel && wyeSel.value === 'on' && sizeOk);
+        if (segWrap) segWrap.style.display = on ? 'flex' : 'none';
+        if (!on) setSeg('main');
+      }
+
+      // Bind once per open
+      btns.forEach(btn => btn.addEventListener('click', () => setSeg(btn.dataset.seg)));
+      if (wyeSel) wyeSel.addEventListener('change', updateButtons);
+      if (sizeMinus) sizeMinus.addEventListener('click', () => setTimeout(updateButtons, 0));
+      if (sizePlus)  sizePlus .addEventListener('click', () => setTimeout(updateButtons, 0));
+
+      // Initial state
+      updateButtons();
+      if (whereInit === 'L') setSeg('A');
+      else if (whereInit === 'R') setSeg('B');
+      else setSeg('main');
+    }
+
+    // expose hook used when opening editor
+    container.__segEnhance = enhance;
+  })();
+/* ====== Segmented Branch UI (scoped, no globals) ====== */
   (function(){
     function __getFog185Id(){
       try{
@@ -1501,7 +1632,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
-    try { document.dispatchEvent(new CustomEvent('seg:tipEditorOpened', { detail: { container, where } })); } catch(_) {}
+    if (container && container.__segEnhance) container.__segEnhance(where);
 if (container && container.__segEnsureUI) container.__segEnsureUI(where);
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
