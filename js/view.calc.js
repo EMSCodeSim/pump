@@ -193,8 +193,8 @@ function addLabel(G_labels, text, x, y, dy=0){
   g.insertBefore(bg, t);
 }
 function addTip(G_tips, key, where, x, y){
-  const ns='http://www.w3.org/2000/svg';
-  const g = document.createElementNS(ns,'g');
+// duplicate removed:   const ns='http://www.w3.org/2000/svg';
+// duplicate removed:   const g = document.createElementNS(ns,'g');
   g.setAttribute('class','hose-end'); g.setAttribute('data-line',key); g.setAttribute('data-where',where);
   const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-28); hit.setAttribute('y', y-28); hit.setAttribute('width', 56); hit.setAttribute('height', 56); hit.setAttribute('rx', 16); hit.setAttribute('ry', 16);
   const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',16);
@@ -203,7 +203,7 @@ function addTip(G_tips, key, where, x, y){
   g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
 }
 function drawSegmentedPath(group, basePath, segs){
-  const ns = 'http://www.w3.org/2000/svg';
+// duplicate removed:   const ns = 'http://www.w3.org/2000/svg';
   const sh = document.createElementNS(ns,'path');
   sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
   const total = basePath.getTotalLength(); let offset = 0;
@@ -241,7 +241,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
 
   if(nozzleText){
-    const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
+// duplicate removed:     const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
     t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
     svg.appendChild(t);
   }
@@ -329,7 +329,7 @@ function ppExplainHTML(L){
     const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
-    const total  = noz.NP + brSum + mainSum + elevPsi;
+// duplicate removed:     const total  = noz.NP + brSum + mainSum + elevPsi;
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
@@ -350,7 +350,7 @@ function ppExplainHTML(L){
     const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
     const maxNeed = Math.max(aNeed, bNeed);
     const wyeLoss = (L.wyeLoss||10);
-    const total = maxNeed + mainSum + wyeLoss + elevPsi;
+// duplicate removed:     const total = maxNeed + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Wye):</b>
         <ul class="simpleList">
@@ -379,12 +379,12 @@ export async function render(container){
 
   // Persist on hide/close
   window.addEventListener('beforeunload', ()=>{
-    const pack = buildSnapshot(pickWaterSnapshotSafe());
+// duplicate removed:     const pack = buildSnapshot(pickWaterSnapshotSafe());
     if (pack) saveNow(pack);
   });
   document.addEventListener('visibilitychange', ()=>{
     if (document.visibilityState === 'hidden') {
-      const pack = buildSnapshot(pickWaterSnapshotSafe());
+// duplicate removed:       const pack = buildSnapshot(pickWaterSnapshotSafe());
       if (pack) saveNow(pack);
     }
   });
@@ -912,26 +912,26 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
     // Create UI right above the action buttons, only once per open
     function __ensureSegUI(whereInit){
-      const tip = container.querySelector('#tipEditor'); if (!tip) return;
+// duplicate removed:       const tip = container.querySelector('#tipEditor'); if (!tip) return;
       const actions = tip.querySelector('.te-actions') || tip.lastElementChild;
 
       // Wye row, branch container, and size steppers
-      const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
-      const branchBlock = tip.querySelector('#branchBlock');
-      const aSect = tip.querySelector('#branchASection');
-      const bSect = tip.querySelector('#branchBSection');
-    const teNozA = tip.querySelector('#teNozA'); if (teNozA) teNozA.disabled = false;
-    const teNozB = tip.querySelector('#teNozB'); if (teNozB) teNozB.disabled = false;
-      const sizeMinus = tip.querySelector('#sizeMinus');
-      const sizePlus  = tip.querySelector('#sizePlus');
+// duplicate removed:       const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
+// duplicate removed:       const branchBlock = tip.querySelector('#branchBlock');
+// duplicate removed:       const aSect = tip.querySelector('#branchASection');
+// duplicate removed:       const bSect = tip.querySelector('#branchBSection');
+// duplicate removed:     const teNozA = tip.querySelector('#teNozA'); if (teNozA) teNozA.disabled = false;
+// duplicate removed:     const teNozB = tip.querySelector('#teNozB'); if (teNozB) teNozB.disabled = false;
+// duplicate removed:       const sizeMinus = tip.querySelector('#sizeMinus');
+// duplicate removed:       const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
       let wrap = tip.querySelector('#segSwitch');
-      if (wrap && wrapparentNode) wrapparentNode.removeChild(wrap);
+      if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
       wrap = document.createElement('div');
-      wrapid = 'segSwitch';
-      wrapclassName = 'segSwitch';
-      wrapstyle.display = 'none'; // default hidden, shown when Wye ON
+      wrap.id = 'segSwitch';
+      wrap.className = 'segSwitch';
+      wrap.style.display = 'none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
@@ -943,21 +943,21 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
       const bB    = mk('Line B','B');
-      wrapappendChild(bMain); wrapappendChild(bA); wrapappendChild(bB);
+      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
-      
+      \1
         // Defaults and select enablement per branch
-        const teNozA = tip.querySelector('#teNozA'); const teNozB = tip.querySelector('#teNozB');
+// duplicate removed:         const teNozA = tip.querySelector('#teNozA'); const teNozB = tip.querySelector('#teNozB');
         if (seg==='A' && teNozA){
           if (!teNozA.value){
-            const id = __getFog185Id(); if (id) teNozA.value = id;
+// duplicate removed:             const id = __getFog185Id(); if (id) teNozA.value = id;
           }
           teNozA.disabled = false;
           if (teNozB) teNozB.disabled = true; // prevent editing B while on A
         } else if (seg==='B' && teNozB){
           if (!teNozB.value){
-            const id = __getFog185Id(); if (id) teNozB.value = id;
+// duplicate removed:             const id = __getFog185Id(); if (id) teNozB.value = id;
           }
           teNozB.disabled = false;
           if (teNozA) teNozA.disabled = true; // prevent editing A while on B
@@ -968,7 +968,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
 
         // lock branch size to 1 3/4
-        const sizeLabel = tip.querySelector('#sizeLabel');
+// duplicate removed:         const sizeLabel = tip.querySelector('#sizeLabel');
         if (!mainShow){
           if (teSize) teSize.value = '1.75';
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
@@ -990,7 +990,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (!sizeOK){
           // force off & hide everything Wye-related
           if (wyeSelect) wyeSelect.value = 'off';
-          wrapstyle.display = 'none';
+          wrap.style.display = 'none';
           if (branchBlock) branchBlock.style.display = 'none';
         }
         // hide or show the Wye row itself
@@ -1000,8 +1000,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
       function updateWyeAndButtons(){
         const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        wrapstyle.display = (isOn && sizeOK) ? 'flex' : 'none';
+// duplicate removed:         const sizeOK = gateWyeBySize();
+        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
         if (!(isOn && sizeOK)){
           // collapse back to Main if user turned Wye off or size is not 2.5
           setActive('main');
@@ -1010,14 +1010,14 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
       // Bind
       [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
-      const wyeSel = tip.querySelector('#teWye');
+// duplicate removed:       const wyeSel = tip.querySelector('#teWye');
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
       if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
-      
+      \1
       // Ensure defaults for branch nozzles if just opened into a branch
       const teNozA0 = tip.querySelector('#teNozA'); const teNozB0 = tip.querySelector('#teNozB');
       const id0 = __getFog185Id();
@@ -1043,7 +1043,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
     // Toggle visibility of rows depending on segment
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+// duplicate removed:     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
     mainRows.forEach(sel=>{
       const el = container.querySelector(sel);
       if (!el) return;
@@ -1064,8 +1064,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
 
     // Lock size to 1.75 on branches (hide controls)
-    const sizeMinus = container.querySelector('#sizeMinus');
-    const sizePlus  = container.querySelector('#sizePlus');
+// duplicate removed:     const sizeMinus = container.querySelector('#sizeMinus');
+// duplicate removed:     const sizePlus  = container.querySelector('#sizePlus');
     const sizeLabelEl = container.querySelector('#sizeLabel');
     if (seg==='A' || seg==='B'){
       if (teSize) teSize.value = '1.75';
@@ -1097,8 +1097,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   // Bind seg buttons
   segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
 
-  const branchBlock = container.querySelector('#branchBlock');
-  const rowNoz      = container.querySelector('#rowNoz');
+// duplicate removed:   const branchBlock = container.querySelector('#branchBlock');
+// duplicate removed:   const rowNoz      = container.querySelector('#rowNoz');
 
   // Populate nozzle selects
   [teNoz, teNozA, teNozB].forEach(sel=>{
@@ -1165,11 +1165,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const tenderListEl = container.querySelector('#tenderList');
     if (tenderListEl) {
       tenderListEl.addEventListener('input', (e)=>{
-        const t = e.target;
+// duplicate removed:         const t = e.target;
         if (__tripAutofilled || !t) return;
         const isTrip = (t.name === 'trip') || (t.dataset.role === 'trip');
         if (!isTrip) return;
-        const v = parseFloat(t.value);
+// duplicate removed:         const v = parseFloat(t.value);
         if (v > 0) {
           if (tTripAllEl && (tTripAllEl.getAttribute('data-min') === '0' || tTripAllEl.textContent === '—' || !tTripAllEl.textContent)) {
             tTripAllEl.setAttribute('data-min', String(v));
@@ -1191,7 +1191,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       // Fallback: scan NOZ_LIST for a fog-like 185@50
       try{
         if (Array.isArray(NOZ_LIST)){
-          const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
+// duplicate removed:           const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
           return match ? (match.id || match.name || match.label) : null;
         }
       }catch(e){}
@@ -1214,11 +1214,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   })();
 // Global Round Trip apply-to-all
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+// duplicate removed:     const tTripAllEl = container.querySelector('#tTripAll');
+// duplicate removed:     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
-        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
+// duplicate removed:         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
         try {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
@@ -1228,7 +1228,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         } catch(e){}
         if (!applied) {
           // Fallback: set all tender "trip" inputs in the list and dispatch input events
-          const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
+// duplicate removed:           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
             inp.value = String(minutes);
             inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1256,7 +1256,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     // Best-effort DOM fallback if no API:
     try {
       const tenders = [];
-      const list = container.querySelectorAll('#tenderList [data-tender]');
+// duplicate removed:       const list = container.querySelectorAll('#tenderList [data-tender]');
       list.forEach(node=>{
         tenders.push({
           id: node.getAttribute('data-id') || node.querySelector('.tenderName')?.textContent?.trim(),
@@ -1292,7 +1292,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   });
 
   // Observe Tender Shuttle UI to persist on changes, too
-  const tenderListEl = container.querySelector('#tenderList');
+// duplicate removed:   const tenderListEl = container.querySelector('#tenderList');
   const shuttleEl    = container.querySelector('#shuttleTotalGpm');
   const mo = new MutationObserver(() => {
     enhanceTenderListStyle();
@@ -1308,15 +1308,15 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
     vis.forEach(([key, L])=>{
-      const single = isSingleWye(L);
-      const flow = single ? (activeNozzle(L)?.gpm||0)
+// duplicate removed:       const single = isSingleWye(L);
+// duplicate removed:       const flow = single ? (activeNozzle(L)?.gpm||0)
                  : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
                             : (L.nozRight?.gpm||0);
       const mainFL = FL_total(flow, L.itemsMain);
       let PDP=0;
       if(single){
-        const side = activeSide(L);
-        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
+// duplicate removed:         const side = activeSide(L);
+// duplicate removed:         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
         const branchFL = FL_total(bnNoz.gpm, bnSegs);
         PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
@@ -1334,7 +1334,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.classList.remove('orange','red');
     if(vis.length){
-      const v = Math.round(maxPDP);
+// duplicate removed:       const v = Math.round(maxPDP);
       PDPel.textContent = v+' psi';
       if(v>250) PDPel.classList.add('red');
       else if(v>200) PDPel.classList.add('orange');
@@ -1354,9 +1354,9 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const L = state.lines[key];
       const row = document.createElement('div'); row.className='lineRow';
       const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
-      const single = isSingleWye(L);
+// duplicate removed:       const single = isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
+// duplicate removed:       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
 
       const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
         <span class="title">${L.label}</span>
@@ -1373,7 +1373,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
         if(L.hasWye && !single){
           const wye = (L.wyeLoss ?? 10);
-          wrapinnerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -1406,13 +1406,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else if(single){
-          const side = activeSide(L);
-          const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+// duplicate removed:           const side = activeSide(L);
+// duplicate removed:           const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
           const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
-          const noz = activeNozzle(L);
-          const wye = (L.wyeLoss ?? 10);
+// duplicate removed:           const noz = activeNozzle(L);
+// duplicate removed:           const wye = (L.wyeLoss ?? 10);
 
-          wrapinnerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -1440,7 +1440,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
-          wrapinnerHTML = `
+          wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
               <div class="hoseviz">
@@ -1474,7 +1474,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     if (state.supply === 'pressurized') {
       html = `<div class="row"><span class="k">Supply Mode</span><span class="v">Hydrant (pressurized)</span></div>`;
     } else if (state.supply === 'static') {
-      const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
+// duplicate removed:       const g = +(container.querySelector('#shuttleTotalGpm')?.textContent||0);
       html = `
         <div class="row"><span class="k">Supply Mode</span><span class="v">Tender shuttle</span></div>
         <div class="row"><span class="k">Total Shuttle GPM</span><span class="v"><b>${Math.round(g)}</b> gpm</span></div>
@@ -1494,14 +1494,14 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   container.querySelector('#sheetClose').addEventListener('click', closeSheet);
   sheetBackdrop.addEventListener('click', closeSheet);
   container.querySelector('#presetGrid').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
+// duplicate removed:     const p = e.target.closest('.preset'); if(!p) return;
     chosenPreset = p.dataset.preset;
     container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
     p.style.outline = '2px solid var(--accent)';
     updateSheetApply();
   });
   container.querySelector('.linepick').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
+// duplicate removed:     const p = e.target.closest('.preset'); if(!p) return;
     chosenLine = p.dataset.applyline;
     container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
     p.style.outline = '2px solid var(--accent)';
@@ -1512,7 +1512,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
   function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
   function applyPresetTo(preset, key){
-    const L = state.lines[key]; clearLine(L); L.visible = true;
+// duplicate removed:     const L = state.lines[key]; clearLine(L); L.visible = true;
     switch(preset){
       case 'standpipe':
         L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false;
@@ -1544,7 +1544,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   /* ------------------------------ Why? button ----------------------------- */
 
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
-    const anyDeployed = Object.values(state.lines).some(l=>l.visible);
+// duplicate removed:     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
     if(!anyDeployed){ alert('Deploy a line to see Pump Pressure breakdown.'); return; }
     if(!state.showMath){ state.showMath = true; renderLinesPanel(); }
     if(!state.lastMaxKey) return;
@@ -1568,12 +1568,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
-    const wyeOn = teWye?.value==='on';
+// duplicate removed:     const wyeOn = teWye?.value==='on';
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
   }
 
   function onOpenPopulateEditor(key, where){
-    const L = seedDefaultsForKey(key);
+// duplicate removed:     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
 
@@ -1594,12 +1594,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
     } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
+// duplicate removed:       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
+// duplicate removed:       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
@@ -1612,7 +1612,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   teSize?.addEventListener('change', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext;
-    const L = state.lines[key];
+// duplicate removed:     const L = state.lines[key];
     const size = teSize.value;
     if (where==='main' && teWye.value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
@@ -1628,7 +1628,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
   // Delegate click on "+"
   stageSvg.addEventListener('click', (e)=>{
-    const tip = e.target.closest('.hose-end'); if(!tip) return;
+// duplicate removed:     const tip = e.target.closest('.hose-end'); if(!tip) return;
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
@@ -1650,9 +1650,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   teWye?.addEventListener('change', ()=>{
     const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
     if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
-    const wyeOn = teWye.value==='on';
+// duplicate removed:     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
-      const L = state.lines[editorContext.key];
+// duplicate removed:       const L = state.lines[editorContext.key];
       setBranchBDefaultIfEmpty(L);
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
@@ -1663,7 +1663,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
+// duplicate removed:     const size = teSize.value; const len = Math.max(0, +teLen.value||0);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
@@ -1706,7 +1706,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   container.querySelectorAll('.linebtn').forEach(b=>{
     b.addEventListener('click', ()=>{
-      const key=b.dataset.line; const L=seedDefaultsForKey(key);
+// duplicate removed:       const key=b.dataset.line; const L=seedDefaultsForKey(key);
       L.visible = !L.visible; b.classList.toggle('active', L.visible);
       drawAll(); markDirty();
     });
@@ -1756,7 +1756,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed';
 
     ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
-      const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
+// duplicate removed:       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
       const mainFt = sumFt(L.itemsMain);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
@@ -1765,8 +1765,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
-      const single = isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
+// duplicate removed:       const single = isSingleWye(L);
+// duplicate removed:       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
       addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
@@ -1832,10 +1832,10 @@ function initPlusMenus(root){
     { val: "2.5",  labelPlain: "2 1/2″" },
     { val: "5",    labelPlain: "5″" }
   ];
-  const teSize = root.querySelector('#teSize');
-  const sizeLabel = root.querySelector('#sizeLabel');
-  const sizeMinus = root.querySelector('#sizeMinus');
-  const sizePlus = root.querySelector('#sizePlus');
+// duplicate removed:   const teSize = root.querySelector('#teSize');
+// duplicate removed:   const sizeLabel = root.querySelector('#sizeLabel');
+// duplicate removed:   const sizeMinus = root.querySelector('#sizeMinus');
+// duplicate removed:   const sizePlus = root.querySelector('#sizePlus');
   let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
   function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
   function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
@@ -1843,7 +1843,7 @@ function initPlusMenus(root){
   sizePlus?.addEventListener('click', ()=> stepSize(+1));
   drawSize();
 
-  const teLen = root.querySelector('#teLen');
+// duplicate removed:   const teLen = root.querySelector('#teLen');
   const lenLabel = root.querySelector('#lenLabel');
   const lenMinus = root.querySelector('#lenMinus');
   const lenPlus = root.querySelector('#lenPlus');
@@ -1855,7 +1855,7 @@ function initPlusMenus(root){
   lenPlus?.addEventListener('click', ()=> stepLen(+LEN_STEP));
   drawLen();
 
-  const teElev = root.querySelector('#teElev');
+// duplicate removed:   const teElev = root.querySelector('#teElev');
   const elevLabel = root.querySelector('#elevLabel');
   const elevMinus = root.querySelector('#elevMinus');
   const elevPlus = root.querySelector('#elevPlus');
@@ -1867,7 +1867,7 @@ function initPlusMenus(root){
   elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
   drawElev();
 
-  const teNoz = root.querySelector('#teNoz');
+// duplicate removed:   const teNoz = root.querySelector('#teNoz');
   if(teNoz && Array.isArray(NOZ_LIST)){
     teNoz.innerHTML = NOZ_LIST.map(n => {
       const label = n.name || n.desc || n.id || 'Nozzle';
@@ -1877,7 +1877,7 @@ function initPlusMenus(root){
   }
 
   if(!root.__plusMenuStyles){
-    const s=document.createElement('style');
+// duplicate removed:     const s=document.createElement('style');
     s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
 .steppers{display:flex;align-items:center;gap:8px;background:#0b1a29;border:1px solid var(--edge);border-radius:10px;padding:6px}
 .stepBtn{background:#0b1320;border:1px solid var(--edge);border-radius:10px;color:#e9f1ff;font-weight:700;min-width:36px;height:36px}
@@ -1892,8 +1892,8 @@ function initPlusMenus(root){
 
 // Branch plus-menus for Wye
 function initBranchPlusMenus(root){
-  const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
-  const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
+// duplicate removed:   const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
+// duplicate removed:   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
 
   function makeLen(elHidden, elLabel, minusBtn, plusBtn){
     function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
@@ -1919,8 +1919,8 @@ function initBranchPlusMenus(root){
     }catch(e){}
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>{
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
+// duplicate removed:       const label = n.name || n.desc || n.id || 'Nozzle';
+// duplicate removed:       const val = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
   }
@@ -2011,7 +2011,7 @@ function initBranchPlusMenus(root){
       try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
-          const el = container.querySelector('#tTripAll');
+// duplicate removed:           const el = container.querySelector('#tTripAll');
           if (el){
             el.setAttribute('data-min', String(mins));
             el.textContent = String(mins);
@@ -2022,7 +2022,7 @@ function initBranchPlusMenus(root){
     
 (function(){
   try{
-    const st = document.createElement('style');
+// duplicate removed:     const st = document.createElement('style');
     st.textContent = `
     #branchBlock{display:none}
 
