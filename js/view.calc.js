@@ -1,42 +1,72 @@
-// view.calc.js (refactored entrypoint)
-// Purpose: orchestrates the calculator view and popup editor by composing smaller modules.
-//
-// External deps expected by the existing app (unchanged):
-//   - ./store.js (exports: state, NOZ, COLORS, FL, FL_total, etc.)
-//   - ./waterSupply.js (exports: WaterSupplyUI)
-// This module keeps the public surface minimal and defers UI details to calc/editorUI.js
+// /js/view.calc.js  (refactored entry with visible shell + render alias)
 
-import { state, NOZ, COLORS } from './store.js';
-import { WaterSupplyUI } from './waterSupply.js';
-
-// Internal modules for the calc view
-import { enhanceTipEditor } from './calc/editorUI.js';
-import { on, off, emit } from './calc/events.js';
 import { injectCalcStyles } from './calc/styles.css.js';
+import { on, emit } from './calc/events.js';
+import { qs, el } from './calc/dom.js';
+import renderStage from './calc/renderStage.js';
 
-// --- Public API ---
-// Initialize the calc view inside a container element.
-// Call this from wherever you previously created/attached the stage view.
+// If you still need these exports available globally, index.html already assigns them to window:
+// import { state, NOZ, COLORS } from './store.js';
+// import { WaterSupplyUI } from './waterSupply.js';
+
+/** Initialize the calc view inside a container */
 export function initCalcView(container) {
   if (!container) throw new Error('initCalcView: container is required');
 
-  // Inject styles once for the whole calculator view
+  // 1) Styles (once)
   injectCalcStyles(container);
 
-  // Hook: whenever the tip editor opens, enhance it with segmented Wye behavior.
-  // Emit this event from your existing open flow (or wrap the opener function).
-  on('calc:tipEditorOpened', ({ container: ctn, where }) => {
-    try { enhanceTipEditor(ctn || container, where); } catch (e) { console.warn(e); }
-  });
+  // 2) Visible shell so the screen isn’t blank
+  container.innerHTML = '';
+  const header = el('div', {
+    class: 'calc-header',
+    style: {
+      padding: '12px 16px',
+      borderBottom: '1px solid rgba(255,255,255,.12)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    }
+  }, [
+    el('div', { style: { fontWeight: 600 } }, 'FireOps Calc'),
+    el('div', { style: { opacity: .7, fontSize: '0.9rem' } }, 'refactor scaffold')
+  ]);
 
-  // If your legacy code can call a global to announce editor open, keep this as a bridge:
-  window.__announceTipEditorOpen = function(where, ctn = container){
-    emit('calc:tipEditorOpened', { container: ctn, where });
+  // Optional demo button to prove events are wired
+  const demoBtn = el('button', {
+    class: 'segBtn',
+    style: { marginLeft: 'auto' }
+  }, 'Open Tip Editor (demo)');
+  demoBtn.addEventListener('click', () => {
+    // Your code that actually creates #tipEditor should run before this emit.
+    // This just broadcasts the “editor opened” event so segment logic can attach.
+    emit('tipEditorOpened', { container, where: 'main' });
+  });
+  header.appendChild(demoBtn);
+
+  const stageHost = el('div', { id: 'stageHost', style: { padding: '12px 16px' } });
+  container.appendChild(header);
+  container.appendChild(stageHost);
+
+  // 3) Minimal stage so you see something on screen
+  renderStage(stageHost);
+
+  // 4) Legacy bridge for non-event flows (call from your existing editor open code)
+  window.__announceTipEditorOpen = function (where = 'main', ctn = container) {
+    emit('tipEditorOpened', { container: ctn, where });
   };
 
-  // Any other calc-view bootstrapping can go here (render stage, bind zoom, etc.)
-  // Keep legacy logic in place; this entry just wires the enhancement lifecycle.
+  // 5) Example: react to editor enhanced (if you want to refresh the stage after edits)
+  on('editorEnhanced', () => {
+    // re-render / update any live numbers if needed
+    // (stage exposes rerender via its return value if you wire that up later)
+  });
 }
 
-// Optional: default export to ease drop-in usage
-export default { initCalcView };
+/** Back-compat: many callers do mod.render(container) */
+export function render(container) {
+  return initCalcView(container);
+}
+
+/** Default export for legacy imports */
+export default render;
