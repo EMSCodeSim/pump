@@ -761,7 +761,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  // --- Segment Switch logic ---
+  // --- Segment Switch logic (single instance) ---
   const segSwitch  = container.querySelector('#segSwitch');
   const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
   const branchASection = container.querySelector('#branchASection');
@@ -771,17 +771,38 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   function setSeg(seg){
     currentSeg = seg;
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+
+    // Show only relevant controls per segment
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
     mainRows.forEach(sel=>{ const el = container.querySelector(sel); if (el) el.style.display = (seg==='main') ? '' : 'none'; });
     if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
+
+    // Show just the active branch card when on A or B
     if (seg==='A'){ if (branchASection) branchASection.style.display=''; if (branchBSection) branchBSection.style.display='none'; }
     else if (seg==='B'){ if (branchASection) branchASection.style.display='none'; if (branchBSection) branchBSection.style.display=''; }
     else { if (branchASection) branchASection.style.display='none'; if (branchBSection) branchBSection.style.display='none'; }
-    const sizeMinus = container.querySelector('#sizeMinus'); const sizePlus = container.querySelector('#sizePlus'); const sizeLabelEl = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){ if (teSize) teSize.value='1.75'; if (sizeLabelEl) sizeLabelEl.textContent='1 3/4″'; if (sizeMinus) sizeMinus.disabled=true; if (sizePlus) sizePlus.disabled=true; }
-    else { if (sizeMinus) sizeMinus.disabled=false; if (sizePlus) sizePlus.disabled=false; }
-    if (teWhere){ teWhere.value = (seg==='main')?'Main (to Wye)':(seg==='A'?'Line A (left of wye)':'Line B (right of wye)'); }
+
+    // Lock branch diameter to 1 3/4″ and disable size controls
+    const sizeMinus = container.querySelector('#sizeMinus');
+    const sizePlus  = container.querySelector('#sizePlus');
+    const sizeLabelEl = container.querySelector('#sizeLabel');
+    if (seg==='A' || seg==='B'){
+      if (teSize) teSize.value='1.75';
+      if (sizeLabelEl) sizeLabelEl.textContent='1 3/4″';
+      if (sizeMinus) sizeMinus.disabled = true;
+      if (sizePlus)  sizePlus.disabled  = true;
+    }else{
+      if (sizeMinus) sizeMinus.disabled = false;
+      if (sizePlus)  sizePlus.disabled  = false;
+    }
+
+    // Where field polish
+    if (teWhere){
+      if (seg==='main') teWhere.value = 'Main (to Wye)';
+      else if (seg==='A') teWhere.value = 'Line A (left of wye)';
+      else if (seg==='B') teWhere.value = 'Line B (right of wye)';
+    }
   }
 
   function updateSegSwitchVisibility(){
@@ -1770,12 +1791,12 @@ function initBranchPlusMenus(root){
 (function(){
   try{
     const st = document.createElement('style');
-    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
-
+    st.textContent = `
     .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
-    
+.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+
     .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
