@@ -761,46 +761,53 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-  /* ====== Segmented Branch UI (scoped, no globals) ====== */
+  /* ===== Scoped segmented-branch UI (no globals) ===== */
   (function(){
-    function __getFog185Id(){
+    function getFog185Id(){
       try{
         if (typeof findNozzleId === 'function'){
           return findNozzleId({ gpm:185, NP:50, preferFog:true });
         }
       }catch(e){}
-      // Fallback: scan NOZ_LIST for a fog-like 185@50
       try{
         if (Array.isArray(NOZ_LIST)){
-          const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
-          return match ? (match.id || match.name || match.label) : null;
+          const m = NOZ_LIST.find(n => (n and getattr(n,'gpm',None)==185 and getattr(n,'NP',None)==50) or (str(getattr(n,'name',''))+str(getattr(n,'label',''))).lower().find('185')!=-1);
         }
       }catch(e){}
       return null;
     }
 
-    // Create UI right above the action buttons, only once per open
-    function __ensureSegUI(whereInit){
+    function ensureIds(tip){
+      const block = tip.querySelector('#branchBlock');
+      if (!block) return {block:null,A:null,B:null};
+      // assume A then B cards inside the block
+      let cards = Array.from(block.querySelectorAll('.card'));
+      let A = tip.querySelector('#branchASection') || cards[0] || null;
+      let B = tip.querySelector('#branchBSection') || cards[1] || null;
+      if (A && !A.id) A.id = 'branchASection';
+      if (B && !B.id) B.id = 'branchBSection';
+      return {block, A, B};
+    }
+
+    function buildUI(whereInit){
       const tip = container.querySelector('#tipEditor'); if (!tip) return;
       const actions = tip.querySelector('.te-actions') || tip.lastElementChild;
+      const teWyeSel = tip.querySelector('#teWye');
+      const teSizeHidden = tip.querySelector('#teSize');
 
-      // Wye row, branch container, and size steppers
-      const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
-      const branchBlock = tip.querySelector('#branchBlock');
-      const aSect = tip.querySelector('#branchASection');
-      const bSect = tip.querySelector('#branchBSection');
-    const teNozA = tip.querySelector('#teNozA'); if (teNozA) teNozA.disabled = false;
-    const teNozB = tip.querySelector('#teNozB'); if (teNozB) teNozB.disabled = false;
+      const idset = ensureIds(tip);
       const sizeMinus = tip.querySelector('#sizeMinus');
       const sizePlus  = tip.querySelector('#sizePlus');
 
-      // Remove any prior segSwitch from previous opens, then recreate
+      // wipe any previous instance
       let wrap = tip.querySelector('#segSwitch');
       if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+
+      // create
       wrap = document.createElement('div');
       wrap.id = 'segSwitch';
       wrap.className = 'segSwitch';
-      wrap.style.display = 'none'; // default hidden, shown when Wye ON
+      wrap.style.display = 'none';
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
@@ -815,87 +822,109 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
-      \1
-        // Defaults and select enablement per branch
-        const teNozA = tip.querySelector('#teNozA'); const teNozB = tip.querySelector('#teNozB');
-        if (seg==='A' && teNozA){
-          if (!teNozA.value){
-            const id = __getFog185Id(); if (id) teNozA.value = id;
-          }
-          teNozA.disabled = false;
-          if (teNozB) teNozB.disabled = true; // prevent editing B while on A
-        } else if (seg==='B' && teNozB){
-          if (!teNozB.value){
-            const id = __getFog185Id(); if (id) teNozB.value = id;
-          }
-          teNozB.disabled = false;
-          if (teNozA) teNozA.disabled = true; // prevent editing A while on B
-        } else {
-          if (teNozA) teNozA.disabled = true;
-          if (teNozB) teNozB.disabled = true;
+      function gateWyeBySize(){
+        const ok = (teSizeHidden and teSizeHidden.value=='2.5') or (teSizeHidden and String(teSizeHidden.value)=='2.5');
+        if (!ok){
+          if (teWyeSel) teWyeSel.value = 'off';
+          wrap.style.display = 'none';
+          if (idset.block) idset.block.style.display = 'none';
         }
+        // also hide the Wye row if not ok
+        const wyeRow = teWyeSel ? teWyeSel.closest('.te-row') : null;
+        if (wyeRow) wyeRow.style.display = ok ? '' : 'none';
+        return ok;
+      }
 
+      function setSeg(seg){
+        // highlight
+        [bMain,bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
 
-        // lock branch size to 1 3/4
+        // rows
+        const wyeRow = teWyeSel ? teWyeSel.closest('.te-row') : null;
+        const rowSize = tip.querySelector('#rowSize');
+        const rowLen  = tip.querySelector('#rowLen');
+        const rowElev = tip.querySelector('#rowElev');
+        const rowNoz  = tip.querySelector('#rowNoz');
+        const mainShow = (seg==='main');
+        if (wyeRow) wyeRow.style.display = mainShow? '' : 'none';
+        if (rowSize) rowSize.style.display = mainShow? '' : 'none';
+        if (rowLen)  rowLen.style.display  = mainShow? '' : 'none';
+        if (rowElev) rowElev.style.display = mainShow? '' : 'none';
+        if (rowNoz)  rowNoz.style.display  = mainShow? '' : 'none';
+
+        // branch container + one branch at a time
+        if (idset.block) idset.block.style.display = (seg==='A'||seg==='B')? '' : 'none';
+        if (idset.A) idset.A.style.display = (seg==='A')? '' : 'none';
+        if (idset.B) idset.B.style.display = (seg==='B')? '' : 'none';
+
+        // lock size on branches
         const sizeLabel = tip.querySelector('#sizeLabel');
+        const minus = sizeMinus, plus = sizePlus;
         if (!mainShow){
-          if (teSize) teSize.value = '1.75';
+          if (teSizeHidden) teSizeHidden.value = '1.75';
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-          if (sizeMinus) sizeMinus.disabled = true;
-          if (sizePlus)  sizePlus.disabled  = true;
+          if (minus) minus.disabled=true;
+          if (plus)  plus.disabled=true;
         }else{
-          if (sizeMinus) sizeMinus.disabled = false;
-          if (sizePlus)  sizePlus.disabled  = false;
+          if (minus) minus.disabled=false;
+          if (plus)  plus.disabled=false;
         }
-        // where label polish
+
+        // default and enable correct nozzle select
+        const selA = tip.querySelector('#teNozA');
+        const selB = tip.querySelector('#teNozB');
+        const fog185 = (typeof getFog185Id==='function') ? getFog185Id() : null;
+        if (seg==='A'){
+          if (selA){
+            if (!selA.value){
+              const id = (typeof findNozzleId==='function') ? findNozzleId({gpm:185, NP:50, preferFog:true}) : fog185;
+              if (id) selA.value = id;
+            }
+            selA.disabled = false;
+          }
+          if (selB) selB.disabled = true;
+        } else if (seg==='B'){
+          if (selB){
+            if (!selB.value){
+              const id = (typeof findNozzleId==='function') ? findNozzleId({gpm:185, NP:50, preferFog:true}) : fog185;
+              if (id) selB.value = id;
+            }
+            selB.disabled = false;
+          }
+          if (selA) selA.disabled = true;
+        } else {
+          if (selA) selA.disabled = true;
+          if (selB) selB.disabled = true;
+        }
+
+        // where label
         if (teWhere){
           teWhere.value = seg==='main' ? 'Main (to Wye)' : (seg==='A' ? 'Line A (left of wye)' : 'Line B (right of wye)');
         }
       }
 
-      function gateWyeBySize(){
-        const sizeOK = (teSize && String(teSize.value) === '2.5');
-        const wyeSelect = tip.querySelector('#teWye');
-        if (!sizeOK){
-          // force off & hide everything Wye-related
-          if (wyeSelect) wyeSelect.value = 'off';
-          wrap.style.display = 'none';
-          if (branchBlock) branchBlock.style.display = 'none';
-        }
-        // hide or show the Wye row itself
-        if (wyeRow) wyeRow.style.display = sizeOK ? '' : 'none';
-        return sizeOK;
+      function updateButtons(){
+        const wyeOn = teWyeSel and teWyeSel.value=='on';
+        const sizeOk = gateWyeBySize();
+        wrap.style.display = (wyeOn and sizeOk) and 'flex' or 'none';
+        if (!(wyeOn and sizeOk)):
+          setSeg('main')
+
       }
 
-      function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
-        if (!(isOn && sizeOK)){
-          // collapse back to Main if user turned Wye off or size is not 2.5
-          setActive('main');
-        }
-      }
+      [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', lambda ev, btn=btn: setSeg(btn.dataset.seg)));
+      if (teWyeSel): teWyeSel.addEventListener('change', lambda ev: updateButtons())
+      if (sizeMinus): sizeMinus.addEventListener('click', lambda ev: setTimeout(updateButtons,0))
+      if (sizePlus):  sizePlus .addEventListener('click', lambda ev: setTimeout(updateButtons,0))
 
-      // Bind
-      [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
-      const wyeSel = tip.querySelector('#teWye');
-      if (wyeSel){
-        wyeSel.addEventListener('change', updateWyeAndButtons);
-      }
-      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
-      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      updateButtons()
+      if (whereInit=='L'): setSeg('A')
+      elif (whereInit=='R'): setSeg('B')
+      else: setSeg('main')
+    }
 
-      \1
-      // Ensure defaults for branch nozzles if just opened into a branch
-      const teNozA0 = tip.querySelector('#teNozA'); const teNozB0 = tip.querySelector('#teNozB');
-      const id0 = __getFog185Id();
-      if (whereInit==='L' && teNozA0 && !teNozA0.value && id0) teNozA0.value = id0;
-      if (whereInit==='R' && teNozB0 && !teNozB0.value && id0) teNozB0.value = id0;
-}
-
-    // Expose short hooks (scoped to this container instance)
-    container.__segEnsureUI = __ensureSegUI;
+    // Hook entry point for our editor open
+    container.__segBuildUI = buildUI;
   })();
 // Segment switch elements
   const segSwitch  = container.querySelector('#segSwitch');
@@ -1051,22 +1080,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   } catch(_){}
 
   (function(){
-    function __getFog185Id(){
-      try{
-        if (typeof findNozzleId === 'function'){
-          return findNozzleId({ gpm:185, NP:50, preferFog:true });
-        }
-      }catch(e){}
-      // Fallback: scan NOZ_LIST for a fog-like 185@50
-      try{
-        if (Array.isArray(NOZ_LIST)){
-          const match = NOZ_LIST.find(n => (n?.gpm===185 && n?.NP===50) || /185\s*@\s*50/i.test(n?.name||n?.label||''));
-          return match ? (match.id || match.name || match.label) : null;
-        }
-      }catch(e){}
-      return null;
-    }
-
     try{
       const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
@@ -1501,7 +1514,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
-    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
+    if (container && container.__segBuildUI) container.__segBuildUI(where);
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
     updateSegSwitchVisibility();
@@ -1891,13 +1904,7 @@ function initBranchPlusMenus(root){
 (function(){
   try{
     const st = document.createElement('style');
-    st.textContent = `
-    #branchBlock{display:none}
-
-    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
-    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
-    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
-.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+    st.textContent = `.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
 
     .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
