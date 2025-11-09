@@ -3,57 +3,81 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>FireOps Calc</title>
+  <title>FireOps Calc — AutoPath</title>
   <style>
     :root { color-scheme: dark; }
     html,body{height:100%}
     body{margin:0;background:#0b0f14;color:#e9eef5;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
     #app{min-height:100vh;display:flex;flex-direction:column}
     #errors{white-space:pre-wrap;background:#111a23;border:1px solid #223041;border-radius:8px;padding:10px;margin:12px;display:none}
+    #ok{white-space:pre-wrap;background:#11230f;border:1px solid #1f3b1a;border-radius:8px;padding:10px;margin:12px;display:none}
+    code{background:#11181f;padding:2px 6px;border-radius:6px}
   </style>
 </head>
 <body>
   <div id="app"></div>
+  <pre id="ok"></pre>
   <pre id="errors"></pre>
 
   <script type="module">
+    const ok = document.getElementById('ok');
     const errors = document.getElementById('errors');
-    const showErr = (msg) => { errors.style.display='block'; errors.textContent += msg + "\n"; };
+    const showOk  = (msg) => { ok.style.display='block'; ok.textContent += msg + "\\n"; };
+    const showErr = (msg) => { errors.style.display='block'; errors.textContent += msg + "\\n"; };
 
-    // When this file is at https://fireopscalc.com/, point imports to /pump-main/js/*
-    const BASE = '/pump-main/js';
+    // Candidate base paths to try for JS files
+    const CANDIDATES = [
+      './js',              // when index.html is in same folder as js/
+      '.',                 // when modules are next to index
+      '/js',               // when js/ is at site root
+      '/pump-main/js',     // when deployed under /pump-main/
+      './pump-main/js'     // relative variant
+    ];
 
-    async function boot(){
+    async function tryBase(BASE){
+      showOk(`Trying base: ${BASE}`);
       try {
         const Store = await import(`${BASE}/store.js`);
         const Water = await import(`${BASE}/waterSupply.js`);
         Object.assign(window, Store, Water);
       } catch (e) {
-        showErr(`Failed to import ${BASE}/store.js or ${BASE}/waterSupply.js: ` + (e?.message || e));
-        return;
+        showErr(`❌ ${BASE}: store/waterSupply import failed: ${e?.message || e}`);
+        return null;
       }
 
-      let render;
       try {
         const mod = await import(`${BASE}/view.calc.js`);
-        render = (mod?.default || mod?.render);
+        const render = (mod?.default || mod?.render);
         if (!render) {
-          showErr('view.calc.js did not export a default function or render(container)');
-          return;
+          showErr(`❌ ${BASE}: view.calc.js has no default export or render(container)`);
+          return null;
         }
+        return render;
       } catch (e) {
-        showErr(`Failed to import ${BASE}/view.calc.js: ` + (e?.message || e));
-        return;
-      }
-
-      try {
-        render(document.getElementById('app'));
-      } catch (e) {
-        showErr('Render threw: ' + (e?.message || e));
-        console.error(e);
+        showErr(`❌ ${BASE}: view.calc.js import failed: ${e?.message || e}`);
+        return null;
       }
     }
 
+    async function boot(){
+      for (const base of CANDIDATES){
+        const render = await tryBase(base);
+        if (render){
+          showOk(`✅ Using base: ${base}`);
+          try { render(document.getElementById('app')); }
+          catch (e){ showErr(`Render threw: ${e?.message || e}`); }
+          return;
+        }
+      }
+      showErr("\\nAll base paths failed. Fix one of these:");
+      showErr(" • Place index.html next to /js and use <script type='module'> import './js/view.calc.js'");
+      showErr(" • Or deploy under /pump-main/ and ensure /pump-main/js/* are accessible");
+      showErr(" • Or edit CANDIDATES in this file to your exact path");
+    }
+
+    // IMPORTANT: serve via HTTP (not file://). Example from folder with index.html:
+    //   python -m http.server 5500
+    //   npx serve .
     boot();
   </script>
 </body>
