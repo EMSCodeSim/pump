@@ -16,12 +16,12 @@
   <div id="app"></div>
   <pre id="errors"></pre>
 
-  <!-- Load legacy modules and expose to window for any non-module code -->
   <script type="module">
     const errors = document.getElementById('errors');
     const showErr = (msg) => { errors.style.display='block'; errors.textContent += msg + "\n"; };
 
     async function boot(){
+      // 1) Load legacy modules and expose to window for any non-module code
       try {
         const Store = await import('./js/store.js');
         const Water = await import('./js/waterSupply.js');
@@ -31,17 +31,21 @@
         return;
       }
 
+      // 2) Load app entry
       let render;
       try {
-        // Your app entry (monolith or refactor) should export default or render(container)
         const mod = await import('./js/view.calc.js');
         render = (mod?.default || mod?.render);
-        if (!render) showErr('view.calc.js did not export a default function or render(container)');
+        if (!render) {
+          showErr('view.calc.js did not export a default function or render(container)');
+          return;
+        }
       } catch (e) {
         showErr('Failed to import ./js/view.calc.js: ' + (e?.message || e));
         return;
       }
 
+      // 3) Render app
       try {
         render(document.getElementById('app'));
       } catch (e) {
@@ -51,7 +55,7 @@
     }
 
     // IMPORTANT: serve via HTTP, not file://
-    // Quick options from the pump-main folder:
+    // From the pump-main folder, run one of:
     //   python -m http.server 5500
     //   npx serve .
     boot();
