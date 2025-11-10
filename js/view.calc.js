@@ -858,11 +858,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     // Highlight active button
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
 
-        // Sync editorContext.where and Where label
-    try{ if (typeof editorContext==='object' && editorContext){ editorContext.where = (seg==='A'?'L':(seg==='B'?'R':'main')); } }catch(_){ }
+    
+    // Sync editorContext.where and Where label
+    try{ if (editorContext) editorContext.where = (seg==='A' ? 'L' : (seg==='B' ? 'R' : 'main')); }catch(_){ }
     const whereEl = container.querySelector('#teWhere');
     if (whereEl){ whereEl.value = (seg==='A' ? 'Line A (left of wye)' : (seg==='B' ? 'Line B (right of wye)' : 'Main (to Wye)')); }
-
 // Toggle visibility of rows depending on segment
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
@@ -1331,27 +1331,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
-    // --- Ensure branch editors are populated ---
-    try {
-      const fillNozzleSelect = (sel) => {
-        if (!sel) return; if (sel.options && sel.options.length > 1) return; if (!window.NOZ) return;
-        while (sel.firstChild) sel.removeChild(sel.firstChild);
-        const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Select nozzle'; sel.appendChild(opt0);
-        for (const [id,spec] of Object.entries(NOZ)){
-          const opt = document.createElement('option'); opt.value = id; opt.textContent = (spec && spec.name) ? spec.name : id; sel.appendChild(opt);
-        }
-      };
-      fillNozzleSelect(teNozA); fillNozzleSelect(teNozB);
-      const sA = (L.itemsLeft && L.itemsLeft[0]) ? L.itemsLeft[0] : { size:'1.75', lengthFt: 100 };
-      if (teLenA)  teLenA.value = sA.lengthFt || 0;
-      if (teElevA) teElevA.value = (typeof L.elevLeftFt==='number') ? L.elevLeftFt : 0;
-      if (teNozA && L.nozLeft && L.nozLeft.id) teNozA.value = L.nozLeft.id;
-      const sB = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : { size:'1.75', lengthFt: 100 };
-      if (teLenB)  teLenB.value = sB.lengthFt || 0;
-      if (teElevB) teElevB.value = (typeof L.elevRightFt==='number') ? L.elevRightFt : 0;
-      if (teNozB && L.nozRight && L.nozRight.id) teNozB.value = L.nozRight.id;
-    } catch(_){}
-
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
@@ -1366,22 +1345,20 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
     else if(where==='L'){
       L.hasWye = true;
-      const lenA = Math.max(0, + (teLenA ? teLenA.value : teLen.value) || 0);
+      const lenA = Math.max(0, +(teLenA ? teLenA.value : 0) || 0);
       const sizeA = '1.75';
       L.itemsLeft = lenA ? [{ size: sizeA, lengthFt: lenA }] : [];
       if (teNozA && teNozA.value && NOZ[teNozA.value]) L.nozLeft = NOZ[teNozA.value];
       else ensureDefaultNozzleFor(L,'L',sizeA);
-      if (typeof teElevA !== 'undefined' && teElevA) L.elevLeftFt = Math.max(0, +teElevA.value||0);
     
     }
     else {
       L.hasWye = true;
-      const lenB = Math.max(0, + (teLenB ? teLenB.value : teLen.value) || 0);
+      const lenB = Math.max(0, +(teLenB ? teLenB.value : 0) || 0);
       const sizeB = '1.75';
       L.itemsRight = lenB ? [{ size: sizeB, lengthFt: lenB }] : [];
       if (teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       else ensureDefaultNozzleFor(L,'R',sizeB);
-      if (typeof teElevB !== 'undefined' && teElevB) L.elevRightFt = Math.max(0, +teElevB.value||0);
     
     }
 
