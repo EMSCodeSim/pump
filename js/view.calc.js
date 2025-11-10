@@ -410,7 +410,6 @@ export async function render(container){
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
             <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
-              <button type="button" class="segBtn" data-seg="main">Main</button>
               <button type="button" class="segBtn" data-seg="A">Line A</button>
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
@@ -752,9 +751,9 @@ export async function render(container){
       let wrap = tip.querySelector('#segSwitch');
       if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
       wrap = document.createElement('div');
-      wrap.id = 'segSwitch';
-      wrap.className = 'segSwitch';
-      wrap.style.display = 'none'; // default hidden, shown when Wye ON
+      wrap.id='segSwitch';
+      wrap.className='segSwitch';
+      wrap.style.display='none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
@@ -806,13 +805,28 @@ export async function render(container){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        if (isOn && sizeOK){
-          wrap.style.display = 'flex';
-          // default select A when opening Wye
-          setActive('A');
-        } else {
+  const isOn = tip.querySelector('#teWye')?.value === 'on';
+  const sizeOK = gateWyeBySize();
+  if (isOn && sizeOK){
+    wrap.style.display = 'flex';
+    setActive('A');
+  } else {
+    wrap.style.display = 'none';
+    const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
+    if (wyeRow) wyeRow.style.display = '';
+    const rows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
+    rows.forEach(sel=>{ const el = tip.querySelector(sel); if (el) el.style.display = ''; });
+    if (branchBlock) branchBlock.style.display = 'none';
+    if (aSect) aSect.style.display = 'none';
+    if (bSect) bSect.style.display = 'none';
+    if (teWhere) teWhere.value = 'Main';
+    // Re-enable size steppers on main
+    const sizeMinus = tip.querySelector('#sizeMinus');
+    const sizePlus  = tip.querySelector('#sizePlus');
+    if (sizeMinus) sizeMinus.disabled = false;
+    if (sizePlus)  sizePlus.disabled  = false;
+  }
+} else {
           // Wye off or disallowed: hide A/B switch and show MAIN rows again
           wrap.style.display = 'none';
           const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
@@ -848,87 +862,7 @@ export async function render(container){
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
   })();
-// Segment switch elements
-  const segSwitch  = container.querySelector('#segSwitch');
-  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
-  const branchASection = container.querySelector('#branchASection');
-  const branchBSection = container.querySelector('#branchBSection');
-
-  let currentSeg = 'main'; // 'main' | 'A' | 'B'
-
-  function setSeg(seg){
-    currentSeg = seg;
-    // Highlight active button
-    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
-      const el = container.querySelector(sel);
-      if (!el) return;
-      el.style.display = (seg==='main') ? '' : 'none';
-    });
-    if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
-
-    // Branch sections — show only selected branch when wye is on
-    if (seg==='A'){
-      if (branchASection) branchASection.style.display = '';
-      if (branchBSection) branchBSection.style.display = 'none';
-    } else if (seg==='B'){
-      if (branchASection) branchASection.style.display = 'none';
-      if (branchBSection) branchBSection.style.display = '';
-    } else {
-      if (branchASection) branchASection.style.display = 'none';
-      if (branchBSection) branchBSection.style.display = 'none';
-    }
-
-    // Lock size to 1.75 on branches (hide controls)
-    const sizeMinus = container.querySelector('#sizeMinus');
-    const sizePlus  = container.querySelector('#sizePlus');
-    const sizeLabelEl = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){
-      if (teSize) teSize.value = '1.75';
-      if (sizeLabelEl) sizeLabelEl.textContent = '1 3/4″';
-      if (sizeMinus) sizeMinus.disabled = true;
-      if (sizePlus)  sizePlus.disabled  = true;
-    }else{
-      if (sizeMinus) sizeMinus.disabled = false;
-      if (sizePlus)  sizePlus.disabled  = false;
-    }
-
-    // Update the "Where" label
-    if (teWhere){
-      if (seg==='main') teWhere.value = 'Main (to Wye)';
-      else if (seg==='A') teWhere.value = 'Line A (left of wye)';
-      else if (seg==='B') teWhere.value = 'Line B (right of wye)';
-    }
-  }
-
-  function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value==='on';
-    if (segSwitch){
-      segSwitch.style.display = wyeOn ? 'flex' : 'none';
-    }
-    // When turning wye off, always reset to main segment
-    if (!wyeOn) setSeg('main');
-  }
-
-  // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
-
-  const branchBlock = container.querySelector('#branchBlock');
-  const rowNoz      = container.querySelector('#rowNoz');
-
-  // Populate nozzle selects
-  [teNoz, teNozA, teNozB].forEach(sel=>{
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
-  });
-
-  // Panels controlled by waterSupply.js
-  const hydrantHelper = container.querySelector('#hydrantHelper');
-  const staticHelper  = container.querySelector('#staticHelper');
+/* (removed stray global segment block) */
 
   /* -------------------------- Water Supply wiring ------------------------- */
 
@@ -1434,133 +1368,7 @@ export async function render(container){
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
     if (container && container.__segEnsureUI) container.__segEnsureUI(where);
-    // Ensure main rows visible if Wye is OFF at open
-    try{
-      const tip = container.querySelector('#tipEditor');
-      const wyeSel = tip?.querySelector('#teWye');
-      if (wyeSel && wyeSel.value!=='on'){
-        const rows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-        rows.forEach(sel=>{ const el = tip.querySelector(sel); if (el) el.style.display = ''; });
-        const wrow = wyeSel.closest('.te-row'); if (wrow) wrow.style.display='';
-        const branchBlock = tip.querySelector('#branchBlock'); if (branchBlock) branchBlock.style.display='none';
-        const aSect = tip.querySelector('#branchASection'); if (aSect) aSect.style.display='none';
-        const bSect = tip.querySelector('#branchBSection'); if (bSect) bSect.style.display='none';
-        const sizeMinus = tip.querySelector('#sizeMinus'); if (sizeMinus) sizeMinus.disabled = false;
-        const sizePlus  = tip.querySelector('#sizePlus');  if (sizePlus)  sizePlus.disabled  = false;
-        const segSwitch = tip.querySelector('#segSwitch'); if (segSwitch) segSwitch.style.display='none';
-        const teWhere = tip.querySelector('#teWhere'); if (teWhere) teWhere.value='Main';
-      }
-    }catch(_){ }
-
-// Initialize segment selection based on clicked tip
-    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
-    updateSegSwitchVisibility();
-if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
-      window.BottomSheetEditor.open();
-    } else {
-      // Minimal fallback
-      tipEditor.classList.remove('is-hidden');
-      tipEditor.classList.add('is-open');
-    }
-  });
-
-  // Keep rowNoz visibility in sync when Wye changes in-editor
-  teWye?.addEventListener('change', ()=>{
-    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
-    const wyeOn = teWye.value==='on';
-    if (editorContext?.where==='main' && wyeOn){
-      const L = state.lines[editorContext.key];
-      setBranchBDefaultIfEmpty(L);
-      if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
-    }
-    showHideMainNozzleRow();
-  });
-
-  // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
-  container.querySelector('#teApply').addEventListener('click', ()=>{
-    if(!editorContext) return;
-    const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
-    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
-    L.elevFt = elev;
-
-    if(where==='main'){
-      L.itemsMain = [{size, lengthFt:len}];
-      if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // default nozzle by diameter if unset OR use chosen
-        if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
-        else ensureDefaultNozzleFor(L,'main',size);
-      }else{
-        L.hasWye=true;
-        const lenA = Math.max(0, +teLenA?.value||0);
-        const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
-        if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
-        if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
-        }
-        if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
-      }
-    } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : [];
-      if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
-      else ensureDefaultNozzleFor(L,'L',size);
-    } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
-      if (!(L.nozRight?.id)){
-        setBranchBDefaultIfEmpty(L);
-      }
-      if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
-    }
-
-    L.visible = true; drawAll(); markDirty();
-  });
-
-  /* ---------------------------- Line toggles ------------------------------ */
-
-  container.querySelectorAll('.linebtn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const key=b.dataset.line; const L=seedDefaultsForKey(key);
-      L.visible = !L.visible; b.classList.toggle('active', L.visible);
-      drawAll(); markDirty();
-    });
-  });
-
-  /* --------------------------- Supply buttons ----------------------------- */
-
-  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
-    state.supply = 'pressurized'; drawAll(); markDirty();
-  });
-  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
-    state.supply = 'static'; drawAll(); markDirty();
-  });
-
-  function enhanceTenderListStyle() {
-    const rootEl = container.querySelector('#tenderList');
-    if (!rootEl) return;
-    rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
-      el.classList.add('tender-emph');
-    });
-  }
-
-  /* -------------------------- Ensure editor script ------------------------ */
-
-  (function ensureBottomSheet(){
-    if (window.BottomSheetEditor) return;
-    try{
-      const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
-      if (already) return;
-      const s = document.createElement('script');
-      s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
-      document.body.appendChild(s);
-    }catch(e){}
-  })();
-
-  /* -------------------------------- Draw --------------------------------- */
+/* -------------------------------- Draw --------------------------------- */
 
   function drawAll(){
     const viewH = Math.ceil(computeNeededHeightPx());
