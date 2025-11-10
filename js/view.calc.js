@@ -545,7 +545,8 @@ export async function render(container){
               <button class="linebtn" data-line="right">Line 3</button>
             </div>
             <div class="actionGroup">
-</div>
+              <button class="presetsbtn" id="presetsBtn">Presets</button>
+            </div>
           </div>
 
           <div class="controlRow">
@@ -1284,55 +1285,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     else { box.innerHTML = ''; box.style.display = 'none'; }
   }
 
-  /* ------------------------------- Presets -------------------------------- */
-
-  let chosenPreset=null, chosenLine=null;
-  function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
-  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; const p = e.target.closest('.preset'); if(!p) return;
-    chosenPreset = p.dataset.preset;
-    container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)';
-    updateSheetApply();
-  });
-  container.querySelector('.linepick').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
-    chosenLine = p.dataset.applyline;
-    container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)';
-    updateSheetApply();
-  });
-  function updateSheetApply(){ function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
-  function applyPresetTo(preset, key){
-    const L = state.lines[key]; clearLine(L); L.visible = true;
-    switch(preset){
-      case 'standpipe':
-        L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        L.elevFt=60; break;
-      case 'sprinkler':
-        state.supply='pressurized';
-        L.itemsMain=[{size:'2.5', lengthFt:50}]; L.hasWye=false;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-      case 'foam':
-        L.itemsMain=[{size:'1.75', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
-        ensureDefaultNozzleFor(L,'main','1.75');
-        break;
-      case 'monitor':
-        L.itemsMain=[{size:'2.5', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-      case 'aerial':
-        state.supply='pressurized';
-        L.itemsMain=[{size:'2.5', lengthFt:150}]; L.hasWye=false; L.elevFt=80;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-    }
-    drawAll();
-    markDirty();
-  }
-
-  /* ------------------------------ Why? button ----------------------------- */
+  /* ------------------------------ Why? button ----------------------------- *//* ------------------------------ Why? button ----------------------------- */
 
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
@@ -1776,7 +1729,11 @@ function initBranchPlusMenus(root){
       css.setAttribute('data-auto-hide','presets');
       css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
       document.head && document.head.appendChild(css);
-      var btn = function init(){
+      var btn = document.getElementById('presetsBtn');
+      if (btn){ btn.replaceWith(btn.cloneNode(true)); }
+    }catch(_e){}
+  }
+  function init(){
     resetAllDeployedLines();
     hidePresetsUI();
     // If your app has a render() or drawAll(), trigger a first draw safely
