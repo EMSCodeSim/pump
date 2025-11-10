@@ -607,13 +607,22 @@ export async function render(container){
             <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
   <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
   <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
-    <span class="mini" style="opacity:.85">Round trip (min)</span>
+    <span class="mini" style="opacity:.85">Round trip</span>
         <span id="tTripAll" class="pillVal" data-min="0">—</span>
         <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
   </div>
 </div>
           </div>
-
+          <!-- New: global Round Trip control -->
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+            <div class="field" style="min-width:150px">
+              <label>Round trip</label>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
+            </div>
+            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
+              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
+            </div>
+          </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
               <label>Tender ID / Number</label>
@@ -937,16 +946,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult',
-      tTripAll:        '',
-      tTripApplyAll:  ''}
+      tTripAll:        '#tTripAll',
+      tTripApplyAll:  '#tTripApplyAll'}
   });
 
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
   try {
-    const tTripAllEl = container.querySelector('');
-    const tTripApplyAllEl = container.querySelector('');
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -1006,8 +1015,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   })();
 // Global Round Trip apply-to-all
   try {
-    const tTripAllEl = container.querySelector('');
-    const tTripApplyAllEl = container.querySelector('');
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -1745,7 +1754,7 @@ function initBranchPlusMenus(root){
       try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
-          const el = container.querySelector('');
+          const el = container.querySelector('#tTripAll');
           if (el){
             el.setAttribute('data-min', String(mins));
             el.textContent = String(mins);
