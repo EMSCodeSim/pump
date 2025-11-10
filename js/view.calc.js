@@ -643,7 +643,32 @@ export async function render(container){
       </section>
     </section>
 
-`;
+    <!-- Presets bottom sheet -->
+    <div id="sheet" class="sheet" aria-modal="true" role="dialog">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="title">Presets</div>
+        <button class="btn" id="sheetClose">Close</button>
+      </div>
+      <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
+
+      <div class="preset-grid" id="presetGrid">
+        <div class="preset" data-preset="standpipe">Standpipe</div>
+        <div class="preset" data-preset="sprinkler">Sprinkler</div>
+        <div class="preset" data-preset="foam">Foam</div>
+        <div class="preset" data-preset="monitor">Monitor</div>
+        <div class="preset" data-preset="aerial">Aerial</div>
+      </div>
+
+      <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
+      <div class="linepick">
+        <div class="preset" data-applyline="left">Line 1</div>
+        <div class="preset" data-applyline="back">Line 2</div>
+        <div class="preset" data-applyline="right">Line 3</div>
+      </div>
+      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
+    </div>
+    <div id="sheetBackdrop" class="sheet-backdrop"></div>
+  `;
 
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */
@@ -766,39 +791,31 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         b.textContent = label;
         return b;
       };
-      const bMain = mk('Main','main');
-      const bA    = mk('Line A','A');
-      const bB    = mk('Line B','B');
-      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
+      const bA = mk('Line A','A');
+      const bB = mk('Line B','B');
+      wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
       function setActive(seg){
         // highlight
-        [bMain,bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
+        [bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
         // show/hide rows
-        const mainShow = (seg==='main');
-        if (wyeRow) wyeRow.style.display = mainShow? '' : 'none';
+        if (wyeRow) wyeRow.style.display = 'none';
         const rows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-        rows.forEach(sel=>{ const el = tip.querySelector(sel); if (el) el.style.display = mainShow? '' : 'none'; });
+        rows.forEach(sel=>{ const el = tip.querySelector(sel); if (el) el.style.display = 'none'; });
         if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
         if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
         if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
 
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
-        if (!mainShow){
-          if (teSize) teSize.value = '1.75';
-          if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-          if (sizeMinus) sizeMinus.disabled = true;
-          if (sizePlus)  sizePlus.disabled  = true;
-        }else{
-          if (sizeMinus) sizeMinus.disabled = false;
-          if (sizePlus)  sizePlus.disabled  = false;
-        }
-        // where label polish
-        if (teWhere){
-          teWhere.value = seg==='main' ? 'Main (to Wye)' : (seg==='A' ? 'Line A (left of wye)' : 'Line B (right of wye)');
-        }
+        if (teSize) teSize.value = '1.75';
+        if (sizeLabel) sizeLabel.textContent = '1 3/4″';
+        if (sizeMinus) sizeMinus.disabled = true;
+        if (sizePlus)  sizePlus.disabled  = true;
+        // where label & context
+        if (teWhere){ teWhere.value = seg==='A' ? 'Line A' : 'Line B'; }
+        try { if (typeof editorContext !== 'undefined' && editorContext) { editorContext.where = (seg==='A' ? 'L' : 'R'); } } catch(_){}
       }
 
       function gateWyeBySize(){
@@ -820,13 +837,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         const sizeOK = gateWyeBySize();
         wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
         if (!(isOn && sizeOK)){
-          // collapse back to Main if user turned Wye off or size is not 2.5
-          setActive('main');
+          // hide switch entirely when not applicable
+          wrap.style.display = 'none';
         }
       }
 
       // Bind
-      [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
+      [bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
       const wyeSel = tip.querySelector('#teWye');
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
@@ -836,10 +853,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
       // Initial state
       updateWyeAndButtons();
-      // If user clicked a branch tip to open, start there; else Main
+      // If user clicked a branch tip to open, start there; else default to A
       if (whereInit==='L') setActive('A');
       else if (whereInit==='R') setActive('B');
-      else setActive('main');
+      else setActive('A');
     }
 
     // Expose short hooks (scoped to this container instance)
@@ -851,55 +868,36 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const branchASection = container.querySelector('#branchASection');
   const branchBSection = container.querySelector('#branchBSection');
 
-  let currentSeg = 'main'; // 'main' | 'A' | 'B'
+  let currentSeg = 'A'; // 'A' | 'B'
 
   function setSeg(seg){
     currentSeg = seg;
     // Highlight active button
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
+    // Hide main rows always; show only the selected branch section
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
-      const el = container.querySelector(sel);
-      if (!el) return;
-      el.style.display = (seg==='main') ? '' : 'none';
-    });
-    if (wyeRow) wyeRow.style.display = (seg==='main') ? '' : 'none';
-
-    // Branch sections — show only selected branch when wye is on
+    mainRows.forEach(sel=>{ const el = container.querySelector(sel); if (el) el.style.display = 'none'; });
+    if (wyeRow) wyeRow.style.display = 'none';
     if (seg==='A'){
       if (branchASection) branchASection.style.display = '';
       if (branchBSection) branchBSection.style.display = 'none';
-    } else if (seg==='B'){
-      if (branchASection) branchASection.style.display = 'none';
-      if (branchBSection) branchBSection.style.display = '';
+      if (teWhere) teWhere.value = 'Line A';
+      try{ if (typeof editorContext!=='undefined' && editorContext) editorContext.where='L'; }catch(_){ }
     } else {
       if (branchASection) branchASection.style.display = 'none';
-      if (branchBSection) branchBSection.style.display = 'none';
+      if (branchBSection) branchBSection.style.display = '';
+      if (teWhere) teWhere.value = 'Line B';
+      try{ if (typeof editorContext!=='undefined' && editorContext) editorContext.where='R'; }catch(_){ }
     }
-
-    // Lock size to 1.75 on branches (hide controls)
+    // Lock size steppers
     const sizeMinus = container.querySelector('#sizeMinus');
     const sizePlus  = container.querySelector('#sizePlus');
     const sizeLabelEl = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){
-      if (teSize) teSize.value = '1.75';
-      if (sizeLabelEl) sizeLabelEl.textContent = '1 3/4″';
-      if (sizeMinus) sizeMinus.disabled = true;
-      if (sizePlus)  sizePlus.disabled  = true;
-    }else{
-      if (sizeMinus) sizeMinus.disabled = false;
-      if (sizePlus)  sizePlus.disabled  = false;
-    }
-
-    // Update the "Where" label
-    if (teWhere){
-      if (seg==='main') teWhere.value = 'Main (to Wye)';
-      else if (seg==='A') teWhere.value = 'Line A (left of wye)';
-      else if (seg==='B') teWhere.value = 'Line B (right of wye)';
-    }
+    if (teSize) teSize.value = '1.75';
+    if (sizeLabelEl) sizeLabelEl.textContent = '1 3/4″';
+    if (sizeMinus) sizeMinus.disabled = true;
+    if (sizePlus)  sizePlus.disabled  = true;
   }
 
   function updateSegSwitchVisibility(){
@@ -908,7 +906,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       segSwitch.style.display = wyeOn ? 'flex' : 'none';
     }
     // When turning wye off, always reset to main segment
-    if (!wyeOn) setSeg('main');
+    /* hide only; keep previous context */
   }
 
   // Bind seg buttons
@@ -1285,7 +1283,64 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     else { box.innerHTML = ''; box.style.display = 'none'; }
   }
 
-  /* ------------------------------ Why? button ----------------------------- *//* ------------------------------ Why? button ----------------------------- */
+  /* ------------------------------- Presets -------------------------------- */
+
+  const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
+  let chosenPreset=null, chosenLine=null;
+  function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
+  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
+  container.querySelector('#presetsBtn').addEventListener('click', openSheet);
+  container.querySelector('#sheetClose').addEventListener('click', closeSheet);
+  sheetBackdrop.addEventListener('click', closeSheet);
+  container.querySelector('#presetGrid').addEventListener('click',(e)=>{
+    const p = e.target.closest('.preset'); if(!p) return;
+    chosenPreset = p.dataset.preset;
+    container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
+    p.style.outline = '2px solid var(--accent)';
+    updateSheetApply();
+  });
+  container.querySelector('.linepick').addEventListener('click',(e)=>{
+    const p = e.target.closest('.preset'); if(!p) return;
+    chosenLine = p.dataset.applyline;
+    container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
+    p.style.outline = '2px solid var(--accent)';
+    updateSheetApply();
+  });
+  function updateSheetApply(){ container.querySelector('#sheetApply').disabled = !(chosenPreset && chosenLine); }
+  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); closeSheet(); });
+
+  function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
+  function applyPresetTo(preset, key){
+    const L = state.lines[key]; clearLine(L); L.visible = true;
+    switch(preset){
+      case 'standpipe':
+        L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false;
+        ensureDefaultNozzleFor(L,'main','2.5');
+        L.elevFt=60; break;
+      case 'sprinkler':
+        state.supply='pressurized';
+        L.itemsMain=[{size:'2.5', lengthFt:50}]; L.hasWye=false;
+        ensureDefaultNozzleFor(L,'main','2.5');
+        break;
+      case 'foam':
+        L.itemsMain=[{size:'1.75', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
+        ensureDefaultNozzleFor(L,'main','1.75');
+        break;
+      case 'monitor':
+        L.itemsMain=[{size:'2.5', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
+        ensureDefaultNozzleFor(L,'main','2.5');
+        break;
+      case 'aerial':
+        state.supply='pressurized';
+        L.itemsMain=[{size:'2.5', lengthFt:150}]; L.hasWye=false; L.elevFt=80;
+        ensureDefaultNozzleFor(L,'main','2.5');
+        break;
+    }
+    drawAll();
+    markDirty();
+  }
+
+  /* ------------------------------ Why? button ----------------------------- */
 
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
@@ -1321,7 +1376,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     L.visible = true;
     editorContext = {key, where};
 
-    const whereLabel = where==='main'?'Main':('Branch '+where);
+    const whereLabel = where==='main'?'Main':(where==='L'?'Line A':'Line B');
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
@@ -1377,6 +1432,15 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     onOpenPopulateEditor(key, where);
     if (container && container.__segEnsureUI) container.__segEnsureUI(where);
+    // Force the segment to match the initial 'where' or default to A
+    try{
+      const segSwitch = container.querySelector('#segSwitch');
+      if (segSwitch){
+        if (where==='L') segSwitch.querySelector('[data-seg="A"]').click();
+        else if (where==='R') segSwitch.querySelector('[data-seg="B"]').click();
+        else segSwitch.querySelector('[data-seg="A"]').click();
+      }
+    }catch(_){ }
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
     updateSegSwitchVisibility();
