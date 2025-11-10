@@ -771,6 +771,32 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const bB    = mk('Line B','B');
       wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
+      // --- Populate branch nozzle selects (A/B) and default to 1 3/4 ---
+      try {
+        const fillNozzleSelect = (sel)=>{
+          if (!sel) return;
+          if (sel.options && sel.options.length > 1) return; // already filled
+          const src = (typeof NOZ!=='undefined') ? NOZ : (window && window.NOZ);
+          if (!src) return;
+          while (sel.firstChild) sel.removeChild(sel.firstChild);
+          const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Select nozzle'; sel.appendChild(opt0);
+          for (const [id,spec] of Object.entries(src)){
+            const opt = document.createElement('option');
+            opt.value = id; opt.textContent = (spec && spec.name) ? spec.name : id;
+            sel.appendChild(opt);
+          }
+        };
+        const teNozA = tip.querySelector('#teNozA');
+        const teNozB = tip.querySelector('#teNozB');
+        fillNozzleSelect(teNozA);
+        fillNozzleSelect(teNozB);
+        // pick defaults if none selected
+        try {
+          const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
+          if (defId){ if (teNozA && !teNozA.value) teNozA.value = defId; if (teNozB && !teNozB.value) teNozB.value = defId; }
+        } catch(_){}
+      } catch(_){}
+
 
       function setActive(seg){
         // highlight
@@ -783,16 +809,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
         if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
         if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
-        // Also toggle individual Branch A/B rows (length & nozzle)
-        const rowLenA = tip.querySelector('#teLenA')?.closest('.te-row');
-        const rowNozA = tip.querySelector('#teNozA')?.closest('.te-row');
-        const rowLenB = tip.querySelector('#teLenB')?.closest('.te-row');
-        const rowNozB = tip.querySelector('#teNozB')?.closest('.te-row');
-        if (rowLenA) rowLenA.style.display = (seg==='A')? '' : 'none';
-        if (rowNozA) rowNozA.style.display = (seg==='A')? '' : 'none';
-        if (rowLenB) rowLenB.style.display = (seg==='B')? '' : 'none';
-        if (rowNozB) rowNozB.style.display = (seg==='B')? '' : 'none';
-
 
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
