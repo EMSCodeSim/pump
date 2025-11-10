@@ -859,10 +859,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
 
     
-    // Sync editorContext.where and Where label
-    try{ if (editorContext) editorContext.where = (seg==='A' ? 'L' : (seg==='B' ? 'R' : 'main')); }catch(_){ }
+    // Sync editorContext.where and the visible 'Where' field
+    try { if (typeof editorContext==='object' && editorContext) editorContext.where = (seg==='A' ? 'L' : (seg==='B' ? 'R' : 'main')); } catch(_){ }
     const whereEl = container.querySelector('#teWhere');
-    if (whereEl){ whereEl.value = (seg==='A' ? 'Line A (left of wye)' : (seg==='B' ? 'Line B (right of wye)' : 'Main (to Wye)')); }
+    if (whereEl){ whereEl.value = (seg==='main' ? 'Main (to Wye)' : (seg==='A' ? 'Line A (left of wye)' : 'Line B (right of wye)')); }
 // Toggle visibility of rows depending on segment
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
@@ -1699,4 +1699,6 @@ function initBranchPlusMenus(root){
     document.head.appendChild(st);
   }catch(_){}
 })();
+
+
 
