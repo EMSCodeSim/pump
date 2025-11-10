@@ -613,16 +613,7 @@ export async function render(container){
   </div>
 </div>
           </div>
-          <!-- New: global Round Trip control -->
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
-            <div class="field" style="min-width:150px">
-              <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
-            </div>
-            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
-              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-            </div>
-          </div>
+
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
               <label>Tender ID / Number</label>
@@ -783,16 +774,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
         if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
         if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
-        // Toggle individual Branch A/B rows (length & nozzle)
-        const rowLenA = tip.querySelector('#teLenA')?.closest('.te-row');
-        const rowNozA = tip.querySelector('#teNozA')?.closest('.te-row');
-        const rowLenB = tip.querySelector('#teLenB')?.closest('.te-row');
-        const rowNozB = tip.querySelector('#teNozB')?.closest('.te-row');
-        if (rowLenA) rowLenA.style.display = (seg==='A')? '' : 'none';
-        if (rowNozA) rowNozA.style.display = (seg==='A')? '' : 'none';
-        if (rowLenB) rowLenB.style.display = (seg==='B')? '' : 'none';
-        if (rowNozB) rowNozB.style.display = (seg==='B')? '' : 'none';
-
 
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
@@ -956,16 +937,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult',
-      tTripAll:        '#tTripAll',
-      tTripApplyAll:  '#tTripApplyAll'}
+      tTripAll:        '',
+      tTripApplyAll:  ''}
   });
 
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    const tTripAllEl = container.querySelector('');
+    const tTripApplyAllEl = container.querySelector('');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -1025,8 +1006,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   })();
 // Global Round Trip apply-to-all
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    const tTripAllEl = container.querySelector('');
+    const tTripApplyAllEl = container.querySelector('');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -1692,13 +1673,6 @@ function initBranchPlusMenus(root){
     root.querySelector('#elevAPlus')
   );
   fillNozzles(root.querySelector('#teNozA'));
-  (function(){
-    var sel = root.querySelector('#teNozA');
-    if(sel && !sel.value && typeof defaultNozzleIdForSize==='function'){
-      var defId = defaultNozzleIdForSize('1.75');
-      if(defId) sel.value = defId;
-    }
-  })();
 
   // Branch B
   makeLen(
@@ -1714,13 +1688,6 @@ function initBranchPlusMenus(root){
     root.querySelector('#elevBPlus')
   );
   fillNozzles(root.querySelector('#teNozB'));
-  (function(){
-    var sel = root.querySelector('#teNozB');
-    if(sel && !sel.value && typeof defaultNozzleIdForSize==='function'){
-      var defId = defaultNozzleIdForSize('1.75');
-      if(defId) sel.value = defId;
-    }
-  })();
 }
 
 
@@ -1778,7 +1745,7 @@ function initBranchPlusMenus(root){
       try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
-          const el = container.querySelector('#tTripAll');
+          const el = container.querySelector('');
           if (el){
             el.setAttribute('data-min', String(mins));
             el.textContent = String(mins);
