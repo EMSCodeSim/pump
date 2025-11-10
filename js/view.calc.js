@@ -736,9 +736,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const teNozA      = container.querySelector('#teNozA');
   const teNozB      = container.querySelector('#teNozB');
   
-    const teElevA    = container.querySelector('#teElevA');
-  const teElevB    = container.querySelector('#teElevB');
-/* ====== Segmented Branch UI (scoped, no globals) ====== */
+  /* ====== Segmented Branch UI (scoped, no globals) ====== */
   (function(){
     // Create UI right above the action buttons, only once per open
     function __ensureSegUI(whereInit){
@@ -860,7 +858,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     // Highlight active button
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
 
-    // Toggle visibility of rows depending on segment
+        // Sync editorContext.where and Where label
+    try{ if (typeof editorContext==='object' && editorContext){ editorContext.where = (seg==='A'?'L':(seg==='B'?'R':'main')); } }catch(_){ }
+    const whereEl = container.querySelector('#teWhere');
+    if (whereEl){ whereEl.value = (seg==='A' ? 'Line A (left of wye)' : (seg==='B' ? 'Line B (right of wye)' : 'Main (to Wye)')); }
+
+// Toggle visibility of rows depending on segment
     const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
     const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
     mainRows.forEach(sel=>{
@@ -1122,11 +1125,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
         const branchFL = FL_total(bnNoz.gpm, bnSegs);
-        PDP = bnNoz.NP + branchFL + mainFL + (((activeSide(L)==='L' ? (L.elevLeftFt||0) : (L.elevRightFt||0)) * PSI_PER_FT));
+        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
         const lNeed = FL_total(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (Math.max(L.elevLeftFt||0, L.elevRightFt||0) * PSI_PER_FT);
+        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
       }else{
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
@@ -1328,150 +1331,58 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
-    // Populate branch elevations from state
-    if (typeof L.elevLeftFt === 'number' && teElevA) teElevA.value = L.elevLeftFt;
-    if (typeof L.elevRightFt === 'number' && teElevB) teElevB.value = L.elevRightFt;
+    // --- Ensure branch editors are populated ---
+    try {
+      const fillNozzleSelect = (sel) => {
+        if (!sel) return; if (sel.options && sel.options.length > 1) return; if (!window.NOZ) return;
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+        const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='Select nozzle'; sel.appendChild(opt0);
+        for (const [id,spec] of Object.entries(NOZ)){
+          const opt = document.createElement('option'); opt.value = id; opt.textContent = (spec && spec.name) ? spec.name : id; sel.appendChild(opt);
+        }
+      };
+      fillNozzleSelect(teNozA); fillNozzleSelect(teNozB);
+      const sA = (L.itemsLeft && L.itemsLeft[0]) ? L.itemsLeft[0] : { size:'1.75', lengthFt: 100 };
+      if (teLenA)  teLenA.value = sA.lengthFt || 0;
+      if (teElevA) teElevA.value = (typeof L.elevLeftFt==='number') ? L.elevLeftFt : 0;
+      if (teNozA && L.nozLeft && L.nozLeft.id) teNozA.value = L.nozLeft.id;
+      const sB = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : { size:'1.75', lengthFt: 100 };
+      if (teLenB)  teLenB.value = sB.lengthFt || 0;
+      if (teElevB) teElevB.value = (typeof L.elevRightFt==='number') ? L.elevRightFt : 0;
+      if (teNozB && L.nozRight && L.nozRight.id) teNozB.value = L.nozRight.id;
+    } catch(_){}
+
 
     if(where==='main'){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
       if (L.hasWye) {
-        setBr
-    try { const lA = container.querySelector('#elevALabel'); if (lA && teElevA) lA.textContent = (teElevA.value||0)+'′'; } catch(_){ }
-    try { const lB = container.querySelector('#elevBLabel'); if (lB && teElevB) lB.textContent = (teElevB.value||0)+'′'; } catch(_){ }
-anchBDefaultIfEmpty(L); // ensure B default when wye on
+        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       } else {
         // Ensure default nozzle for main based on diameter if missing
         ensureDefaultNozzleFor(L,'main',seg.size);
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
-    } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
-      ensureDefaultNozzleFor(L,'L',seg.size);
-      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
-    } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
-      setBranchBDefaultIfEmpty(L);
     }
-
-    setBranchABEditorDefaults(key);
-    showHideMainNozzleRow();
-  }
-
-  // Change of diameter in editor → update default nozzle (when applicable)
-  teSize?.addEventListener('change', ()=>{
-    if(!editorContext) return;
-    const {key, where} = editorContext;
-    const L = state.lines[key];
-    const size = teSize.value;
-    if (where==='main' && teWye.value!=='on'){
-      ensureDefaultNozzleFor(L,'main',size);
-      if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
-    } else if (where==='L'){
-      ensureDefaultNozzleFor(L,'L',size);
-      if (L.nozLeft?.id && teNoz) teNoz.value = L.nozLeft.id;
-    } else if (where==='R'){
-      // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
-      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
+    else if(where==='L'){
+      L.hasWye = true;
+      const lenA = Math.max(0, + (teLenA ? teLenA.value : teLen.value) || 0);
+      const sizeA = '1.75';
+      L.itemsLeft = lenA ? [{ size: sizeA, lengthFt: lenA }] : [];
+      if (teNozA && teNozA.value && NOZ[teNozA.value]) L.nozLeft = NOZ[teNozA.value];
+      else ensureDefaultNozzleFor(L,'L',sizeA);
+      if (typeof teElevA !== 'undefined' && teElevA) L.elevLeftFt = Math.max(0, +teElevA.value||0);
+    
     }
-  });
-
-  // Delegate click on "+"
-  stageSvg.addEventListener('click', (e)=>{
-    const tip = e.target.closest('.hose-end'); if(!tip) return;
-    e.preventDefault(); e.stopPropagation();
-    const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
-    onOpenPopulateEditor(key, where);
-    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
-// Initialize segment selection based on clicked tip
-    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
-    updateSegSwitchVisibility();
-if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
-      window.BottomSheetEditor.open();
-    } else {
-      // Minimal fallback
-      tipEditor.classList.remove('is-hidden');
-      tipEditor.classList.add('is-open');
-    }
-  });
-
-  // Keep rowNoz visibility in sync when Wye changes in-editor
-  teWye?.addEventListener('change', ()=>{
-    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
-    const wyeOn = teWye.value==='on';
-    // Persist branch elevations
-    if (wyeOn) {
-      const elevA = Math.max(0, +(teElevA ? teElevA.value : 0) || 0);
-      const elevB = Math.max(0, +(teElevB ? teElevB.value : 0) || 0);
-      L.elevLeftFt = elevA; L.elevRightFt = elevB;
-    }
-    if (editorContext?.where==='main' && wyeOn){
-      const L = state.lines[editorContext.key];
-      setBranchBDefaultIfEmpty(L);
-      if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
-    }
-    showHideMainNozzleRow();
-  });
-
-  
-  // Bind elevation steppers for branches
-  try {
-    const eAm = container.querySelector('#elevAMinus');
-    const eAp = container.querySelector('#elevAPlus');
-    const lA  = container.querySelector('#elevALabel');
-    if (eAm && eAp && teElevA && lA){
-      eAm.addEventListener('click', ()=>{ const v=Math.max(0,(+teElevA.value||0)-1); teElevA.value=String(v); lA.textContent=v+'′'; });
-      eAp.addEventListener('click', ()=>{ const v=(+teElevA.value||0)+1; teElevA.value=String(v); lA.textContent=v+'′'; });
-    }
-    const eBm = container.querySelector('#elevBMinus');
-    const eBp = container.querySelector('#elevBPlus');
-    const lB  = container.querySelector('#elevBLabel');
-    if (eBm && eBp && teElevB && lB){
-      eBm.addEventListener('click', ()=>{ const v=Math.max(0,(+teElevB.value||0)-1); teElevB.value=String(v); lB.textContent=v+'′'; });
-      eBp.addEventListener('click', ()=>{ const v=(+teElevB.value||0)+1; teElevB.value=String(v); lB.textContent=v+'′'; });
-    }
-  } catch(_){}
-// Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
-  container.querySelector('#teApply').addEventListener('click', ()=>{
-    if(!editorContext) return;
-    const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
-    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
-    L.elevFt = elev;
-
-    if(where==='main'){
-      L.itemsMain = [{size, lengthFt:len}];
-      if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // default nozzle by diameter if unset OR use chosen
-        if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
-        else ensureDefaultNozzleFor(L,'main',size);
-      }else{
-        L.hasWye=true;
-        const lenA = Math.max(0, +teLenA?.value||0);
-        const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
-        if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
-        if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
-        }
-        if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
-      }
-    } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : [];
-      if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
-      else ensureDefaultNozzleFor(L,'L',size);
-    } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
-      if (!(L.nozRight?.id)){
-        setBranchBDefaultIfEmpty(L);
-      }
-      if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
+    else {
+      L.hasWye = true;
+      const lenB = Math.max(0, + (teLenB ? teLenB.value : teLen.value) || 0);
+      const sizeB = '1.75';
+      L.itemsRight = lenB ? [{ size: sizeB, lengthFt: lenB }] : [];
+      if (teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
+      else ensureDefaultNozzleFor(L,'R',sizeB);
+      if (typeof teElevB !== 'undefined' && teElevB) L.elevRightFt = Math.max(0, +teElevB.value||0);
+    
     }
 
     L.visible = true; drawAll(); markDirty();
