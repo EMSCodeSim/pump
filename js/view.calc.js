@@ -783,7 +783,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
         if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
         if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
-        // Also toggle individual Branch A/B rows (length & nozzle)
+        // Toggle individual Branch A/B rows (length & nozzle)
         const rowLenA = tip.querySelector('#teLenA')?.closest('.te-row');
         const rowNozA = tip.querySelector('#teNozA')?.closest('.te-row');
         const rowLenB = tip.querySelector('#teLenB')?.closest('.te-row');
@@ -1667,27 +1667,9 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-  try{
-    if(!sel) return;
-    let list = (typeof NOZ_LIST!=='undefined' && Array.isArray(NOZ_LIST)) ? NOZ_LIST : (Array.isArray(window?.NOZ_LIST)? window.NOZ_LIST : null);
-    if(!list){
-      // Retry once on next frame in case data hasn't been initialized yet
-      requestAnimationFrame(()=> fillNozzles(sel));
-      return;
-    }
-    sel.innerHTML = list.map(n=>{
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-    // Default to 1 3/4 nozzle if nothing selected
     try{
-      const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
-      if(defId && !sel.value) sel.value = defId;
-    }catch(_){}
-  }catch(e){}
-}
-catch(e){}
+      if(!sel || !Array.isArray(NOZ_LIST)) return;
+    }catch(e){}
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>{
       const label = n.name || n.desc || n.id || 'Nozzle';
@@ -1710,6 +1692,13 @@ catch(e){}
     root.querySelector('#elevAPlus')
   );
   fillNozzles(root.querySelector('#teNozA'));
+  (function(){
+    var sel = root.querySelector('#teNozA');
+    if(sel && !sel.value && typeof defaultNozzleIdForSize==='function'){
+      var defId = defaultNozzleIdForSize('1.75');
+      if(defId) sel.value = defId;
+    }
+  })();
 
   // Branch B
   makeLen(
@@ -1725,6 +1714,13 @@ catch(e){}
     root.querySelector('#elevBPlus')
   );
   fillNozzles(root.querySelector('#teNozB'));
+  (function(){
+    var sel = root.querySelector('#teNozB');
+    if(sel && !sel.value && typeof defaultNozzleIdForSize==='function'){
+      var defId = defaultNozzleIdForSize('1.75');
+      if(defId) sel.value = defId;
+    }
+  })();
 }
 
 
