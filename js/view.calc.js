@@ -783,6 +783,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         if (branchBlock) branchBlock.style.display = (seg==='A'||seg==='B')? '' : 'none';
         if (aSect) aSect.style.display = (seg==='A')? '' : 'none';
         if (bSect) bSect.style.display = (seg==='B')? '' : 'none';
+        // Also toggle individual Branch A/B rows (length & nozzle)
+        const rowLenA = tip.querySelector('#teLenA')?.closest('.te-row');
+        const rowNozA = tip.querySelector('#teNozA')?.closest('.te-row');
+        const rowLenB = tip.querySelector('#teLenB')?.closest('.te-row');
+        const rowNozB = tip.querySelector('#teNozB')?.closest('.te-row');
+        if (rowLenA) rowLenA.style.display = (seg==='A')? '' : 'none';
+        if (rowNozA) rowNozA.style.display = (seg==='A')? '' : 'none';
+        if (rowLenB) rowLenB.style.display = (seg==='B')? '' : 'none';
+        if (rowNozB) rowNozB.style.display = (seg==='B')? '' : 'none';
+
 
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
