@@ -607,7 +607,7 @@ export async function render(container){
             <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
   <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
   <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
-    <span class="mini" style="opacity:.85">Round trip</span>
+    <span class="mini" style="opacity:.85">Round trip (min)</span>
         <span id="tTripAll" class="pillVal" data-min="0">—</span>
         <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
   </div>
@@ -616,8 +616,8 @@ export async function render(container){
           <!-- New: global Round Trip control -->
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <div class="field" style="min-width:150px">
-              <label>Round trip</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
+              <label>Round trip (min)</label>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled>
             </div>
             <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
@@ -1780,3 +1780,19 @@ function initBranchPlusMenus(root){
   }catch(_){}
 })();
 
+
+
+  // Auto-fill Round trip from the first tender that completes a round trip
+  try {
+    const tTripAll = container.querySelector('#tTripAll');
+    if (tTripAll) {
+      container.addEventListener('tender:roundtrip:first', (ev)=>{
+        if (!tTripAll.value) {
+          const mins = Math.max(0, +(ev && ev.detail && ev.detail.minutes || 0));
+          tTripAll.value = String(mins);
+        }
+      }, { once: true });
+    }
+  } catch(e){}
+
+  try { const rt = container.querySelector('#tTripAll'); if (rt){ rt.addEventListener('keydown', e=>e.preventDefault()); rt.addEventListener('input', ()=> rt.blur()); } } catch(e){}
