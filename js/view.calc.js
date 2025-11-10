@@ -643,32 +643,7 @@ export async function render(container){
       </section>
     </section>
 
-    <!-- Presets bottom sheet -->
-    <div id="sheet" class="sheet" aria-modal="true" role="dialog">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="title">Presets</div>
-        <button class="btn" id="sheetClose">Close</button>
-      </div>
-      <div class="mini" style="opacity:.85;margin-top:4px">Pick a setup, then choose line to apply.</div>
-
-      <div class="preset-grid" id="presetGrid">
-        <div class="preset" data-preset="standpipe">Standpipe</div>
-        <div class="preset" data-preset="sprinkler">Sprinkler</div>
-        <div class="preset" data-preset="foam">Foam</div>
-        <div class="preset" data-preset="monitor">Monitor</div>
-        <div class="preset" data-preset="aerial">Aerial</div>
-      </div>
-
-      <div class="mini" style="opacity:.85;margin-top:10px">Apply to:</div>
-      <div class="linepick">
-        <div class="preset" data-applyline="left">Line 1</div>
-        <div class="preset" data-applyline="back">Line 2</div>
-        <div class="preset" data-applyline="right">Line 3</div>
-      </div>
-      <div class="te-actions"><button class="btn primary" id="sheetApply" disabled>Apply Preset</button></div>
-    </div>
-    <div id="sheetBackdrop" class="sheet-backdrop"></div>
-  `;
+`;
 
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */
@@ -1310,64 +1285,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     else { box.innerHTML = ''; box.style.display = 'none'; }
   }
 
-  /* ------------------------------- Presets -------------------------------- */
-
-  const sheet = container.querySelector('#sheet'), sheetBackdrop = container.querySelector('#sheetBackdrop');
-  let chosenPreset=null, chosenLine=null;
-  function openSheet(){ sheet.classList.add('show'); sheetBackdrop.style.display='block'; }
-  function closeSheet(){ sheet.classList.remove('show'); sheetBackdrop.style.display='none'; chosenPreset=null; chosenLine=null; container.querySelector('#sheetApply').disabled=true; }
-  container.querySelector('#presetsBtn').addEventListener('click', openSheet);
-  container.querySelector('#sheetClose').addEventListener('click', closeSheet);
-  sheetBackdrop.addEventListener('click', closeSheet);
-  container.querySelector('#presetGrid').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
-    chosenPreset = p.dataset.preset;
-    container.querySelectorAll('#presetGrid .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)';
-    updateSheetApply();
-  });
-  container.querySelector('.linepick').addEventListener('click',(e)=>{
-    const p = e.target.closest('.preset'); if(!p) return;
-    chosenLine = p.dataset.applyline;
-    container.querySelectorAll('.linepick .preset').forEach(x=>x.style.outline='none');
-    p.style.outline = '2px solid var(--accent)';
-    updateSheetApply();
-  });
-  function updateSheetApply(){ container.querySelector('#sheetApply').disabled = !(chosenPreset && chosenLine); }
-  container.querySelector('#sheetApply').addEventListener('click', ()=>{ if(!(chosenPreset && chosenLine)) return; applyPresetTo(chosenPreset, chosenLine); closeSheet(); });
-
-  function clearLine(L){ L.itemsMain=[]; L.itemsLeft=[]; L.itemsRight=[]; L.hasWye=false; L.elevFt=0; }
-  function applyPresetTo(preset, key){
-    const L = state.lines[key]; clearLine(L); L.visible = true;
-    switch(preset){
-      case 'standpipe':
-        L.itemsMain=[{size:'2.5', lengthFt:0}]; L.hasWye=false;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        L.elevFt=60; break;
-      case 'sprinkler':
-        state.supply='pressurized';
-        L.itemsMain=[{size:'2.5', lengthFt:50}]; L.hasWye=false;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-      case 'foam':
-        L.itemsMain=[{size:'1.75', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
-        ensureDefaultNozzleFor(L,'main','1.75');
-        break;
-      case 'monitor':
-        L.itemsMain=[{size:'2.5', lengthFt:200}]; L.hasWye=false; L.elevFt=0;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-      case 'aerial':
-        state.supply='pressurized';
-        L.itemsMain=[{size:'2.5', lengthFt:150}]; L.hasWye=false; L.elevFt=80;
-        ensureDefaultNozzleFor(L,'main','2.5');
-        break;
-    }
-    drawAll();
-    markDirty();
-  }
-
-  /* ------------------------------ Why? button ----------------------------- */
+  /* ------------------------------ Why? button ----------------------------- *//* ------------------------------ Why? button ----------------------------- */
 
   container.querySelector('#whyBtn').addEventListener('click', ()=>{
     const anyDeployed = Object.values(state.lines).some(l=>l.visible);
