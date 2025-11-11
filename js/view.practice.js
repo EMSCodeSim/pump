@@ -6,17 +6,22 @@
 // - Equations box = white text on black background
 // - Non-overlapping label "bubbles" at line ends
 // - NOZZLE graphics drawn at line ends (and master stream junction)
-// - FIX: no black bar before first question (initial SVG viewBox/size)
-// - FIX: bubble text stays readable with min pixel size using scale-aware font sizing
 
-import { COEFF, PSI_PER_FT, FL_total } from './store.js';
+import {
+  COEFF,
+  PSI_PER_FT,
+  FL_total,
+} from './store.js';
 
-/* ===================== Small DOM helpers ===================== */
+// ---------- small DOM helpers ----------
 function injectStyle(root, cssText) {
-  const s = document.createElement('style'); s.textContent = cssText; root.appendChild(s);
+  const s = document.createElement('style');
+  s.textContent = cssText;
+  root.appendChild(s);
 }
 function el(html) {
-  const t = document.createElement('template'); t.innerHTML = html.trim();
+  const t = document.createElement('template');
+  t.innerHTML = html.trim();
   return t.content.firstElementChild;
 }
 function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -28,7 +33,7 @@ function weightedPick(weightedArray){
 }
 const sizeLabel = (sz) => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${sz}″`);
 
-/* ===================== Constants & geometry ===================== */
+// ---------- constants ----------
 const ns = 'http://www.w3.org/2000/svg';
 const TOL = 5; // ± psi for "Check"
 const TRUCK_W = 390;
@@ -36,15 +41,13 @@ const TRUCK_H = 260;
 const PX_PER_50FT = 45;
 const BRANCH_LIFT = 10;
 
-// label sizing: keep bubble text at least this many on-screen pixels
-const LABEL_MIN_PX = 12;   // bump to 14 if you want larger minimum
-const LABEL_MAX_PX = 16;   // prevent comically huge text on desktop
-
+// ---------- geometry helpers ----------
 function truckTopY(viewH){ return viewH - TRUCK_H; }
 function pumpXY(viewH){
   const top = truckTopY(viewH);
   return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 };
 }
+
 function mainCurve(totalPx, viewH){
   const {x:sx,y:sy} = pumpXY(viewH);
   const ex = sx;
@@ -53,6 +56,7 @@ function mainCurve(totalPx, viewH){
   const cy = sy - (sy-ey)*0.48;
   return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
 }
+
 function straightBranch(side, startX, startY, totalPx){
   const dir = side==='L'?-1:1;
   const x = startX + dir*20;
@@ -61,7 +65,7 @@ function straightBranch(side, startX, startY, totalPx){
   return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
 
-/* ===================== Scenario generator (50′ only) ===================== */
+// ---------- scenario generator (50' multiples only) ----------
 function makeScenario(){
   const kind = weightedPick([
     { v:'single', w:45 },
@@ -148,7 +152,7 @@ function generateScenario(){
   return S;
 }
 
-/* ===================== Reveal builder ===================== */
+// ---------- reveal builder ----------
 function flSteps(gpm, size, lenFt, label){
   const C = COEFF[size];
   const per100 = C * Math.pow(gpm/100, 2);
@@ -235,7 +239,7 @@ function buildReveal(S){
   };
 }
 
-/* ===================== Bubbles (no-overlap) + scale-aware text ===================== */
+// ---------- bubble labels (non-overlapping) ----------
 const placedBoxes = [];
 function overlaps(a,b){
   return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
@@ -245,42 +249,38 @@ function nudge(attempt, sideBias){
   const dx = ((attempt % 4) - 1.5) * 8 + sideBias; // small lateral jitter + side bias
   return { dx, dy };
 }
-// compute current SVG-to-screen scale (height scale works for our vertical drawing)
-function currentScale(svg){
-  const vb = svg.viewBox.baseVal;
-  const rect = svg.getBoundingClientRect();
-  const vh = vb && vb.height ? vb.height : TRUCK_H + 20;
-  const scaleY = rect.height / vh;
-  return scaleY || 1;
-}
 
-// Draw one bubble; scale text to keep >= LABEL_MIN_PX on screen
-function addBubble(svg, G_labelsP, x, y, text, side='C'){
-  const pad = 4;
-  const scale = currentScale(svg);
-  // convert target pixel size to SVG units so rendered px ≈ desired
-  const desiredPx = Math.max(LABEL_MIN_PX, Math.min(LABEL_MAX_PX, LABEL_MIN_PX));
-  const fontUnits = desiredPx / (scale || 1);
+function addBubble(G_labelsP, x, y, text, side='C'){
+  const padPx = 4;
+  const fontPx = 12;
+  const minWidthPx = 84;
+  const maxWidthPx = 180;
 
-  // Measure text first offscreen (with scaled font-size)
+  const pad = pxToSvg(padPx);
+  const minW = pxToSvg(minWidthPx);
+  const maxW = pxToSvg(maxWidthPx);
+  const fontSize = pxToSvg(fontPx);
+
   const t = document.createElementNS(ns,'text');
   t.setAttribute('x', -1000);
   t.setAttribute('y', -1000);
   t.setAttribute('text-anchor','middle');
   t.setAttribute('fill','#0b0f14');
-  t.setAttribute('font-size', String(fontUnits));
+  t.setAttribute('font-size', String(fontSize));
   t.textContent = text;
   G_labelsP.appendChild(t);
 
   let bb = t.getBBox();
-  let box = { x: x - bb.width/2 - pad, y: y - bb.height - pad, w: bb.width + pad*2, h: bb.height + pad*2 };
+  let boxW = Math.max(minW, Math.min(maxW, bb.width + pad*2));
+  let boxH = bb.height + pad*2;
 
-  const sideBias = side==='L' ? -10 : side==='R' ? 10 : 0;
+  let box = { x: x - boxW/2, y: y - boxH - pxToSvg(6), w: boxW, h: boxH };
+  const sideBias = side==='L' ? -pxToSvg(10) : side==='R' ? pxToSvg(10) : 0;
   let tries = 0;
   while(placedBoxes.some(b => overlaps(b, box)) && tries < 32){
-    const {dx, dy} = nudge(tries++, sideBias);
-    box.x += dx;
-    box.y += dy;
+    box.x += sideBias || ((tries%2===0?1:-1) * pxToSvg(6));
+    box.y -= pxToSvg(10);
+    tries++;
   }
 
   const r = document.createElementNS(ns,'rect');
@@ -288,26 +288,31 @@ function addBubble(svg, G_labelsP, x, y, text, side='C'){
   r.setAttribute('y', box.y);
   r.setAttribute('width', box.w);
   r.setAttribute('height', box.h);
-  r.setAttribute('rx','4'); r.setAttribute('ry','4');
+  r.setAttribute('rx', pxToSvg(4)); r.setAttribute('ry', pxToSvg(4));
   r.setAttribute('fill', '#eaf2ff'); r.setAttribute('stroke', '#111'); r.setAttribute('stroke-width', '.5');
 
   t.setAttribute('x', box.x + box.w/2);
-  t.setAttribute('y', box.y + box.h - 4 - 1);
+  t.setAttribute('y', box.y + box.h - pad*0.8);
 
   const g = document.createElementNS(ns,'g');
   g.appendChild(r); g.appendChild(t);
   G_labelsP.appendChild(g);
-
   placedBoxes.push(box);
 }
 
-/* ===================== Nozzle graphics ===================== */
+
+// ---------- nozzle graphics ----------
+// Draws a small nozzle oriented UP (no rotation math needed).
+// Scales slightly by hose size; colors match hose color on the coupling.
 function drawNozzle(G, x, y, hoseSize, scale = 1) {
   const group = document.createElementNS(ns, 'g');
   group.setAttribute('transform', `translate(${x},${y})`);
 
+  // choose hose class / color
+  const hoseClass = hoseSize === '2.5' ? 'hose25' : 'hose175';
   const couplingStroke = hoseSize === '2.5' ? '#3b82f6' : '#ef4444';
 
+  // coupling (short stub where hose meets nozzle)
   const coupling = document.createElementNS(ns, 'rect');
   coupling.setAttribute('x', -4 * scale);
   coupling.setAttribute('y', -8 * scale);
@@ -319,7 +324,9 @@ function drawNozzle(G, x, y, hoseSize, scale = 1) {
   coupling.setAttribute('stroke', couplingStroke);
   coupling.setAttribute('stroke-width', 1);
 
+  // nozzle body (slight taper)
   const body = document.createElementNS(ns, 'polygon');
+  // points relative to (0,0): draw upward
   const pts = [
     [-3*scale, -8*scale],
     [ 3*scale, -8*scale],
@@ -331,6 +338,7 @@ function drawNozzle(G, x, y, hoseSize, scale = 1) {
   body.setAttribute('stroke', '#111');
   body.setAttribute('stroke-width', .6);
 
+  // tip
   const tip = document.createElementNS(ns, 'polygon');
   const tpts = [
     [-2*scale, -14*scale],
@@ -342,11 +350,13 @@ function drawNozzle(G, x, y, hoseSize, scale = 1) {
   tip.setAttribute('stroke', '#111');
   tip.setAttribute('stroke-width', .6);
 
-  group.appendChild(coupling); group.appendChild(body); group.appendChild(tip);
+  group.appendChild(coupling);
+  group.appendChild(body);
+  group.appendChild(tip);
   G.appendChild(group);
 }
 
-/* ===================== Render ===================== */
+// ---------- rendering ----------
 export function render(container) {
   container.innerHTML = `
     <style>
@@ -358,21 +368,27 @@ export function render(container) {
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
       /* Hose styling — 1¾″ red, 2½″ blue */
-      .hoseBase { fill: none; stroke-linecap: round; }
-      .hose175 { stroke: #ef4444; stroke-width: 10; } /* red */
-      .hose25  { stroke: #3b82f6; stroke-width: 10; } /* blue */
+      .hoseBase { fill: none; stroke-width: 10; stroke-linecap: round; }
+      .hose175 { stroke: #ef4444; } /* red */
+      .hose25  { stroke: #3b82f6; } /* blue */
       .shadow  { stroke: rgba(0,0,0,.22); stroke-width: 12; }
 
       /* Equations box: white text on black */
       #eqBox {
-        background:#0b0f14; color:#ffffff; border-radius:12px; padding:10px 12px;
+        background:#0b0f14;
+        color:#ffffff;
+        border-radius:12px;
+        padding:10px 12px;
         border:1px solid rgba(255,255,255,.15);
       }
-      #eqBox code { background: transparent; color: #e6f3ff; padding: 0 2px; }
-
-      /* Make sure the SVG takes width and shows full height from the jump */
-      #overlayPractice { width: 100%; display:block; }
-    </style>
+      #eqBox code {
+        background: transparent;
+        color: #e6f3ff;
+        padding: 0 2px;
+      }
+    
+    #overlayPractice{width:100%;display:block}
+</style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -391,7 +407,7 @@ export function render(container) {
     <section class="wrapper card">
       <div class="stage" id="stageP">
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
-          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"></image>
+          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
           <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g><g id="nozzlesP"></g>
         </svg>
       </div>
@@ -416,11 +432,25 @@ export function render(container) {
     </section>
   `;
 
-  injectStyle(container, `input, select, textarea, button { font-size:16px; }`);
+  injectStyle(container, `
+    input, select, textarea, button { font-size:16px; } /* prevent iOS zoom on iPhone */
+  `);
 
   // refs
+  const stageEl = container.querySelector('#stageP');
   const svg = container.querySelector('#overlayPractice');
-  const truckImg = container.querySelector('#truckImgP');
+  
+  // Initialize viewBox & size so truck is fully visible before first scenario
+  try {
+    const __initH = (typeof TRUCK_H!=='undefined'?TRUCK_H:260) + 20;
+    const __initW = (typeof TRUCK_W!=='undefined'?TRUCK_W:390);
+    svg.setAttribute('viewBox', `0 0 ${__initW} ${__initH}`);
+    svg.setAttribute('width', __initW);
+    svg.setAttribute('height', __initH);
+    svg.style.width = '100%';
+    svg.style.display = 'block';
+  } catch(e) {}
+const truckImg = container.querySelector('#truckImgP');
   const G_hosesP = container.querySelector('#hosesP');
   const G_branchesP = container.querySelector('#branchesP');
   const G_labelsP = container.querySelector('#labelsP');
@@ -434,31 +464,15 @@ export function render(container) {
 
   let scenario = null;
   let practiceAnswer = null;
-  let eqVisible = false;
 
-  // Ensure initial viewBox/size so truck is fully visible before first scenario draw
-  (function initSvgSizing(){
-    try {
-      const initH = TRUCK_H + 20;
-      const initW = TRUCK_W;
-      svg.setAttribute('viewBox', `0 0 ${initW} ${initH}`);
-      svg.setAttribute('width', initW);
-      svg.setAttribute('height', initH);
-      svg.style.width = '100%';
-      svg.style.display = 'block';
-    } catch(e) {}
-  }());
-
-  // -------- scale-aware labels on resize --------
-  const ro = new ResizeObserver(()=> refreshLabelFonts());
-  ro.observe(svg);
-
-  function refreshLabelFonts(){
-    // Recompute bubble font sizes by rebuilding labels for current scenario
-    if (!scenario) return; // nothing drawn yet
-    // Easiest is to re-draw current scenario (labels are built per draw)
-    drawScenario(scenario);
+  // --- Pixel-to-SVG unit helper (keeps text/labels readable) ---
+  function pxToSvg(px){
+    const vb = svg.viewBox.baseVal;
+    const sx = (svg.clientWidth||vb.width) / vb.width || 1;
+    return px / sx;
   }
+
+  let eqVisible = false;
 
   // -------- draw --------
   function drawScenario(S){
@@ -469,133 +483,216 @@ export function render(container) {
     placedBoxes.length = 0;
     workEl.innerHTML = '';
 
-    // view size (estimate based on the tallest hose run)
+    // view size
     const baseH = TRUCK_H + 20;
     const extra = Math.max(
       S.type==='single' ? (S.mainLen/50)*PX_PER_50FT : 0,
       S.type==='wye2'   ? (Math.max(S.bnA.len, S.bnB.len)/50)*PX_PER_50FT : 0,
       S.type==='master' ? (S.line1.len/50)*PX_PER_50FT : 0
-    );
-    const needH = Math.max(baseH, TRUCK_H + 10 + extra);
-    svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${needH}`);
+    ) + BRANCH_LIFT + 20;
+    const viewH = Math.ceil(baseH + extra);
 
-    // path groups
-    const pMain = document.createElementNS(ns,'path');
-    const pShadow = document.createElementNS(ns,'path');
+    svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
+    stageEl.style.height = viewH + 'px';
+    truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    // main hose path
-    const mainPx = (
-      S.type==='single' ? (S.mainLen/50)*PX_PER_50FT :
-      S.type==='wye2'   ? (S.mainLen/50)*PX_PER_50FT :
-                          (S.line1.len/50)*PX_PER_50FT // master shares
-    );
-    const { d:mainD, endX, endY } = mainCurve(mainPx, needH);
+    if(S.type==='single' || S.type==='wye2'){
+      const totalPx = (S.mainLen/50)*PX_PER_50FT;
+      const geom = mainCurve(totalPx, viewH);
 
-    pMain.setAttribute('d', mainD);
-    pShadow.setAttribute('d', mainD);
-    pShadow.setAttribute('class','hoseBase shadow');
+      // main
+      const sh = document.createElementNS(ns,'path');
+      sh.setAttribute('class','hoseBase shadow');
+      sh.setAttribute('d', geom.d);
+      G_hosesP.appendChild(sh);
 
-    // color main by size / flow
-    const mainClass = (S.type==='single' && S.mainSize==='2.5') ? 'hose25'
-                    : (S.type==='wye2'   && S.mainSize==='2.5') ? 'hose25'
-                    : 'hose175';
-    pMain.setAttribute('class','hoseBase '+mainClass);
+      const main = document.createElementNS(ns,'path');
+      main.setAttribute('class', `hoseBase ${S.mainSize==='2.5'?'hose25':'hose175'}`);
+      main.setAttribute('d', geom.d);
+      G_hosesP.appendChild(main);
 
-    G_hosesP.appendChild(pShadow); G_hosesP.appendChild(pMain);
+      // nozzle for single or for the wye junction head (we’ll put nozzles on branches for wye)
+      if (S.type==='single') {
+        drawNozzle(G_nozzlesP, geom.endX, geom.endY, S.mainSize, S.mainSize==='2.5' ? 1.1 : 1);
+      }
 
-    // add main label bubble at top
-    const mainTxt = S.type==='single'
-      ? `${S.mainLen}′ ${sizeLabel(S.mainSize)}`
-      : S.type==='wye2'
-      ? `${S.mainLen}′ ${sizeLabel(S.mainSize)} (to wye)`
-      : `Two ${S.line1.len}′ ${sizeLabel('2.5')} lines`;
-    addBubble(svg, G_labelsP, endX, endY, mainTxt, 'C');
+      if(S.type==='wye2'){
+        // A
+        const aPx = (S.bnA.len/50)*PX_PER_50FT;
+        const aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
+        const aSh = document.createElementNS(ns,'path');
+        aSh.setAttribute('class','hoseBase shadow');
+        aSh.setAttribute('d', aGeom.d);
+        G_branchesP.appendChild(aSh);
+        const a = document.createElementNS(ns,'path');
+        a.setAttribute('class','hoseBase hose175');
+        a.setAttribute('d', aGeom.d);
+        G_branchesP.appendChild(a);
 
-    // branches or single
-    if (S.type==='single'){
-      drawNozzle(G_nozzlesP, endX, endY, S.mainSize, 1);
-      addBubble(svg, G_labelsP, endX, endY-20, `${S.mainNoz.label} • ELEV ${S.elevFt}′`, 'C');
-    } else if (S.type==='wye2'){
-      // draw branches straight up-left / up-right
-      const bApx = (S.bnA.len/50)*PX_PER_50FT;
-      const bBpx = (S.bnB.len/50)*PX_PER_50FT;
-      const A = straightBranch('L', endX, endY, bApx);
-      const B = straightBranch('R', endX, endY, bBpx);
+        // B
+        const bPx = (S.bnB.len/50)*PX_PER_50FT;
+        const bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
+        const bSh = document.createElementNS(ns,'path');
+        bSh.setAttribute('class','hoseBase shadow');
+        bSh.setAttribute('d', bGeom.d);
+        G_branchesP.appendChild(bSh);
+        const b = document.createElementNS(ns,'path');
+        b.setAttribute('class','hoseBase hose175');
+        b.setAttribute('d', bGeom.d);
+        G_branchesP.appendChild(b);
 
-      const pA = document.createElementNS(ns,'path');
-      pA.setAttribute('d', A.d); pA.setAttribute('class','hoseBase hose175');
-      const pAsh = document.createElementNS(ns,'path');
-      pAsh.setAttribute('d', A.d); pAsh.setAttribute('class','hoseBase shadow');
+        // branch nozzles
+        drawNozzle(G_nozzlesP, aGeom.endX, aGeom.endY, '1.75', 1);
+        drawNozzle(G_nozzlesP, bGeom.endX, bGeom.endY, '1.75', 1);
 
-      const pB = document.createElementNS(ns,'path');
-      pB.setAttribute('d', B.d); pB.setAttribute('class','hoseBase hose175');
-      const pBsh = document.createElementNS(ns,'path');
-      pBsh.setAttribute('d', B.d); pBsh.setAttribute('class','hoseBase shadow');
-
-      G_branchesP.appendChild(pAsh); G_branchesP.appendChild(pA);
-      G_branchesP.appendChild(pBsh); G_branchesP.appendChild(pB);
-
-      drawNozzle(G_nozzlesP, A.endX, A.endY, '1.75', 1);
-      drawNozzle(G_nozzlesP, B.endX, B.endY, '1.75', 1);
-
-      addBubble(svg, G_labelsP, A.endX, A.endY, `A: ${S.bnA.len}′ 1¾″ • ${S.bnA.noz.label}`, 'L');
-      addBubble(svg, G_labelsP, B.endX, B.endY, `B: ${S.bnB.len}′ 1¾″ • ${S.bnB.noz.label}`, 'R');
-      addBubble(svg, G_labelsP, endX, endY-16, `Wye +10 • ELEV ${S.elevFt}′`, 'C');
-    } else {
-      // master: just annotate at ends
-      drawNozzle(G_nozzlesP, endX-12, endY, '2.5', 1);
-      drawNozzle(G_nozzlesP, endX+12, endY, '2.5', 1);
-      addBubble(svg, G_labelsP, endX, endY-16, `Master ${S.ms.gpm} gpm • NP ${S.ms.NP} • App ${S.ms.appliance} • ELEV ${S.elevFt}′`, 'C');
+        // bubbles (non-overlap)
+        addBubble(G_labelsP, geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`, 'C');
+        addBubble(G_labelsP, aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'L');
+        addBubble(G_labelsP, bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'R');
+      } else {
+        addBubble(G_labelsP, geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
+      }
+      return;
     }
+
+    // master
+    const {x:sx,y:sy} = pumpXY(viewH);
+    const outLeftX  = sx - 26;
+    const outRightX = sx + 26;
+    const outY = sy;
+    const junctionY = Math.max(12, sy - (S.line1.len/50)*PX_PER_50FT);
+    const junctionX = sx;
+
+    // left
+    const aPath = `M ${outLeftX},${outY} L ${outLeftX},${outY - BRANCH_LIFT} L ${outLeftX},${junctionY} L ${junctionX},${junctionY}`;
+    const aSh = document.createElementNS(ns,'path');
+    aSh.setAttribute('class','hoseBase shadow');
+    aSh.setAttribute('d', aPath);
+    G_branchesP.appendChild(aSh);
+    const a = document.createElementNS(ns,'path');
+    a.setAttribute('class','hoseBase hose25');
+    a.setAttribute('d', aPath);
+    G_branchesP.appendChild(a);
+
+    // right
+    const bPath = `M ${outRightX},${outY} L ${outRightX},${outY - BRANCH_LIFT} L ${outRightX},${junctionY} L ${junctionX},${junctionY}`;
+    const bSh = document.createElementNS(ns,'path');
+    bSh.setAttribute('class','hoseBase shadow');
+    bSh.setAttribute('d', bPath);
+    G_branchesP.appendChild(bSh);
+    const b = document.createElementNS(ns,'path');
+    b.setAttribute('class','hoseBase hose25');
+    b.setAttribute('d', bPath);
+    G_branchesP.appendChild(b);
+
+    // nozzle at master stream junction (a bit larger)
+    drawNozzle(G_nozzlesP, junctionX, junctionY, '2.5', 1.25);
+
+    // junction bubble labels
+    addBubble(G_labelsP, outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`, 'L');
+    addBubble(G_labelsP, outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`, 'R');
+    addBubble(G_labelsP, junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
   }
 
-  /* ===================== UI wiring ===================== */
-  function newScenario(){
-    scenario = generateScenario();
-    drawScenario(scenario);
-    const rev = buildReveal(scenario);
+  // ---------- equations ----------
+  function renderEquations(S){
+    const base = `
+      <div><b>Friction Loss (per section):</b> <code>FL = C × (GPM/100)² × (length/100)</code></div>
+      <div style="margin-top:2px"><b>Elevation (psi):</b> <code>Elev = 0.05 × height(ft)</code></div>
+      <div style="margin-top:4px"><b>C Coefficients:</b> 1¾″ = <b>${COEFF["1.75"]}</b>, 2½″ = <b>${COEFF["2.5"]}</b>, 5″ = <b>${COEFF["5"]}</b></div>
+    `;
+    if(!S){
+      return base + `<div style="margin-top:6px">Generate a problem to see scenario-specific equations.</div>`;
+    }
+    if(S.type === 'single'){
+      return `${base}
+        <hr style="opacity:.2;margin:8px 0">
+        <div><b>Single Line:</b> <code>PP = NP + MainFL ± Elev</code></div>`;
+    }
+    if(S.type === 'wye2'){
+      return `${base}
+        <hr style="opacity:.2;margin:8px 0">
+        <div><b>Two-Branch Wye:</b> <code>PP = max(Need_A, Need_B) + MainFL + 10 ± Elev</code></div>`;
+    }
+    return `${base}
+      <hr style="opacity:.2;margin:8px 0">
+      <div><b>Master Stream (two equal 2½″ lines):</b> <code>PP = NP(ms) + max(FL_line) + Appliance ± Elev</code></div>`;
+  }
+
+  // ---------- interactions ----------
+  function makePractice(){
+    const S = generateScenario();
+    scenario = S;
+
+    if(eqVisible){
+      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.style.display = 'block';
+    }
+
+    const rev = buildReveal(S);
     practiceAnswer = rev.total;
-    practiceInfo.textContent = `Find PP for this layout (Total flow shown by nozzles).`;
-    statusEl.textContent = `PP target set. Check within ±${TOL} when ready.`;
+    drawScenario(S);
+    practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
+
+    // Reset previous work/answer
+    statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
+    const guessEl = container.querySelector('#ppGuess');
+    if (guessEl) guessEl.value = '';
   }
 
-  function toggleEquations(){
-    eqVisible = !eqVisible;
-    eqBox.style.display = eqVisible ? '' : 'none';
-    if(eqVisible && scenario){
-      const rev = buildReveal(scenario);
-      eqBox.innerHTML = `
-        <div><b>Equations</b></div>
-        <code>${rev.html}</code>
-      `;
+  container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
+
+  container.querySelector('#checkBtn').addEventListener('click', ()=>{
+    const guess = +(container.querySelector('#ppGuess').value||0);
+    if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
+    const diff = Math.abs(guess - practiceAnswer);
+    const rev = buildReveal(scenario);
+    if(diff<=TOL){
+      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
+      workEl.innerHTML = '';
+    }else{
+      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
+      workEl.innerHTML = rev.html;
+      workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
-  }
+  });
 
-  function reveal(){
+  container.querySelector('#revealBtn').addEventListener('click', ()=>{
     if(!scenario) return;
     const rev = buildReveal(scenario);
     workEl.innerHTML = rev.html;
-    statusEl.innerHTML = `<span class="ok">Answer: ${rev.total} psi</span>`;
-  }
+    statusEl.innerHTML = `<b>Answer:</b> ${rev.total} psi`;
+    workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+  });
 
-  function check(){
-    if(!scenario) return;
-    const val = Number(container.querySelector('#ppGuess').value || NaN);
-    if(Number.isNaN(val)){ statusEl.textContent = 'Enter your PP guess first.'; return; }
-    const ok = Math.abs(val - practiceAnswer) <= TOL;
-    statusEl.innerHTML = ok
-      ? `<span class="ok">✔ Within ±${TOL} psi. Nice!</span>`
-      : `<span class="bad">✖ Off by ${Math.abs(val-practiceAnswer)} psi. Try again or Reveal.</span>`;
-  }
+  eqToggleBtn.addEventListener('click', ()=>{
+    eqVisible = !eqVisible;
+    if(eqVisible){
+      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.style.display = 'block';
+      eqToggleBtn.textContent = 'Hide Equations';
+    }else{
+      eqBox.style.display = 'none';
+      eqToggleBtn.textContent = 'Equations';
+    }
+  });
 
-  container.querySelector('#newScenarioBtn').addEventListener('click', newScenario);
-  container.querySelector('#eqToggleBtn').addEventListener('click', toggleEquations);
-  container.querySelector('#revealBtn').addEventListener('click', reveal);
-  container.querySelector('#checkBtn').addEventListener('click', check);
+  // external events (optional)
+  const onNew = ()=> makePractice();
+  const onEq  = ()=> eqToggleBtn.click();
+  window.addEventListener('practice:newProblem', onNew);
+  window.addEventListener('toggle:equations', onEq);
 
-  // Optional: press 'e' to toggle equations for quick testing
-  window.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='e') toggleEquations(); });
+  // initial state
+  practiceAnswer = null; scenario = null;
+
+  return {
+    dispose(){
+      window.removeEventListener('practice:newProblem', onNew);
+      window.removeEventListener('toggle:equations', onEq);
+    }
+  };
 }
 
 export default { render };
