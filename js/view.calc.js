@@ -1351,6 +1351,29 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
   }
+  // Branch nozzle change listeners (mirror main lines)
+  try {
+    const nozA = tip.querySelector('#teNozA');
+    const nozB = tip.querySelector('#teNozB');
+    if (nozA) nozA.addEventListener('change', () => {
+      try {
+        const id = nozA.value;
+        if (id && NOZ && NOZ[id]) { L.nozLeft = NOZ[id]; }
+        // lock branch hose size to 1.75 is handled elsewhere in calc; just recompute
+        recompute();
+        render();
+      } catch(_){}
+    });
+    if (nozB) nozB.addEventListener('change', () => {
+      try {
+        const id = nozB.value;
+        if (id && NOZ && NOZ[id]) { L.nozRight = NOZ[id]; }
+        recompute();
+        render();
+      } catch(_){}
+    });
+  } catch(_){}
+
 
   // Change of diameter in editor → update default nozzle (when applicable)
   teSize?.addEventListener('change', ()=>{
@@ -1562,17 +1585,27 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   return { dispose(){
     stopAutoSave();
   }};
-    // Added: populate branch nozzle selects and set defaults (fallback injection)
+
+    // (Fallback) Populate Branch A/B nozzle selects like main lines
     try {
-      const aSel = root.querySelector('#teNozA');
-      const bSel = root.querySelector('#teNozB');
-      if (typeof fillNozzles==='function') {
-        fillNozzles(aSel);
-        fillNozzles(bSel);
+      const nozA = root.querySelector('#teNozA');
+      const nozB = root.querySelector('#teNozB');
+      if (typeof fillNozzles === 'function') {
+        fillNozzles(nozA);
+        fillNozzles(nozB);
       }
-      try { const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
-            if (defId) { if (aSel && !aSel.value) aSel.value = defId; if (bSel && !bSel.value) bSel.value = defId; } } catch(e){}
-    } catch(e){}
+      try {
+        if (L.nozLeft && L.nozLeft.id && nozA) nozA.value = L.nozLeft.id;
+        if (L.nozRight && L.nozRight.id && nozB) nozB.value = L.nozRight.id;
+      } catch(_){}
+      try {
+        const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
+        if (defId) {
+          if (nozA && !nozA.value) nozA.value = defId;
+          if (nozB && !nozB.value) nozB.value = defId;
+        }
+      } catch(_){}
+    } catch(_){}
 }
 
 export default { render };
