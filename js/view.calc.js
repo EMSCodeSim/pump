@@ -613,7 +613,16 @@ export async function render(container){
   </div>
 </div>
           </div>
-
+          <!-- New: global Round Trip control -->
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+            <div class="field" style="min-width:150px">
+              <label>Round trip (min)</label>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled>
+            </div>
+            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
+              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
+            </div>
+          </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
               <label>Tender ID / Number</label>
@@ -1004,7 +1013,21 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       document.head.appendChild(st);
     }catch(_){}
   })();
-if (!applied) {
+// Global Round Trip apply-to-all
+  try {
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    if (tTripApplyAllEl) {
+      tTripApplyAllEl.addEventListener('click', ()=>{
+        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
+        let applied = false;
+        try {
+          if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
+            waterSupply.setAllRoundTripMinutes(minutes);
+            applied = true;
+          }
+        } catch(e){}
+        if (!applied) {
           // Fallback: set all tender "trip" inputs in the list and dispatch input events
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
@@ -1757,3 +1780,6 @@ function initBranchPlusMenus(root){
   }catch(_){}
 })();
 
+
+/* Hiding Round Trip controls */
+try{ injectStyle(`#tTripAllRow, #tTripApplyAll, #tTripAll{display:none !important}`); }catch(e){}
