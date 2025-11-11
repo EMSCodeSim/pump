@@ -374,9 +374,10 @@ export function render(container) {
         color: #e6f3ff;
         padding: 0 2px;
       }
-    
-    #overlayPractice{width:100%;display:block}
-</style>
+
+      /* Make the SVG stretch wide and avoid initial crop */
+      #overlayPractice{width:100%;display:block}
+    </style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -427,18 +428,19 @@ export function render(container) {
   // refs
   const stageEl = container.querySelector('#stageP');
   const svg = container.querySelector('#overlayPractice');
-  
-  // Ensure initial viewBox/size so truck is fully visible before first scenario draw
+
+  // --- Fix: set an initial viewBox/size so the truck isn't cropped before the first question
   try {
-    const __initH = (typeof TRUCK_H!=='undefined'?TRUCK_H:260) + 20;
-    const __initW = (typeof TRUCK_W!=='undefined'?TRUCK_W:390);
+    const __initH = TRUCK_H + 20;
+    const __initW = TRUCK_W;
     svg.setAttribute('viewBox', `0 0 ${__initW} ${__initH}`);
     svg.setAttribute('width', __initW);
     svg.setAttribute('height', __initH);
     svg.style.width = '100%';
     svg.style.display = 'block';
   } catch(e) {}
-const truckImg = container.querySelector('#truckImgP');
+
+  const truckImg = container.querySelector('#truckImgP');
   const G_hosesP = container.querySelector('#hosesP');
   const G_branchesP = container.querySelector('#branchesP');
   const G_labelsP = container.querySelector('#labelsP');
