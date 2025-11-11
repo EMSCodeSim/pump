@@ -1439,7 +1439,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
-      if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
+      if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
     }
 
     L.visible = true; drawAll(); markDirty();
@@ -1562,24 +1562,17 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   return { dispose(){
     stopAutoSave();
   }};
-
-    // Ensure branch A/B nozzle selects are populated
+    // Added: populate branch nozzle selects and set defaults (fallback injection)
     try {
-      const selA = root.querySelector('#teNozA');
-      const selB = root.querySelector('#teNozB');
-      if (typeof fillNozzles === 'function') {
-        fillNozzles(selA);
-        fillNozzles(selB);
+      const aSel = root.querySelector('#teNozA');
+      const bSel = root.querySelector('#teNozB');
+      if (typeof fillNozzles==='function') {
+        fillNozzles(aSel);
+        fillNozzles(bSel);
       }
-      // Default both branches to 1 3/4 (185 @ 50) if available
-      try {
-        const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
-        if (defId) {
-          if (selA && !selA.value) selA.value = defId;
-          if (selB && !selB.value) selB.value = defId;
-        }
-      } catch(_){}
-    } catch(_){}
+      try { const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
+            if (defId) { if (aSel && !aSel.value) aSel.value = defId; if (bSel && !bSel.value) bSel.value = defId; } } catch(e){}
+    } catch(e){}
 }
 
 export default { render };
