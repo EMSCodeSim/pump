@@ -573,55 +573,11 @@ export async function render(container){
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
             0–10% → 3×, 11–15% → 2×, 16–25% → 1×, >25% → 0× of same-size lines
           </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
-            <div class="field" style="min-width:150px">
-              <label>Line size</label>
-              <select id="hydrantLineSize">
-                <option value="1.75">1¾″ (attack)</option>
-                <option value="2.5">2½″</option>
-                <option value="5">5″ LDH</option>
-              </select>
-            </div>
-            <div class="field" style="min-width:140px">
-              <label>Static (psi)</label>
-              <input type="number" id="hydrantStatic" placeholder="e.g., 80" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:170px">
-              <label>Residual w/ 1 line (psi)</label>
-              <input type="number" id="hydrantResidual" placeholder="e.g., 72" inputmode="decimal">
-            </div>
-            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
-              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
-            </div>
-          </div>
-          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
-        </div>
 
-        <!-- Tender shuttle -->
-        <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <div>
-              <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
-              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
-            </div>
-            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-  <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
-  <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
-    <span class="mini" style="opacity:.85">Round trip (min)</span>
-        <span id="tTripAll" class="pillVal" data-min="0">—</span>
-        <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-  </div>
 </div>
           </div>
           <!-- New: global Round Trip control -->
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
-            <div class="field" style="min-width:150px">
-              <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
-            </div>
-            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
-              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-            </div>
+
           </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
@@ -946,16 +902,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult',
-      tTripAll:        '#tTripAll',
-      tTripApplyAll:  '#tTripApplyAll'}
+      tTripAll:        '',
+      tTripApplyAll:  ''}
   });
 
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    const tTripAllEl = container.querySelector('');
+    const tTripApplyAllEl = container.querySelector('');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -995,40 +951,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           }
         }
       });
-      // Also observe non-input timer display updates for first completed round trip
-      try {
-        const tTripAll = container.querySelector('#tTripAll');
-        if (!__tripAutofilled && tTripAll) {
-          const parseMins = (txt) => {
-            if (!txt) return NaN;
-            // Accept formats like "3:30" (mm:ss) or "3.5" minutes
-            const m = String(txt).trim();
-            const mmss = m.match(/^(\d+):(\d{1,2})$/);
-            if (mmss) { return (parseInt(mmss[1],10) || 0) + (parseInt(mmss[2],10) || 0)/60; }
-            const num = parseFloat(m);
-            return isFinite(num) ? num : NaN;
-          };
-          const mo = new MutationObserver((mutations)=>{
-            if (__tripAutofilled) return;
-            for (const mu of mutations){
-              const el = mu.target;
-              if (!el) continue;
-              const isTripRole = el.nodeType === 1 && (el.getAttribute('data-role') === 'trip' || el.getAttribute('name') === 'trip');
-              if (!isTripRole) continue;
-              const val = el.value != null ? el.value : el.textContent;
-              const mins = parseMins(val);
-              if (isFinite(mins) && mins > 0){
-                tTripAll.value = String(mins);
-                __tripAutofilled = true;
-                try { mo.disconnect(); } catch(_) {}
-                break;
-              }
-            }
-          });
-          mo.observe(tenderListEl, { subtree: true, characterData: true, childList: true });
-        }
-      } catch(_) {}
-
     }
   } catch(_){}
 
@@ -1049,8 +971,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   })();
 // Global Round Trip apply-to-all
   try {
-    const tTripAllEl = container.querySelector('#tTripAll');
-    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
+    const tTripAllEl = container.querySelector('');
+    const tTripApplyAllEl = container.querySelector('');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -1788,7 +1710,7 @@ function initBranchPlusMenus(root){
       try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
-          const el = container.querySelector('#tTripAll');
+          const el = container.querySelector('');
           if (el){
             el.setAttribute('data-min', String(mins));
             el.textContent = String(mins);
