@@ -617,7 +617,7 @@ export async function render(container){
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <div class="field" style="min-width:150px">
               <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
             </div>
             <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
@@ -995,6 +995,40 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           }
         }
       });
+      // Also observe non-input timer display updates for first completed round trip
+      try {
+        const tTripAll = container.querySelector('#tTripAll');
+        if (!__tripAutofilled && tTripAll) {
+          const parseMins = (txt) => {
+            if (!txt) return NaN;
+            // Accept formats like "3:30" (mm:ss) or "3.5" minutes
+            const m = String(txt).trim();
+            const mmss = m.match(/^(\d+):(\d{1,2})$/);
+            if (mmss) { return (parseInt(mmss[1],10) || 0) + (parseInt(mmss[2],10) || 0)/60; }
+            const num = parseFloat(m);
+            return isFinite(num) ? num : NaN;
+          };
+          const mo = new MutationObserver((mutations)=>{
+            if (__tripAutofilled) return;
+            for (const mu of mutations){
+              const el = mu.target;
+              if (!el) continue;
+              const isTripRole = el.nodeType === 1 && (el.getAttribute('data-role') === 'trip' || el.getAttribute('name') === 'trip');
+              if (!isTripRole) continue;
+              const val = el.value != null ? el.value : el.textContent;
+              const mins = parseMins(val);
+              if (isFinite(mins) && mins > 0){
+                tTripAll.value = String(mins);
+                __tripAutofilled = true;
+                try { mo.disconnect(); } catch(_) {}
+                break;
+              }
+            }
+          });
+          mo.observe(tenderListEl, { subtree: true, characterData: true, childList: true });
+        }
+      } catch(_) {}
+
     }
   } catch(_){}
 
@@ -1780,19 +1814,3 @@ function initBranchPlusMenus(root){
   }catch(_){}
 })();
 
-
-
-  // Auto-fill Round trip from the first tender that completes a round trip
-  try {
-    const tTripAll = container.querySelector('#tTripAll');
-    if (tTripAll) {
-      container.addEventListener('tender:roundtrip:first', (ev)=>{
-        if (!tTripAll.value) {
-          const mins = Math.max(0, +(ev && ev.detail && ev.detail.minutes || 0));
-          tTripAll.value = String(mins);
-        }
-      }, { once: true });
-    }
-  } catch(e){}
-
-  try { const rt = container.querySelector('#tTripAll'); if (rt){ rt.addEventListener('keydown', e=>e.preventDefault()); rt.addEventListener('input', ()=> rt.blur()); } } catch(e){}
