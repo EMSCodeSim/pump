@@ -573,12 +573,47 @@ export async function render(container){
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
             0–10% → 3×, 11–15% → 2×, 16–25% → 1×, >25% → 0× of same-size lines
           </div>
+          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
+            <div class="field" style="min-width:150px">
+              <label>Line size</label>
+              <select id="hydrantLineSize">
+                <option value="1.75">1¾″ (attack)</option>
+                <option value="2.5">2½″</option>
+                <option value="5">5″ LDH</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:140px">
+              <label>Static (psi)</label>
+              <input type="number" id="hydrantStatic" placeholder="e.g., 80" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:170px">
+              <label>Residual w/ 1 line (psi)</label>
+              <input type="number" id="hydrantResidual" placeholder="e.g., 72" inputmode="decimal">
+            </div>
+            <div class="field" style="min-width:150px; display:flex; align-items:flex-end">
+              <button class="btn primary" id="hydrantCalcBtn" type="button">Evaluate %Drop</button>
+            </div>
+          </div>
+          <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
+        </div>
 
+        <!-- Tender shuttle -->
+        <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div>
+              <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
+              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
+            </div>
+            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
+  <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
+    <span class="mini" style="opacity:.85">Round trip (min)</span>
+        <span id="tTripAll" class="pillVal" data-min="0">—</span>
+        <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
+  </div>
 </div>
           </div>
-          <!-- New: global Round Trip control -->
 
-          </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <div class="field" style="min-width:160px">
               <label>Tender ID / Number</label>
@@ -902,16 +937,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       hydrantResidual: '#hydrantResidual',
       hydrantCalcBtn:  '#hydrantCalcBtn',
       hydrantResult:   '#hydrantResult',
-      tTripAll:        '',
-      tTripApplyAll:  ''}
+      tTripAll:        '#tTripAll',
+      tTripApplyAll:  '#tTripApplyAll'}
   });
 
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
   try {
-    const tTripAllEl = container.querySelector('');
-    const tTripApplyAllEl = container.querySelector('');
+    const tTripAllEl = container.querySelector('#tTripAll');
+    const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
@@ -969,21 +1004,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       document.head.appendChild(st);
     }catch(_){}
   })();
-// Global Round Trip apply-to-all
-  try {
-    const tTripAllEl = container.querySelector('');
-    const tTripApplyAllEl = container.querySelector('');
-    if (tTripApplyAllEl) {
-      tTripApplyAllEl.addEventListener('click', ()=>{
-        const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
-        let applied = false;
-        try {
-          if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
-            waterSupply.setAllRoundTripMinutes(minutes);
-            applied = true;
-          }
-        } catch(e){}
-        if (!applied) {
+if (!applied) {
           // Fallback: set all tender "trip" inputs in the list and dispatch input events
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
@@ -1710,7 +1731,7 @@ function initBranchPlusMenus(root){
       try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
-          const el = container.querySelector('');
+          const el = container.querySelector('#tTripAll');
           if (el){
             el.setAttribute('data-min', String(mins));
             el.textContent = String(mins);
