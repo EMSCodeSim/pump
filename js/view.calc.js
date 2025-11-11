@@ -617,7 +617,7 @@ export async function render(container){
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <div class="field" style="min-width:150px">
               <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled>
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled tabindex="-1" aria-hidden="true">
             </div>
             <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
@@ -1781,5 +1781,16 @@ function initBranchPlusMenus(root){
 })();
 
 
-/* Hiding Round Trip controls */
-try{ injectStyle(`#tTripAllRow, #tTripApplyAll, #tTripAll{display:none !important}`); }catch(e){}
+try{injectStyle(`
+/* Hide global Round Trip (min) UI (both desktop & mobile variants) */
+#tTripAllRow,
+#tTripAll,
+#tTripApplyAll,
+label[for="tTripAll"],
+button#tTripApplyAll,
+.roundtrip-global,
+.roundtrip-controls { display:none !important; visibility:hidden !important; }
+
+/* If the label was not for= but sits next to the input inside the same .row, hide that .row too */
+.row:has(#tTripAll) { display:none !important; }
+`);}catch(e){}
