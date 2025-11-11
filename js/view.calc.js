@@ -1782,17 +1782,89 @@ function initBranchPlusMenus(root){
 
 
 
-/* --- Hide-only patch: remove Round Trip & Apply All controls at runtime (safe) --- */
-;(function(){
+
+/* === AUTO-INJECTED: remove Round Trip UI + set branch A/B nozzle defaults === */
+(function(){
   try {
-    var sels = ['#tTripAllRow','#tTripAll','#tTripApplyAll'];
-    for (var i=0;i<sels.length;i++){
-      var list = document.querySelectorAll(sels[i]);
-      for (var j=0;j<list.length;j++){
-        var el = list[j];
-        var row = el.closest ? el.closest('.row') : null;
-        (row || el).parentNode && (row || el).parentNode.removeChild(row || el);
+    const ids = ['tTripAllRow','tTripAll','tTripApplyAll'];
+    ids.forEach(id => {
+      document.querySelectorAll('#'+id).forEach(el => {
+        try { el.remove(); } catch(e){}
+      });
+    });
+    const texts = ['Round trip','Round trip (min)','Apply to all'];
+    document.querySelectorAll('body *').forEach(el => {
+      try {
+        if (!el || !el.childNodes) return;
+        const txt = (el.textContent||'').trim();
+        for (const t of texts){ if (txt.indexOf(t) !== -1){ el.remove(); return; } }
+      } catch(e){}
+    });
+
+    function buildNozzles(){
+      const list = [];
+      if (Array.isArray(window.NOZ_LIST) && window.NOZ_LIST.length){
+        window.NOZ_LIST.forEach(n => {
+          const it = Object.assign({}, n);
+          it.id = it.id || it.name || (it.label&&String(it.label)) || JSON.stringify(it);
+          list.push(it);
+        });
+      } else if (window.NOZ && typeof window.NOZ === 'object'){
+        for (const [id,spec] of Object.entries(window.NOZ)){
+          const it = Object.assign({id:id}, spec || {});
+          if (it.GPM && !it.gpm) it.gpm = it.GPM;
+          if (it.PSI && !it.psi) it.psi = it.PSI;
+          if (!it.name) it.name = spec && spec.name ? spec.name : id;
+          list.push(it);
+        }
       }
+      return list;
     }
-  } catch (e) {}
+
+    function fillSelect(sel, list){
+      if (!sel) return;
+      if (sel.options && sel.options.length > 1) return;
+      while(sel.firstChild) sel.removeChild(sel.firstChild);
+      const ph = document.createElement('option'); ph.value=''; ph.textContent='Select nozzle'; sel.appendChild(ph);
+      list.forEach(it => {
+        const opt = document.createElement('option');
+        opt.value = it.id || (it.name||it.label);
+        let label = it.name || it.label || it.id;
+        if (it.gpm) label += ' — '+it.gpm+' gpm';
+        if (it.psi) label += ' @'+it.psi+' psi';
+        opt.textContent = label;
+        sel.appendChild(opt);
+      });
+    }
+
+    function pickDefault(list){
+      if (!list || !list.length) return null;
+      for (const it of list){
+        if ((+it.gpm===185 || (it.name && /185/.test(String(it.name)))) && (+it.psi===50 || (it.name && /50/.test(String(it.name))))){
+          return it;
+        }
+      }
+      let best = null; let bestd = Infinity;
+      for (const it of list){
+        const g = +it.gpm;
+        if (!isFinite(g)) continue;
+        const d = Math.abs(g-185);
+        if (d < bestd){ bestd = d; best = it; }
+      }
+      return best || list[0];
+    }
+
+    const nozzles = buildNozzles();
+    const def = pickDefault(nozzles);
+
+    const selA = document.querySelector('#teNozA');
+    const selB = document.querySelector('#teNozB');
+    if (selA) fillSelect(selA, nozzles);
+    if (selB) fillSelect(selB, nozzles);
+    if (def){
+      if (selA && !selA.value) { try { selA.value = def.id; selA.dispatchEvent(new Event('change',{bubbles:true})); } catch(e){} }
+      if (selB && !selB.value) { try { selB.value = def.id; selB.dispatchEvent(new Event('change',{bubbles:true})); } catch(e){} }
+    }
+  } catch(e){ console.warn('Injected patch error', e); }
 })();
+/* === END INJECTION === */
