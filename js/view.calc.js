@@ -617,7 +617,7 @@ export async function render(container){
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
             <div class="field" style="min-width:150px">
               <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12" readonly disabled tabindex="-1" aria-hidden="true">
+              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
             </div>
             <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
               <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
@@ -1781,14 +1781,18 @@ function initBranchPlusMenus(root){
 })();
 
 
-try{injectStyle(`
-/* Hide ONLY the Round trip (min) control and Apply to all button (all variants) */
-#tTripAllRow,
-#tTripAll,
-#tTripApplyAll,
-label[for="tTripAll"],
-button#tTripApplyAll { display:none !important; visibility:hidden !important; }
 
-/* If the label wasn't 'for', but the input is within the same .row, hide that row */
-.row:has(#tTripAll) { display:none !important; }
-`);}catch(e){}
+/* --- Hide-only patch: remove Round Trip & Apply All controls at runtime (safe) --- */
+;(function(){
+  try {
+    var sels = ['#tTripAllRow','#tTripAll','#tTripApplyAll'];
+    for (var i=0;i<sels.length;i++){
+      var list = document.querySelectorAll(sels[i]);
+      for (var j=0;j<list.length;j++){
+        var el = list[j];
+        var row = el.closest ? el.closest('.row') : null;
+        (row || el).parentNode && (row || el).parentNode.removeChild(row || el);
+      }
+    }
+  } catch (e) {}
+})();
