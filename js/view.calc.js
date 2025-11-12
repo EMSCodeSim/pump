@@ -1118,37 +1118,7 @@ function updateSegSwitchVisibility(){
   }
 
   // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click' );
-
-// --- Ensure Branch B nozzle changes update math/render ---
-try{
-  const teNozB = container.querySelector('#teNozB');
-  if (teNozB && !teNozB.__wired){
-    teNozB.addEventListener('change', ()=>{
-      try{
-        const id = teNozB.value;
-        // resolve current line
-        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
-        if (!key){
-          const where = container.querySelector('#teTitle')?.textContent||'';
-          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
-          if (m) key = (m[2]||'').toLowerCase();
-        }
-        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
-        if (!key) key = 'line1';
-        const L = state.lines[key];
-        if (L && id && NOZ[id]){
-          L.nozRight = NOZ[id];
-          if (typeof recompute==='function') recompute();
-          if (typeof render==='function') render();
-          if (typeof markDirty==='function') markDirty();
-        }
-      }catch(_){}
-    });
-    teNozB.__wired = true;
-  }
-}catch(_){}
-, ()=> setSeg(btn.dataset.seg)));
+  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));, ()=> setSeg(btn.dataset.seg)));
 
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
