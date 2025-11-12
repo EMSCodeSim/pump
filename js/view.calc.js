@@ -273,13 +273,13 @@ function addLabel(G_labels, text, x, y, dy=0){
   const g = document.createElementNS(ns,'g');
   const pad = 4;
   const t = document.createElementNS(ns,'text');
-  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.setAttribute('stroke','#000000'); t.setAttribute('stroke-width','2'); t.setAttribute('paint-order','stroke fill'); t.textContent = text;
   g.appendChild(t); G_labels.appendChild(g);
   const bb = t.getBBox();
   const bg = document.createElementNS(ns,'rect');
   bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
   bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-  bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
+  bg.setAttribute('fill','rgba(0,0,0,0.9)'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke','rgba(255,255,255,0.35)'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
   g.insertBefore(bg, t);
 }
 // Variant that returns the label group and tries to avoid overlap
@@ -289,15 +289,15 @@ function addLabel2(G_labels, text, x, y, dy=0){
   const pad = 4;
   const t = document.createElementNS(ns,'text');
   t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy);
-  t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12');
-  t.setAttribute('dominant-baseline','hanging'); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  t.setAttribute('fill','#ffffff'); t.setAttribute('font-size','12');
+  t.setAttribute('dominant-baseline','hanging'); t.setAttribute('text-anchor','middle'); t.setAttribute('stroke','#000000'); t.setAttribute('stroke-width','2'); t.setAttribute('paint-order','stroke fill'); t.textContent = text;
   g.appendChild(t); G_labels.appendChild(g);
   const bb = t.getBBox();
   const bg = document.createElementNS(ns,'rect');
   bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
   bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
   bg.setAttribute('rx', 6); bg.setAttribute('ry', 6);
-  bg.setAttribute('fill','rgba(0,0,0,.7)'); bg.setAttribute('stroke','#2f4d79'); bg.setAttribute('stroke-width','1');
+  bg.setAttribute('fill','rgba(0,0,0,0.9)'); bg.setAttribute('stroke','rgba(255,255,255,0.35)'); bg.setAttribute('stroke-width','1');
   g.insertBefore(bg, t);
   try{ placeLabelNoOverlap(G_labels, g); }catch(_){}
   return g;
@@ -1118,7 +1118,37 @@ function updateSegSwitchVisibility(){
   }
 
   // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
+  segBtns.forEach(btn=>btn.addEventListener('click' );
+
+// --- Ensure Branch B nozzle changes update math/render ---
+try{
+  const teNozB = container.querySelector('#teNozB');
+  if (teNozB && !teNozB.__wired){
+    teNozB.addEventListener('change', ()=>{
+      try{
+        const id = teNozB.value;
+        // resolve current line
+        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
+        if (!key){
+          const where = container.querySelector('#teTitle')?.textContent||'';
+          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
+          if (m) key = (m[2]||'').toLowerCase();
+        }
+        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
+        if (!key) key = 'line1';
+        const L = state.lines[key];
+        if (L && id && NOZ[id]){
+          L.nozRight = NOZ[id];
+          if (typeof recompute==='function') recompute();
+          if (typeof render==='function') render();
+          if (typeof markDirty==='function') markDirty();
+        }
+      }catch(_){}
+    });
+    teNozB.__wired = true;
+  }
+}catch(_){}
+, ()=> setSeg(btn.dataset.seg)));
 
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
