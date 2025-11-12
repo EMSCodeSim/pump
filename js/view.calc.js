@@ -73,6 +73,29 @@ const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
 /* ========================================================================== */
+
+/* --- Simple accordion for Branch sections --- */
+.accordionWrap .card{ border-radius:12px; }
+.accordion{ cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.06); }
+.accordion .accTitle{ font-weight:700; }
+.accChevron{ transition: transform .2s ease; }
+.accPanel{ display:none; padding:8px 8px 2px; }
+.accOpen .accPanel{ display:block; }
+.accOpen .accChevron{ transform: rotate(90deg); }
+
+// --- Tiny toast helper ---
+function showToast(msg){
+  try{
+    let t = document.getElementById('toastMini');
+    if(!t){ t = document.createElement('div'); t.id='toastMini';
+      t.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,.85);color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .15s ease';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    setTimeout(()=>{ t.style.opacity='0'; }, 1200);
+  }catch(_){}
+}
 /*                               Small utilities                              */
 /* ========================================================================== */
 
@@ -406,6 +429,9 @@ export async function render(container){
           <!-- Editor (opened by bottom-sheet-editor.js or our fallback) -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
+            <div class="te-row" style="display:flex;gap:8px;align-items:center;margin:4px 0 6px;">
+              <button type="button" id="addWyeQuick" class="btn" style="padding:4px 8px;">Add Wye</button>
+            </div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
@@ -453,11 +479,11 @@ export async function render(container){
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0′</div>
             <!-- Branch controls (visible only when Wye is active) -->
-            <section id="branchPlusWrap" style="display:none; margin-top:10px">
+            <section id="branchPlusWrap" style="display:none; margin-top:10px" class="accordionWrap">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
 
               <!-- Branch A -->
-              <div class="card" id="branchASection" style="padding:8px; margin-bottom:8px">
+              <div class="card accOpen" id="branchASection" style="padding:8px; margin-bottom:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch A</div>
                 <div class="te-row">
                   <label>Length (ft)</label>
@@ -482,6 +508,7 @@ export async function render(container){
                   <select id="teNozA"></select>
                 </div>
               </div>
+</div>
 
               <!-- Branch B -->
               <div class="card" id="branchBSection" style="padding:8px">
@@ -835,9 +862,11 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
+        const before = tip.querySelector('#teWye')?.value;
         const isOn = tip.querySelector('#teWye')?.value === 'on';
         const sizeOK = gateWyeBySize();
         wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        showToast(isOn && sizeOK ? 'Wye enabled' : 'Wye disabled');
         if (!(isOn && sizeOK)){
           // collapse back to Main if user turned Wye off or size is not 2.5
           setActive('main');
@@ -965,9 +994,42 @@ function updateSegSwitchVisibility(){
   // Bind seg buttons
   segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
 
+    try{
+      const addWyeBtn = tip.querySelector('#addWyeQuick');
+      if (addWyeBtn){
+        addWyeBtn.addEventListener('click', ()=>{
+          try{
+            const wyeOn = tip.querySelector('#teWyeOn');
+            const teSize = tip.querySelector('#teSize');
+            if (teSize) teSize.value = '2.5';
+            if (wyeOn) wyeOn.checked = true;
+            const wyeSel = tip.querySelector('#teWye');
+            if (wyeSel) wyeSel.value = 'on';
+            updateWyeAndButtons();
+            setSeg('A');
+            showToast('Wye added with Branch A/B defaults');
+            recompute();
+            render();
+          }catch(_){}
+        });
+      }
+    }catch(_){}
+
+
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
+
+// --- Accordion toggles for Branch sections ---
+try{
+  const accs = tip.querySelectorAll('#branchPlusWrap .accordion');
+  accs.forEach(acc => {
+    acc.addEventListener('click', () => {
+      const card = acc.closest('.card');
+      if (card) card.classList.toggle('accOpen');
+    });
+  });
+}catch(_){}
   // Populate nozzle selects
   [teNoz, teNozA, teNozB].forEach(sel=>{
     if(!sel) return;
@@ -1413,6 +1475,7 @@ function updateSegSwitchVisibility(){
         // lock branch hose size to 1.75 is handled elsewhere in calc; just recompute
         recompute();
         render();
+        showToast('Branch nozzle updated');
       } catch(_){}
     });
     if (nozB) nozB.addEventListener('change', () => {
@@ -1421,6 +1484,7 @@ function updateSegSwitchVisibility(){
         if (id && NOZ && NOZ[id]) { L.nozRight = NOZ[id]; }
         recompute();
         render();
+        showToast('Branch nozzle updated');
       } catch(_){}
     });
   } catch(_){}
