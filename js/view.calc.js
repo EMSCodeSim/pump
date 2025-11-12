@@ -1206,7 +1206,8 @@ function updateSegSwitchVisibility(){
       const L = state.lines[key];
       const row = document.createElement('div'); row.className='lineRow';
       const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
-      const single = isSingleWye(L);
+      const mainBreak = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′').join(' + ') : '0′';
+ isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
 
@@ -1235,15 +1236,15 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="barTitle">Main ${mainBreak} @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ${sumFt(L.itemsLeft)||0}′ @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="barTitle">Branch A ${ (L.itemsLeft.length? L.itemsLeft.map(s=>s.lengthFt+'′').join(' + '): '0′') } @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
                   <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ${sumFt(L.itemsRight)||0}′ @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Branch B ${ (L.itemsRight.length? L.itemsRight.map(s=>s.lengthFt+'′').join(' + '): '0′') } @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1274,7 +1275,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — via Wye</div>
+                  <div class="barTitle">Main ${mainBreak} @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
@@ -1302,7 +1303,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${sumFt(L.itemsMain)}′ @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${mainBreak} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1578,8 +1579,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      const mainSecs = splitIntoSections(L.itemsMain);
-      drawSegmentedPath(G_hoses, base, mainSecs);
+      drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
@@ -1587,29 +1587,20 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      const secText = (mainSecs && mainSecs.length)
-        ? mainSecs.map(s => `${s.lengthFt}′`).join(' + ')
-        : `${mainFt}′`;
-      addLabel(
-        G_labels,
-        `${secText} @ ${flowGpm} gpm${npLabel}`,
-        geom.endX,
-        geom.endY-6,
-        (key==='left')?-10:(key==='back')?-22:-34
-      );if(L.hasWye){
+      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+
+      if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          const leftSecs = splitIntoSections(L.itemsLeft);
-          drawSegmentedPath(G_branches, pathL, leftSecs);
+          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          const rightSecs = splitIntoSections(L.itemsRight);
-          drawSegmentedPath(G_branches, pathR, rightSecs);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
