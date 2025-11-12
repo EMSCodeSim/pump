@@ -2246,8 +2246,8 @@ function initBranchPlusMenus(root){
         if (n.nodeType===1 && n.id===SHEET_ID) apply(n);
       }
     }
-  );
-  obs.observe(document.documentElement || document.body, { childList:true, subtree:true );
+  });
+obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
 })();
 
 })();
