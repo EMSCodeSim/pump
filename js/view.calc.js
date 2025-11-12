@@ -748,7 +748,26 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
-      const sizeMinus = tip.querySelector('#sizeMinus');
+      
+      // --- Sync both branches without A/B buttons ---
+      const teWyeSel = tip.querySelector('#teWye');
+      const teSizeSel = tip.querySelector('#teSize');
+      const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+      const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
+      function syncBranches(){
+        const on = teWyeSel && teWyeSel.value === 'on';
+        const sizeOK = teSizeSel && String(teSizeSel.value) === '2.5';
+        if (on && sizeOK){
+          showEl(branchBlock); showEl(aSect); showEl(bSect);
+        } else {
+          hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
+        }
+      }
+      teWyeSel?.addEventListener('change', syncBranches);
+      teSizeSel?.addEventListener('change', syncBranches);
+      // initial sync
+      syncBranches();
+const sizeMinus = tip.querySelector('#sizeMinus');
       const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
@@ -768,9 +787,9 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       };
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
-      bA.style.display = 'none';
+      bA.style.display='none';
 const bB    = mk('Line B','B');
-      bB.style.display = 'none';
+      bB.style.display='none';
 wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
@@ -850,28 +869,13 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-  const isOn = tip.querySelector('#teWye')?.value === 'on';
-  const sizeOK = gateWyeBySize();
-
-  // helper show/hide with robust a11y + style guards
-  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-
-  // We’re not using A/B buttons anymore
-  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
-
-  if (!(isOn && sizeOK)){
-    // Wye OFF or size not 2.5 → hide both branch editors, go back to Main
-    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
-    if (typeof setActive === 'function') setActive('main');
-    return;
-  }
-
-  // Wye ON and 2.5″ → show BOTH branch editors at once
-  showEl(branchBlock);
-  showEl(aSect);
-  showEl(bSect);
-}
+        const isOn = tip.querySelector('#teWye')?.value === 'on';
+        const sizeOK = gateWyeBySize();
+        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        if (!(isOn && sizeOK)){
+          // collapse back to Main if user turned Wye off or size is not 2.5
+          setActive('main');
+        }
       }
 
       // Bind
@@ -884,9 +888,12 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
-updateWyeAndButtons();
-setActive('main');
-}
+      updateWyeAndButtons();
+      // If user clicked a branch tip to open, start there; else Main
+      if (whereInit==='L') setActive('A');
+      else if (whereInit==='R') setActive('B');
+      else setActive('main');
+    }
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
