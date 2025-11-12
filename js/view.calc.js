@@ -308,31 +308,18 @@ function addLabel(G_labels, text, x, y, dy){
     g.insertBefore(bg, t);
 
     return g;
-  }catch(_){}
-}
+  }
+
 function addLabel2(G_labels, text, x, y, dy){
-  // Use addLabel directly; keep signature for compatibility
+  // Delegate to addLabel; keep signature for compatibility
   return addLabel(G_labels, text, x, y, dy);
 }
+catch(_){}
+}
+
 
 // Variant that returns the label group and tries to avoid overlap
-function addLabel2(G_labels, text, x, y, dy=0){
-  const ns='http://www.w3.org/2000/svg';
-  const g = document.createElementNS(ns,'g');
-  const pad = 4;
-  const t = document.createElementNS(ns,'text');
-  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy);
-  t.setAttribute('fill','#ffffff'); t.setAttribute('font-size','12');
-  t.setAttribute('dominant-baseline','hanging'); t.setAttribute('text-anchor','middle'); t.setAttribute('stroke','#000000'); t.setAttribute('stroke-width','2'); t.setAttribute('paint-order','stroke fill'); t.textContent = text;
-  g.appendChild(t); G_labels.appendChild(g);
-  const bb = t.getBBox();
-  const bg = document.createElementNS(ns,'rect');
-  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
-  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-  bg.setAttribute('rx', 6); bg.setAttribute('ry', 6);
-  bg.setAttribute('fill','rgba(0,0,0,0.9)'); bg.setAttribute('stroke','rgba(255,255,255,0.35)'); bg.setAttribute('stroke-width','1');
-  g.insertBefore(bg, t);
-  try{ placeLabelNoOverlap(G_labels, g); }catch(_){}
+catch(_){}
   return g;
 }
 
