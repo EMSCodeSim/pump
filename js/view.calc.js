@@ -1,3 +1,16 @@
+
+// === Wye helper stubs (guard against early calls) ============================
+try{
+  if (typeof updateWyeAndButtons !== 'function'){
+    function updateWyeAndButtons(){ try{ return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; }catch(_){} }
+  }
+  if (typeof gateWyeBySize !== 'function'){
+    function gateWyeBySize(){
+  try{ globalThis.gateWyeBySize = gateWyeBySize; }catch(_){}
+ try{ return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; }catch(_){ return false; } }
+  }
+}catch(_){}
+
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
@@ -822,6 +835,8 @@ const teLenA      = container.querySelector('#teLenA');
         }
       }
 function gateWyeBySize(){
+  try{ globalThis.gateWyeBySize = gateWyeBySize; }catch(_){}
+
         const sizeOK = (teSize && String(teSize.value) === '2.5');
         const wyeSelect = tip.querySelector('#teWye');
         if (!sizeOK){
