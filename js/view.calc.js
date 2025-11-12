@@ -917,20 +917,17 @@ function gateWyeBySize(){
     }
   }
 function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value==='on';
+    const wyeOn = teWye && teWye.value === 'on';
     if (segSwitch){
       segSwitch.style.display = wyeOn ? 'flex' : 'none';
     }
     if (!wyeOn){
-      // Wye off → back to main and hide both branches
+      // Wye turned OFF → back to main and hide both branches
       setSeg('main');
       return;
     }
-    // Wye is on → keep current selection (default to A the first time)
+    // Wye turned ON → keep selection; default to A on first open
     if (currentSeg === 'main') setSeg('A'); else setSeg(currentSeg);
-  }
-    // When turning wye off, always reset to main segment
-    if (!wyeOn) setSeg('main');
   }
 
   // Bind seg buttons
