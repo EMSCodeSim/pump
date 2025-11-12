@@ -1,9 +1,7 @@
 (function(){
 
 // ===== Bootstrap Wye helpers (absolute earliest) =============================
-(function(){
-  {
-    if (typeof globalThis.updateWyeAndButtons !== 'function'){
+(function(){ if (typeof globalThis.updateWyeAndButtons !== 'function'){
       globalThis.updateWyeAndButtons = function(){ /* no-op until real fn loads */ };
     }
     if (typeof globalThis.gateWyeBySize !== 'function'){
@@ -1277,9 +1275,7 @@ function updateSegSwitchVisibility(){
     }
   }
 
-  (function(){
-    {
-      const css = `
+  (function(){ const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
         @media (max-width:520px){
           .shuttleMeta{ width:100%; justify-content:space-between; }
@@ -2100,9 +2096,7 @@ function initBranchPlusMenus(root){
       }
     });
     
-(function(){
-  {
-    const st = document.createElement('style');
+(function(){ const st = document.createElement('style');
     st.textContent = `
     .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
