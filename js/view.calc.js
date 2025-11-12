@@ -748,74 +748,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
-      
-      // --- Branch A/B: use same hose logic as other lines ---
-      try {
-        const nozA = tip.querySelector('#teNozA') || tip.querySelector('#teNozA2');
-        const nozB = tip.querySelector('#teNozB') || tip.querySelector('#teNozB2');
-        const lenA = tip.querySelector('#teLenA') || tip.querySelector('#teLenA2');
-        const lenB = tip.querySelector('#teLenB') || tip.querySelector('#teLenB2');
-
-        // Populate nozzle options using the same helper if available
-        if (typeof fillNozzles === 'function') {
-          if (nozA) fillNozzles(nozA);
-          if (nozB) fillNozzles(nozB);
-        }
-
-        // Seed current nozzle values
-        if (nozA && L.nozLeft && L.nozLeft.id) { try { nozA.value = L.nozLeft.id; } catch(_){} }
-        if (nozB && L.nozRight && L.nozRight.id){ try { nozB.value = L.nozRight.id; } catch(_){} }
-
-        // Helper to ensure a branch segment exists
-        function ensureBranchSeg(side){
-          const segs = side==='L' ? (L.itemsLeft ||= []) : (L.itemsRight ||= []);
-          if (!segs.length) segs.push({ size:'1.75', lengthFt:100, elevFt:0 });
-          return segs[0];
-        }
-
-        // Length wiring (same pipeline as main: update state → recompute → render → persist)
-        function applyBranchLen(side, v){
-          const n = Math.max(0, Math.min(2000, parseInt(v||'0',10)));
-          const seg = ensureBranchSeg(side);
-          if (seg.lengthFt !== n) {
-            seg.lengthFt = n;
-            if (typeof recompute === 'function') recompute();
-            if (typeof render === 'function') render();
-            try { if (typeof savePractice === 'function') savePractice(); } catch(_){}
-          }
-        }
-        if (lenA) {
-          lenA.value = (ensureBranchSeg('L').lengthFt||100);
-          lenA.addEventListener('input', ()=> applyBranchLen('L', lenA.value));
-          lenA.addEventListener('change', ()=> applyBranchLen('L', lenA.value));
-        }
-        if (lenB) {
-          lenB.value = (ensureBranchSeg('R').lengthFt||100);
-          lenB.addEventListener('input', ()=> applyBranchLen('R', lenB.value));
-          lenB.addEventListener('change', ()=> applyBranchLen('R', lenB.value));
-        }
-
-        // Nozzle wiring (same as main: set state nozzle → recompute → render → persist)
-        if (nozA) {
-          nozA.addEventListener('change', ()=>{
-            const id = nozA.value;
-            if (typeof NOZ !== 'undefined' && NOZ[id]) L.nozLeft = NOZ[id];
-            if (typeof recompute === 'function') recompute();
-            if (typeof render === 'function') render();
-            try { if (typeof savePractice === 'function') savePractice(); } catch(_){}
-          });
-        }
-        if (nozB) {
-          nozB.addEventListener('change', ()=>{
-            const id = nozB.value;
-            if (typeof NOZ !== 'undefined' && NOZ[id]) L.nozRight = NOZ[id];
-            if (typeof recompute === 'function') recompute();
-            if (typeof render === 'function') render();
-            try { if (typeof savePractice === 'function') savePractice(); } catch(_){}
-          });
-        }
-      } catch (e) { console.warn('Branch A/B wiring error', e); }
-const sizeMinus = tip.querySelector('#sizeMinus');
+      const sizeMinus = tip.querySelector('#sizeMinus');
       const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
@@ -835,11 +768,9 @@ const sizeMinus = tip.querySelector('#sizeMinus');
       };
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
-      
-bA.style.display = 'none';
+      bA.style.display = 'none';
 const bB    = mk('Line B','B');
-      
-bB.style.display = 'none';
+      bB.style.display = 'none';
 wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
@@ -919,13 +850,28 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
-        if (!(isOn && sizeOK)){
-          // collapse back to Main if user turned Wye off or size is not 2.5
-          setActive('main');
-        }
+  const isOn = tip.querySelector('#teWye')?.value === 'on';
+  const sizeOK = gateWyeBySize();
+
+  // helper show/hide with robust a11y + style guards
+  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
+
+  // We’re not using A/B buttons anymore
+  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
+
+  if (!(isOn && sizeOK)){
+    // Wye OFF or size not 2.5 → hide both branch editors, go back to Main
+    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
+    if (typeof setActive === 'function') setActive('main');
+    return;
+  }
+
+  // Wye ON and 2.5″ → show BOTH branch editors at once
+  showEl(branchBlock);
+  showEl(aSect);
+  showEl(bSect);
+}
       }
 
       // Bind
@@ -938,6 +884,7 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
+updateWyeAndButtons();
 setActive('main');
 }
 
