@@ -41,14 +41,14 @@ import { WaterSupplyUI } from './waterSupply.js';
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
 function safeClone(obj){
-  { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
+  { return JSON.parse(JSON.stringify(obj)); } 
 }
 function loadSaved(){
   { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
-  catch { return null; }
+  
 }
 function saveNow(pack){
-  { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
+  { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } 
 }
 
 // mark edits “dirty” and flush every 1s
@@ -1331,7 +1331,7 @@ function updateSegSwitchVisibility(){
       if (typeof waterSupply.getSnapshot === 'function') return waterSupply.getSnapshot();
       if (typeof waterSupply.snapshot    === 'function') return waterSupply.snapshot();
       if (typeof waterSupply.export      === 'function') return waterSupply.export();
-    } catch {}
+    } 
     // Best-effort DOM fallback if no API:
     {
       const tenders = [];
@@ -1344,7 +1344,7 @@ function updateSegSwitchVisibility(){
       });
       const gpm = +(container.querySelector('#shuttleTotalGpm')?.textContent || 0);
       return { tenders, shuttle: { totalGpm: gpm } };
-    } catch {}
+    } 
     return null;
   }
 
@@ -1362,7 +1362,7 @@ function updateSegSwitchVisibility(){
       if (snap.tenders) state.tenders = snap.tenders;
       if (snap.shuttle) state.shuttle = snap.shuttle;
     }
-  } catch {}
+  } 
 
   // Start autosave heartbeat (includes water snapshot)
   startAutoSave(()=>{
