@@ -1,3 +1,4 @@
+(function(){
 
 // ===== Bootstrap Wye helpers (absolute earliest) =============================
 (function(){
@@ -2242,4 +2243,6 @@ function initBranchPlusMenus(root){
     }
   });
   obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
+})();
+
 })();
