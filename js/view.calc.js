@@ -757,7 +757,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       wrap = document.createElement('div');
       wrap.id = 'segSwitch';
       wrap.className = 'segSwitch';
-      wrap.style.display = 'none'; // default hidden, shown when Wye ON
+      wrap.style.display='none';
+wrap.style.display = 'none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
