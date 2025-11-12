@@ -748,26 +748,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
-      
-      // --- Sync both branches without A/B buttons ---
-      const teWyeSel = tip.querySelector('#teWye');
-      const teSizeSel = tip.querySelector('#teSize');
-      const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-      const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-      function syncBranches(){
-        const on = teWyeSel && teWyeSel.value === 'on';
-        const sizeOK = teSizeSel && String(teSizeSel.value) === '2.5';
-        if (on && sizeOK){
-          showEl(branchBlock); showEl(aSect); showEl(bSect);
-        } else {
-          hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
-        }
-      }
-      teWyeSel?.addEventListener('change', syncBranches);
-      teSizeSel?.addEventListener('change', syncBranches);
-      // initial sync
-      syncBranches();
-const sizeMinus = tip.querySelector('#sizeMinus');
+      const sizeMinus = tip.querySelector('#sizeMinus');
       const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
@@ -787,10 +768,8 @@ const sizeMinus = tip.querySelector('#sizeMinus');
       };
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
-      bA.style.display='none';
-const bB    = mk('Line B','B');
-      bB.style.display='none';
-wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
+      const bB    = mk('Line B','B');
+      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
       function setActive(seg){
