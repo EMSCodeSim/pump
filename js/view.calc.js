@@ -752,64 +752,20 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
-      let wrap = tip.querySelector('#segSwitch');
-      if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
-      wrap = document.createElement('div');
-      wrap.id = 'segSwitch';
-      wrap.className = 'segSwitch';
-      wrap.style.display = 'none'; // default hidden, shown when Wye ON
-      const mk = (label, seg)=>{
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'segBtn';
-        b.dataset.seg = seg;
-        b.textContent = label;
-        return b;
-      };
-      const bMain = mk('Main','main');
-      const bA    = mk('Line A','A');
-      const bB    = mk('Line B','B');
-      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
-      tip.insertBefore(wrap, actions);
+      let wrap = tip.querySelector('#segSwitch'); if (wrap) { wrap.style.display='none'; }
 
       function setActive(seg){
-        // highlight
-        [bMain,bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
+  // No segment switching anymore. Always show both branch editors when Wye is ON.
+  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
 
-        // helper show/hide with robust a11y + style guards
-        const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-        const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
+  // Show legacy compact block and both branch cards
+  if (branchBlock) showEl(branchBlock);
+  showEl(aSect);
+  showEl(bSect);
 
-        const mainShow = (seg==='main');
-
-        // show/hide main rows
-        if (wyeRow) (mainShow? showEl : hideEl)(wyeRow);
-        ['#rowSize','#rowLen','#rowElev','#rowNoz'].forEach(sel=>{
-          const el = tip.querySelector(sel);
-          if (el) (mainShow? showEl : hideEl)(el);
-        });
-
-        // legacy compact block wrapper only when on a branch
-        if (branchBlock) (seg==='A'||seg==='B' ? showEl : hideEl)(branchBlock);
-
-        
-        // Hide the opposite side rows inside the legacy compact branchBlock
-        if (branchBlock){
-          const rowA_len = branchBlock.querySelector('#teLenA')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenA"]')?.closest('.te-row');
-          const rowA_noz = branchBlock.querySelector('#teNozA')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch A noz")')?.closest('.te-row');
-          const rowB_len = branchBlock.querySelector('#teLenB')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenB"]')?.closest('.te-row');
-          const rowB_noz = branchBlock.querySelector('#teNozB')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch B noz")')?.closest('.te-row');
-          if (seg==='A'){
-            if (rowA_len) showEl(rowA_len);
-            if (rowA_noz) showEl(rowA_noz);
-            if (rowB_len) hideEl(rowB_len);
-            if (rowB_noz) hideEl(rowB_noz);
-          } else if (seg==='B'){
-            if (rowA_len) hideEl(rowA_len);
-            if (rowA_noz) hideEl(rowA_noz);
-            if (rowB_len) showEl(rowB_len);
-            if (rowB_noz) showEl(rowB_noz);
-          }
+  // Keep main rows visible; branches are edited under current editor system
+}
         }
         // Exclusively show Branch sections
         if (seg==='A'){ showEl(aSect); hideEl(bSect); }
@@ -848,13 +804,20 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
-        if (!(isOn && sizeOK)){
-          // collapse back to Main if user turned Wye off or size is not 2.5
-          setActive('main');
-        }
+  const isOn = tip.querySelector('#teWye')?.value === 'on';
+  const sizeOK = gateWyeBySize();
+  // segSwitch no longer used
+  if (!(isOn && sizeOK)){
+    // Wye OFF or size not 2.5 → hide both branch sections
+    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+    hideEl(branchBlock);
+    hideEl(aSect);
+    hideEl(bSect);
+    return;
+  }
+  // Wye is ON and size is OK → show both branch sections
+  setActive('both');
+}
       }
 
       // Bind
@@ -868,9 +831,7 @@ function gateWyeBySize(){
 
       // Initial state
       updateWyeAndButtons();
-      // If user clicked a branch tip to open, start there; else Main
-      if (whereInit==='L') setActive('A');
-      else if (whereInit==='R') setActive('B');
+else if (whereInit==='R') setActive('B');
       else setActive('main');
     }
 
@@ -885,28 +846,7 @@ function gateWyeBySize(){
 
   let currentSeg = 'main'; // 'main' | 'A' | 'B'
 
-  function setSeg(seg){
-    currentSeg = seg;
-
-    // helper show/hide with robust a11y + style guards
-    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-    const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-
-    // Highlight active button
-    segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
-      const el = container.querySelector(sel);
-      if (!el) return;
-      (seg==='main' ? showEl : hideEl)(el);
-    });
-    if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
-
-    // Branch sections — show only selected branch when wye is on
-    if (seg==='A'){ showEl(branchASection); hideEl(branchBSection); }
+  function setSeg(seg){ /* segSwitch removed — no-op */ }
     else if (seg==='B'){ showEl(branchBSection); hideEl(branchASection); }
     else { hideEl(branchASection); hideEl(branchBSection); }
 
@@ -961,11 +901,7 @@ function gateWyeBySize(){
           : 'Line B (right of wye)';
     }
   }
-function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value === 'on';
-    if (segSwitch){
-      segSwitch.style.display = wyeOn ? 'flex' : 'none';
-    }
+function updateSegSwitchVisibility(){ /* segSwitch removed — no-op */ }
     if (!wyeOn){
       // Wye turned OFF → back to main and hide both branches
       setSeg('main');
@@ -1887,6 +1823,4 @@ function initBranchPlusMenus(root){
     document.head.appendChild(st);
   }catch(_){}
 })();
-
-
 
