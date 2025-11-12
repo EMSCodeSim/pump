@@ -597,47 +597,7 @@ export async function render(container){
           <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
         </div>
 
-        <!-- Tender shuttle -->
-        <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-            <div>
-              <div style="color:#fff; font-weight:800;">Tender Shuttle (Static Supply)</div>
-              <div class="mini" style="color:#a9bed9">Assume 10% capacity loss. Start when leaving scene; stop on return full.</div>
-            </div>
-            <div class="pill shuttleMeta" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-  <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span></div>
-  <div class="tripCtrl" style="display:flex;align-items:center;gap:6px">
-    <span class="mini" style="opacity:.85">Round trip (min)</span>
-        <span id="tTripAll" class="pillVal" data-min="0">—</span>
-        <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-  </div>
-</div>
-          </div>
-          <!-- New: global Round Trip control -->
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
-            <div class="field" style="min-width:150px">
-              <label>Round trip (min)</label>
-              <input id="tTripAll" type="number" inputmode="decimal" placeholder="e.g., 12">
-            </div>
-            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
-              <button id="tTripApplyAll" class="btn" type="button" title="Apply this round-trip time to all tenders">Apply to all</button>
-            </div>
-          </div>
-          <div class="row" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <div class="field" style="min-width:160px">
-              <label>Tender ID / Number</label>
-              <input id="tAddId" type="text" placeholder="e.g., Tender 2">
-            </div>
-            <div class="field" style="min-width:160px">
-              <label>Capacity (gal)</label>
-              <input id="tAddCap" type="number" inputmode="decimal" placeholder="e.g., 3000">
-            </div>
-            <div class="field" style="min-width:140px; display:flex; align-items:flex-end">
-              <button id="tAddBtn" class="btn primary" type="button">Add Tender</button>
-            </div>
-          </div>
-          <div id="tenderList" style="margin-top:10px"></div>
-        </div>
+        
 
         <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
