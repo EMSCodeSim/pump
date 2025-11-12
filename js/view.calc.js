@@ -308,7 +308,7 @@ function addLabel(G_labels, text, x, y, dy){
     g.insertBefore(bg, t);
 
     return g;
-  }
+  } catch(_){ }
 
 function addLabel2(G_labels, text, x, y, dy){
   // Delegate to addLabel; keep signature for compatibility
