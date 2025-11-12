@@ -768,8 +768,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       };
       const bMain = mk('Main','main');
       const bA    = mk('Line A','A');
-      const bB    = mk('Line B','B');
-      wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
+      
+bA.style.display = 'none';
+const bB    = mk('Line B','B');
+      
+bB.style.display = 'none';
+wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
 
       function setActive(seg){
@@ -867,12 +871,8 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
-      updateWyeAndButtons();
-      // If user clicked a branch tip to open, start there; else Main
-      if (whereInit==='L') setActive('A');
-      else if (whereInit==='R') setActive('B');
-      else setActive('main');
-    }
+setActive('main');
+}
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
