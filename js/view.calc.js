@@ -9,20 +9,20 @@
       globalThis.gateWyeBySize = function(){ return false; };
     }
   }catch(_){}
-})();
+} catch(_){ })();
 // ============================================================================
 
 
 // === Wye helper stubs (guard against early calls) ============================
 try{
   if (typeof updateWyeAndButtons !== 'function'){
-    function updateWyeAndButtons(){ try{ return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; }catch(_){} }
+    function updateWyeAndButtons(){ try{ return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; }catch(_){} } catch(_){ }
   }
   if (typeof gateWyeBySize !== 'function'){
     function gateWyeBySize(){
   try{ globalThis.gateWyeBySize = gateWyeBySize; }catch(_){}
- try{ return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; }catch(_){ return false; } }
-  }
+ try{ return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; }catch(_){ return false; } } catch(_){ }
+  } catch(_){ }
 }catch(_){}
 
 // /js/view.calc.js
@@ -42,14 +42,14 @@ const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
 function safeClone(obj){
   try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
-}
+} catch(_){ }
 function loadSaved(){
   try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
   catch { return null; }
-}
+} catch(_){ }
 function saveNow(pack){
   try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
-}
+} catch(_){ }
 
 // mark edits “dirty” and flush every 1s
 let __dirty = false;
@@ -131,7 +131,7 @@ function pickNozzle18550(){
     if (cand) return cand;
   }catch(_){}
   return null;
-}
+} catch(_){ }
 // --- Ensure branch defaults (50' of 1.75 with 185@50) when Wye is enabled ---
 function ensureBranchDefaultsOnWye(lineKey){
   try{
@@ -151,7 +151,7 @@ function ensureBranchDefaultsOnWye(lineKey){
       L.nozRight = noz;
     }
   }catch(_){}
-}
+} catch(_){ }
 
 /*                               Small utilities
 
@@ -308,18 +308,17 @@ function addLabel(G_labels, text, x, y, dy){
     g.insertBefore(bg, t);
 
     return g;
-  } catch(_){ }
+  } 
 
 function addLabel2(G_labels, text, x, y, dy){
-  // Delegate to addLabel; keep signature for compatibility
   return addLabel(G_labels, text, x, y, dy);
 }
-catch(_){}
+
 }
 
 
 // Variant that returns the label group and tries to avoid overlap
-catch(_){}
+
   return g;
 }
 
@@ -408,7 +407,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
 
   if(nozzleText){
     const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
-    t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
+    t.setAttribute('fill','#ffffff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
     svg.appendChild(t);
   }
 
@@ -827,7 +826,7 @@ export async function render(container){
 try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
  border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
-    }
+    } catch(_){ }
     .field input:focus, .field select:focus, .field textarea:focus {
       border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
     }
@@ -857,7 +856,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
     .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
     .simpleBox b{color:#eaf2ff}
-    .lbl{font-size:10px;fill:#0b0f14}
+    .lbl{font-size:12px;fill:#ffffff;stroke:#000;stroke-width:2;paint-order:stroke fill}
     .is-hidden{display:none!important}
   `);
 
