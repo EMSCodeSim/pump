@@ -1,4 +1,18 @@
 
+// ===== Bootstrap Wye helpers (absolute earliest) =============================
+(function(){
+  try{
+    if (typeof globalThis.updateWyeAndButtons !== 'function'){
+      globalThis.updateWyeAndButtons = function(){ /* no-op until real fn loads */ };
+    }
+    if (typeof globalThis.gateWyeBySize !== 'function'){
+      globalThis.gateWyeBySize = function(){ return false; };
+    }
+  }catch(_){}
+})();
+// ============================================================================
+
+
 // === Wye helper stubs (guard against early calls) ============================
 try{
   if (typeof updateWyeAndButtons !== 'function'){
