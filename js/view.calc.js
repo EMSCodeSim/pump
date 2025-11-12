@@ -771,39 +771,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       const bB    = mk('Line B','B');
       wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
-// --- New '+ menus' toolbar for Wye segments (Main / Left / Right) ---
-let plusBar = tip.querySelector('#segPlus');
-if (plusBar && plusBar.parentNode) plusBar.parentNode.removeChild(plusBar);
-
-plusBar = document.createElement('div');
-plusBar.id = 'segPlus';
-plusBar.className = 'segPlus';
-plusBar.style.display = 'none'; // shown only when Wye ON & size 2.5"
-
-const mkPlus = (label, seg) => {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'segPlusBtn';
-  // simple '+' icon + label
-  const i = document.createElement('span'); i.className = 'segPlusIcon'; i.textContent = '+';
-  const t = document.createElement('span'); t.className = 'segPlusText'; t.textContent = label;
-  b.appendChild(i); b.appendChild(t);
-  b.dataset.seg = seg;
-  return b;
-};
-
-const pMain = mkPlus('Main','main');
-const pLeft = mkPlus('Left','A');
-const pRight= mkPlus('Right','B');
-
-plusBar.appendChild(pMain);
-plusBar.appendChild(pLeft);
-plusBar.appendChild(pRight);
-tip.insertBefore(plusBar, actions);
-
-// Clicking a plus button switches the active segment using existing setActive()
-[pMain,pLeft,pRight].forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.seg)));
-
 
       function setActive(seg){
         // highlight
@@ -881,34 +848,13 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-  const isOn   = tip.querySelector('#teWye')?.value === 'on';
-  const sizeOK = gateWyeBySize(); // enforces 2.5" for Wye UI
-
-  // Show/hide helper
-  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); };
-
-  // Ensure the old segSwitch stays hidden
-  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
-  // Control the new +menu toolbar
-  if (typeof plusBar !== 'undefined' && plusBar) plusBar.style.display = (isOn && sizeOK) ? 'flex' : 'none';
-
-  if (!(isOn && sizeOK)){
-    // Wye off or size not 2.5" → return to main and hide branch views
-    setActive('main');
-    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
-    return;
-  }
-
-  // Wye ON & size 2.5" → keep exclusive selection via setActive(); default to Main
-  // (User picks Main/Left/Right via + menus)
-  if (aSect && bSect && branchBlock){
-    // Do not force both visible; rely on setActive selection
-    // Default to main if nothing is active yet
-    const activeBtn = plusBar?.querySelector('.segPlusBtn.active');
-    if (!activeBtn) setActive('main');
-  }
-}
+        const isOn = tip.querySelector('#teWye')?.value === 'on';
+        const sizeOK = gateWyeBySize();
+        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        if (!(isOn && sizeOK)){
+          // collapse back to Main if user turned Wye off or size is not 2.5
+          setActive('main');
+        }
       }
 
       // Bind
@@ -921,9 +867,12 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
-updateWyeAndButtons();
-setActive('main');
-}
+      updateWyeAndButtons();
+      // If user clicked a branch tip to open, start there; else Main
+      if (whereInit==='L') setActive('A');
+      else if (whereInit==='R') setActive('B');
+      else setActive('main');
+    }
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
@@ -1939,3 +1888,132 @@ function initBranchPlusMenus(root){
   }catch(_){}
 })();
 
+
+
+
+/* ==========================================================================
+   Wye "+ menus" toolbar (Main / Left / Right)
+   Non-destructive: operates on DOM only; no reliance on outer variables.
+   Appears only when Wye = On and size = 2.5". Hides legacy segSwitch.
+   ========================================================================== */
+(function(){
+  const SHEET_ID = 'teSheet';
+
+  function hide(el){ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); }
+  function show(el){ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); }
+
+  function apply(sheet){
+    try{
+      const root = sheet.querySelector('.te-content') || sheet;
+      // Hide existing segSwitch if present
+      const segSwitch = root.querySelector('#segSwitch');
+      if (segSwitch) segSwitch.style.display = 'none';
+
+      const branchBlock = root.querySelector('#branchBlock');
+      const aSect = root.querySelector('#branchASection');
+      const bSect = root.querySelector('#branchBSection');
+      const teWye = root.querySelector('#teWye');
+      const teSize = root.querySelector('#teSize');
+      const sizeMinus = root.querySelector('#sizeMinus');
+      const sizePlus  = root.querySelector('#sizePlus');
+      const teWhere   = root.querySelector('#teWhere');
+      const wyeRow    = teWye ? teWye.closest('.te-row') : null;
+      const mainRows  = ['#rowSize','#rowLen','#rowElev','#rowNoz'].map(sel=>root.querySelector(sel)).filter(Boolean);
+
+      // Remove any prior toolbar
+      root.querySelectorAll('#segPlus').forEach(n=>n.remove());
+
+      // Build + toolbar
+      const plusBar = document.createElement('div');
+      plusBar.id = 'segPlus';
+      plusBar.className = 'segPlus';
+      plusBar.style.display = 'none'; // gated by Wye + size
+      function mk(label, seg){
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'segPlusBtn';
+        const i = document.createElement('span'); i.className='segPlusIcon'; i.textContent = '+';
+        const t = document.createElement('span'); t.className='segPlusText'; t.textContent = label;
+        b.append(i,t);
+        b.dataset.seg = seg;
+        return b;
+      }
+      const pMain  = mk('Main','main');
+      const pLeft  = mk('Left','A');
+      const pRight = mk('Right','B');
+      plusBar.append(pMain,pLeft,pRight);
+
+      const actions = root.querySelector('.te-actions') || root.firstElementChild;
+      root.insertBefore(plusBar, actions);
+
+      function select(seg){
+        plusBar.querySelectorAll('.segPlusBtn').forEach(btn => btn.classList.toggle('active', btn.dataset.seg===seg));
+        const onMain = (seg==='main');
+        if (wyeRow) (onMain? show : hide)(wyeRow);
+        mainRows.forEach(el => (onMain? show(el) : hide(el)));
+        if (branchBlock) (onMain? hide : show)(branchBlock);
+        if (aSect) (seg==='A' ? show : hide)(aSect);
+        if (bSect) (seg==='B' ? show : hide)(bSect);
+
+        // Lock branch size to 1 3/4 on branches
+        if (!onMain){
+          if (teSize) teSize.value = '1.75';
+          const sizeLabel = root.querySelector('#sizeLabel');
+          if (sizeLabel) sizeLabel.textContent = '1 3/4″';
+          if (sizeMinus) sizeMinus.disabled = true;
+          if (sizePlus)  sizePlus.disabled  = true;
+        } else {
+          if (sizeMinus) sizeMinus.disabled = false;
+          if (sizePlus)  sizePlus.disabled  = false;
+        }
+
+        if (teWhere){
+          teWhere.value = seg==='main' ? 'Main (to Wye)' :
+                          seg==='A'    ? 'Line A (left of wye)' :
+                                          'Line B (right of wye)';
+        }
+      }
+
+      function gateWyeOK(){
+        return teWye && teWye.value==='on' && teSize && String(teSize.value)==='2.5';
+      }
+
+      function sync(){
+        const ok = gateWyeOK();
+        plusBar.style.display = ok ? 'flex' : 'none';
+        if (!ok){
+          select('main');
+        } else {
+          const anyActive = plusBar.querySelector('.segPlusBtn.active');
+          if (!anyActive) select('main');
+        }
+      }
+
+      // Wire
+      pMain.addEventListener('click', ()=> select('main'));
+      pLeft.addEventListener('click', ()=> select('A'));
+      pRight.addEventListener('click', ()=> select('B'));
+      teWye?.addEventListener('change', sync);
+      teSize?.addEventListener('change', sync);
+
+      // Initial
+      sync();
+    }catch(e){
+      console.warn('PLUS MENUS apply error', e);
+    }
+  }
+
+  // If already open
+  const sheet = document.getElementById(SHEET_ID);
+  if (sheet) apply(sheet);
+
+  // Watch for future openings
+  const obs = new MutationObserver(muts=>{
+    for (const m of muts){
+      for (const n of m.addedNodes){
+        if (n.nodeType===1 && n.id===SHEET_ID) apply(n);
+      }
+    }
+  });
+  obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
+})();
