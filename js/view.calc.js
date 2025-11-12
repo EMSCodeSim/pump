@@ -1,29 +1,29 @@
 
 // ===== Bootstrap Wye helpers (absolute earliest) =============================
 (function(){
-  try{
+  {
     if (typeof globalThis.updateWyeAndButtons !== 'function'){
       globalThis.updateWyeAndButtons = function(){ /* no-op until real fn loads */ };
     }
     if (typeof globalThis.gateWyeBySize !== 'function'){
       globalThis.gateWyeBySize = function(){ return false; };
     }
-  }catch(_){}
-} catch(_){ })();
+  }
+})();
 // ============================================================================
 
 
 // === Wye helper stubs (guard against early calls) ============================
-try{
+{
   if (typeof updateWyeAndButtons !== 'function'){
-    function updateWyeAndButtons(){ try{ return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; }catch(_){} } catch(_){ }
+    function updateWyeAndButtons(){ { return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; } }
   }
   if (typeof gateWyeBySize !== 'function'){
     function gateWyeBySize(){
-  try{ globalThis.gateWyeBySize = gateWyeBySize; }catch(_){}
- try{ return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; }catch(_){ return false; } } catch(_){ }
-  } catch(_){ }
-}catch(_){}
+  { globalThis.gateWyeBySize = gateWyeBySize; }
+ { return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; } }
+  }
+}
 
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
@@ -41,15 +41,15 @@ import { WaterSupplyUI } from './waterSupply.js';
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
 function safeClone(obj){
-  try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
-} catch(_){ }
+  { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
+}
 function loadSaved(){
-  try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
+  { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
   catch { return null; }
-} catch(_){ }
+}
 function saveNow(pack){
-  try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
-} catch(_){ }
+  { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
+}
 
 // mark edits “dirty” and flush every 1s
 let __dirty = false;
@@ -103,12 +103,12 @@ const BRANCH_LIFT = 10;
 
 // --- Helper: find the 185 GPM @ 50 psi nozzle (fallback to first fog if not found) ---
 function pickNozzle18550(){
-  try{
+  {
     if (Array.isArray(NOZ_LIST)) {
       // note: spaced to avoid accidental token; will fix after insertion
     }
-  }catch(_){}
-  try{
+  }
+  {
     if (Array.isArray(NOZ_LIST)) {
       for (const n of NOZ_LIST){
         const nm = (n.name||n.label||'').toLowerCase();
@@ -121,20 +121,20 @@ function pickNozzle18550(){
       }
       return NOZ_LIST[0];
     }
-  }catch(_){}
-  try{
+  }
+  {
     const cand = Object.values(NOZ||{}).find(n=>{
       const nm=(n.name||n.label||'').toLowerCase();
       const id=(n.id||'').toLowerCase();
       return (nm.includes('185')||id.includes('185')) && (nm.includes('50')||id.includes('50'));
     });
     if (cand) return cand;
-  }catch(_){}
+  }
   return null;
-} catch(_){ }
+}
 // --- Ensure branch defaults (50' of 1.75 with 185@50) when Wye is enabled ---
 function ensureBranchDefaultsOnWye(lineKey){
-  try{
+  {
     const L = state.lines[lineKey];
     if (!L) return;
     // Remove main nozzle when Wye is on
@@ -150,8 +150,8 @@ function ensureBranchDefaultsOnWye(lineKey){
       L.nozLeft  = noz;
       L.nozRight = noz;
     }
-  }catch(_){}
-} catch(_){ }
+  }
+}
 
 /*                               Small utilities
 
@@ -216,14 +216,14 @@ function ensureDefaultNozzleFor(L, where, size){
   } else {
     
     // Wye branch override: when editing branches, prefer Fog 185 @ 50 regardless of size
-    try{
+    {
       if (state?.lines && (where==='L' || where!=='main')){
         const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true });
         if (where==='L'){ L.nozLeft = NOZ[id185] || L.nozLeft || NOZ_LIST.find(n=>n.id===id185); }
         else { L.nozRight = NOZ[id185] || L.nozRight || NOZ_LIST.find(n=>n.id===id185); }
         return;
       }
-    }catch(_){}
+    }
 L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
   }
 }
@@ -275,7 +275,7 @@ function straightBranch(side, startX, startY, totalPx){
 }
 
 function addLabel(G_labels, text, x, y, dy){
-  try{
+  {
     const ns='http://www.w3.org/2000/svg';
     const g = document.createElementNS(ns,'g');
     const t = document.createElementNS(ns,'text');
@@ -324,7 +324,7 @@ function addLabel2(G_labels, text, x, y, dy){
 
 // Try to nudge label upward in steps until it doesn't overlap existing label rects
 function placeLabelNoOverlap(G_labels, g){
-  try{
+  {
     const maxIter = 8, step = 14;
     const rect = g.querySelector('rect'), text = g.querySelector('text');
     if(!rect || !text) return;
@@ -354,7 +354,7 @@ function placeLabelNoOverlap(G_labels, g){
       rect.setAttribute('height', tbb.height + 8);
       iter++;
     }
-  }catch(_){}
+  }
 }
 
 function addTip(G_tips, key, where, x, y){
@@ -823,10 +823,10 @@ export async function render(container){
       width:100%; padding:10px 12px;
       border:1px solid rgba(255,255,255,.22);
 /* phone KPI single-line */
-try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
+{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}
  border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
-    } catch(_){ }
+    }
     .field input:focus, .field select:focus, .field textarea:focus {
       border-color:#6ecbff; box-shadow:0 0 0 3px rgba(110,203,255,.22);
     }
@@ -987,7 +987,7 @@ const teLenA      = container.querySelector('#teLenA');
         }
       }
 function gateWyeBySize(){
-  try{ globalThis.gateWyeBySize = gateWyeBySize; }catch(_){}
+  { globalThis.gateWyeBySize = gateWyeBySize; }
 
         const sizeOK = (teSize && String(teSize.value) === '2.5');
         const wyeSelect = tip.querySelector('#teWye');
@@ -1012,10 +1012,10 @@ function gateWyeBySize(){
         }
       }
 // Ensure Wye helpers are globally accessible (avoid ReferenceError)
-try{
+{
   if (typeof updateWyeAndButtons === 'function') { globalThis.updateWyeAndButtons = updateWyeAndButtons; }
   if (typeof gateWyeBySize === 'function')      { globalThis.gateWyeBySize      = gateWyeBySize; }
-}catch(_){}
+}
 
 
       // Bind
@@ -1138,11 +1138,11 @@ function updateSegSwitchVisibility(){
 
   // Bind seg buttons
   segBtns.forEach(btn=>btn.addEventListener('click') );// --- Ensure Branch nozzle changes update math/render (A & B) ---
-try{
+{
   const teNozA = container.querySelector('#teNozA');
   if (teNozA && !teNozA.__wired){
     teNozA.addEventListener('change', ()=>{
-      try{
+      {
         const id = teNozA.value;
         let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
         if (!key){
@@ -1159,17 +1159,17 @@ try{
           if (typeof render==='function') render();
           if (typeof markDirty==='function') markDirty();
         }
-      }catch(_){}
+      }
     });
     teNozA.__wired = true;
   }
-}catch(_){}
+}
 
-try{
+{
   const teNozB = container.querySelector('#teNozB');
   if (teNozB && !teNozB.__wired){
     teNozB.addEventListener('change', ()=>{
-      try{
+      {
         const id = teNozB.value;
         let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
         if (!key){
@@ -1186,11 +1186,11 @@ try{
           if (typeof render==='function') render();
           if (typeof markDirty==='function') markDirty();
         }
-      }catch(_){}
+      }
     });
     teNozB.__wired = true;
   }
-}catch(_){}
+}
 
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
@@ -1231,19 +1231,19 @@ try{
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
-  try {
+  {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
-        try {
+        {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
             waterSupply.setAllRoundTripMinutes(minutes);
             applied = true;
           }
-        } catch(e){}
+        }
         if (!applied) {
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
@@ -1253,7 +1253,7 @@ try{
           });
           document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } }));
         }
-        try { refreshSupplySummary(); markDirty(); } catch(_){}
+        { refreshSupplySummary(); markDirty(); }
       });
     }
     let __tripAutofilled = false;
@@ -1274,10 +1274,10 @@ try{
         }
       });
     }
-  } catch(_){}
+  }
 
   (function(){
-    try{
+    {
       const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
         @media (max-width:520px){
@@ -1289,22 +1289,22 @@ try{
       const st = document.createElement('style');
       st.textContent = css;
       document.head.appendChild(st);
-    }catch(_){}
+    }
   })();
 // Global Round Trip apply-to-all
-  try {
+  {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
-        try {
+        {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
             waterSupply.setAllRoundTripMinutes(minutes);
             applied = true;
           }
-        } catch(e){}
+        }
         if (!applied) {
           // Fallback: set all tender "trip" inputs in the list and dispatch input events
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
@@ -1318,22 +1318,22 @@ try{
           document.dispatchEvent(evt);
         }
         // Recompute summary if present
-        try {
+        {
           refreshSupplySummary();
           markDirty();
-        } catch(_){}
+        }
       });
     }
-  } catch(_){}
+  }
 // Helper to pick the best snapshot API if present
   function pickWaterSnapshotSafe(){
-    try {
+    {
       if (typeof waterSupply.getSnapshot === 'function') return waterSupply.getSnapshot();
       if (typeof waterSupply.snapshot    === 'function') return waterSupply.snapshot();
       if (typeof waterSupply.export      === 'function') return waterSupply.export();
     } catch {}
     // Best-effort DOM fallback if no API:
-    try {
+    {
       const tenders = [];
       const list = container.querySelectorAll('#tenderList [data-tender]');
       list.forEach(node=>{
@@ -1349,7 +1349,7 @@ try{
   }
 
   // Restore water snapshot after WaterSupplyUI exists
-  try {
+  {
     const snap = saved_at_mount?.water;
     if (snap && typeof waterSupply.restoreSnapshot === 'function') {
       waterSupply.restoreSnapshot(snap);
@@ -1630,27 +1630,27 @@ try{
     showHideMainNozzleRow();
   }
   // Branch nozzle change listeners (mirror main lines)
-  try {
+  {
     const nozA = tip.querySelector('#teNozA');
     const nozB = tip.querySelector('#teNozB');
     if (nozA) nozA.addEventListener('change', () => {
-      try {
+      {
         const id = nozA.value;
         if (id && NOZ && NOZ[id]) { L.nozLeft = NOZ[id]; }
         // lock branch hose size to 1.75 is handled elsewhere in calc; just recompute
         recompute();
         render();
-      } catch(_){}
+      }
     });
     if (nozB) nozB.addEventListener('change', () => {
-      try {
+      {
         const id = nozB.value;
         if (id && NOZ && NOZ[id]) { L.nozRight = NOZ[id]; }
         recompute();
         render();
-      } catch(_){}
+      }
     });
-  } catch(_){}
+  }
 
 
   // Change of diameter in editor → update default nozzle (when applicable)
@@ -1777,13 +1777,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   (function ensureBottomSheet(){
     if (window.BottomSheetEditor) return;
-    try{
+    {
       const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
       if (already) return;
       const s = document.createElement('script');
       s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
       document.body.appendChild(s);
-    }catch(e){}
+    }
   })();
 
   /* -------------------------------- Draw --------------------------------- */
@@ -1821,12 +1821,12 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-          try{
+          {
             const lenFtL = (typeof sumFt==='function') ? sumFt(L.itemsLeft)||0 : 0;
             const gpmL = (L.nozLeft && L.nozLeft.gpm) ? L.nozLeft.gpm : 0;
             const psiL = (L.nozLeft && (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np)) ? (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np) : 0;
             addLabel2(G_labels, String(n0(lenFtL))+'′ @ '+String(n0(gpmL))+' gpm — '+String(n0(psiL))+' psi', gL.endX, gL.endY-8, -10);
-          }catch(_){}
+          }
 
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
@@ -1835,12 +1835,12 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-          try{
+          {
             const lenFtR = (typeof sumFt==='function') ? sumFt(L.itemsRight)||0 : 0;
             const gpmR = (L.nozRight && L.nozRight.gpm) ? L.nozRight.gpm : 0;
             const psiR = (L.nozRight && (L.nozRight.NP||L.nozRight.psi||L.nozRight.np)) ? (L.nozRight.NP||L.nozRight.psi||L.nozRight.np) : 0;
             addLabel2(G_labels, String(n0(lenFtR))+'′ @ '+String(n0(gpmR))+' gpm — '+String(n0(psiR))+' psi', gR.endX, gR.endY-8, -10);
-          }catch(_){}
+          }
 
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
@@ -1870,34 +1870,34 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   drawAll();
 
   // Dev helper to clear saved practice
-  window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
+  window.__resetPractice = function(){ { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } };
 
   
-  try{ initPlusMenus(container); }catch(e){}
+  { initPlusMenus(container); }
   return { dispose(){
     stopAutoSave();
   }};
 
     // (Fallback) Populate Branch A/B nozzle selects like main lines
-    try {
+    {
       const nozA = root.querySelector('#teNozA');
       const nozB = root.querySelector('#teNozB');
       if (typeof fillNozzles === 'function') {
         fillNozzles(nozA);
         fillNozzles(nozB);
       }
-      try {
+      {
         if (L.nozLeft && L.nozLeft.id && nozA) nozA.value = L.nozLeft.id;
         if (L.nozRight && L.nozRight.id && nozB) nozB.value = L.nozRight.id;
-      } catch(_){}
-      try {
+      }
+      {
         const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
         if (defId) {
           if (nozA && !nozA.value) nozA.value = defId;
           if (nozB && !nozB.value) nozB.value = defId;
         }
-      } catch(_){}
-    } catch(_){}
+      }
+    }
 }
 
 export default { render };
@@ -1993,9 +1993,9 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-    try{
+    {
       if(!sel || !Array.isArray(NOZ_LIST)) return;
-    }catch(e){}
+    }
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>{
       const label = n.name || n.desc || n.id || 'Nozzle';
@@ -2039,10 +2039,10 @@ function initBranchPlusMenus(root){
 /* AUTO-RESET & PRESETS-HIDE ON LOAD */
 (function(){
   function safeFogId(){
-    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_e){ return null; }
+    { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; }
   }
   function resetAllDeployedLines(){
-    try{
+    {
       if (!window.state || !state.lines) return;
       var id = safeFogId();
       for (var k in state.lines){
@@ -2057,26 +2057,26 @@ function initBranchPlusMenus(root){
         state.lines[k] = L;
       }
       if (typeof state.save === 'function') state.save();
-    }catch(_e){}
+    }
   }
   function hidePresetsUI(){
-    try{
+    {
       var css = document.createElement('style');
       css.setAttribute('data-auto-hide','presets');
       css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
       document.head && document.head.appendChild(css);
       var btn = document.getElementById('presetsBtn');
       if (btn){ btn.replaceWith(btn.cloneNode(true)); }
-    }catch(_e){}
+    }
   }
   function init(){
     resetAllDeployedLines();
     hidePresetsUI();
     // If your app has a render() or drawAll(), trigger a first draw safely
-    try{
+    {
       if (typeof render === 'function') render();
       else if (typeof drawAll === 'function') drawAll();
-    }catch(_e){}
+    }
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once:true });
@@ -2087,7 +2087,7 @@ function initBranchPlusMenus(root){
 
 
     document.addEventListener('tender-trip-stopped', (ev)=>{
-      try{
+      {
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
           const el = container.querySelector('#tTripAll');
@@ -2096,11 +2096,11 @@ function initBranchPlusMenus(root){
             el.textContent = String(mins);
           }
         }
-      }catch(_){}
+      }
     });
     
 (function(){
-  try{
+  {
     const st = document.createElement('style');
     st.textContent = `
     .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
@@ -2113,7 +2113,7 @@ function initBranchPlusMenus(root){
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
     `;
     document.head.appendChild(st);
-  }catch(_){}
+  }
 })();
 
 
@@ -2131,7 +2131,7 @@ function initBranchPlusMenus(root){
   function show(el){ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); }
 
   function apply(sheet){
-    try{
+    {
       const root = sheet.querySelector('.te-content') || sheet;
       // Hide existing segSwitch if present
       const segSwitch = root.querySelector('#segSwitch');
@@ -2226,8 +2226,6 @@ function initBranchPlusMenus(root){
 
       // Initial
       sync();
-    }catch(e){
-      console.warn('PLUS MENUS apply error', e);
     }
   }
 
