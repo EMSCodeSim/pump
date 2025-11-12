@@ -596,6 +596,26 @@ export async function render(container){
           </div>
           <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
         </div>
+<!-- Tender controls (minimal) -->
+<div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+  <div class="row" style="gap:10px; align-items:flex-end;">
+    <div class="field">
+      <label>Tender ID / Number</label>
+      <input id="tAddId" type="text" placeholder="e.g., Tender 2">
+    </div>
+    <div class="field">
+      <label>Capacity (gal)</label>
+      <input id="tAddCap" type="number" inputmode="decimal" placeholder="e.g., 3000">
+    </div>
+    <div class="field">
+      <button id="tAddBtn" class="btn primary" type="button">Add Tender</button>
+    </div>
+  </div>
+
+  <!-- Per‑tender list with timers will render here -->
+  <div id="tenderList" style="margin-top:10px"></div>
+</div>
+
 
         
 
