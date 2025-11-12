@@ -100,6 +100,59 @@ const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
 /* ========================================================================== */
+
+// --- Helper: find the 185 GPM @ 50 psi nozzle (fallback to first fog if not found) ---
+function pickNozzle18550(){
+  try{
+    if (Array.isArray(NOZ_LIST)) {
+      // note: spaced to avoid accidental token; will fix after insertion
+    }
+  }catch(_){}
+  try{
+    if (Array.isArray(NOZ_LIST)) {
+      for (const n of NOZ_LIST){
+        const nm = (n.name||n.label||'').toLowerCase();
+        const id = (n.id||'').toLowerCase();
+        if ((nm.includes('185') || id.includes('185')) && (nm.includes('50') || id.includes('50'))) return n;
+      }
+      for (const n of NOZ_LIST){
+        const nm = (n.name||n.label||'').toLowerCase();
+        if (nm.includes('fog')) return n;
+      }
+      return NOZ_LIST[0];
+    }
+  }catch(_){}
+  try{
+    const cand = Object.values(NOZ||{}).find(n=>{
+      const nm=(n.name||n.label||'').toLowerCase();
+      const id=(n.id||'').toLowerCase();
+      return (nm.includes('185')||id.includes('185')) && (nm.includes('50')||id.includes('50'));
+    });
+    if (cand) return cand;
+  }catch(_){}
+  return null;
+}
+// --- Ensure branch defaults (50' of 1.75 with 185@50) when Wye is enabled ---
+function ensureBranchDefaultsOnWye(lineKey){
+  try{
+    const L = state.lines[lineKey];
+    if (!L) return;
+    // Remove main nozzle when Wye is on
+    if (L.nozMain) delete L.nozMain;
+    if (L.nozRight) delete L.nozRight;
+    if (L.noz) delete L.noz;
+    if (!Array.isArray(L.itemsLeft))  L.itemsLeft  = [];
+    if (!Array.isArray(L.itemsRight)) L.itemsRight = [];
+    if (!L.itemsLeft[0])  L.itemsLeft[0]  = { size:'1.75', lengthFt:50 };
+    if (!L.itemsRight[0]) L.itemsRight[0] = { size:'1.75', lengthFt:50 };
+    const noz = pickNozzle18550();
+    if (noz){
+      L.nozLeft  = noz;
+      L.nozRight = noz;
+    }
+  }catch(_){}
+}
+
 /*                               Small utilities                              */
 /* ========================================================================== */
 
