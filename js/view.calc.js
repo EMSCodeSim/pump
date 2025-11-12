@@ -774,8 +774,9 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
       function setActive(seg){
         // highlight
-        // seg buttons removed
-// helper show/hide with robust a11y + style guards
+        [bMain,bA,bB].forEach(btn=>btn.classList.toggle('active', btn.dataset.seg===seg));
+
+        // helper show/hide with robust a11y + style guards
         const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
         const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
 
@@ -849,7 +850,7 @@ function gateWyeBySize(){
       function updateWyeAndButtons(){
         const isOn = tip.querySelector('#teWye')?.value === 'on';
         const sizeOK = gateWyeBySize();
-        // segSwitch UI removed
+        // Always keep segSwitch hidden
         if (wrap) wrap.style.display = 'none';
         const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
         const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
@@ -862,8 +863,8 @@ function gateWyeBySize(){
       }
 
       // Bind
-      // seg buttons removed
-const wyeSel = tip.querySelector('#teWye');
+      [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
+      const wyeSel = tip.querySelector('#teWye');
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
