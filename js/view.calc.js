@@ -757,8 +757,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       wrap = document.createElement('div');
       wrap.id = 'segSwitch';
       wrap.className = 'segSwitch';
-      wrap.style.display = 'none';
-wrap.style.display = 'none'; // default hidden, shown when Wye ON
+      wrap.style.display = 'none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
         b.type = 'button';
@@ -772,6 +771,39 @@ wrap.style.display = 'none'; // default hidden, shown when Wye ON
       const bB    = mk('Line B','B');
       wrap.appendChild(bMain); wrap.appendChild(bA); wrap.appendChild(bB);
       tip.insertBefore(wrap, actions);
+// --- New '+ menus' toolbar for Wye segments (Main / Left / Right) ---
+let plusBar = tip.querySelector('#segPlus');
+if (plusBar && plusBar.parentNode) plusBar.parentNode.removeChild(plusBar);
+
+plusBar = document.createElement('div');
+plusBar.id = 'segPlus';
+plusBar.className = 'segPlus';
+plusBar.style.display = 'none'; // shown only when Wye ON & size 2.5"
+
+const mkPlus = (label, seg) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'segPlusBtn';
+  // simple '+' icon + label
+  const i = document.createElement('span'); i.className = 'segPlusIcon'; i.textContent = '+';
+  const t = document.createElement('span'); t.className = 'segPlusText'; t.textContent = label;
+  b.appendChild(i); b.appendChild(t);
+  b.dataset.seg = seg;
+  return b;
+};
+
+const pMain = mkPlus('Main','main');
+const pLeft = mkPlus('Left','A');
+const pRight= mkPlus('Right','B');
+
+plusBar.appendChild(pMain);
+plusBar.appendChild(pLeft);
+plusBar.appendChild(pRight);
+tip.insertBefore(plusBar, actions);
+
+// Clicking a plus button switches the active segment using existing setActive()
+[pMain,pLeft,pRight].forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.seg)));
+
 
       function setActive(seg){
         // highlight
@@ -849,13 +881,34 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
-        if (!(isOn && sizeOK)){
-          // collapse back to Main if user turned Wye off or size is not 2.5
-          setActive('main');
-        }
+  const isOn   = tip.querySelector('#teWye')?.value === 'on';
+  const sizeOK = gateWyeBySize(); // enforces 2.5" for Wye UI
+
+  // Show/hide helper
+  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); };
+
+  // Ensure the old segSwitch stays hidden
+  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
+  // Control the new +menu toolbar
+  if (typeof plusBar !== 'undefined' && plusBar) plusBar.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+
+  if (!(isOn && sizeOK)){
+    // Wye off or size not 2.5" → return to main and hide branch views
+    setActive('main');
+    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
+    return;
+  }
+
+  // Wye ON & size 2.5" → keep exclusive selection via setActive(); default to Main
+  // (User picks Main/Left/Right via + menus)
+  if (aSect && bSect && branchBlock){
+    // Do not force both visible; rely on setActive selection
+    // Default to main if nothing is active yet
+    const activeBtn = plusBar?.querySelector('.segPlusBtn.active');
+    if (!activeBtn) setActive('main');
+  }
+}
       }
 
       // Bind
@@ -868,12 +921,9 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
-      updateWyeAndButtons();
-      // If user clicked a branch tip to open, start there; else Main
-      if (whereInit==='L') setActive('A');
-      else if (whereInit==='R') setActive('B');
-      else setActive('main');
-    }
+updateWyeAndButtons();
+setActive('main');
+}
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
