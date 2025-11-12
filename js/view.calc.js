@@ -1683,6 +1683,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
+          try{
+            const lenFtL = (typeof sumFt==='function') ? sumFt(L.itemsLeft)||0 : 0;
+            const gpmL = (L.nozLeft && L.nozLeft.gpm) ? L.nozLeft.gpm : 0;
+            const psiL = (L.nozLeft && (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np)) ? (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np) : 0;
+            addLabel(G_labels, String(lenFtL)+'′ @ '+String(gpmL)+' gpm — '+String(psiL)+' psi', gL.endX, gL.endY-8, -10);
+          }catch(_){}
+
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
@@ -1690,6 +1697,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
+          try{
+            const lenFtR = (typeof sumFt==='function') ? sumFt(L.itemsRight)||0 : 0;
+            const gpmR = (L.nozRight && L.nozRight.gpm) ? L.nozRight.gpm : 0;
+            const psiR = (L.nozRight && (L.nozRight.NP||L.nozRight.psi||L.nozRight.np)) ? (L.nozRight.NP||L.nozRight.psi||L.nozRight.np) : 0;
+            addLabel(G_labels, String(lenFtR)+'′ @ '+String(gpmR)+' gpm — '+String(psiR)+' psi', gR.endX, gR.endY-8, -10);
+          }catch(_){}
+
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
       base.remove();
