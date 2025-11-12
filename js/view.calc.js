@@ -1118,7 +1118,8 @@ function updateSegSwitchVisibility(){
   }
 
   // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));, ()=> setSeg(btn.dataset.seg)));
+  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
+()=> setSeg(btn.dataset.seg)));
 
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
