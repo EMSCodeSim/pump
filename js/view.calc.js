@@ -849,21 +849,22 @@ function gateWyeBySize(){
 
       function updateWyeAndButtons(){
 
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
-        const sizeOK = gateWyeBySize();
-        // Always keep segSwitch hidden (no Line A/B buttons)
-        if (wrap) wrap.style.display = 'none';
-        const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-        const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-        if (!(isOn && sizeOK)){
-          // Wye OFF or size not 2.5 -> hide branch editors and fall back to Main
-          hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
-          setActive('main');
-          return;
-        }
-        // Wye ON @ 2.5″ -> show both Branch A & Branch B editors
-        showEl(branchBlock); showEl(aSect); showEl(bSect);
-    
+  const isOn = tip.querySelector('#teWye')?.value === 'on';
+  const sizeOK = gateWyeBySize();
+  // Keep segSwitch hidden (no Line A/B buttons in the UI)
+  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
+
+  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display = 'none'; el.classList.add('is-hidden'); };
+  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display = '';     el.classList.remove('is-hidden'); };
+
+  if (!(isOn && sizeOK)){
+    // Wye OFF or size not 2.5 → hide both branch editors and return to Main view
+    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
+    if (typeof setActive === 'function') setActive('main');
+    return;
+  }
+  // Wye ON and size = 2.5 → show BOTH Branch A and Branch B editors
+  showEl(branchBlock); showEl(aSect); showEl(bSect);
 }
       }
 
@@ -877,6 +878,7 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
+      updateWyeAndButtons();
       updateWyeAndButtons();
       // If user clicked a branch tip to open, start there; else Main
       if (whereInit==='L') setActive('A');
