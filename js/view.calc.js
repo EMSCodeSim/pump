@@ -844,6 +844,12 @@ function gateWyeBySize(){
           setActive('main');
         }
       }
+// Ensure Wye helpers are globally accessible (avoid ReferenceError)
+try{
+  if (typeof updateWyeAndButtons === 'function') { globalThis.updateWyeAndButtons = updateWyeAndButtons; }
+  if (typeof gateWyeBySize === 'function')      { globalThis.gateWyeBySize      = gateWyeBySize; }
+}catch(_){}
+
 
       // Bind
       [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
