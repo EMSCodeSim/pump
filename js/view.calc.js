@@ -73,7 +73,7 @@ function buildSnapshot(waterSnapshot){
   return safeClone({
     state,                // entire sim state (lines, supply, etc.)
     water: waterSnapshot || null
-  });
+  );
 }
 
 // Applies saved.state into live state (preserving object identities)
@@ -126,7 +126,7 @@ function pickNozzle18550(){
       const nm=(n.name||n.label||'').toLowerCase();
       const id=(n.id||'').toLowerCase();
       return (nm.includes('185')||id.includes('185')) && (nm.includes('50')||id.includes('50'));
-    });
+    );
     if (cand) return cand;
   }
   return null;
@@ -199,10 +199,10 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true );
+  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true );
   // For other sizes, keep “closest fog near 185 @ 50”
-  return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  return findNozzleId({ gpm:185, NP:50, preferFog:true );
 }
 
 // Ensure a nozzle exists for a target (main/left/right) based on size
@@ -217,7 +217,7 @@ function ensureDefaultNozzleFor(L, where, size){
     // Wye branch override: when editing branches, prefer Fog 185 @ 50 regardless of size
     {
       if (state?.lines && (where==='L' || where!=='main')){
-        const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true });
+        const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true );
         if (where==='L'){ L.nozLeft = NOZ[id185] || L.nozLeft || NOZ_LIST.find(n=>n.id===id185); }
         else { L.nozRight = NOZ[id185] || L.nozRight || NOZ_LIST.find(n=>n.id===id185); }
         return;
@@ -230,7 +230,7 @@ L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true);
     L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
@@ -254,7 +254,7 @@ function computeNeededHeightPx(){
       branchPx = Math.max(lpx, rpx) + BRANCH_LIFT;
     }
     maxUp = Math.max(maxUp, mainPx + branchPx);
-  });
+  );
   return Math.max(TRUCK_H + supplyHeight() + 10, TRUCK_H + maxUp + 40 + supplyHeight());
 }
 function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
@@ -341,7 +341,7 @@ function placeLabelNoOverlap(G_labels, g){
         const r = other.querySelector('rect'); if (!r) return;
         const obb = r.getBBox();
         if (intersects(bb, obb)) collides = true;
-      });
+      );
       if (!collides) break;
       moved += step;
       // move up by step pixels
@@ -382,7 +382,7 @@ function drawSegmentedPath(group, basePath, segs){
     p.setAttribute('stroke-dashoffset', -offset);
     group.appendChild(p);
     offset += portion;
-  });
+  );
 }
 
 /* ========================================================================== */
@@ -439,7 +439,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     svg.appendChild(tx);
 
     x+=segW;
-  });
+  );
 
   const pill=document.createElementNS(svgNS,'rect');
   pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
@@ -545,13 +545,13 @@ export async function render(container){
   window.addEventListener('beforeunload', ()=>{
     const pack = buildSnapshot(pickWaterSnapshotSafe());
     if (pack) saveNow(pack);
-  });
+  );
   document.addEventListener('visibilitychange', ()=>{
     if (document.visibilityState === 'hidden') {
       const pack = buildSnapshot(pickWaterSnapshotSafe());
       if (pack) saveNow(pack);
     }
-  });
+  );
 
   container.innerHTML = `
     <section class="stack" data-calc-root>
@@ -939,7 +939,7 @@ const teLenA      = container.querySelector('#teLenA');
         ['#rowSize','#rowLen','#rowElev','#rowNoz'].forEach(sel=>{
           const el = tip.querySelector(sel);
           if (el) (mainShow? showEl : hideEl)(el);
-        });
+        );
 
         // legacy compact block wrapper only when on a branch
         if (branchBlock) (seg==='A'||seg==='B' ? showEl : hideEl)(branchBlock);
@@ -1023,8 +1023,8 @@ function gateWyeBySize(){
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
-      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
-      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); );
+      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); );
 
       // Initial state
       updateWyeAndButtons();
@@ -1062,7 +1062,7 @@ function gateWyeBySize(){
       const el = container.querySelector(sel);
       if (!el) return;
       (seg==='main' ? showEl : hideEl)(el);
-    });
+    );
     if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
 
     // Branch sections — show only selected branch when wye is on
@@ -1159,7 +1159,7 @@ function updateSegSwitchVisibility(){
           if (typeof markDirty==='function') markDirty();
         }
       }
-    });
+    );
     teNozA.__wired = true;
   }
 }
@@ -1186,7 +1186,7 @@ function updateSegSwitchVisibility(){
           if (typeof markDirty==='function') markDirty();
         }
       }
-    });
+    );
     teNozB.__wired = true;
   }
 }
@@ -1198,7 +1198,7 @@ function updateSegSwitchVisibility(){
   [teNoz, teNozA, teNozB].forEach(sel=>{
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
-  });
+  );
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1225,7 +1225,7 @@ function updateSegSwitchVisibility(){
       hydrantResult:   '#hydrantResult',
       tTripAll:        '#tTripAll',
       tTripApplyAll:  '#tTripApplyAll'}
-  });
+  );
 
   
   
@@ -1247,13 +1247,13 @@ function updateSegSwitchVisibility(){
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
             inp.value = String(minutes);
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-          });
-          document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } }));
+            inp.dispatchEvent(new Event('input', { bubbles: true ));
+            inp.dispatchEvent(new Event('change', { bubbles: true ));
+          );
+          document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } ));
         }
         { refreshSupplySummary(); markDirty(); }
-      });
+      );
     }
     let __tripAutofilled = false;
     const tenderListEl = container.querySelector('#tenderList');
@@ -1271,7 +1271,7 @@ function updateSegSwitchVisibility(){
             __tripAutofilled = true;
           }
         }
-      });
+      );
     }
   }
 
@@ -1307,11 +1307,11 @@ function updateSegSwitchVisibility(){
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
             inp.value = String(minutes);
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.dispatchEvent(new Event('change', { bubbles: true }));
-          });
+            inp.dispatchEvent(new Event('input', { bubbles: true ));
+            inp.dispatchEvent(new Event('change', { bubbles: true ));
+          );
           // Dispatch a custom event for any listeners
-          const evt = new CustomEvent('tender-apply-trip', { detail: { minutes } });
+          const evt = new CustomEvent('tender-apply-trip', { detail: { minutes } );
           document.dispatchEvent(evt);
         }
         // Recompute summary if present
@@ -1319,7 +1319,7 @@ function updateSegSwitchVisibility(){
           refreshSupplySummary();
           markDirty();
         }
-      });
+      );
     }
   }
 // Helper to pick the best snapshot API if present
@@ -1337,8 +1337,8 @@ function updateSegSwitchVisibility(){
         tenders.push({
           id: node.getAttribute('data-id') || node.querySelector('.tenderName')?.textContent?.trim(),
           cap: +(node.getAttribute('data-cap') || node.querySelector('[data-cap]')?.textContent || 0)
-        });
-      });
+        );
+      );
       const gpm = +(container.querySelector('#shuttleTotalGpm')?.textContent || 0);
       return { tenders, shuttle: { totalGpm: gpm } };
     } 
@@ -1365,7 +1365,7 @@ function updateSegSwitchVisibility(){
   startAutoSave(()=>{
     const waterSnap = pickWaterSnapshotSafe();
     return buildSnapshot(waterSnap);
-  });
+  );
 
   // Observe Tender Shuttle UI to persist on changes, too
   const tenderListEl = container.querySelector('#tenderList');
@@ -1374,9 +1374,9 @@ function updateSegSwitchVisibility(){
     enhanceTenderListStyle();
     refreshSupplySummary();
     markDirty();
-  });
-  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
-  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
+  );
+  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true);
+  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true);
 
   /* ---------------------------- Totals & KPIs ----------------------------- */
 
@@ -1405,7 +1405,7 @@ function updateSegSwitchVisibility(){
       }
       totalGPM += flow;
       if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
-    });
+    );
     state.lastMaxKey = maxKey;
     GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.classList.remove('orange','red');
@@ -1539,7 +1539,7 @@ function updateSegSwitchVisibility(){
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
         }
       }
-    });
+    );
   }
 
   /* ------------------------ Hydrant/Tender summary ------------------------ */
@@ -1569,10 +1569,10 @@ function updateSegSwitchVisibility(){
     if(!state.lastMaxKey) return;
     const target = container.querySelector('#pp_simple_'+state.lastMaxKey);
     if(target){
-      target.scrollIntoView({behavior:'smooth', block:'center'});
+      target.scrollIntoView({behavior:'smooth', block:'center');
       const details = target.closest('details'); if(details && !details.open){ details.open = true; }
     }
-  });
+  );
 
   /* ------------------------- Tip editor interactions ---------------------- */
 
@@ -1638,7 +1638,7 @@ function updateSegSwitchVisibility(){
         recompute();
         render();
       }
-    });
+    );
     if (nozB) nozB.addEventListener('change', () => {
       {
         const id = nozB.value;
@@ -1646,7 +1646,7 @@ function updateSegSwitchVisibility(){
         recompute();
         render();
       }
-    });
+    );
   }
 
 
@@ -1666,7 +1666,7 @@ function updateSegSwitchVisibility(){
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
-  });
+  );
 
   // Delegate click on "+"
   stageSvg.addEventListener('click', (e)=>{
@@ -1685,7 +1685,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       tipEditor.classList.remove('is-hidden');
       tipEditor.classList.add('is-open');
     }
-  });
+  );
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
@@ -1698,7 +1698,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
-  });
+  );
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
@@ -1741,7 +1741,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
 
     L.visible = true; drawAll(); markDirty();
-  });
+  );
 
   /* ---------------------------- Line toggles ------------------------------ */
 
@@ -1750,24 +1750,24 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const key=b.dataset.line; const L=seedDefaultsForKey(key);
       L.visible = !L.visible; b.classList.toggle('active', L.visible);
       drawAll(); markDirty();
-    });
-  });
+    );
+  );
 
   /* --------------------------- Supply buttons ----------------------------- */
 
   container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
     state.supply = 'pressurized'; drawAll(); markDirty();
-  });
+  );
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
     state.supply = 'static'; drawAll(); markDirty();
-  });
+  );
 
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
     if (!rootEl) return;
     rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
       el.classList.add('tender-emph');
-    });
+    );
   }
 
   /* -------------------------- Ensure editor script ------------------------ */
@@ -1842,7 +1842,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
       base.remove();
-    });
+    );
 
     // Supply visuals & panels
     waterSupply.draw(viewH);
@@ -2076,7 +2076,7 @@ function initBranchPlusMenus(root){
     }
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once:true });
+    document.addEventListener('DOMContentLoaded', init, { once:true );
   } else {
     setTimeout(init, 0);
   }
@@ -2094,7 +2094,7 @@ function initBranchPlusMenus(root){
           }
         }
       }
-    });
+    );
     
 (function(){ const st = document.createElement('style');
     st.textContent = `
@@ -2235,8 +2235,8 @@ function initBranchPlusMenus(root){
         if (n.nodeType===1 && n.id===SHEET_ID) apply(n);
       }
     }
-  });
-  obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
+  );
+  obs.observe(document.documentElement || document.body, { childList:true, subtree:true );
 })();
 
 })();
