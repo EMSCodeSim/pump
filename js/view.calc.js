@@ -380,7 +380,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     containerEl.style.fontSize='12px';
     return;
   }
-  const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
+  const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)); NP_W=64, H=54;
   const svgNS='http://www.w3.org/2000/svg';
   const svg=document.createElementNS(svgNS,'svg');
   svg.setAttribute('width','100%'); svg.setAttribute('height',H);
