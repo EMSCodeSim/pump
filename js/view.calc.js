@@ -153,7 +153,12 @@ function ensureBranchDefaultsOnWye(lineKey){
   }catch(_){}
 }
 
-/*                               Small utilities                              */
+/*                               Small utilities
+
+// --- safe number formatter ---
+function n0(v){ v = Number(v); return (isFinite(v) && !isNaN(v)) ? Math.round(v) : 0; }
+
+                              */
 /* ========================================================================== */
 
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
@@ -268,20 +273,48 @@ function straightBranch(side, startX, startY, totalPx){
   const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
   return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
-function addLabel(G_labels, text, x, y, dy=0){
-  const ns='http://www.w3.org/2000/svg';
-  const g = document.createElementNS(ns,'g');
-  const pad = 4;
-  const t = document.createElementNS(ns,'text');
-  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.setAttribute('stroke','#000000'); t.setAttribute('stroke-width','2'); t.setAttribute('paint-order','stroke fill'); t.textContent = text;
-  g.appendChild(t); G_labels.appendChild(g);
-  const bb = t.getBBox();
-  const bg = document.createElementNS(ns,'rect');
-  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
-  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-  bg.setAttribute('fill','rgba(0,0,0,0.9)'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke','rgba(255,255,255,0.35)'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
-  g.insertBefore(bg, t);
+
+function addLabel(G_labels, text, x, y, dy){
+  try{
+    const ns='http://www.w3.org/2000/svg';
+    const g = document.createElementNS(ns,'g');
+    const t = document.createElementNS(ns,'text');
+    const pad = 5;
+    t.setAttribute('x', x);
+    t.setAttribute('y', y + (dy||0));
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('dominant-baseline','hanging');
+    t.setAttribute('font-size','13');
+    t.setAttribute('fill','#ffffff');
+    t.setAttribute('stroke','#000000');
+    t.setAttribute('stroke-width','2');
+    t.setAttribute('paint-order','stroke fill');
+    t.textContent = text;
+
+    g.appendChild(t);
+    G_labels.appendChild(g);
+
+    const bb = t.getBBox();
+    const bg = document.createElementNS(ns,'rect');
+    bg.setAttribute('x', bb.x - pad);
+    bg.setAttribute('y', bb.y - pad);
+    bg.setAttribute('width', bb.width + pad*2);
+    bg.setAttribute('height', bb.height + pad*2);
+    bg.setAttribute('rx', 6);
+    bg.setAttribute('ry', 6);
+    bg.setAttribute('fill','rgba(0,0,0,0.9)');
+    bg.setAttribute('stroke','rgba(255,255,255,0.35)');
+    bg.setAttribute('stroke-width','1');
+    g.insertBefore(bg, t);
+
+    return g;
+  }catch(_){}
 }
+function addLabel2(G_labels, text, x, y, dy){
+  // Use addLabel directly; keep signature for compatibility
+  return addLabel(G_labels, text, x, y, dy);
+}
+
 // Variant that returns the label group and tries to avoid overlap
 function addLabel2(G_labels, text, x, y, dy=0){
   const ns='http://www.w3.org/2000/svg';
@@ -1118,7 +1151,61 @@ function updateSegSwitchVisibility(){
   }
 
   // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
+  segBtns.forEach(btn=>btn.addEventListener('click') );// --- Ensure Branch nozzle changes update math/render (A & B) ---
+try{
+  const teNozA = container.querySelector('#teNozA');
+  if (teNozA && !teNozA.__wired){
+    teNozA.addEventListener('change', ()=>{
+      try{
+        const id = teNozA.value;
+        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
+        if (!key){
+          const where = container.querySelector('#teTitle')?.textContent||'';
+          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
+          if (m) key = (m[2]||'').toLowerCase();
+        }
+        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
+        if (!key) key = 'line1';
+        const L = state.lines[key];
+        if (L && id && NOZ[id]){
+          L.nozLeft = NOZ[id];
+          if (typeof recompute==='function') recompute();
+          if (typeof render==='function') render();
+          if (typeof markDirty==='function') markDirty();
+        }
+      }catch(_){}
+    });
+    teNozA.__wired = true;
+  }
+}catch(_){}
+
+try{
+  const teNozB = container.querySelector('#teNozB');
+  if (teNozB && !teNozB.__wired){
+    teNozB.addEventListener('change', ()=>{
+      try{
+        const id = teNozB.value;
+        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
+        if (!key){
+          const where = container.querySelector('#teTitle')?.textContent||'';
+          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
+          if (m) key = (m[2]||'').toLowerCase();
+        }
+        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
+        if (!key) key = 'line1';
+        const L = state.lines[key];
+        if (L && id && NOZ[id]){
+          L.nozRight = NOZ[id];
+          if (typeof recompute==='function') recompute();
+          if (typeof render==='function') render();
+          if (typeof markDirty==='function') markDirty();
+        }
+      }catch(_){}
+    });
+    teNozB.__wired = true;
+  }
+}catch(_){}
+
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
@@ -1752,7 +1839,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
             const lenFtL = (typeof sumFt==='function') ? sumFt(L.itemsLeft)||0 : 0;
             const gpmL = (L.nozLeft && L.nozLeft.gpm) ? L.nozLeft.gpm : 0;
             const psiL = (L.nozLeft && (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np)) ? (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np) : 0;
-            addLabel2(G_labels, String(lenFtL)+'′ @ '+String(gpmL)+' gpm — '+String(psiL)+' psi', gL.endX, gL.endY-8, -10);
+            addLabel2(G_labels, String(n0(lenFtL))+'′ @ '+String(n0(gpmL))+' gpm — '+String(n0(psiL))+' psi', gL.endX, gL.endY-8, -10);
           }catch(_){}
 
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
@@ -1766,7 +1853,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
             const lenFtR = (typeof sumFt==='function') ? sumFt(L.itemsRight)||0 : 0;
             const gpmR = (L.nozRight && L.nozRight.gpm) ? L.nozRight.gpm : 0;
             const psiR = (L.nozRight && (L.nozRight.NP||L.nozRight.psi||L.nozRight.np)) ? (L.nozRight.NP||L.nozRight.psi||L.nozRight.np) : 0;
-            addLabel2(G_labels, String(lenFtR)+'′ @ '+String(gpmR)+' gpm — '+String(psiR)+' psi', gR.endX, gR.endY-8, -10);
+            addLabel2(G_labels, String(n0(lenFtR))+'′ @ '+String(n0(gpmR))+' gpm — '+String(n0(psiR))+' psi', gR.endX, gR.endY-8, -10);
           }catch(_){}
 
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
