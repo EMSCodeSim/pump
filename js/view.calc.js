@@ -757,7 +757,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       wrap = document.createElement('div');
       wrap.id = 'segSwitch';
       wrap.className = 'segSwitch';
-      wrap.style.display='none';
+      wrap.style.display = 'none';
 wrap.style.display = 'none'; // default hidden, shown when Wye ON
       const mk = (label, seg)=>{
         const b = document.createElement('button');
@@ -849,28 +849,13 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-  const isOn   = tip.querySelector('#teWye')?.value === 'on';
-  const sizeOK = gateWyeBySize(); // keeps Wye row gated to 2.5″
-
-  // show/hide helpers (same pattern used elsewhere)
-  const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-  const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); };
-
-  // No segment buttons anymore
-  if (typeof wrap !== 'undefined' && wrap) wrap.style.display = 'none';
-
-  if (!(isOn && sizeOK)){
-    // Wye off or size not 2.5″ → hide branch editors and return to main
-    hideEl(branchBlock); hideEl(aSect); hideEl(bSect);
-    if (typeof setActive === 'function') setActive('main');
-    return;
-  }
-
-  // Wye on at 2.5″ → show BOTH branch editors (A & B) like normal lines
-  showEl(branchBlock);
-  showEl(aSect);
-  showEl(bSect);
-}
+        const isOn = tip.querySelector('#teWye')?.value === 'on';
+        const sizeOK = gateWyeBySize();
+        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        if (!(isOn && sizeOK)){
+          // collapse back to Main if user turned Wye off or size is not 2.5
+          setActive('main');
+        }
       }
 
       // Bind
@@ -883,9 +868,12 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
-updateWyeAndButtons();
-setActive('main');
-}
+      updateWyeAndButtons();
+      // If user clicked a branch tip to open, start there; else Main
+      if (whereInit==='L') setActive('A');
+      else if (whereInit==='R') setActive('B');
+      else setActive('main');
+    }
 
     // Expose short hooks (scoped to this container instance)
     container.__segEnsureUI = __ensureSegUI;
