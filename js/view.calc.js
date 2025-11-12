@@ -209,7 +209,17 @@ function ensureDefaultNozzleFor(L, where, size){
   } else if (where==='L'){
     L.nozLeft  = NOZ[nozId] || L.nozLeft  || NOZ_LIST.find(n=>n.id===nozId);
   } else {
-    L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
+    
+    // Wye branch override: when editing branches, prefer Fog 185 @ 50 regardless of size
+    try{
+      if (state?.lines && (where==='L' || where!=='main')){
+        const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true });
+        if (where==='L'){ L.nozLeft = NOZ[id185] || L.nozLeft || NOZ_LIST.find(n=>n.id===id185); }
+        else { L.nozRight = NOZ[id185] || L.nozRight || NOZ_LIST.find(n=>n.id===id185); }
+        return;
+      }
+    }catch(_){}
+L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
   }
 }
 
@@ -272,6 +282,62 @@ function addLabel(G_labels, text, x, y, dy=0){
   bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
   g.insertBefore(bg, t);
 }
+// Variant that returns the label group and tries to avoid overlap
+function addLabel2(G_labels, text, x, y, dy=0){
+  const ns='http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns,'g');
+  const pad = 4;
+  const t = document.createElementNS(ns,'text');
+  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy);
+  t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12');
+  t.setAttribute('dominant-baseline','hanging'); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  g.appendChild(t); G_labels.appendChild(g);
+  const bb = t.getBBox();
+  const bg = document.createElementNS(ns,'rect');
+  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
+  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
+  bg.setAttribute('rx', 6); bg.setAttribute('ry', 6);
+  bg.setAttribute('fill','rgba(0,0,0,.7)'); bg.setAttribute('stroke','#2f4d79'); bg.setAttribute('stroke-width','1');
+  g.insertBefore(bg, t);
+  try{ placeLabelNoOverlap(G_labels, g); }catch(_){}
+  return g;
+}
+
+// Try to nudge label upward in steps until it doesn't overlap existing label rects
+function placeLabelNoOverlap(G_labels, g){
+  try{
+    const maxIter = 8, step = 14;
+    const rect = g.querySelector('rect'), text = g.querySelector('text');
+    if(!rect || !text) return;
+    let moved = 0, iter = 0;
+
+    function intersects(a, b){
+      return !(a.x + a.width < b.x || b.x + b.width < a.x || a.y + a.height < b.y || b.y + b.height < a.y);
+    }
+
+    while(iter < maxIter){
+      const bb = rect.getBBox();
+      let collides = false;
+      G_labels.querySelectorAll('g').forEach(other=>{
+        if (other === g) return;
+        const r = other.querySelector('rect'); if (!r) return;
+        const obb = r.getBBox();
+        if (intersects(bb, obb)) collides = true;
+      });
+      if (!collides) break;
+      moved += step;
+      // move up by step pixels
+      text.setAttribute('y', parseFloat(text.getAttribute('y')) - step);
+      const tbb = text.getBBox();
+      rect.setAttribute('x', tbb.x - 4);
+      rect.setAttribute('y', tbb.y - 4);
+      rect.setAttribute('width', tbb.width + 8);
+      rect.setAttribute('height', tbb.height + 8);
+      iter++;
+    }
+  }catch(_){}
+}
+
 function addTip(G_tips, key, where, x, y){
   const ns='http://www.w3.org/2000/svg';
   const g = document.createElementNS(ns,'g');
@@ -1687,7 +1753,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
             const lenFtL = (typeof sumFt==='function') ? sumFt(L.itemsLeft)||0 : 0;
             const gpmL = (L.nozLeft && L.nozLeft.gpm) ? L.nozLeft.gpm : 0;
             const psiL = (L.nozLeft && (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np)) ? (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np) : 0;
-            addLabel(G_labels, String(lenFtL)+'′ @ '+String(gpmL)+' gpm — '+String(psiL)+' psi', gL.endX, gL.endY-8, -10);
+            addLabel2(G_labels, String(lenFtL)+'′ @ '+String(gpmL)+' gpm — '+String(psiL)+' psi', gL.endX, gL.endY-8, -10);
           }catch(_){}
 
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
@@ -1701,7 +1767,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
             const lenFtR = (typeof sumFt==='function') ? sumFt(L.itemsRight)||0 : 0;
             const gpmR = (L.nozRight && L.nozRight.gpm) ? L.nozRight.gpm : 0;
             const psiR = (L.nozRight && (L.nozRight.NP||L.nozRight.psi||L.nozRight.np)) ? (L.nozRight.NP||L.nozRight.psi||L.nozRight.np) : 0;
-            addLabel(G_labels, String(lenFtR)+'′ @ '+String(gpmR)+' gpm — '+String(psiR)+' psi', gR.endX, gR.endY-8, -10);
+            addLabel2(G_labels, String(lenFtR)+'′ @ '+String(gpmR)+' gpm — '+String(psiR)+' psi', gR.endX, gR.endY-8, -10);
           }catch(_){}
 
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
