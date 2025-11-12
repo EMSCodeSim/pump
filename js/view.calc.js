@@ -1,31 +1,3 @@
-(function(){
-
-// ===== Bootstrap Wye helpers (absolute earliest) =============================
-(function(){ if (typeof globalThis.updateWyeAndButtons !== 'function'){
-      globalThis.updateWyeAndButtons = function(){ /* no-op until real fn loads */ };
-    }
-    if (typeof globalThis.gateWyeBySize !== 'function'){
-      globalThis.gateWyeBySize = function(){ return false; };
-    }
-  }
-})();
-// ============================================================================
-
-
-// === Wye helper stubs (guard against early calls) ============================
-{
-  if (typeof updateWyeAndButtons !== 'function'){
-    
-/* legacy: removed older definition of updateWyeAndButtons (kept newer further down) */
-
-  }
-  if (typeof gateWyeBySize !== 'function'){
-    
-/* legacy: removed older definition of gateWyeBySize (kept newer further down) */
-
-  }
-}
-
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
@@ -42,14 +14,14 @@ import { WaterSupplyUI } from './waterSupply.js';
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
 function safeClone(obj){
-  { return JSON.parse(JSON.stringify(obj)); } 
+  try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
 }
 function loadSaved(){
-  { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
-  
+  try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
 }
 function saveNow(pack){
-  { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } 
+  try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
 }
 
 // mark edits “dirty” and flush every 1s
@@ -75,7 +47,7 @@ function buildSnapshot(waterSnapshot){
   return safeClone({
     state,                // entire sim state (lines, supply, etc.)
     water: waterSnapshot || null
-  );
+  });
 }
 
 // Applies saved.state into live state (preserving object identities)
@@ -101,65 +73,7 @@ const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
 /* ========================================================================== */
-
-// --- Helper: find the 185 GPM @ 50 psi nozzle (fallback to first fog if not found) ---
-function pickNozzle18550(){
-  {
-    if (Array.isArray(NOZ_LIST)) {
-      // note: spaced to avoid accidental token; will fix after insertion
-    }
-  }
-  {
-    if (Array.isArray(NOZ_LIST)) {
-      for (const n of NOZ_LIST){
-        const nm = (n.name||n.label||'').toLowerCase();
-        const id = (n.id||'').toLowerCase();
-        if ((nm.includes('185') || id.includes('185')) && (nm.includes('50') || id.includes('50'))) return n;
-      }
-      for (const n of NOZ_LIST){
-        const nm = (n.name||n.label||'').toLowerCase();
-        if (nm.includes('fog')) return n;
-      }
-      return NOZ_LIST[0];
-    }
-  }
-  {
-    const cand = Object.values(NOZ||{}).find(n=>{
-      const nm=(n.name||n.label||'').toLowerCase();
-      const id=(n.id||'').toLowerCase();
-      return (nm.includes('185')||id.includes('185')) && (nm.includes('50')||id.includes('50'));
-    );
-    if (cand) return cand;
-  }
-  return null;
-}
-// --- Ensure branch defaults (50' of 1.75 with 185@50) when Wye is enabled ---
-function ensureBranchDefaultsOnWye(lineKey){
-  {
-    const L = state.lines[lineKey];
-    if (!L) return;
-    // Remove main nozzle when Wye is on
-    if (L.nozMain) delete L.nozMain;
-    if (L.nozRight) delete L.nozRight;
-    if (L.noz) delete L.noz;
-    if (!Array.isArray(L.itemsLeft))  L.itemsLeft  = [];
-    if (!Array.isArray(L.itemsRight)) L.itemsRight = [];
-    if (!L.itemsLeft[0])  L.itemsLeft[0]  = { size:'1.75', lengthFt:50 };
-    if (!L.itemsRight[0]) L.itemsRight[0] = { size:'1.75', lengthFt:50 };
-    const noz = pickNozzle18550();
-    if (noz){
-      L.nozLeft  = noz;
-      L.nozRight = noz;
-    }
-  }
-}
-
-/*                               Small utilities
-
-// --- safe number formatter ---
-function n0(v){ v = Number(v); return (isFinite(v) && !isNaN(v)) ? Math.round(v) : 0; }
-
-                              */
+/*                               Small utilities                              */
 /* ========================================================================== */
 
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
@@ -201,10 +115,10 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true );
-  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true );
+  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   // For other sizes, keep “closest fog near 185 @ 50”
-  return findNozzleId({ gpm:185, NP:50, preferFog:true );
+  return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
 
 // Ensure a nozzle exists for a target (main/left/right) based on size
@@ -215,24 +129,14 @@ function ensureDefaultNozzleFor(L, where, size){
   } else if (where==='L'){
     L.nozLeft  = NOZ[nozId] || L.nozLeft  || NOZ_LIST.find(n=>n.id===nozId);
   } else {
-    
-    // Wye branch override: when editing branches, prefer Fog 185 @ 50 regardless of size
-    {
-      if (state?.lines && (where==='L' || where!=='main')){
-        const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true );
-        if (where==='L'){ L.nozLeft = NOZ[id185] || L.nozLeft || NOZ_LIST.find(n=>n.id===id185); }
-        else { L.nozRight = NOZ[id185] || L.nozRight || NOZ_LIST.find(n=>n.id===id185); }
-        return;
-      }
-    }
-L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
+    L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
   }
 }
 
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true);
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
     L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
@@ -256,7 +160,7 @@ function computeNeededHeightPx(){
       branchPx = Math.max(lpx, rpx) + BRANCH_LIFT;
     }
     maxUp = Math.max(maxUp, mainPx + branchPx);
-  );
+  });
   return Math.max(TRUCK_H + supplyHeight() + 10, TRUCK_H + maxUp + 40 + supplyHeight());
 }
 function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
@@ -274,93 +178,20 @@ function straightBranch(side, startX, startY, totalPx){
   const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
   return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
-
-function addLabel(G_labels, text, x, y, dy){
-  {
-    const ns='http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns,'g');
-    const t = document.createElementNS(ns,'text');
-    const pad = 5;
-    t.setAttribute('x', x);
-    t.setAttribute('y', y + (dy||0));
-    t.setAttribute('text-anchor','middle');
-    t.setAttribute('dominant-baseline','hanging');
-    t.setAttribute('font-size','13');
-    t.setAttribute('fill','#ffffff');
-    t.setAttribute('stroke','#000000');
-    t.setAttribute('stroke-width','2');
-    t.setAttribute('paint-order','stroke fill');
-    t.textContent = text;
-
-    g.appendChild(t);
-    G_labels.appendChild(g);
-
-    const bb = t.getBBox();
-    const bg = document.createElementNS(ns,'rect');
-    bg.setAttribute('x', bb.x - pad);
-    bg.setAttribute('y', bb.y - pad);
-    bg.setAttribute('width', bb.width + pad*2);
-    bg.setAttribute('height', bb.height + pad*2);
-    bg.setAttribute('rx', 6);
-    bg.setAttribute('ry', 6);
-    bg.setAttribute('fill','rgba(0,0,0,0.9)');
-    bg.setAttribute('stroke','rgba(255,255,255,0.35)');
-    bg.setAttribute('stroke-width','1');
-    g.insertBefore(bg, t);
-
-    return g;
-  } 
-
-
-
-
-
-function addLabel2(G_labels, text, x, y, dy){
-  return addLabel(G_labels, text, x, y, dy);
+function addLabel(G_labels, text, x, y, dy=0){
+  const ns='http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns,'g');
+  const pad = 4;
+  const t = document.createElementNS(ns,'text');
+  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  g.appendChild(t); G_labels.appendChild(g);
+  const bb = t.getBBox();
+  const bg = document.createElementNS(ns,'rect');
+  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
+  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
+  bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
+  g.insertBefore(bg, t);
 }
-}
-
-
-// Variant that returns the label group and tries to avoid overlap
-
-  return g;
-}
-
-// Try to nudge label upward in steps until it doesn't overlap existing label rects
-function placeLabelNoOverlap(G_labels, g){
-  {
-    const maxIter = 8, step = 14;
-    const rect = g.querySelector('rect'), text = g.querySelector('text');
-    if(!rect || !text) return;
-    let moved = 0, iter = 0;
-
-    function intersects(a, b){
-      return !(a.x + a.width < b.x || b.x + b.width < a.x || a.y + a.height < b.y || b.y + b.height < a.y);
-    }
-
-    while(iter < maxIter){
-      const bb = rect.getBBox();
-      let collides = false;
-      G_labels.querySelectorAll('g').forEach(other=>{
-        if (other === g) return;
-        const r = other.querySelector('rect'); if (!r) return;
-        const obb = r.getBBox();
-        if (intersects(bb, obb)) collides = true;
-      );
-      if (!collides) break;
-      moved += step;
-      // move up by step pixels
-      text.setAttribute('y', parseFloat(text.getAttribute('y')) - step);
-      const tbb = text.getBBox();
-      rect.setAttribute('x', tbb.x - 4);
-      rect.setAttribute('y', tbb.y - 4);
-      rect.setAttribute('width', tbb.width + 8);
-      rect.setAttribute('height', tbb.height + 8);
-      iter++;
-    }
-  }
-}
-
 function addTip(G_tips, key, where, x, y){
   const ns='http://www.w3.org/2000/svg';
   const g = document.createElementNS(ns,'g');
@@ -387,7 +218,7 @@ function drawSegmentedPath(group, basePath, segs){
     p.setAttribute('stroke-dashoffset', -offset);
     group.appendChild(p);
     offset += portion;
-  );
+  });
 }
 
 /* ========================================================================== */
@@ -403,7 +234,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     containerEl.style.fontSize='12px';
     return;
   }
-  const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)); NP_W=64, H=54;
+  const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
   const svgNS='http://www.w3.org/2000/svg';
   const svg=document.createElementNS(svgNS,'svg');
   svg.setAttribute('width','100%'); svg.setAttribute('height',H);
@@ -411,7 +242,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
 
   if(nozzleText){
     const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
-    t.setAttribute('fill','#ffffff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
+    t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
     svg.appendChild(t);
   }
 
@@ -444,7 +275,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     svg.appendChild(tx);
 
     x+=segW;
-  );
+  });
 
   const pill=document.createElementNS(svgNS,'rect');
   pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
@@ -550,13 +381,13 @@ export async function render(container){
   window.addEventListener('beforeunload', ()=>{
     const pack = buildSnapshot(pickWaterSnapshotSafe());
     if (pack) saveNow(pack);
-  );
+  });
   document.addEventListener('visibilitychange', ()=>{
     if (document.visibilityState === 'hidden') {
       const pack = buildSnapshot(pickWaterSnapshotSafe());
       if (pack) saveNow(pack);
     }
-  );
+  });
 
   container.innerHTML = `
     <section class="stack" data-calc-root>
@@ -827,7 +658,7 @@ export async function render(container){
       width:100%; padding:10px 12px;
       border:1px solid rgba(255,255,255,.22);
 /* phone KPI single-line */
-{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}
+try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
  border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
@@ -860,7 +691,7 @@ export async function render(container){
     .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
     .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
     .simpleBox b{color:#eaf2ff}
-    .lbl{font-size:12px;fill:#ffffff;stroke:#000;stroke-width:2;paint-order:stroke fill}
+    .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
   `);
 
@@ -886,8 +717,7 @@ export async function render(container){
   const teLen       = container.querySelector('#teLen');
   const teElev      = container.querySelector('#teElev');
   const teWye       = container.querySelector('#teWye');
-  if (teWye) teWye.addEventListener('change', updateWyeAndButtons);
-const teLenA      = container.querySelector('#teLenA');
+  const teLenA      = container.querySelector('#teLenA');
   const teLenB      = container.querySelector('#teLenB');
   const teNoz       = container.querySelector('#teNoz');
   const teNozA      = container.querySelector('#teNozA');
@@ -944,7 +774,7 @@ const teLenA      = container.querySelector('#teLenA');
         ['#rowSize','#rowLen','#rowElev','#rowNoz'].forEach(sel=>{
           const el = tip.querySelector(sel);
           if (el) (mainShow? showEl : hideEl)(el);
-        );
+        });
 
         // legacy compact block wrapper only when on a branch
         if (branchBlock) (seg==='A'||seg==='B' ? showEl : hideEl)(branchBlock);
@@ -991,8 +821,6 @@ const teLenA      = container.querySelector('#teLenA');
         }
       }
 function gateWyeBySize(){
-  { globalThis.gateWyeBySize = gateWyeBySize; }
-
         const sizeOK = (teSize && String(teSize.value) === '2.5');
         const wyeSelect = tip.querySelector('#teWye');
         if (!sizeOK){
@@ -1015,12 +843,6 @@ function gateWyeBySize(){
           setActive('main');
         }
       }
-// Ensure Wye helpers are globally accessible (avoid ReferenceError)
-{
-  if (typeof updateWyeAndButtons === 'function') { globalThis.updateWyeAndButtons = updateWyeAndButtons; }
-  if (typeof gateWyeBySize === 'function')      { globalThis.gateWyeBySize      = gateWyeBySize; }
-}
-
 
       // Bind
       [bMain,bA,bB].forEach(btn=>btn.addEventListener('click', ()=> setActive(btn.dataset.seg)));
@@ -1028,8 +850,8 @@ function gateWyeBySize(){
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
-      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); );
-      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); );
+      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
       updateWyeAndButtons();
@@ -1067,7 +889,7 @@ function gateWyeBySize(){
       const el = container.querySelector(sel);
       if (!el) return;
       (seg==='main' ? showEl : hideEl)(el);
-    );
+    });
     if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
 
     // Branch sections — show only selected branch when wye is on
@@ -1141,60 +963,7 @@ function updateSegSwitchVisibility(){
   }
 
   // Bind seg buttons
-  segBtns.forEach(btn=>btn.addEventListener('click') );// --- Ensure Branch nozzle changes update math/render (A & B) ---
-{
-  const teNozA = container.querySelector('#teNozA');
-  if (teNozA && !teNozA.__wired){
-    teNozA.addEventListener('change', ()=>{
-      {
-        const id = teNozA.value;
-        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
-        if (!key){
-          const where = container.querySelector('#teTitle')?.textContent||'';
-          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
-          if (m) key = (m[2]||'').toLowerCase();
-        }
-        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
-        if (!key) key = 'line1';
-        const L = state.lines[key];
-        if (L && id && NOZ[id]){
-          L.nozLeft = NOZ[id];
-          if (typeof recompute==='function') recompute();
-          if (typeof render==='function') render();
-          if (typeof markDirty==='function') markDirty();
-        }
-      }
-    );
-    teNozA.__wired = true;
-  }
-}
-
-{
-  const teNozB = container.querySelector('#teNozB');
-  if (teNozB && !teNozB.__wired){
-    teNozB.addEventListener('change', ()=>{
-      {
-        const id = teNozB.value;
-        let key = (typeof currentLineKey!=='undefined' && currentLineKey) ? currentLineKey : null;
-        if (!key){
-          const where = container.querySelector('#teTitle')?.textContent||'';
-          const m = where && where.match(/^(Line|LDH)\s*([A-Z0-9]+)/i);
-          if (m) key = (m[2]||'').toLowerCase();
-        }
-        if (!key && typeof lastEditedKey!=='undefined') key = lastEditedKey;
-        if (!key) key = 'line1';
-        const L = state.lines[key];
-        if (L && id && NOZ[id]){
-          L.nozRight = NOZ[id];
-          if (typeof recompute==='function') recompute();
-          if (typeof render==='function') render();
-          if (typeof markDirty==='function') markDirty();
-        }
-      }
-    );
-    teNozB.__wired = true;
-  }
-}
+  segBtns.forEach(btn=>btn.addEventListener('click', ()=> setSeg(btn.dataset.seg)));
 
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
@@ -1203,7 +972,7 @@ function updateSegSwitchVisibility(){
   [teNoz, teNozA, teNozB].forEach(sel=>{
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
-  );
+  });
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1230,35 +999,35 @@ function updateSegSwitchVisibility(){
       hydrantResult:   '#hydrantResult',
       tTripAll:        '#tTripAll',
       tTripApplyAll:  '#tTripApplyAll'}
-  );
+  });
 
   
   
   // Tender Shuttle: Round Trip apply-to-all + autofill + compact styles
-  {
+  try {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
-        {
+        try {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
             waterSupply.setAllRoundTripMinutes(minutes);
             applied = true;
           }
-        }
+        } catch(e){}
         if (!applied) {
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
             inp.value = String(minutes);
-            inp.dispatchEvent(new Event('input', { bubbles: true ));
-            inp.dispatchEvent(new Event('change', { bubbles: true ));
-          );
-          document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } ));
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          document.dispatchEvent(new CustomEvent('tender-apply-trip', { detail: { minutes } }));
         }
-        { refreshSupplySummary(); markDirty(); }
-      );
+        try { refreshSupplySummary(); markDirty(); } catch(_){}
+      });
     }
     let __tripAutofilled = false;
     const tenderListEl = container.querySelector('#tenderList');
@@ -1276,11 +1045,13 @@ function updateSegSwitchVisibility(){
             __tripAutofilled = true;
           }
         }
-      );
+      });
     }
-  }
+  } catch(_){}
 
-  (function(){ const css = `
+  (function(){
+    try{
+      const css = `
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
         @media (max-width:520px){
           .shuttleMeta{ width:100%; justify-content:space-between; }
@@ -1291,67 +1062,67 @@ function updateSegSwitchVisibility(){
       const st = document.createElement('style');
       st.textContent = css;
       document.head.appendChild(st);
-    }
+    }catch(_){}
   })();
 // Global Round Trip apply-to-all
-  {
+  try {
     const tTripAllEl = container.querySelector('#tTripAll');
     const tTripApplyAllEl = container.querySelector('#tTripApplyAll');
     if (tTripApplyAllEl) {
       tTripApplyAllEl.addEventListener('click', ()=>{
         const minutes = (tTripAllEl ? parseFloat(tTripAllEl.getAttribute('data-min') || (tTripAllEl.textContent||'0')) : 0) || 0;
         let applied = false;
-        {
+        try {
           if (waterSupply && typeof waterSupply.setAllRoundTripMinutes === 'function') {
             waterSupply.setAllRoundTripMinutes(minutes);
             applied = true;
           }
-        }
+        } catch(e){}
         if (!applied) {
           // Fallback: set all tender "trip" inputs in the list and dispatch input events
           const list = container.querySelectorAll('#tenderList input[name="trip"], #tenderList input[data-role="trip"]');
           list.forEach(inp => {
             inp.value = String(minutes);
-            inp.dispatchEvent(new Event('input', { bubbles: true ));
-            inp.dispatchEvent(new Event('change', { bubbles: true ));
-          );
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.dispatchEvent(new Event('change', { bubbles: true }));
+          });
           // Dispatch a custom event for any listeners
-          const evt = new CustomEvent('tender-apply-trip', { detail: { minutes } );
+          const evt = new CustomEvent('tender-apply-trip', { detail: { minutes } });
           document.dispatchEvent(evt);
         }
         // Recompute summary if present
-        {
+        try {
           refreshSupplySummary();
           markDirty();
-        }
-      );
+        } catch(_){}
+      });
     }
-  }
+  } catch(_){}
 // Helper to pick the best snapshot API if present
   function pickWaterSnapshotSafe(){
-    {
+    try {
       if (typeof waterSupply.getSnapshot === 'function') return waterSupply.getSnapshot();
       if (typeof waterSupply.snapshot    === 'function') return waterSupply.snapshot();
       if (typeof waterSupply.export      === 'function') return waterSupply.export();
-    } 
+    } catch {}
     // Best-effort DOM fallback if no API:
-    {
+    try {
       const tenders = [];
       const list = container.querySelectorAll('#tenderList [data-tender]');
       list.forEach(node=>{
         tenders.push({
           id: node.getAttribute('data-id') || node.querySelector('.tenderName')?.textContent?.trim(),
           cap: +(node.getAttribute('data-cap') || node.querySelector('[data-cap]')?.textContent || 0)
-        );
-      );
+        });
+      });
       const gpm = +(container.querySelector('#shuttleTotalGpm')?.textContent || 0);
       return { tenders, shuttle: { totalGpm: gpm } };
-    } 
+    } catch {}
     return null;
   }
 
   // Restore water snapshot after WaterSupplyUI exists
-  {
+  try {
     const snap = saved_at_mount?.water;
     if (snap && typeof waterSupply.restoreSnapshot === 'function') {
       waterSupply.restoreSnapshot(snap);
@@ -1364,13 +1135,13 @@ function updateSegSwitchVisibility(){
       if (snap.tenders) state.tenders = snap.tenders;
       if (snap.shuttle) state.shuttle = snap.shuttle;
     }
-  } 
+  } catch {}
 
   // Start autosave heartbeat (includes water snapshot)
   startAutoSave(()=>{
     const waterSnap = pickWaterSnapshotSafe();
     return buildSnapshot(waterSnap);
-  );
+  });
 
   // Observe Tender Shuttle UI to persist on changes, too
   const tenderListEl = container.querySelector('#tenderList');
@@ -1379,9 +1150,9 @@ function updateSegSwitchVisibility(){
     enhanceTenderListStyle();
     refreshSupplySummary();
     markDirty();
-  );
-  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true);
-  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true);
+  });
+  if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
+  if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
 
   /* ---------------------------- Totals & KPIs ----------------------------- */
 
@@ -1410,7 +1181,7 @@ function updateSegSwitchVisibility(){
       }
       totalGPM += flow;
       if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
-    );
+    });
     state.lastMaxKey = maxKey;
     GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.classList.remove('orange','red');
@@ -1544,7 +1315,7 @@ function updateSegSwitchVisibility(){
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
         }
       }
-    );
+    });
   }
 
   /* ------------------------ Hydrant/Tender summary ------------------------ */
@@ -1574,10 +1345,10 @@ function updateSegSwitchVisibility(){
     if(!state.lastMaxKey) return;
     const target = container.querySelector('#pp_simple_'+state.lastMaxKey);
     if(target){
-      target.scrollIntoView({behavior:'smooth', block:'center');
+      target.scrollIntoView({behavior:'smooth', block:'center'});
       const details = target.closest('details'); if(details && !details.open){ details.open = true; }
     }
-  );
+  });
 
   /* ------------------------- Tip editor interactions ---------------------- */
 
@@ -1632,27 +1403,27 @@ function updateSegSwitchVisibility(){
     showHideMainNozzleRow();
   }
   // Branch nozzle change listeners (mirror main lines)
-  {
+  try {
     const nozA = tip.querySelector('#teNozA');
     const nozB = tip.querySelector('#teNozB');
     if (nozA) nozA.addEventListener('change', () => {
-      {
+      try {
         const id = nozA.value;
         if (id && NOZ && NOZ[id]) { L.nozLeft = NOZ[id]; }
         // lock branch hose size to 1.75 is handled elsewhere in calc; just recompute
         recompute();
         render();
-      }
-    );
+      } catch(_){}
+    });
     if (nozB) nozB.addEventListener('change', () => {
-      {
+      try {
         const id = nozB.value;
         if (id && NOZ && NOZ[id]) { L.nozRight = NOZ[id]; }
         recompute();
         render();
-      }
-    );
-  }
+      } catch(_){}
+    });
+  } catch(_){}
 
 
   // Change of diameter in editor → update default nozzle (when applicable)
@@ -1671,7 +1442,7 @@ function updateSegSwitchVisibility(){
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
-  );
+  });
 
   // Delegate click on "+"
   stageSvg.addEventListener('click', (e)=>{
@@ -1690,7 +1461,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       tipEditor.classList.remove('is-hidden');
       tipEditor.classList.add('is-open');
     }
-  );
+  });
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
@@ -1703,7 +1474,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
-  );
+  });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
@@ -1746,7 +1517,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
 
     L.visible = true; drawAll(); markDirty();
-  );
+  });
 
   /* ---------------------------- Line toggles ------------------------------ */
 
@@ -1755,37 +1526,37 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const key=b.dataset.line; const L=seedDefaultsForKey(key);
       L.visible = !L.visible; b.classList.toggle('active', L.visible);
       drawAll(); markDirty();
-    );
-  );
+    });
+  });
 
   /* --------------------------- Supply buttons ----------------------------- */
 
   container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
     state.supply = 'pressurized'; drawAll(); markDirty();
-  );
+  });
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
     state.supply = 'static'; drawAll(); markDirty();
-  );
+  });
 
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
     if (!rootEl) return;
     rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
       el.classList.add('tender-emph');
-    );
+    });
   }
 
   /* -------------------------- Ensure editor script ------------------------ */
 
   (function ensureBottomSheet(){
     if (window.BottomSheetEditor) return;
-    {
+    try{
       const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
       if (already) return;
       const s = document.createElement('script');
       s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
       document.body.appendChild(s);
-    }
+    }catch(e){}
   })();
 
   /* -------------------------------- Draw --------------------------------- */
@@ -1807,7 +1578,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, L.itemsMain);
+      const mainSecs = splitIntoSections(L.itemsMain);
+      drawSegmentedPath(G_hoses, base, mainSecs);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
@@ -1815,39 +1587,34 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
-
-      if(L.hasWye){
+      const secText = (mainSecs && mainSecs.length)
+        ? mainSecs.map(s => `${s.lengthFt}′`).join(' + ')
+        : `${mainFt}′`;
+      addLabel(
+        G_labels,
+        `${secText} @ ${flowGpm} gpm${npLabel}`,
+        geom.endX,
+        geom.endY-6,
+        (key==='left')?-10:(key==='back')?-22:-34
+      );if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
+          const leftSecs = splitIntoSections(L.itemsLeft);
+          drawSegmentedPath(G_branches, pathL, leftSecs);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-          {
-            const lenFtL = (typeof sumFt==='function') ? sumFt(L.itemsLeft)||0 : 0;
-            const gpmL = (L.nozLeft && L.nozLeft.gpm) ? L.nozLeft.gpm : 0;
-            const psiL = (L.nozLeft && (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np)) ? (L.nozLeft.NP||L.nozLeft.psi||L.nozLeft.np) : 0;
-            addLabel2(G_labels, String(n0(lenFtL))+'′ @ '+String(n0(gpmL))+' gpm — '+String(n0(psiL))+' psi', gL.endX, gL.endY-8, -10);
-          }
-
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          const rightSecs = splitIntoSections(L.itemsRight);
+          drawSegmentedPath(G_branches, pathR, rightSecs);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-          {
-            const lenFtR = (typeof sumFt==='function') ? sumFt(L.itemsRight)||0 : 0;
-            const gpmR = (L.nozRight && L.nozRight.gpm) ? L.nozRight.gpm : 0;
-            const psiR = (L.nozRight && (L.nozRight.NP||L.nozRight.psi||L.nozRight.np)) ? (L.nozRight.NP||L.nozRight.psi||L.nozRight.np) : 0;
-            addLabel2(G_labels, String(n0(lenFtR))+'′ @ '+String(n0(gpmR))+' gpm — '+String(n0(psiR))+' psi', gR.endX, gR.endY-8, -10);
-          }
-
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
       base.remove();
-    );
+    });
 
     // Supply visuals & panels
     waterSupply.draw(viewH);
@@ -1872,34 +1639,34 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   drawAll();
 
   // Dev helper to clear saved practice
-  window.__resetPractice = function(){ { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } };
+  window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
 
   
-  { initPlusMenus(container); }
+  try{ initPlusMenus(container); }catch(e){}
   return { dispose(){
     stopAutoSave();
   }};
 
     // (Fallback) Populate Branch A/B nozzle selects like main lines
-    {
+    try {
       const nozA = root.querySelector('#teNozA');
       const nozB = root.querySelector('#teNozB');
       if (typeof fillNozzles === 'function') {
         fillNozzles(nozA);
         fillNozzles(nozB);
       }
-      {
+      try {
         if (L.nozLeft && L.nozLeft.id && nozA) nozA.value = L.nozLeft.id;
         if (L.nozRight && L.nozRight.id && nozB) nozB.value = L.nozRight.id;
-      }
-      {
+      } catch(_){}
+      try {
         const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
         if (defId) {
           if (nozA && !nozA.value) nozA.value = defId;
           if (nozB && !nozB.value) nozB.value = defId;
         }
-      }
-    }
+      } catch(_){}
+    } catch(_){}
 }
 
 export default { render };
@@ -1977,15 +1744,9 @@ function initBranchPlusMenus(root){
   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
 
   function makeLen(elHidden, elLabel, minusBtn, plusBtn){
-    
-/* legacy: removed older definition of parse (kept newer further down) */
-
-    
-/* legacy: removed older definition of draw (kept newer further down) */
-
-    
-/* legacy: removed older definition of step (kept newer further down) */
-
+    function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
     minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
     plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
     draw();
@@ -2001,9 +1762,9 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-    {
+    try{
       if(!sel || !Array.isArray(NOZ_LIST)) return;
-    }
+    }catch(e){}
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>{
       const label = n.name || n.desc || n.id || 'Nozzle';
@@ -2047,10 +1808,10 @@ function initBranchPlusMenus(root){
 /* AUTO-RESET & PRESETS-HIDE ON LOAD */
 (function(){
   function safeFogId(){
-    { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; }
+    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_e){ return null; }
   }
   function resetAllDeployedLines(){
-    {
+    try{
       if (!window.state || !state.lines) return;
       var id = safeFogId();
       for (var k in state.lines){
@@ -2065,29 +1826,29 @@ function initBranchPlusMenus(root){
         state.lines[k] = L;
       }
       if (typeof state.save === 'function') state.save();
-    }
+    }catch(_e){}
   }
   function hidePresetsUI(){
-    {
+    try{
       var css = document.createElement('style');
       css.setAttribute('data-auto-hide','presets');
       css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
       document.head && document.head.appendChild(css);
       var btn = document.getElementById('presetsBtn');
       if (btn){ btn.replaceWith(btn.cloneNode(true)); }
-    }
+    }catch(_e){}
   }
   function init(){
     resetAllDeployedLines();
     hidePresetsUI();
     // If your app has a render() or drawAll(), trigger a first draw safely
-    {
+    try{
       if (typeof render === 'function') render();
       else if (typeof drawAll === 'function') drawAll();
-    }
+    }catch(_e){}
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once:true );
+    document.addEventListener('DOMContentLoaded', init, { once:true });
   } else {
     setTimeout(init, 0);
   }
@@ -2095,7 +1856,7 @@ function initBranchPlusMenus(root){
 
 
     document.addEventListener('tender-trip-stopped', (ev)=>{
-      {
+      try{
         const mins = ev && ev.detail && parseFloat(ev.detail.minutes);
         if (mins && mins > 0){
           const el = container.querySelector('#tTripAll');
@@ -2104,10 +1865,12 @@ function initBranchPlusMenus(root){
             el.textContent = String(mins);
           }
         }
-      }
-    );
+      }catch(_){}
+    });
     
-(function(){ const st = document.createElement('style');
+(function(){
+  try{
+    const st = document.createElement('style');
     st.textContent = `
     .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
@@ -2119,7 +1882,7 @@ function initBranchPlusMenus(root){
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
     `;
     document.head.appendChild(st);
-  }
+  }catch(_){}
 })();
 
 
@@ -2137,7 +1900,7 @@ function initBranchPlusMenus(root){
   function show(el){ if(!el) return; el.hidden = false; el.inert = false; el.style.display='';     el.classList.remove('is-hidden'); }
 
   function apply(sheet){
-    {
+    try{
       const root = sheet.querySelector('.te-content') || sheet;
       // Hide existing segSwitch if present
       const segSwitch = root.querySelector('#segSwitch');
@@ -2232,6 +1995,8 @@ function initBranchPlusMenus(root){
 
       // Initial
       sync();
+    }catch(e){
+      console.warn('PLUS MENUS apply error', e);
     }
   }
 
@@ -2247,7 +2012,5 @@ function initBranchPlusMenus(root){
       }
     }
   });
-obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
-})();
-
+  obs.observe(document.documentElement || document.body, { childList:true, subtree:true });
 })();
