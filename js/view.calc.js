@@ -74,14 +74,7 @@ const BRANCH_LIFT = 10;
 
 /* ========================================================================== */
 
-/* --- Simple accordion for Branch sections --- */
-.accordionWrap .card{ border-radius:12px; }
-.accordion{ cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.06); }
-.accordion .accTitle{ font-weight:700; }
-.accChevron{ transition: transform .2s ease; }
-.accPanel{ display:none; padding:8px 8px 2px; }
-.accOpen .accPanel{ display:block; }
-.accOpen .accChevron{ transform: rotate(90deg); }
+
 
 // --- Tiny toast helper ---
 function showToast(msg){
@@ -659,6 +652,18 @@ export async function render(container){
 
 `;
 
+
+    // Inject accordion styles for Branch sections
+    try{ injectStyle(container, `
+/* --- Simple accordion for Branch sections --- */
+.accordionWrap .card{ border-radius:12px; }
+.accordion{ cursor:pointer; display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-radius:10px; background:rgba(255,255,255,.06); }
+.accordion .accTitle{ font-weight:700; }
+.accChevron{ transition: transform .2s ease; }
+.accPanel{ display:none; padding:8px 8px 2px; }
+.accOpen .accPanel{ display:block; }
+.accOpen .accChevron{ transform: rotate(90deg); }
+`); }catch(_){}
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */
   injectStyle(container, `
