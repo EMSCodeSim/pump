@@ -792,6 +792,25 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         // legacy compact block wrapper only when on a branch
         if (branchBlock) (seg==='A'||seg==='B' ? showEl : hideEl)(branchBlock);
 
+        
+        // Hide the opposite side rows inside the legacy compact branchBlock
+        if (branchBlock){
+          const rowA_len = branchBlock.querySelector('#teLenA')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenA"]')?.closest('.te-row');
+          const rowA_noz = branchBlock.querySelector('#teNozA')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch A noz")')?.closest('.te-row');
+          const rowB_len = branchBlock.querySelector('#teLenB')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenB"]')?.closest('.te-row');
+          const rowB_noz = branchBlock.querySelector('#teNozB')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch B noz")')?.closest('.te-row');
+          if (seg==='A'){
+            if (rowA_len) showEl(rowA_len);
+            if (rowA_noz) showEl(rowA_noz);
+            if (rowB_len) hideEl(rowB_len);
+            if (rowB_noz) hideEl(rowB_noz);
+          } else if (seg==='B'){
+            if (rowA_len) hideEl(rowA_len);
+            if (rowA_noz) hideEl(rowA_noz);
+            if (rowB_len) showEl(rowB_len);
+            if (rowB_noz) showEl(rowB_noz);
+          }
+        }
         // Exclusively show Branch sections
         if (seg==='A'){ showEl(aSect); hideEl(bSect); }
         else if (seg==='B'){ showEl(bSect); hideEl(aSect); }
@@ -891,6 +910,32 @@ function gateWyeBySize(){
     else if (seg==='B'){ showEl(branchBSection); hideEl(branchASection); }
     else { hideEl(branchASection); hideEl(branchBSection); }
 
+    
+    // Additionally, for the legacy compact branchBlock, hide the opposite branch rows
+    const branchBlock = container.querySelector('#branchBlock');
+    if (branchBlock){
+      const rowA_len = branchBlock.querySelector('#teLenA')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenA"]')?.closest('.te-row');
+      const rowA_noz = branchBlock.querySelector('#teNozA')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch A noz")')?.closest('.te-row');
+      const rowB_len = branchBlock.querySelector('#teLenB')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenB"]')?.closest('.te-row');
+      const rowB_noz = branchBlock.querySelector('#teNozB')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch B noz")')?.closest('.te-row');
+      if (seg==='A'){
+        if (rowA_len) showEl(rowA_len);
+        if (rowA_noz) showEl(rowA_noz);
+        if (rowB_len) hideEl(rowB_len);
+        if (rowB_noz) hideEl(rowB_noz);
+      } else if (seg==='B'){
+        if (rowA_len) hideEl(rowA_len);
+        if (rowA_noz) hideEl(rowA_noz);
+        if (rowB_len) showEl(rowB_len);
+        if (rowB_noz) showEl(rowB_noz);
+      } else {
+        // main
+        if (rowA_len) hideEl(rowA_len);
+        if (rowA_noz) hideEl(rowA_noz);
+        if (rowB_len) hideEl(rowB_len);
+        if (rowB_noz) hideEl(rowB_noz);
+      }
+    }
     // Lock diameter on branches
     const sizeMinus = container.querySelector('#sizeMinus');
     const sizePlus  = container.querySelector('#sizePlus');
@@ -1842,4 +1887,6 @@ function initBranchPlusMenus(root){
     document.head.appendChild(st);
   }catch(_){}
 })();
+
+
 
