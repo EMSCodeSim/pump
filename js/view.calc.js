@@ -15,12 +15,14 @@
 // === Wye helper stubs (guard against early calls) ============================
 {
   if (typeof updateWyeAndButtons !== 'function'){
-    function updateWyeAndButtons(){ { return (globalThis && typeof globalThis.updateWyeAndButtons==='function') ? globalThis.updateWyeAndButtons() : undefined; } }
+    
+/* legacy: removed older definition of updateWyeAndButtons (kept newer further down) */
+
   }
   if (typeof gateWyeBySize !== 'function'){
-    function gateWyeBySize(){
-  { globalThis.gateWyeBySize = gateWyeBySize; }
- { return (globalThis && typeof globalThis.gateWyeBySize==='function') ? globalThis.gateWyeBySize() : false; } }
+    
+/* legacy: removed older definition of gateWyeBySize (kept newer further down) */
+
   }
 }
 
@@ -309,10 +311,13 @@ function addLabel(G_labels, text, x, y, dy){
     return g;
   } 
 
+
+
+
+
 function addLabel2(G_labels, text, x, y, dy){
   return addLabel(G_labels, text, x, y, dy);
 }
-
 }
 
 
@@ -1972,9 +1977,15 @@ function initBranchPlusMenus(root){
   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
 
   function makeLen(elHidden, elLabel, minusBtn, plusBtn){
-    function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
-    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
-    function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
+    
+/* legacy: removed older definition of parse (kept newer further down) */
+
+    
+/* legacy: removed older definition of draw (kept newer further down) */
+
+    
+/* legacy: removed older definition of step (kept newer further down) */
+
     minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
     plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
     draw();
