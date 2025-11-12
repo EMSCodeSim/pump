@@ -374,6 +374,9 @@ export function render(container) {
         color: #e6f3ff;
         padding: 0 2px;
       }
+
+      /* NEW: ensure the SVG fills and paints cleanly before first question */
+      #overlayPractice{width:100%;display:block}
     </style>
 
     <section class="card">
@@ -440,6 +443,14 @@ export function render(container) {
   let scenario = null;
   let practiceAnswer = null;
   let eqVisible = false;
+
+  /* NEW: set an initial SVG size so the truck is fully visible before first question */
+  {
+    const initH = TRUCK_H + 20;
+    svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${initH}`);
+    stageEl.style.height = initH + 'px';
+    truckImg.setAttribute('y', String(truckTopY(initH)));
+  }
 
   // -------- draw --------
   function drawScenario(S){
