@@ -1,290 +1,336 @@
-// /js/store.js
-// Shared data + helpers for pump calc + view.calc.js
-
-/* ========================================================================== */
-/*                              NOZZLE CATALOG                                */
-/* ========================================================================== */
-
-// Simple nozzle definitions.
-// IDs can be anything, but should be stable for saved states.
-export const NOZ = {
-  chief185_50: {
-    id: 'chief185_50',
-    name: 'Fog 185 @ 50',
-    gpm: 185,
-    NP: 50
-  },
-  chiefXD265_50: {
-    id: 'chiefXD265_50',
-    name: 'Chief XD 265 @ 50',
-    gpm: 265,
-    NP: 50
-  },
-  smoothbore_1_1_8_50: {
-    id: 'smoothbore_1_1_8_50',
-    name: 'Smoothbore 1 1/8" @ 50',
-    gpm: 325,
-    NP: 50
-  }
-};
-
-// Flat list for some lookup helpers
-export const NOZ_LIST = Object.values(NOZ);
-
-/* ========================================================================== */
-/*                         HOSE COLORS (for CSS tags)                         */
-/* ========================================================================== */
-
-export const COLORS = {
-  '1.75': '#ff5555', // red
-  '2.5':  '#3366ff', // blue
-  '5':    '#999999'  // gray
-};
-
-/* ========================================================================== */
-/*                        FRICTION LOSS CALCULATION                           */
-/* ========================================================================== */
-
-// Reasonable defaults for FL coefficient C by size (C * (Q/100)^2 * (L/100))
-const FL_COEFF = {
-  '1.75': 15,   // 1¾"
-  '1.5':  24,
-  '2':    8,
-  '2.5':  2,
-  '3':    0.8,
-  '5':    0.08
-};
-
-function normalizeSize(size) {
-  if (size == null) return '2.5';
-  const s = size.toString().trim();
-  if (s === '1.75' || /1\s*3\/4/.test(s)) return '1.75';
-  if (s === '1.5'  || /1\s*1\/2/.test(s)) return '1.5';
-  if (s === '2.5'  || /2\s*1\/2/.test(s)) return '2.5';
-  if (s === '3') return '3';
-  if (s === '5') return '5';
-  return s || '2.5';
-}
-
-// FL for a single segment: gpm, size (in), lengthFt
-export function FL(gpm, size, lengthFt) {
-  const Q = Number(gpm) || 0;
-  const L = Number(lengthFt) || 0;
-  if (!Q || !L) return 0;
-  const nSize = normalizeSize(size);
-  const C = FL_COEFF[nSize] != null ? FL_COEFF[nSize] : 2;
-  const base = (Q / 100) * (Q / 100) * (L / 100) * C;
-  return base;
-}
-
-// Total FL across a list of segments (used in a few older places)
-export function FL_total(gpm, segments) {
-  if (!gpm || !Array.isArray(segments)) return 0;
-  return segments.reduce((acc, seg) => {
-    return acc + FL(gpm, seg.size, seg.lengthFt);
-  }, 0);
-}
-
-/* ========================================================================== */
-/*                          SEGMENT / LENGTH HELPERS                          */
-/* ========================================================================== */
-
-// sumFt over a hose items array
-export function sumFt(items) {
-  if (!Array.isArray(items)) return 0;
-  return items.reduce((t, seg) => t + (Number(seg.lengthFt) || 0), 0);
-}
-
-// Split an array of items into 50' / 100' segments.
-// view.calc.js has its own segmenter, but other code may call this.
-export function splitIntoSections(items) {
-  const raw = Array.isArray(items) ? items : [];
-  const out = [];
-  for (const seg of raw) {
-    const size = normalizeSize(seg.size);
-    let len = Number(seg.lengthFt) || 0;
-    if (!size || !len) continue;
-    while (len >= 100) {
-      out.push({ size, lengthFt: 100 });
-      len -= 100;
-    }
-    if (len > 0) {
-      const rounded = len <= 50 ? 50 : 100;
-      out.push({ size, lengthFt: rounded });
-      len = 0;
-    }
-  }
-  return out;
-}
-
-/* ========================================================================== */
-/*                           WYE / NOZZLE HELPERS                             */
-/* ========================================================================== */
-
-// Returns true if the line is a wye and only one branch is really flowing
-export function isSingleWye(L) {
-  if (!L || !L.hasWye) return false;
-  const gL = L.nozLeft && Number(L.nozLeft.gpm);
-  const gR = L.nozRight && Number(L.nozRight.gpm);
-  const leftOn  = !!gL;
-  const rightOn = !!gR;
-  return (leftOn && !rightOn) || (!leftOn && rightOn);
-}
-
-// Which side is active for single wye ('L' or 'R')
-export function activeSide(L) {
-  if (!L || !L.hasWye) return null;
-  const gL = L.nozLeft && Number(L.nozLeft.gpm);
-  const gR = L.nozRight && Number(L.nozRight.gpm);
-  const leftOn  = !!gL;
-  const rightOn = !!gR;
-  if (leftOn && !rightOn) return 'L';
-  if (!leftOn && rightOn) return 'R';
-  return null;
-}
-
-// Which nozzle is "active" for FL math
-export function activeNozzle(L) {
-  if (!L) return null;
-  if (L.hasWye) {
-    const side = activeSide(L);
-    if (side === 'L') return L.nozLeft || null;
-    if (side === 'R') return L.nozRight || null;
-    // both or none -> highest NP, just pick right for consistency
-    return L.nozRight || L.nozLeft || null;
-  }
-  return L.nozRight || null;
-}
-
-// Nicely formatted size label for UI tags
-export function sizeLabel(size) {
-  const s = normalizeSize(size);
-  if (s === '1.75') return '1¾″';
-  if (s === '1.5')  return '1½″';
-  if (s === '2.5')  return '2½″';
-  if (s === '5')    return '5″';
-  return s + '″';
-}
-
-/* ========================================================================== */
-/*                            STATE INITIALIZATION                            */
-/* ========================================================================== */
-
-// Default hose segment builders
-function makeSection(size, lengthFt) {
-  return { size: normalizeSize(size), lengthFt: Number(lengthFt) || 0 };
-}
-
-// Line 1: 1.75", 200', Fog 185 @ 50
-function makeLine1() {
-  return {
-    key: 'left',
-    label: 'Line 1',
-    visible: true,
-    mainSize: '1.75',
-    // 200' total: 100 + 100
-    itemsMain: [
-      makeSection('1.75', 100),
-      makeSection('1.75', 100)
-    ],
-    // Wye / branches
-    hasWye: false,
-    branchSize: '1.75',
-    // Branch A defaults (Option A: 185 @ 50, 50')
-    itemsLeft:  [ makeSection('1.75', 50) ],
-    // Branch B defaults (Option A: 185 @ 50, 50')
-    itemsRight: [ makeSection('1.75', 50) ],
-    // Nozzles: for non-wye, we use nozRight as main tip.
-    nozLeft:  NOZ.chief185_50,      // Branch A (when wye used)
-    nozRight: NOZ.chief185_50,      // Main / Branch B default
-    elevFt: 0,
-    wyeLoss: 10
-  };
-}
-
-// Line 2: 1.75", 200', Fog 185 @ 50
-function makeLine2() {
-  return {
-    key: 'right',
-    label: 'Line 2',
-    visible: true,
-    mainSize: '1.75',
-    itemsMain: [
-      makeSection('1.75', 100),
-      makeSection('1.75', 100)
-    ],
-    hasWye: false,
-    branchSize: '1.75',
-    itemsLeft:  [ makeSection('1.75', 50) ],
-    itemsRight: [ makeSection('1.75', 50) ],
-    nozLeft:  NOZ.chief185_50,
-    nozRight: NOZ.chief185_50,
-    elevFt: 0,
-    wyeLoss: 10
-  };
-}
-
-// Line 3: 2.5", 250', ChiefXD 265 @ 50 (always starts like this)
-function makeLine3() {
-  return {
-    key: 'back',
-    label: 'Line 3 (2½″)',
-    visible: true,
-    mainSize: '2.5',
-    // 250': 100 + 100 + 50
-    itemsMain: [
-      makeSection('2.5', 100),
-      makeSection('2.5', 100),
-      makeSection('2.5', 50)
-    ],
-    hasWye: false,
-    branchSize: '1.75', // if user ever Wyes off a 2½", branches are 1¾"
-    itemsLeft:  [ makeSection('1.75', 50) ],
-    itemsRight: [ makeSection('1.75', 50) ],
-    nozLeft:  NOZ.chief185_50,         // Branch A default nozzle (Option A)
-    nozRight: NOZ.chiefXD265_50,       // Main tip / Branch B default when wye is used
-    elevFt: 0,
-    wyeLoss: 10
-  };
-}
-
-// Hydrant / tender defaults (simple placeholders, your waterSupply.js expands on this)
-const defaultHydrant = {
-  availableGPM: 1000,
-  residual: 50,
-  static: 70
-};
-
-const defaultTender = {
-  // high-level summary object; individual tenders are inside WaterSupplyUI
-  active: false
-};
-
-/* ========================================================================== */
-/*                                    STATE                                   */
-/* ========================================================================== */
+// store.js
+// Central app state, nozzle catalog, presets, and hydraulic helpers.
+// - Lines start hidden; supply starts 'off' (user chooses).
+// - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
+// - Appliance loss: +10 psi only if total GPM > 350.
+// - Exports restored for other views: COEFF, loadPresets, savePresets.
 
 export const state = {
-  // Pressurized (hydrant) vs static (tender shuttle)
-  supply: 'pressurized',       // 'pressurized' | 'static'
-  hydrant: { ...defaultHydrant },
-  tender:  { ...defaultTender },
-
-  // Pump lines
-  lines: {
-    left:  makeLine1(),
-    back:  makeLine3(),
-    right: makeLine2()
-  },
-
-  showMath: true,
-  lastMaxKey: null
+  supply: 'off',       // 'off' | 'pressurized' | 'static' | 'relay'
+  showMath: false,
+  lastMaxKey: null,
+  lines: null,         // seeded below
+  _presetsMem: null,   // in-memory fallback if localStorage not available
 };
 
-/* ========================================================================== */
-/*                             MISC SMALL HELPERS                             */
-/* ========================================================================== */
+/* =========================
+ * Visual constants
+ * ========================= */
+export const COLORS = {
+  '1.75': '#ff4545',   // red
+  '2.5' : '#2e6cff',   // blue
+  '5'   : '#ffd23a',   // yellow
+};
 
-export function round1(n) {
-  return Math.round((Number(n) || 0) * 10) / 10;
+/* =========================
+ * Nozzle catalog (common)
+ * ========================= */
+export const NOZ = {
+  // Fogs
+  fog95_50:      { id:'fog95_50',      name:'Fog 95 @ 50',   gpm:95,  NP:50 },
+  fog150_75:     { id:'fog150_75',     name:'Fog 150 @ 75',  gpm:150, NP:75 },
+
+  // “Chief” fogs seen in your files
+  chief185_50:   { id:'chief185_50',   name:'Fog 185 @ 50',  gpm:185, NP:50 },
+  chiefXD:       { id:'chiefXD',       name:'Fog 185 @ 50',  gpm:185, NP:50 },   // alias
+  chiefXD265:    { id:'chiefXD265',    name:'Fog 265 @ 50',  gpm:265, NP:50 },
+
+  // Smooth bores
+  sb7_8:         { id:'sb7_8',         name:'SB 7/8″ @ 50',  gpm:160, NP:50 },
+  sb1_1_8:       { id:'sb1_1_8',       name:'SB 1 1/8″ @ 50',gpm:265, NP:50 },
+};
+export const NOZ_LIST = Object.values(NOZ);
+
+/* =========================
+ * Friction-loss coefficients (per 100 ft formula)
+ *   FL_100 = C * (GPM/100)^2
+ * ========================= */
+export const COEFF = {
+  '1.75': 15,
+  '2'   : 8,
+  '2.5' : 2,
+  '3'   : 0.8,
+  '5'   : 0.08,
+};
+
+/* Elevation: 0.5 psi / ft is common for training;
+ * but note NFPA style sometimes uses 5 psi / 10 ft (0.5 psi/ft).
+ */
+export const PSI_PER_FT = 0.5;
+
+/** Appliance loss: +10 psi only when total flow exceeds 350 gpm */
+export function applianceLoss(totalGpm){
+  return totalGpm > 350 ? 10 : 0;
 }
+
+/** Internal: pick C from COEFF, safe fallback */
+function flPer100(size, gpm){
+  const s = String(size || '').trim();
+  const q = Math.max(0, gpm) / 100;
+  const C = COEFF[size] ?? 10; // fallback
+  return C * q * q;
+}
+
+/** Friction loss for a single segment (psi) */
+export function FL(gpm, size, lengthFt){
+  if(!size || !lengthFt || !gpm) return 0;
+  return flPer100(size, gpm) * (lengthFt/100);
+}
+
+/** Sum friction loss across segments */
+export function FL_total(gpm, items){
+  if(!Array.isArray(items) || !items.length || !gpm) return 0;
+  let sum = 0;
+  for(const seg of items) sum += FL(gpm, seg.size, seg.lengthFt);
+  return sum;
+}
+
+/** Sum length (ft) */
+export function sumFt(items){
+  if(!Array.isArray(items)) return 0;
+  return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
+}
+
+/** Keep section list stable (UI can show each authored segment) */
+export function splitIntoSections(items){
+  if(!Array.isArray(items)) return [];
+  return items.map(s => ({ size: String(s.size), lengthFt: Number(s.lengthFt)||0 }));
+}
+
+/* =========================
+ * Line seeding
+ * ========================= */
+
+function seedInitialDefaults(){
+  if (state.lines) return;
+  const L1N = NOZ.chief185_50;
+  const L3N = NOZ.sb1_1_8;
+
+  state.lines = {
+    left:  {
+      label: 'Line 1',
+      visible: false,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    },
+    back:  {
+      label: 'Line 2',
+      visible: false,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    },
+    right: {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [{ size:'2.5', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L3N,
+    },
+  };
+}
+seedInitialDefaults();
+
+/** Ensure a line exists without overwriting user edits */
+export function seedDefaultsForKey(key){
+  if(!state.lines) seedInitialDefaults();
+  if(state.lines[key]) return state.lines[key];
+
+  const L1N = NOZ.chief185_50;
+  const L3N = NOZ.sb1_1_8;
+
+  if(key === 'left'){
+    state.lines.left = {
+      label: 'Line 1',
+      visible: false,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    };
+  } else if(key === 'back'){
+    state.lines.back = {
+      label: 'Line 2',
+      visible: false,
+      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    };
+  } else if(key === 'right'){
+    state.lines.right = {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [{ size:'2.5', lengthFt:200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L3N,
+    };
+  } else {
+    state.lines[key] = {
+      label: key,
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: NOZ_LIST[0] || null,
+    };
+  }
+  return state.lines[key];
+}
+
+/* =========================
+ * Wye convenience helpers
+ * ========================= */
+export function isSingleWye(L){
+  if(!L || !L.hasWye) return false;
+  const leftLen  = sumFt(L.itemsLeft || []);
+  const rightLen = sumFt(L.itemsRight || []);
+  const leftOn   = leftLen > 0 || !!L.nozLeft;
+  const rightOn  = rightLen > 0 || !!L.nozRight;
+  return (leftOn && !rightOn) || (!leftOn && rightOn);
+}
+export function activeSide(L){
+  if(!L) return 'R';
+  const l = sumFt(L.itemsLeft || []);
+  const r = sumFt(L.itemsRight || []);
+  if(l > 0 && r <= 0) return 'L';
+  if(r > 0 && l <= 0) return 'R';
+  return 'R';
+}
+export function activeNozzle(L){
+  if(!L) return null;
+  if(isSingleWye(L)){
+    return activeSide(L) === 'L' ? (L.nozLeft || L.nozRight) : (L.nozRight || L.nozLeft);
+  }
+  return L.nozRight || L.nozLeft || null;
+}
+
+/* Convenience alias */
+export function computeApplianceLoss(totalGpm){
+  return applianceLoss(totalGpm);
+}
+
+/* =========================
+ * Presets (for Settings/etc)
+ * ========================= */
+
+const STORAGE_KEY = 'pump.presets.v1';
+
+function defaultPresets(){
+  // A small set of named setups (used by Settings page)
+  return {
+    basic185: {
+      name: '1¾″ Fog 185',
+      main: [{ size:'1.75', lengthFt:200 }],
+      elevFt: 0,
+      hasWye: false,
+      nozzle: NOZ.chief185_50,
+      supply: 'pressurized',
+    },
+    big2_5: {
+      name: '2½″ SB 1 1/8″',
+      main: [{ size:'2.5', lengthFt:200 }],
+      elevFt: 0,
+      hasWye: false,
+      nozzle: NOZ.sb1_1_8,
+      supply: 'pressurized',
+    },
+    sprinkler: {
+      name: 'Sprinkler',
+      main: [{ size:'2.5', lengthFt:50 }],
+      elevFt: 0,
+      hasWye: false,
+      nozzle: NOZ.fog150_75,
+      supply: 'pressurized',
+    },
+    foam: {
+      name: 'Foam',
+      main: [{ size:'1.75', lengthFt:200 }],
+      elevFt: 0,
+      hasWye: false,
+      nozzle: NOZ.chief185_50,
+      supply: 'off',
+    },
+    monitor: {
+      name: 'Monitor',
+      main: [{ size:'2.5', lengthFt:200 }],
+      elevFt: 0,
+      hasWye: false,
+      nozzle: NOZ.sb1_1_8,
+      supply: 'off',
+    },
+    aerial: {
+      name: 'Aerial',
+      main: [{ size:'2.5', lengthFt:150 }],
+      elevFt: 80,
+      hasWye: false,
+      nozzle: NOZ.sb1_1_8,
+      supply: 'off',
+    },
+  };
+}
+
+function readStorage(){
+  try{
+    const s = localStorage.getItem(STORAGE_KEY);
+    if(!s) return null;
+    return JSON.parse(s);
+  }catch(_){
+    return null;
+  }
+}
+function writeStorage(obj){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    return true;
+  }catch(_){
+    return false;
+  }
+}
+
+/** Load presets for Settings, etc. */
+export function loadPresets(){
+  // If process already has an in-memory copy (e.g., SSR or earlier load), use it.
+  if(state._presetsMem) return state._presetsMem;
+  const fromLS = readStorage();
+  if(fromLS && typeof fromLS === 'object'){
+    state._presetsMem = fromLS;
+    return fromLS;
+  }
+  if(state._presetsMem) return state._presetsMem;
+  const d = defaultPresets();
+  // do not auto-write defaults; let callers save only when modified
+  return d;
+}
+
+/** Persist presets for Settings page & others */
+export function savePresets(presetsObj){
+  // basic validation: must be an object
+  if(!presetsObj || typeof presetsObj !== 'object') return false;
+  state._presetsMem = presetsObj; // in-memory fallback
+  return writeStorage(presetsObj);
+}
+
+/* =========================
+ * Small utils
+ * ========================= */
+export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
