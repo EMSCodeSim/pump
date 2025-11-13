@@ -1415,7 +1415,44 @@ function updateSegSwitchVisibility(){
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
   }
 
-  function onOpenPopulateEditor(key, where){
+  
+// Sync stepper labels (diameter, length, elevation) with hidden values
+function refreshEditorVisualsFromFields(){
+  try{
+    const root = container || document;
+    if(!root) return;
+
+    // Diameter label
+    const sizeInput = root.querySelector('#teSize');
+    const sizeLabelEl = root.querySelector('#sizeLabel');
+    if(sizeInput && sizeLabelEl){
+      const val = String(sizeInput.value||'').trim();
+      let label = val;
+      if(val === '1.75') label = '1 3/4″';
+      else if(val === '2.5') label = '2 1/2″';
+      else if(val === '5') label = '5″';
+      sizeLabelEl.textContent = label;
+    }
+
+    // Length label
+    const lenInput = root.querySelector('#teLen');
+    const lenLabelEl = root.querySelector('#lenLabel');
+    if(lenInput && lenLabelEl){
+      const v = parseInt(lenInput.value||'0',10) || 0;
+      lenLabelEl.textContent = `${v}′`;
+    }
+
+    // Elevation label
+    const elevInput = root.querySelector('#teElev');
+    const elevLabelEl = root.querySelector('#elevLabel');
+    if(elevInput && elevLabelEl){
+      const v = parseInt(elevInput.value||'0',10) || 0;
+      elevLabelEl.textContent = `${v}′`;
+    }
+  }catch(_){}
+}
+
+function onOpenPopulateEditor(key, where){
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -1427,14 +1464,25 @@ function updateSegSwitchVisibility(){
     teWye.value  = L.hasWye? 'on':'off';
 
     if(where==='main'){
-      const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
-      teSize.value = seg.size; teLen.value = seg.lengthFt||0;
+      const mainSegs = Array.isArray(L.itemsMain) && L.itemsMain.length
+        ? L.itemsMain
+        : [{ size: '1.75', lengthFt: 200 }];
+      const sizeMain = mainSegs[0].size || '1.75';
+      const totalLenMain = sumFt(mainSegs);
+      teSize.value = sizeMain;
+      teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
+
+      // Main nozzle: prefer existing, otherwise ensure a default based on diameter
+      if (L.nozRight?.id && teNoz){
+        teNoz.value = L.nozRight.id;
+      } else {
+        ensureDefaultNozzleFor(L, 'main', sizeMain);
+        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
+      }
+
+      // For a Wye, also make sure branches have their defaults seeded
       if (L.hasWye) {
         setBranchBDefaultIfEmpty(L); // ensure B default when wye on
-      } else {
-        // Ensure default nozzle for main based on diameter if missing
-        ensureDefaultNozzleFor(L,'main',seg.size);
-        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
@@ -1446,6 +1494,9 @@ function updateSegSwitchVisibility(){
       teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
+
+    // After populating hidden values, sync the visible stepper labels
+    refreshEditorVisualsFromFields();
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
@@ -1757,7 +1808,7 @@ function initPlusMenus(root){
   const elevLabel = root.querySelector('#elevLabel');
   const elevMinus = root.querySelector('#elevMinus');
   const elevPlus = root.querySelector('#elevPlus');
-  const ELEV_STEP=1, ELEV_MIN=-500, ELEV_MAX=500;
+  const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
   function parseElev(){ const v=parseInt(teElev?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); }
   function drawElev(){ if(elevLabel) elevLabel.textContent = `${parseElev()}′`; }
   function stepElev(d){ let v=parseElev()+d; v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); if(teElev) teElev.value=String(v); drawElev(); }
