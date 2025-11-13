@@ -1,9 +1,14 @@
 // store.js
 // Central app state, nozzle catalog, presets, and hydraulic helpers.
-// - Lines start hidden; supply starts 'off' (user chooses).
-// - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
-// - Appliance loss: +10 psi only if total GPM > 350.
-// - Exports restored for other views: COEFF, loadPresets, savePresets.
+// This is the *original* full version including:
+// - COEFF
+// - PSI_PER_FT
+// - NOZ, NOZ_LIST
+// - FL, FL_total, sumFt, splitIntoSections
+// - isSingleWye, activeSide, activeNozzle
+// - loadPresets, savePresets, round1, sizeLabel
+//
+// App code expects this exact export surface.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'static' | 'relay'
@@ -46,16 +51,25 @@ export const NOZ_LIST = Object.values(NOZ);
  *   FL_100 = C * (GPM/100)^2
  * ========================= */
 export const COEFF = {
+  '1':   24,    // optional/common reference (not used by default lines)
   '1.75': 15,
-  '2'   : 8,
-  '2.5' : 2,
-  '3'   : 0.8,
-  '5'   : 0.08,
+  '2.0':  8,     // optional/common reference
+  '2.5':  2,
+  '3':    0.8,   // optional/common reference
+  '4':    0.2,   // optional/common reference
+  '5':    0.08,
 };
 
-/* Elevation: 0.5 psi / ft is common for training;
- * but note NFPA style sometimes uses 5 psi / 10 ft (0.5 psi/ft).
- */
+/* Pretty size label for UI */
+export function sizeLabel(v){
+  return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
+}
+
+/* =========================
+ * Hydraulics helpers
+ * ========================= */
+
+/** NFPA elevation: 0.5 psi / ft (5 psi per 10 ft) is common for training. */
 export const PSI_PER_FT = 0.5;
 
 /** Appliance loss: +10 psi only when total flow exceeds 350 gpm */
@@ -67,7 +81,7 @@ export function applianceLoss(totalGpm){
 function flPer100(size, gpm){
   const s = String(size || '').trim();
   const q = Math.max(0, gpm) / 100;
-  const C = COEFF[size] ?? 10; // fallback
+  const C = COEFF[s] ?? 10; // fallback
   return C * q * q;
 }
 
