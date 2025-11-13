@@ -6,33 +6,16 @@
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
-function toSections(items){
-  const out = [];
-  if (!items) return out;
-  for (const seg of items){
-    const size = seg.size;
-    let len = seg.lengthFt || 0;
-    while (len > 0){
-      let chunk;
-      if (len >= 100) chunk = 100;
-      else if (len >= 50) chunk = 50;
-      else chunk = len;
-      out.push({ size, lengthFt: chunk });
-      len -= chunk;
-    }
-  }
-  return out;
-}
 function FL_total_sections(flow, items){
-  const secs = toSections(items || []);
+  const secs = splitIntoSections(items||[]);
   let total = 0;
-  for (const s of secs){
+  for(const s of secs){
     total += FL(flow, s.size, s.lengthFt);
   }
   return total;
 }
 function breakdownText(items){
-  const secs = toSections(items || []);
+  const secs = splitIntoSections(items||[]);
   if(!secs.length) return '0′';
   return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
@@ -147,15 +130,8 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  // Accept both numbers and strings, normalize by diameter
-  const num = parseFloat(size);
-  if (!isNaN(num)) {
-    if (Math.abs(num - 1.75) < 0.01) return findNozzleId({ gpm:185, NP:50, preferFog:true });
-    if (Math.abs(num - 2.5)  < 0.01) return findNozzleId({ gpm:265, NP:50, preferFog:true });
-  }
-  const s = (size||'').toString();
-  if (/1[\s]*3\/4/.test(s) || /1\.75/.test(s)) return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (/2[\s]*1\/2/.test(s) || /2\.5/.test(s))  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   // For other sizes, keep “closest fog near 185 @ 50”
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
@@ -172,20 +148,12 @@ function ensureDefaultNozzleFor(L, where, size){
   }
 }
 
-// Special helper: Branch B default based on hose size if empty
-function setBranchBDefaultIfEmpty(L, sizeHint){
-  if (!L || (L.nozRight && L.nozRight.id)) return;
-  // Prefer an explicit size hint, then Branch B's first segment, then branch/main size.
-  const segSize =
-    sizeHint ||
-    (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) ||
-    L.branchSize ||
-    (L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) ||
-    '1.75';
-  const id = defaultNozzleIdForSize(segSize);
-  if (!id) return;
-  const noz = NOZ[id] || NOZ_LIST.find(n=>n.id===id);
-  if (noz) L.nozRight = noz;
+// Special helper: Branch B defaults to Fog 185 @ 50 if empty
+function setBranchBDefaultIfEmpty(L){
+  if(!(L?.nozRight?.id)){
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
+  }
 }
 
 /* ========================================================================== */
@@ -350,7 +318,7 @@ function ppExplainHTML(L){
   const flow = single ? (activeNozzle(L)?.gpm||0)
              : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
                         : (L.nozRight?.gpm||0);
-  const mainSecs = toSections(L.itemsMain);
+  const mainSecs = splitIntoSections(L.itemsMain);
   const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
   const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
   const mainSum = mainFLs.reduce((a,c)=>a+c,0);
@@ -372,7 +340,7 @@ function ppExplainHTML(L){
     // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
     const noz = activeNozzle(L);
     const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
-    const bnSecs = toSections(bnSegs);
+    const bnSecs = splitIntoSections(bnSegs);
     const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
@@ -389,8 +357,8 @@ function ppExplainHTML(L){
       </div>
     `;
   } else {
-    const aSecs = toSections(L.itemsLeft);
-    const bSecs = toSections(L.itemsRight);
+    const aSecs = splitIntoSections(L.itemsLeft);
+    const bSecs = splitIntoSections(L.itemsRight);
     const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
     const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
@@ -419,7 +387,6 @@ function ppExplainHTML(L){
 /* ========================================================================== */
 
 export async function render(container){
-
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
@@ -1283,15 +1250,15 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="barTitle">Branch A \${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
                   <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Branch B \${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1300,9 +1267,9 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_L_'+key), toSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
-          drawHoseBar(document.getElementById('viz_R_'+key), toSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
+          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
+          drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else if(single){
@@ -1322,7 +1289,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
@@ -1335,8 +1302,8 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_BR_'+key), toSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
+          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -1350,7 +1317,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1359,7 +1326,7 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
+          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
         }
       }
@@ -1430,7 +1397,7 @@ function updateSegSwitchVisibility(){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
       if (L.hasWye) {
-        setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size)); // ensure B default when wye on
+        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       } else {
         // Ensure default nozzle for main based on diameter if missing
         ensureDefaultNozzleFor(L,'main',seg.size);
@@ -1444,7 +1411,7 @@ function updateSegSwitchVisibility(){
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      setBranchBDefaultIfEmpty(L, seg.size);
+      setBranchBDefaultIfEmpty(L);
     }
 
     setBranchABEditorDefaults(key);
@@ -1488,7 +1455,7 @@ function updateSegSwitchVisibility(){
       if (L.nozLeft?.id && teNoz) teNoz.value = L.nozLeft.id;
     } else if (where==='R'){
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
-      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size));
+      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
   });
 
@@ -1518,7 +1485,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
-      setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size));
+      setBranchBDefaultIfEmpty(L);
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
@@ -1548,7 +1515,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
         // Branch B default if empty
         if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L, size);
+          setBranchBDefaultIfEmpty(L);
         }
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
@@ -1559,7 +1526,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     } else {
       L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
       if (!(L.nozRight?.id)){
-        setBranchBDefaultIfEmpty(L, size);
+        setBranchBDefaultIfEmpty(L);
       }
       if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
     }
@@ -1626,7 +1593,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, toSections(L.itemsMain));
+      drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
@@ -1634,43 +1601,24 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      addLabel(G_labels, breakdownText(L.itemsMain)+' @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path');
-          pathL.setAttribute('class','hose branch '+clsFor(L.branchSize||1.75));
-          pathL.setAttribute('d', gL.d);
-          G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, toSections(L.itemsLeft));
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
+          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-
-          const leftFlow = (L.nozLeft?.gpm||0);
-          const leftNP   = (L.nozLeft?.NP||0);
-          const leftLabel = breakdownText(L.itemsLeft)+' @ '+leftFlow+' gpm — Nozzle '+leftNP+' psi';
-          addLabel(G_labels, leftLabel, gL.endX-6, gL.endY-10, -8);
-        } else {
-          addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
-        }
+        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path');
-          pathR.setAttribute('class','hose branch '+clsFor(L.branchSize||1.75));
-          pathR.setAttribute('d', gR.d);
-          G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, toSections(L.itemsRight));
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-
-          const rightFlow = (L.nozRight?.gpm||0);
-          const rightNP   = (L.nozRight?.NP||0);
-          const rightLabel = breakdownText(L.itemsRight)+' @ '+rightFlow+' gpm — Nozzle '+rightNP+' psi';
-          addLabel(G_labels, rightLabel, gR.endX+6, gR.endY-26, -12);
-        } else {
-          addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
-        }
-      }     base.remove();
+        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
+      }
+      base.remove();
     });
 
     // Supply visuals & panels
@@ -1929,12 +1877,12 @@ function initBranchPlusMenus(root){
   try{
     const st = document.createElement('style');
     st.textContent = `
-    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
+    .segSwitch{display:none;gap:6px;margin:6px 0 4px}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
     .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
 .pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
 
-    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+    .segSwitch{display:none;align-items:center;justify-content:flex-start;flex-wrap:wrap}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
     `;
