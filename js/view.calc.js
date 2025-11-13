@@ -172,31 +172,11 @@ function ensureDefaultNozzleFor(L, where, size){
   }
 }
 
-// Special helper: Branch B default based on hose size if empty
-//  - If the branch is 1¾″ → 185 @ 50
-//  - If the branch is 2½″ → 265 @ 50
-//  - Otherwise falls back to 185 @ 50
+// Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
-  if (!L) return;
-  // If Branch B already has a nozzle, do NOT override the user's choice
-  if (L.nozRight && L.nozRight.id) return;
-
-  // Always default Branch B to Fog 185 gpm @ 50 psi
-  const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (id185 && NOZ[id185]) {
-    L.nozRight = NOZ[id185];
-    return;
-  }
-
-  // Fallback: search NOZ_LIST for a matching nozzle if lookup by id fails
-  if (Array.isArray(NOZ_LIST)) {
-    const noz = NOZ_LIST.find(n => Number(n.gpm) === 185 && Number(n.NP) === 50);
-    if (noz) {
-      L.nozRight = noz;
-    }
-  }
-}
-
+  if(!(L?.nozRight?.id)){
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
 
@@ -656,10 +636,12 @@ export async function render(container){
           <div id="hydrantResult" class="status" style="margin-top:8px; color:#cfe6ff">Enter numbers then press <b>Evaluate %Drop</b>.</div>
         </div>
 <!-- Tender controls (minimal) -->
-<div id="staticHelper" class="helperPanel" style="display:none; ... solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-  <!-- Compact Tender Shuttle status (hidden, keeps #shuttleTotalGpm for JS only) -->
-  <div class="pill shuttleMeta" style="display:none;">
-    <span id="shuttleTotalGpm">0</span>
+<div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
+  <!-- Compact Tender Shuttle status -->
+  <div class="pill shuttleMeta" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+    <div class="mini" style="font-weight:700;">Supply Mode</div>
+    <div class="mini">Tender shuttle</div>
+    <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span> gpm</div>
   </div>
 
   <div class="row" style="gap:10px; align-items:flex-end;">
@@ -1109,10 +1091,9 @@ function updateSegSwitchVisibility(){
   (function(){
     try{
       const css = `
-        .shuttleMeta{ display:none !important; }
         .shuttleMeta .btn{ padding:6px 10px; font-size:12px; }
         @media (max-width:520px){
-          .shuttleMeta{ display:none !important; width:100%; justify-content:space-between; }
+          .shuttleMeta{ width:100%; justify-content:space-between; }
           .shuttleMeta .gpmLine{ font-weight:700; }
           .shuttleMeta .tripCtrl input{ width:70px; }
           .helperPanel .field label{ font-size:12px; }
@@ -1646,45 +1627,43 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
       addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
-      
-if(L.hasWye){
+      if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path');
-          pathL.setAttribute('d', gL.d);
-          G_branches.appendChild(pathL);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-          // Branch A info bubble
           const lenL = sumFt(L.itemsLeft);
-          const nozL  = L.nozLeft;
+          const nozL = L.nozLeft;
           if (nozL) {
-            const txtL = lenL + '′ @ ' + (nozL.gpm||0) + ' gpm — Nozzle ' + (nozL.NP||0) + ' psi';
-            addLabel(G_labels, txtL, gL.endX - 40, gL.endY - 12);
+            addLabel(
+              G_labels,
+              lenL + '′ @ ' + (nozL.gpm||0) + ' gpm — Nozzle ' + (nozL.NP||0) + ' psi',
+              gL.endX - 40,
+              gL.endY - 12,
+              -6
+            );
           }
-        } else {
-          addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
-        }
+        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path');
-          pathR.setAttribute('d', gR.d);
-          G_branches.appendChild(pathR);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-          // Branch B info bubble
           const lenR = sumFt(L.itemsRight);
-          const nozR  = L.nozRight;
+          const nozR = L.nozRight;
           if (nozR) {
-            const txtR = lenR + '′ @ ' + (nozR.gpm||0) + ' gpm — Nozzle ' + (nozR.NP||0) + ' psi';
-            addLabel(G_labels, txtR, gR.endX + 40, gR.endY - 12);
+            addLabel(
+              G_labels,
+              lenR + '′ @ ' + (nozR.gpm||0) + ' gpm — Nozzle ' + (nozR.NP||0) + ' psi',
+              gR.endX + 40,
+              gR.endY - 12,
+              -6
+            );
           }
-        } else {
-          addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
-        }
+        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
-
       base.remove();
     });
 
