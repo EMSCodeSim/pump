@@ -6,8 +6,32 @@
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
+
+function sectionsFor(items){
+  const raw = Array.isArray(items) ? items : [];
+  const out = [];
+  for (const seg of raw){
+    const size = seg.size;
+    let len = Number(seg.lengthFt) || 0;
+    if (!size || !len) continue;
+    while (len > 0){
+      let chunk;
+      if (len >= 100){
+        chunk = 100;
+      } else if (len > 50){
+        // anything between 51–99 becomes 50 + remainder
+        chunk = 50;
+      } else {
+        chunk = len;
+      }
+      out.push({ size, lengthFt: chunk });
+      len -= chunk;
+    }
+  }
+  return out;
+}
 function FL_total_sections(flow, items){
-  const secs = splitIntoSections(items||[]);
+  const secs = sectionsFor(items||[]);
   let total = 0;
   for(const s of secs){
     total += FL(flow, s.size, s.lengthFt);
@@ -15,7 +39,7 @@ function FL_total_sections(flow, items){
   return total;
 }
 function breakdownText(items){
-  const secs = splitIntoSections(items||[]);
+  const secs = sectionsFor(items||[]);
   if(!secs.length) return '0′';
   return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
@@ -130,14 +154,8 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  const num = parseFloat(size);
-  if (!Number.isNaN(num)){
-    if (Math.abs(num - 1.75) < 0.01) return findNozzleId({ gpm:185, NP:50, preferFog:true });
-    if (Math.abs(num - 2.5)  < 0.01) return findNozzleId({ gpm:265, NP:50, preferFog:true });
-  }
-  const s = (size ?? '').toString();
-  if (/1\s*3\/4/.test(s) || /1\.75/.test(s)) return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (/2\s*1\/2/.test(s) || /2\.5/.test(s))  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   // For other sizes, keep “closest fog near 185 @ 50”
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
@@ -157,15 +175,8 @@ function ensureDefaultNozzleFor(L, where, size){
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
-    const sizeHint =
-      (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) ||
-      L.branchSize ||
-      (L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) ||
-      '1.75';
-    const id = defaultNozzleIdForSize(sizeHint);
-    if (id){
-      L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
-    }
+    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
 
@@ -331,7 +342,7 @@ function ppExplainHTML(L){
   const flow = single ? (activeNozzle(L)?.gpm||0)
              : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
                         : (L.nozRight?.gpm||0);
-  const mainSecs = splitIntoSections(L.itemsMain);
+  const mainSecs = sectionsFor(L.itemsMain);
   const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
   const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
   const mainSum = mainFLs.reduce((a,c)=>a+c,0);
@@ -353,7 +364,7 @@ function ppExplainHTML(L){
     // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
     const noz = activeNozzle(L);
     const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
-    const bnSecs = splitIntoSections(bnSegs);
+    const bnSecs = sectionsFor(bnSegs);
     const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
@@ -370,8 +381,8 @@ function ppExplainHTML(L){
       </div>
     `;
   } else {
-    const aSecs = splitIntoSections(L.itemsLeft);
-    const bSecs = splitIntoSections(L.itemsRight);
+    const aSecs = sectionsFor(L.itemsLeft);
+    const bSecs = sectionsFor(L.itemsRight);
     const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
     const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
@@ -1263,15 +1274,15 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A \${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="barTitle">Branch A ${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
                   <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B \${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Branch B ${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1280,9 +1291,9 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
-          drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
+          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_L_'+key), sectionsFor(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
+          drawHoseBar(document.getElementById('viz_R_'+key), sectionsFor(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else if(single){
@@ -1302,7 +1313,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
@@ -1315,8 +1326,8 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
+          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_BR_'+key), sectionsFor(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -1330,7 +1341,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1339,7 +1350,7 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
+          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
         }
       }
@@ -1890,12 +1901,12 @@ function initBranchPlusMenus(root){
   try{
     const st = document.createElement('style');
     st.textContent = `
-    .segSwitch{display:none;gap:6px;margin:6px 0 4px}
+    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
     .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
 .pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
 
-    .segSwitch{display:none;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
     .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
     .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
     `;
