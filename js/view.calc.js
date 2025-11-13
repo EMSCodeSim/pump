@@ -6,8 +6,32 @@
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
+
+function sectionsFor(items){
+  const raw = Array.isArray(items) ? items : [];
+  const out = [];
+  for (const seg of raw){
+    const size = seg.size;
+    let len = Number(seg.lengthFt) || 0;
+    if (!size || !len) continue;
+    while (len > 0){
+      let chunk;
+      if (len >= 100){
+        chunk = 100;
+      } else if (len > 50){
+        // anything between 51–99 becomes 50 + remainder
+        chunk = 50;
+      } else {
+        chunk = len;
+      }
+      out.push({ size, lengthFt: chunk });
+      len -= chunk;
+    }
+  }
+  return out;
+}
 function FL_total_sections(flow, items){
-  const secs = splitIntoSections(items||[]);
+  const secs = sectionsFor(items||[]);
   let total = 0;
   for(const s of secs){
     total += FL(flow, s.size, s.lengthFt);
@@ -15,7 +39,7 @@ function FL_total_sections(flow, items){
   return total;
 }
 function breakdownText(items){
-  const secs = splitIntoSections(items||[]);
+  const secs = sectionsFor(items||[]);
   if(!secs.length) return '0′';
   return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
