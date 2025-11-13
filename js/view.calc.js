@@ -130,8 +130,14 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  const num = parseFloat(size);
+  if (!Number.isNaN(num)){
+    if (Math.abs(num - 1.75) < 0.01) return findNozzleId({ gpm:185, NP:50, preferFog:true });
+    if (Math.abs(num - 2.5)  < 0.01) return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  }
+  const s = (size ?? '').toString();
+  if (/1\s*3\/4/.test(s) || /1\.75/.test(s)) return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (/2\s*1\/2/.test(s) || /2\.5/.test(s))  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   // For other sizes, keep “closest fog near 185 @ 50”
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
@@ -151,8 +157,15 @@ function ensureDefaultNozzleFor(L, where, size){
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
   if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
-    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
+    const sizeHint =
+      (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) ||
+      L.branchSize ||
+      (L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) ||
+      '1.75';
+    const id = defaultNozzleIdForSize(sizeHint);
+    if (id){
+      L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
+    }
   }
 }
 
