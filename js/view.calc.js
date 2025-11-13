@@ -447,14 +447,6 @@ export async function render(container){
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
             <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
-            <!-- Segment Switch (shown only when Wye is ON) -->
-            <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
-              <button type="button" class="segBtn" data-seg="main">Main</button>
-              <button type="button" class="segBtn" data-seg="A">Line A</button>
-              <button type="button" class="segBtn" data-seg="B">Line B</button>
-            </div>
-
-
             
             <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
             <div class="te-row" id="rowSize">
