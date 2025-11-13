@@ -46,30 +46,6 @@ function breakdownText(items){
 
 import { WaterSupplyUI } from './waterSupply.js';
 
-
-function normalizeBranchBTo185If265(L){
-  try{
-    if(!L) return;
-    var rightG = L.nozRight && Number(L.nozRight.gpm);
-    var rightNP = L.nozRight && Number(L.nozRight.NP);
-    var sizeHint = (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) || L.branchSize || '1.75';
-    var s = (sizeHint||'').toString();
-    var is175 = /1\s*3\/4/.test(s) || /1\.75/.test(s);
-    if (is175 && rightG===265 && rightNP===50){
-      if (typeof findNozzleId === 'function'){
-        var nid = null;
-        try{ nid = findNozzleId({ gpm:185, NP:50, preferFog:true }); }catch(_){}
-        if (nid && typeof NOZ!=='undefined' && NOZ[nid]){ L.nozRight = NOZ[nid]; return; }
-      }
-      if (typeof NOZ_LIST!=='undefined' && Array.isArray(NOZ_LIST)){
-        var nz = NOZ_LIST.find(function(n){ return Number(n.gpm)===185 && Number(n.NP)===50; });
-        if (nz) L.nozRight = nz;
-      }
-    }
-  }catch(_){}
-}
-
-
 /* ========================================================================== */
 /*             Practice state persistence (incl. Tender Shuttle)              */
 /* ========================================================================== */
@@ -196,12 +172,21 @@ function ensureDefaultNozzleFor(L, where, size){
   }
 }
 
-// Special helper: Branch B defaults to Fog 185 @ 50 if empty
+// Special helper: Branch B defaults to Fog 185 @ 50 (always when this helper is called)
 function setBranchBDefaultIfEmpty(L){
-  if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
-    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
-  }
+  if(!L) return;
+  try{
+    const id = typeof findNozzleId==='function'
+      ? findNozzleId({gpm:185, NP:50, preferFog:true})
+      : null;
+    if(id && NOZ[id]){
+      L.nozRight = NOZ[id];
+      return;
+    }
+    const fallback = (NOZ_LIST||[]).find(n=>Number(n.gpm)===185 && Number(n.NP)===50);
+    if(fallback) L.nozRight = fallback;
+  }catch(_){/*ignore*/}
+}
 }
 
 /* ========================================================================== */
@@ -1657,7 +1642,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-      if (L.nozLeft){ const lenL = sumFt(L.itemsLeft); addLabel(G_labels, (lenL+'′ @ '+(L.nozLeft.gpm||0)+' gpm — Nozzle '+(L.nozLeft.NP||0)+' psi'), gL.endX-36, gL.endY-12); }
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
 
         if(sumFt(L.itemsRight)>0){
@@ -1665,7 +1649,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-      if (L.nozRight){ const lenR = sumFt(L.itemsRight); addLabel(G_labels, (lenR+'′ @ '+(L.nozRight.gpm||0)+' gpm — Nozzle '+(L.nozRight.NP||0)+' psi'), gR.endX+40, gR.endY-12); }
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
       }
       base.remove();
@@ -1896,7 +1879,6 @@ function initBranchPlusMenus(root){
   function init(){
     resetAllDeployedLines();
     hidePresetsUI();
-    try{ if (state && state.lines){ Object.keys(state.lines).forEach(function(k){ normalizeBranchBTo185If265(state.lines[k]); }); } }catch(_){}
     // If your app has a render() or drawAll(), trigger a first draw safely
     try{
       if (typeof render === 'function') render();
