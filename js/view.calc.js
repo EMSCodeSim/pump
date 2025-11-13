@@ -5,24 +5,23 @@
 //
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
-import { WaterSupplyUI } from './waterSupply.js';
-
-
-/* ==== Added: per-section FL and breakdown helpers (Nov 2025) ==== */
+// --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
 function FL_total_sections(flow, items){
-  try{
-    const secs = splitIntoSections(items||[]);
-    return secs.reduce((sum,s)=> sum + FL(flow, s.size, s.lengthFt), 0);
-  }catch(e){ return 0; }
+  const secs = splitIntoSections(items||[]);
+  let total = 0;
+  for(const s of secs){
+    total += FL(flow, s.size, s.lengthFt);
+  }
+  return total;
 }
 function breakdownText(items){
-  try{
-    const secs = splitIntoSections(items||[]);
-    if(!secs.length) return '0′';
-    return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
-  }catch(e){ return '0′'; }
+  const secs = splitIntoSections(items||[]);
+  if(!secs.length) return '0′';
+  return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
-/* ================================================================ */
+
+import { WaterSupplyUI } from './waterSupply.js';
+
 /* ========================================================================== */
 /*             Practice state persistence (incl. Tender Shuttle)              */
 /* ========================================================================== */
@@ -1228,7 +1227,7 @@ function updateSegSwitchVisibility(){
 
       const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
         <span class="title">${L.label}</span>
-        <span class="tag">Main: ${breakdownText(L.itemsMain)} (${segs})</span>
+        <span class=\"tag\">Main: ${breakdownText(L.itemsMain)}</span>
         <span class="tag">Flow: ${flow} gpm</span>
         <span class="tag">${L.visible? 'DEPLOYED':'not deployed'}</span>
       `;
@@ -1251,15 +1250,15 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
+                  <div class="barTitle">Branch A \${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
                   <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Branch B \${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1269,8 +1268,8 @@ function updateSegSwitchVisibility(){
           linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+(sumFt(L.itemsLeft)||0)+'′');
-          drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+(sumFt(L.itemsRight)||0)+'′');
+          drawHoseBar(document.getElementById('viz_L_'+key), splitIntoSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
+          drawHoseBar(document.getElementById('viz_R_'+key), splitIntoSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else if(single){
@@ -1290,7 +1289,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
@@ -1304,7 +1303,7 @@ function updateSegSwitchVisibility(){
           linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), splitIntoSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+breakdownText(bnSegs));
+          drawHoseBar(document.getElementById('viz_BR_'+key), splitIntoSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -1318,7 +1317,7 @@ function updateSegSwitchVisibility(){
                   <span class="legSwatch sw5"></span> 5″
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main \${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
