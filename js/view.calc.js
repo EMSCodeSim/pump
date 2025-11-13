@@ -172,11 +172,31 @@ function ensureDefaultNozzleFor(L, where, size){
   }
 }
 
-// Special helper: Branch B defaults to Fog 185 @ 50 if empty
+// Special helper: Branch B default based on hose size if empty
+//  - If the branch is 1¾″ → 185 @ 50
+//  - If the branch is 2½″ → 265 @ 50
+//  - Otherwise falls back to 185 @ 50
 function setBranchBDefaultIfEmpty(L){
-  if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
-    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
+  if (!L) return;
+  // If Branch B already has a nozzle, do NOT override the user's choice
+  if (L.nozRight && L.nozRight.id) return;
+
+  // Always default Branch B to Fog 185 gpm @ 50 psi
+  const id185 = findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (id185 && NOZ[id185]) {
+    L.nozRight = NOZ[id185];
+    return;
+  }
+
+  // Fallback: search NOZ_LIST for a matching nozzle if lookup by id fails
+  if (Array.isArray(NOZ_LIST)) {
+    const noz = NOZ_LIST.find(n => Number(n.gpm) === 185 && Number(n.NP) === 50);
+    if (noz) {
+      L.nozRight = noz;
+    }
+  }
+}
+
   }
 }
 
@@ -1626,21 +1646,45 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
       addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
-      if(L.hasWye){
+      
+if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pathL.setAttribute('d', gL.d);
+          G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
+          // Branch A info bubble
+          const lenL = sumFt(L.itemsLeft);
+          const nozL  = L.nozLeft;
+          if (nozL) {
+            const txtL = lenL + '′ @ ' + (nozL.gpm||0) + ' gpm — Nozzle ' + (nozL.NP||0) + ' psi';
+            addLabel(G_labels, txtL, gL.endX - 40, gL.endY - 12);
+          }
+        } else {
+          addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
+        }
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pathR.setAttribute('d', gR.d);
+          G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
+          // Branch B info bubble
+          const lenR = sumFt(L.itemsRight);
+          const nozR  = L.nozRight;
+          if (nozR) {
+            const txtR = lenR + '′ @ ' + (nozR.gpm||0) + ' gpm — Nozzle ' + (nozR.NP||0) + ' psi';
+            addLabel(G_labels, txtR, gR.endX + 40, gR.endY - 12);
+          }
+        } else {
+          addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
+        }
       }
+
       base.remove();
     });
 
