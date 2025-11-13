@@ -6,24 +6,17 @@
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
-
-function sectionsFor(items){
-  const raw = Array.isArray(items) ? items : [];
+function toSections(items){
   const out = [];
-  for (const seg of raw){
+  if (!items) return out;
+  for (const seg of items){
     const size = seg.size;
-    let len = Number(seg.lengthFt) || 0;
-    if (!size || !len) continue;
+    let len = seg.lengthFt || 0;
     while (len > 0){
       let chunk;
-      if (len >= 100){
-        chunk = 100;
-      } else if (len > 50){
-        // anything between 51–99 becomes 50 + remainder
-        chunk = 50;
-      } else {
-        chunk = len;
-      }
+      if (len >= 100) chunk = 100;
+      else if (len >= 50) chunk = 50;
+      else chunk = len;
       out.push({ size, lengthFt: chunk });
       len -= chunk;
     }
@@ -31,15 +24,15 @@ function sectionsFor(items){
   return out;
 }
 function FL_total_sections(flow, items){
-  const secs = sectionsFor(items||[]);
+  const secs = toSections(items || []);
   let total = 0;
-  for(const s of secs){
+  for (const s of secs){
     total += FL(flow, s.size, s.lengthFt);
   }
   return total;
 }
 function breakdownText(items){
-  const secs = sectionsFor(items||[]);
+  const secs = toSections(items || []);
   if(!secs.length) return '0′';
   return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
@@ -342,7 +335,7 @@ function ppExplainHTML(L){
   const flow = single ? (activeNozzle(L)?.gpm||0)
              : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
                         : (L.nozRight?.gpm||0);
-  const mainSecs = sectionsFor(L.itemsMain);
+  const mainSecs = toSections(L.itemsMain);
   const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
   const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
   const mainSum = mainFLs.reduce((a,c)=>a+c,0);
@@ -364,7 +357,7 @@ function ppExplainHTML(L){
     // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
     const noz = activeNozzle(L);
     const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
-    const bnSecs = sectionsFor(bnSegs);
+    const bnSecs = toSections(bnSegs);
     const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
@@ -381,8 +374,8 @@ function ppExplainHTML(L){
       </div>
     `;
   } else {
-    const aSecs = sectionsFor(L.itemsLeft);
-    const bSecs = sectionsFor(L.itemsRight);
+    const aSecs = toSections(L.itemsLeft);
+    const bSecs = toSections(L.itemsRight);
     const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
     const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
@@ -1291,9 +1284,9 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_L_'+key), sectionsFor(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
-          drawHoseBar(document.getElementById('viz_R_'+key), sectionsFor(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
+          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_L_'+key), toSections(L.itemsLeft), L.nozLeft?.gpm||0, L.nozLeft?.NP||0, 'Branch A '+breakdownText(L.itemsLeft));
+          drawHoseBar(document.getElementById('viz_R_'+key), toSections(L.itemsRight), L.nozRight?.gpm||0, L.nozRight?.NP||0, 'Branch B '+breakdownText(L.itemsRight));
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else if(single){
@@ -1326,8 +1319,8 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_BR_'+key), sectionsFor(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
+          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
+          drawHoseBar(document.getElementById('viz_BR_'+key), toSections(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -1350,7 +1343,7 @@ function updateSegSwitchVisibility(){
           `;
           linesTable.appendChild(wrap);
 
-          drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
+          drawHoseBar(document.getElementById('viz_main_'+key), toSections(L.itemsMain), bflow, (L.nozRight?.NP||0), 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
         }
       }
@@ -1617,7 +1610,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, L.itemsMain);
+      drawSegmentedPath(G_hoses, base, toSections(L.itemsMain));
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
@@ -1625,24 +1618,43 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+      addLabel(G_labels, breakdownText(L.itemsMain)+' @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pathL.setAttribute('class','hose branch '+clsFor(L.branchSize||1.75));
+          pathL.setAttribute('d', gL.d);
+          G_branches.appendChild(pathL);
+          drawSegmentedPath(G_branches, pathL, toSections(L.itemsLeft));
           addTip(G_tips, key,'L',gL.endX,gL.endY);
-        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
+
+          const leftFlow = (L.nozLeft?.gpm||0);
+          const leftNP   = (L.nozLeft?.NP||0);
+          const leftLabel = breakdownText(L.itemsLeft)+' @ '+leftFlow+' gpm — Nozzle '+leftNP+' psi';
+          addLabel(G_labels, leftLabel, gL.endX-6, gL.endY-10, -8);
+        } else {
+          addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
+        }
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path');
+          pathR.setAttribute('class','hose branch '+clsFor(L.branchSize||1.75));
+          pathR.setAttribute('d', gR.d);
+          G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, toSections(L.itemsRight));
           addTip(G_tips, key,'R',gR.endX,gR.endY);
-        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
-      }
-      base.remove();
+
+          const rightFlow = (L.nozRight?.gpm||0);
+          const rightNP   = (L.nozRight?.NP||0);
+          const rightLabel = breakdownText(L.itemsRight)+' @ '+rightFlow+' gpm — Nozzle '+rightNP+' psi';
+          addLabel(G_labels, rightLabel, gR.endX+6, gR.endY-26, -12);
+        } else {
+          addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
+        }
+      }     base.remove();
     });
 
     // Supply visuals & panels
