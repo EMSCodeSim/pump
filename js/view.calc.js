@@ -147,8 +147,15 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  // Accept both numbers and strings, normalize by diameter
+  const num = parseFloat(size);
+  if (!isNaN(num)) {
+    if (Math.abs(num - 1.75) < 0.01) return findNozzleId({ gpm:185, NP:50, preferFog:true });
+    if (Math.abs(num - 2.5)  < 0.01) return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  }
+  const s = (size||'').toString();
+  if (/1[\s]*3\/4/.test(s) || /1\.75/.test(s)) return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (/2[\s]*1\/2/.test(s) || /2\.5/.test(s))  return findNozzleId({ gpm:265, NP:50, preferFog:true });
   // For other sizes, keep “closest fog near 185 @ 50”
   return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
@@ -165,12 +172,20 @@ function ensureDefaultNozzleFor(L, where, size){
   }
 }
 
-// Special helper: Branch B defaults to Fog 185 @ 50 if empty
-function setBranchBDefaultIfEmpty(L){
-  if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
-    L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
-  }
+// Special helper: Branch B default based on hose size if empty
+function setBranchBDefaultIfEmpty(L, sizeHint){
+  if (!L || (L.nozRight && L.nozRight.id)) return;
+  // Prefer an explicit size hint, then Branch B's first segment, then branch/main size.
+  const segSize =
+    sizeHint ||
+    (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) ||
+    L.branchSize ||
+    (L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) ||
+    '1.75';
+  const id = defaultNozzleIdForSize(segSize);
+  if (!id) return;
+  const noz = NOZ[id] || NOZ_LIST.find(n=>n.id===id);
+  if (noz) L.nozRight = noz;
 }
 
 /* ========================================================================== */
@@ -404,6 +419,7 @@ function ppExplainHTML(L){
 /* ========================================================================== */
 
 export async function render(container){
+
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
@@ -1414,7 +1430,7 @@ function updateSegSwitchVisibility(){
       const seg = L.itemsMain[0] || {size:'1.75',lengthFt:200};
       teSize.value = seg.size; teLen.value = seg.lengthFt||0;
       if (L.hasWye) {
-        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
+        setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size)); // ensure B default when wye on
       } else {
         // Ensure default nozzle for main based on diameter if missing
         ensureDefaultNozzleFor(L,'main',seg.size);
@@ -1428,7 +1444,7 @@ function updateSegSwitchVisibility(){
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      setBranchBDefaultIfEmpty(L);
+      setBranchBDefaultIfEmpty(L, seg.size);
     }
 
     setBranchABEditorDefaults(key);
@@ -1472,7 +1488,7 @@ function updateSegSwitchVisibility(){
       if (L.nozLeft?.id && teNoz) teNoz.value = L.nozLeft.id;
     } else if (where==='R'){
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
-      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
+      if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size));
     }
   });
 
@@ -1502,7 +1518,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     const wyeOn = teWye.value==='on';
     if (editorContext?.where==='main' && wyeOn){
       const L = state.lines[editorContext.key];
-      setBranchBDefaultIfEmpty(L);
+      setBranchBDefaultIfEmpty(L, L.branchSize || (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size));
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
@@ -1532,7 +1548,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
         // Branch B default if empty
         if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
+          setBranchBDefaultIfEmpty(L, size);
         }
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
@@ -1543,7 +1559,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     } else {
       L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
       if (!(L.nozRight?.id)){
-        setBranchBDefaultIfEmpty(L);
+        setBranchBDefaultIfEmpty(L, size);
       }
       if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
     }
