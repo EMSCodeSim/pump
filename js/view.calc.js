@@ -1,3 +1,29 @@
+function __normalizeBranchB265To185(L){
+  try{
+    if(!L) return;
+    // Only act on Wye, 1¾″ branch common case
+    var sizeHint = (L.itemsRight && L.itemsRight[0] && L.itemsRight[0].size) || L.branchSize || '1.75';
+    var s = (sizeHint||'').toString();
+    var is175 = /1\s*3\/4/.test(s) || /1\.75/.test(s);
+    var g = L.nozRight && Number(L.nozRight.gpm);
+    var np = L.nozRight && Number(L.nozRight.NP);
+    if (is175 && g===265 && np===50){
+      setBranchBDefaultIfEmpty({ nozRight:null }); // ensure lookup warmed
+      // assign fog 185@50
+      var targetId = null;
+      if (typeof findNozzleId === 'function'){
+        try{ targetId = findNozzleId({ gpm:185, NP:50, preferFog:true }); }catch(_){}
+      }
+      if (targetId && typeof NOZ !== 'undefined' && NOZ[targetId]) {
+        L.nozRight = NOZ[targetId];
+      } else if (typeof NOZ_LIST !== 'undefined' && Array.isArray(NOZ_LIST)){
+        var nz = NOZ_LIST.find(function(n){ return Number(n.gpm)===185 && Number(n.NP)===50; });
+        if (nz) L.nozRight = nz;
+      }
+    }
+  }catch(_){}
+}
+
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
@@ -45,6 +71,24 @@ function breakdownText(items){
 }
 
 import { WaterSupplyUI } from './waterSupply.js';
+
+function __renderBranchBubblesForLine(key, L, endX, endY){
+  try{
+    if (!L || !L.hasWye) return;
+    // Left branch bubble
+    var lenL = (Array.isArray(L.itemsLeft) ? L.itemsLeft.reduce(function(a,s){return a + (Number(s.lengthFt)||0);},0):0);
+    if (lenL>0 && L.nozLeft){
+      var txtL = (lenL + '′ @ ' + (L.nozLeft.gpm||0) + ' gpm — Nozzle ' + (L.nozLeft.NP||0) + ' psi');
+      if (typeof addLabel === 'function') addLabel(labelsGroup||document.querySelector('#labels'), txtL, endX-40, endY-12);
+    }
+    // Right branch bubble
+    var lenR = (Array.isArray(L.itemsRight) ? L.itemsRight.reduce(function(a,s){return a + (Number(s.lengthFt)||0);},0):0);
+    if (lenR>0 && L.nozRight){
+      var txtR = (lenR + '′ @ ' + (L.nozRight.gpm||0) + ' gpm — Nozzle ' + (L.nozRight.NP||0) + ' psi');
+      if (typeof addLabel === 'function') addLabel(labelsGroup||document.querySelector('#labels'), txtR, endX+40, endY-12);
+    }
+  }catch(_){}
+}
 
 /* ========================================================================== */
 /*             Practice state persistence (incl. Tender Shuttle)              */
@@ -174,39 +218,29 @@ function ensureDefaultNozzleFor(L, where, size){
 
 // Special helper: Branch B defaults to Fog 185 @ 50 if empty
 function setBranchBDefaultIfEmpty(L){
-  if(!(L?.nozRight?.id)){
-    const id = findNozzleId({gpm:185, NP:50, preferFog:true});
+  try{
+    if(!L) return;
+    // if already has a nozzle, do not override
+    if (L.nozRight && L.nozRight.id) return;
+    // prefer Fog 185 @ 50
+    var targetId = null;
+    if (typeof findNozzleId === 'function'){
+      try{ targetId = findNozzleId({ gpm:185, NP:50, preferFog:true }); }catch(_){}
+    }
+    if (targetId && typeof NOZ !== 'undefined' && NOZ[targetId]) {
+      L.nozRight = NOZ[targetId];
+      return;
+    }
+    if (typeof NOZ_LIST !== 'undefined' && Array.isArray(NOZ_LIST)){
+      var nz = NOZ_LIST.find(function(n){ return Number(n.gpm)===185 && Number(n.NP)===50; });
+      if (nz) L.nozRight = nz;
+    }
+  }catch(_){}
+});
     L.nozRight = NOZ[id] || L.nozRight || NOZ_LIST.find(n=>n.id===id) || L.nozRight;
   }
 }
 
-
-// One-time legacy fix: if any Branch B nozzle is still stuck at 265 @ 50,
-// convert it to Fog 185 @ 50 so Branch B truly defaults to 185 gpm.
-(function fixLegacyBranchB(){
-  try{
-    if (!state || !state.lines) return;
-    var id185 = (typeof findNozzleId === 'function')
-      ? findNozzleId({ gpm:185, NP:50, preferFog:true })
-      : null;
-    var noz185 = (id185 && NOZ && NOZ[id185]) ? NOZ[id185] : null;
-    if (!noz185 && Array.isArray(NOZ_LIST)) {
-      noz185 = NOZ_LIST.find(function(n){
-        return Number(n.gpm) === 185 && Number(n.NP) === 50;
-      }) || null;
-    }
-    if (!noz185) return;
-    Object.keys(state.lines || {}).forEach(function(key){
-      var L = state.lines[key];
-      if (!L || !L.nozRight) return;
-      var g = Number(L.nozRight.gpm);
-      var np = Number(L.nozRight.NP);
-      if (g === 265 && np === 50) {
-        L.nozRight = noz185;
-      }
-    });
-  }catch(_e){}
-})();
 /* ========================================================================== */
 /*                         Vertical sizing & geometry                          */
 /* ========================================================================== */
@@ -438,6 +472,8 @@ function ppExplainHTML(L){
 /* ========================================================================== */
 
 export async function render(container){
+  try{ if (typeof state !== 'undefined' && state.lines){ Object.keys(state.lines).forEach(function(k){ __normalizeBranchB265To185(state.lines[k]); }); } }catch(_){}
+
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
