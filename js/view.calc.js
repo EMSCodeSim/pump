@@ -187,7 +187,6 @@ function setBranchBDefaultIfEmpty(L){
     if(fallback) L.nozRight = fallback;
   }catch(_){/*ignore*/}
 }
-}
 
 /* ========================================================================== */
 /*                         Vertical sizing & geometry                          */
