@@ -998,7 +998,8 @@ function gateWyeBySize(){
 function updateSegSwitchVisibility(){
     const wyeOn = teWye && teWye.value === 'on';
     if (segSwitch){
-      segSwitch.style.display = wyeOn ? 'flex' : 'none';
+      // Hide seg switch UI completely; logic still works but buttons are not shown
+      segSwitch.style.display = 'none';
     }
     if (!wyeOn){
       // Wye turned OFF → back to main and hide both branches
