@@ -1,14 +1,9 @@
 // store.js
 // Central app state, nozzle catalog, presets, and hydraulic helpers.
-// This is the *original* full version including:
-// - COEFF
-// - PSI_PER_FT
-// - NOZ, NOZ_LIST
-// - FL, FL_total, sumFt, splitIntoSections
-// - isSingleWye, activeSide, activeNozzle
-// - loadPresets, savePresets, round1, sizeLabel
-//
-// App code expects this exact export surface.
+// - Lines start hidden; supply starts 'off' (user chooses).
+// - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
+// - Appliance loss: +10 psi only if total GPM > 350.
+// - Exports restored for other views: COEFF, loadPresets, savePresets.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'static' | 'relay'
@@ -49,9 +44,10 @@ export const NOZ_LIST = Object.values(NOZ);
 /* =========================
  * Friction-loss coefficients (per 100 ft formula)
  *   FL_100 = C * (GPM/100)^2
+ * Exported for Practice/Charts views.
  * ========================= */
 export const COEFF = {
-  '1':   24,    // optional/common reference (not used by default lines)
+  '1.5':  24,    // optional/common reference (not used by default lines)
   '1.75': 15,
   '2.0':  8,     // optional/common reference
   '2.5':  2,
@@ -69,7 +65,7 @@ export function sizeLabel(v){
  * Hydraulics helpers
  * ========================= */
 
-/** NFPA elevation: 0.5 psi / ft (5 psi per 10 ft) is common for training. */
+/** NFPA elevation: 0.5 psi per 10 ft -> 0.05 psi/ft */
 export const PSI_PER_FT = 0.5;
 
 /** Appliance loss: +10 psi only when total flow exceeds 350 gpm */
@@ -77,11 +73,10 @@ export function applianceLoss(totalGpm){
   return totalGpm > 350 ? 10 : 0;
 }
 
-/** Internal: pick C from COEFF, safe fallback */
+/** Internal: pick C for size */
 function flPer100(size, gpm){
-  const s = String(size || '').trim();
   const q = Math.max(0, gpm) / 100;
-  const C = COEFF[s] ?? 10; // fallback
+  const C = COEFF[size] ?? 10; // fallback
   return C * q * q;
 }
 
@@ -112,13 +107,17 @@ export function splitIntoSections(items){
 }
 
 /* =========================
- * Line seeding
+ * Line defaults (start hidden)
  * ========================= */
-
+/*
+  L1: 200′ of 1¾″, 185 @ 50 (hidden)
+  L2: 200′ of 1¾″, 185 @ 50 (hidden)
+  L3: 250′ of 2½″, 265 @ 50 (hidden)
+*/
 function seedInitialDefaults(){
   if (state.lines) return;
   const L1N = NOZ.chief185_50;
-  const L3N = NOZ.sb1_1_8;
+  const L3N = NOZ.chiefXD265;
 
   state.lines = {
     left:  {
@@ -144,13 +143,13 @@ function seedInitialDefaults(){
     right: {
       label: 'Line 3',
       visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:200 }],
+      itemsMain: [{ size:'2.5', lengthFt:250 }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
       nozRight: L3N,
-    },
+    }
   };
 }
 seedInitialDefaults();
@@ -161,7 +160,7 @@ export function seedDefaultsForKey(key){
   if(state.lines[key]) return state.lines[key];
 
   const L1N = NOZ.chief185_50;
-  const L3N = NOZ.sb1_1_8;
+  const L3N = NOZ.chiefXD265;
 
   if(key === 'left'){
     state.lines.left = {
@@ -189,7 +188,7 @@ export function seedDefaultsForKey(key){
     state.lines.right = {
       label: 'Line 3',
       visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:200 }],
+      itemsMain: [{ size:'2.5', lengthFt:250 }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
@@ -244,28 +243,41 @@ export function computeApplianceLoss(totalGpm){
 }
 
 /* =========================
- * Presets (for Settings/etc)
+ * Presets (with persistence)
  * ========================= */
+const PRESET_STORAGE_KEY = 'pump_presets_v1';
 
-const STORAGE_KEY = 'pump.presets.v1';
+function hasStorage(){
+  try {
+    return typeof window !== 'undefined'
+        && typeof window.localStorage !== 'undefined';
+  } catch { return false; }
+}
+
+function readStorage(){
+  if(!hasStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(PRESET_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function writeStorage(obj){
+  if(!hasStorage()) { state._presetsMem = obj; return true; }
+  try {
+    window.localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(obj));
+    return true;
+  } catch { return false; }
+}
 
 function defaultPresets(){
-  // A small set of named setups (used by Settings page)
   return {
-    basic185: {
-      name: '1¾″ Fog 185',
-      main: [{ size:'1.75', lengthFt:200 }],
-      elevFt: 0,
+    standpipe: {
+      name: 'Standpipe',
+      main: [{ size:'2.5', lengthFt:0 }],
+      elevFt: 60,
       hasWye: false,
-      nozzle: NOZ.chief185_50,
-      supply: 'pressurized',
-    },
-    big2_5: {
-      name: '2½″ SB 1 1/8″',
-      main: [{ size:'2.5', lengthFt:200 }],
-      elevFt: 0,
-      hasWye: false,
-      nozzle: NOZ.sb1_1_8,
+      nozzle: NOZ.fog150_75,
       supply: 'pressurized',
     },
     sprinkler: {
@@ -298,38 +310,15 @@ function defaultPresets(){
       elevFt: 80,
       hasWye: false,
       nozzle: NOZ.sb1_1_8,
-      supply: 'off',
+      supply: 'pressurized',
     },
   };
 }
 
-function readStorage(){
-  try{
-    const s = localStorage.getItem(STORAGE_KEY);
-    if(!s) return null;
-    return JSON.parse(s);
-  }catch(_){
-    return null;
-  }
-}
-function writeStorage(obj){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-    return true;
-  }catch(_){
-    return false;
-  }
-}
-
-/** Load presets for Settings, etc. */
+/** Read presets (storage -> memory -> defaults) */
 export function loadPresets(){
-  // If process already has an in-memory copy (e.g., SSR or earlier load), use it.
-  if(state._presetsMem) return state._presetsMem;
-  const fromLS = readStorage();
-  if(fromLS && typeof fromLS === 'object'){
-    state._presetsMem = fromLS;
-    return fromLS;
-  }
+  const fromStore = readStorage();
+  if(fromStore) return fromStore;
   if(state._presetsMem) return state._presetsMem;
   const d = defaultPresets();
   // do not auto-write defaults; let callers save only when modified
