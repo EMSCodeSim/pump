@@ -4,7 +4,7 @@ document.addEventListener("click", (e) => {
   if (!plus) return;
   const lineKey = plus.getAttribute("data-line");
   const where   = plus.getAttribute("data-where");
-  const evt = new CustomEvent("pump-open-editor", {
+  const evt = new CustomEvent("openTipEditor", {
     bubbles: true,
     detail: { line: lineKey, where: where }
   });
