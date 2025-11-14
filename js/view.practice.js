@@ -679,17 +679,6 @@ export function render(container) {
   };
   window.addEventListener('click', globalPracticeClick, true);
 
-    eqVisible = !eqVisible;
-    if(eqVisible){
-      eqBox.innerHTML = renderEquations(scenario);
-      eqBox.style.display = 'block';
-      eqToggleBtn.textContent = 'Hide Equations';
-    }else{
-      eqBox.style.display = 'none';
-      eqToggleBtn.textContent = 'Equations';
-    }
-  });
-
   // external events (optional)
   const onNew = ()=> makePractice();
   const onEq  = ()=> eqToggleBtn.click();
