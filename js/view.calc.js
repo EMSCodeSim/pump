@@ -525,6 +525,7 @@ function gateWyeBySize(){
   })();
 // Segment switch elements
   const segSwitch  = container.querySelector('#segSwitch');
+  if (segSwitch) segSwitch.style.display = 'none'; // hide Main / A / B segment buttons
   const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
   const branchASection = container.querySelector('#branchASection');
   const branchBSection = container.querySelector('#branchBSection');
