@@ -12,17 +12,18 @@
   } catch (_) {}
 })();
 
-// GLOBAL DELEGATED HANDLER FOR + BUTTONS
-document.addEventListener("click", (e) => {
-  const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
+// GLOBAL CAPTURING HANDLER FOR + BUTTONS (survives practice/calc swaps)
+window.addEventListener('click', (e) => {
+  const tip = e.target.closest('.hose-end, .plus-hit, .plus-circle, .plus-sign');
   if (!tip) return;
+  // Only react when calc view is present
+  const root = document.querySelector('[data-calc-root]');
+  if (!root || !root.contains(tip)) return;
   e.preventDefault(); e.stopPropagation();
-  const key = tip.getAttribute("data-line");
-  const where = tip.getAttribute("data-where");
-  if (typeof onOpenPopulateEditor === "function") onOpenPopulateEditor(key, where);
-});
-
-// /js/view.calc.js
+  const key = tip.getAttribute('data-line');
+  const where = tip.getAttribute('data-where');
+  if (typeof onOpenPopulateEditor === 'function') onOpenPopulateEditor(key, where);
+}, true);
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
 // and practice-state persistence (including tender shuttle) across view switches.
