@@ -1,116 +1,124 @@
 workflows:
-  ios_release:
-    name: iOS Release (Manual signing via p12 + mobileprovision)
-    instance_type: mac_mini_m2
+  ios-app-store:
+    name: iOS App Store build
+    instance_type: mac_mini_m1
     max_build_duration: 60
 
-    integrations:
-      app_store_connect: FireCalc
-
     environment:
-      xcode: 16.4
-      cocoapods: default
+      # Vars you can tweak for your project structure
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"   # <- update if different
+        XCODE_SCHEME: "App"                          # <- update if different
+        CONFIGURATION: "Release"
+        EXPORT_METHOD: "app-store"
+
+      # This must match the group name you created in Codemagic
       groups:
         - appstore_connect
-      vars:
-        WORKSPACE: "ios/App/App.xcworkspace"
-        SCHEME: "App"
-        ARCHIVE_PATH: "/Users/builder/clone/build/App.xcarchive"
-        EXPORT_DIR: "/Users/builder/clone/Export"
-        BUNDLE_ID: "com.fireopscalc.app"
-        DEV_TEAM: "QZ55W58398"
 
     scripts:
       - name: Install signing assets (p12 + provisioning profile)
         script: |
+          #!/bin/bash
           set -eo pipefail
-          : "${IOS_CERTIFICATE_P12_BASE64:?Missing IOS_CERTIFICATE_P12_BASE64}"
-          : "${IOS_CERTIFICATE_PASSWORD:?Missing IOS_CERTIFICATE_PASSWORD}"
-          : "${IOS_PROVISION_PROFILE_BASE64:?Missing IOS_PROVISION_PROFILE_BASE64}"
 
-          echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > dist.p12
-          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+          echo "🔐 Installing iOS signing assets..."
 
-          KEYCHAIN_PATH="$HOME/Library/Keychains/codemagic-signing.keychain-db"
-          security create-keychain -p "" "$KEYCHAIN_PATH"
-          security set-keychain-settings "$KEYCHAIN_PATH"
-          security unlock-keychain -p "" "$KEYCHAIN_PATH"
-          security import dist.p12 -k "$KEYCHAIN_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security list-keychains -s "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
+          # --- Sanity checks for env vars ---
+          if [ -z "${IOS_CERTIFICATE_P12_BASE64:-}" ]; then
+            echo "❌ IOS_CERTIFICATE_P12_BASE64 is not set"
+            exit 1
+          fi
 
-          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
-          mkdir -p "$PROFILES_DIR"
-          UUID=$(/usr/bin/grep -a -A1 UUID profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
-          cp profile.mobileprovision "$PROFILES_DIR/$UUID.mobileprovision"
-          echo "Installed mobileprovision UUID: $UUID"
+          if [ -z "${IOS_PROVISION_PROFILE_BASE64:-}" ]; then
+            echo "❌ IOS_PROVISION_PROFILE_BASE64 is not set"
+            exit 1
+          fi
 
-      - name: Ensure Manual signing for the app target only
+          if [ -z "${P12_PASSWORD:-}" ]; then
+            echo "❌ P12_PASSWORD is not set"
+            exit 1
+          fi
+
+          # --- Decode certificate & profile ---
+          CERT_PATH="/tmp/certificate.p12"
+          PROFILE_PATH="/tmp/profile.mobileprovision"
+
+          echo "📄 Decoding p12 certificate..."
+          echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          echo "📄 Decoding provisioning profile..."
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          # --- Install provisioning profile ---
+          echo "📥 Installing provisioning profile..."
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/fireopscalc_profile.mobileprovision"
+
+          # --- Create & use build keychain ---
+          KEYCHAIN_NAME="build.keychain"
+          KEYCHAIN_PWD=""
+
+          echo "🔑 Creating keychain..."
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+          security import "$CERT_PATH" -k "$KEYCHAIN_NAME" -P "$P12_PASSWORD" -A
+
+          echo "🔓 Configuring keychain..."
+          security list-keychains -s "$KEYCHAIN_NAME"
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
+          security set-keychain-settings "$KEYCHAIN_NAME"
+
+          echo "✅ iOS signing assets installed."
+
+      - name: Build Xcode archive
         script: |
+          #!/bin/bash
           set -eo pipefail
-          PBX="ios/App/App.xcodeproj/project.pbxproj"
-          /usr/bin/sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBX"
-          /usr/bin/sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' "$PBX"
-          /usr/bin/sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = [^;]*;/PROVISIONING_PROFILE_SPECIFIER = "";/g' "$PBX"
-          /usr/bin/sed -i '' 's/PROVISIONING_PROFILE = [^;]*;/PROVISIONING_PROFILE = "";/g' "$PBX"
 
-      - name: Install CocoaPods
-        script: |
-          set -eo pipefail
-          cd ios/App
-          pod install --repo-update
-
-      - name: Build Xcode archive (Release, Manual signing)
-        script: |
-          set -eo pipefail
-          xcodebuild -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
-            -configuration Release \
-            -archivePath "$ARCHIVE_PATH" \
-            -destination generic/platform=iOS \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$DEV_TEAM" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+          echo "🏗  Building Xcode archive..."
+          xcodebuild \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration "$CONFIGURATION" \
+            -sdk iphoneos \
+            -archivePath "$CM_BUILD_DIR/ios_archive.xcarchive" \
             clean archive
 
-      - name: Export signed IPA (App Store)
+      - name: Export .ipa
         script: |
+          #!/bin/bash
           set -eo pipefail
-          mkdir -p "$EXPORT_DIR"
-          PROFILE_NAME=$(/usr/bin/grep -a -A1 "<key>Name</key>" profile.mobileprovision | /usr/bin/sed -n 's/.*<string>\(.*\)<\/string>.*/\1/p' | /usr/bin/head -n1)
-          : "${PROFILE_NAME:=AppStoreProfile}"
 
-          cat > exportOptions.plist <<PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-            <dict>
-              <key>method</key><string>app-store</string>
-              <key>destination</key><string>export</string>
-              <key>compileBitcode</key><false/>
-              <key>stripSwiftSymbols</key><true/>
-              <key>signingStyle</key><string>manual</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
-              </dict>
-            </dict>
-          </plist>
-          PLIST
+          echo "📦 Exporting IPA..."
+          EXPORT_OPTIONS_PLIST="$CM_BUILD_DIR/exportOptions.plist"
 
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportPath "$EXPORT_DIR" \
-            -exportOptionsPlist exportOptions.plist
+          cat <<EOF > "$EXPORT_OPTIONS_PLIST"
+          {
+            "method": "$EXPORT_METHOD",
+            "compileBitcode": false,
+            "signingStyle": "manual",
+            "stripSwiftSymbols": true
+          }
+          EOF
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$CM_BUILD_DIR/ios_archive.xcarchive" \
+            -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
+            -exportPath "$CM_BUILD_DIR/ipa"
 
     artifacts:
-      - /Users/builder/clone/Export/*.ipa
-      - /Users/builder/clone/build/*.xcarchive
+      - "$CM_BUILD_DIR/ipa/*.ipa"
 
     publishing:
       app_store_connect:
-        auth: integration
+        # These should also be in your appstore_connect group:
+        # APP_STORE_CONNECT_ISSUER_ID
+        # APP_STORE_CONNECT_KEY_IDENTIFIER
+        # APP_STORE_CONNECT_PRIVATE_KEY
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         submit_to_testflight: true
-        beta_groups:
-          - External Testers
+        submit_to_app_store: false
