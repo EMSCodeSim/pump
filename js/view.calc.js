@@ -1208,14 +1208,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value;
-    let len;
-    if (where === 'L') {
-      len = Math.max(0, +(teLenA?.value || 0));
-    } else if (where === 'R') {
-      len = Math.max(0, +(teLenB?.value || 0));
-    } else {
-      len = Math.max(0, +teLen.value||0);
+    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
     }
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
