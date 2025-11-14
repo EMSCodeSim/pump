@@ -1,14 +1,11 @@
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
 document.addEventListener("click", (e) => {
-  const plus = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
-  if (!plus) return;
-  const lineKey = plus.getAttribute("data-line");
-  const where   = plus.getAttribute("data-where");
-  const evt = new CustomEvent("openTipEditor", {
-    bubbles: true,
-    detail: { line: lineKey, where: where }
-  });
-  plus.dispatchEvent(evt);
+  const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
+  if (!tip) return;
+  e.preventDefault(); e.stopPropagation();
+  const key = tip.getAttribute("data-line");
+  const where = tip.getAttribute("data-where");
+  if (window._openTipEditor) window._openTipEditor(key, where);
 });
 
 // /js/view.calc.js
@@ -1463,7 +1460,7 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where){
+function onOpenPopulateEditor(key, where){ window._openTipEditor = onOpenPopulateEditor; 
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
