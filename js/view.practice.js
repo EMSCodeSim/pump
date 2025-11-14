@@ -349,9 +349,18 @@ export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
-      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
+      .stage {
+        min-height: 200px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding-bottom: 16px; /* keep graphics above any text boxes */
+      }
+      @media (min-width: 900px) {
+        .stage { min-height: 260px; }
+      }
       .status { font-size: 14px; color: #0f172a; }
-      .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
+      .math { font-family: ui-monospace, SFMono-Regular, Menlo, ...","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
@@ -361,13 +370,14 @@ export function render(container) {
       .hose25  { stroke: #3b82f6; } /* blue */
       .shadow  { stroke: rgba(0,0,0,.22); stroke-width: 12; }
 
-      /* Equations box: white text on black */
+      /* Equations/answer box stays below truck with softer background */
       #eqBox {
-        background:#0b0f14;
+        background:#020617;
         color:#ffffff;
         border-radius:12px;
-        padding:10px 12px;
-        border:1px solid rgba(255,255,255,.15);
+        padding:12px 14px;
+        border:1px solid rgba(148,163,184,.5);
+        margin-top: 12px;
       }
       #eqBox code {
         background: transparent;
@@ -377,7 +387,7 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-    </style>
+    </style></style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
