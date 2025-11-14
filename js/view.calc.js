@@ -19,7 +19,7 @@ document.addEventListener("click", (e) => {
   e.preventDefault(); e.stopPropagation();
   const key = tip.getAttribute("data-line");
   const where = tip.getAttribute("data-where");
-  if (window._openTipEditor) window._openTipEditor(key, where);
+  if (typeof onOpenPopulateEditor === "function") onOpenPopulateEditor(key, where);
 });
 
 // /js/view.calc.js
