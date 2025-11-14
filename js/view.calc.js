@@ -1209,7 +1209,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
     const size = teSize.value; const len = Math.max(0, +teLen.value||0);
-    }
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
