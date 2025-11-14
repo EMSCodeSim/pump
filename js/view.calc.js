@@ -1006,8 +1006,8 @@ function updateSegSwitchVisibility(){
       setSeg('main');
       return;
     }
-    // Wye turned ON → keep selection; default to A on first open
-    if (currentSeg === 'main') setSeg('A'); else setSeg(currentSeg);
+    // Wye turned ON → keep whatever segment matches the clicked "+" (main, A, or B)
+    setSeg(currentSeg);
   }
 
   // Bind seg buttons
