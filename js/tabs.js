@@ -1,53 +1,59 @@
-// tabs.js
-// Simple controller for the Calculations / Practice tabs so that
-// the inactive view cannot intercept clicks (especially the + hose tip).
+// tabs-fixed.js
+// More defensive controller for Calculations / Practice / Charts tabs.
+// Ensures ONLY the active view can receive clicks, so the stage '+' is never covered.
 
 document.addEventListener('DOMContentLoaded', () => {
-  const tabCalc     = document.querySelector('[data-tab="calc"]');
-  const tabPractice = document.querySelector('[data-tab="practice"]');
+  const tabCalc     = document.querySelector('[data-tab="calc"], button#tabCalc, [data-role="tab-calc"]');
+  const tabPractice = document.querySelector('[data-tab="practice"], button#tabPractice, [data-role="tab-practice"]');
+  const tabCharts   = document.querySelector('[data-tab="charts"], button#tabCharts, [data-role="tab-charts"]');
 
-  const calcView     = document.querySelector('#calcView');      // <-- adjust ID to your calc container
-  const practiceView = document.querySelector('#practiceView');  // <-- adjust ID to your practice container
+  const calcView     = document.querySelector('#calcView, [data-view="calc"]');
+  const practiceView = document.querySelector('#practiceView, [data-view="practice"]');
+  const chartsView   = document.querySelector('#chartsView, [data-view="charts"]');
 
-  if (!tabCalc || !tabPractice || !calcView || !practiceView) {
-    console.warn('tabs.js: could not find tabs or views; check IDs/selectors.');
-    return;
+  function exists(el, name){
+    if(!el) console.warn('tabs-fixed.js: missing element for', name);
+    return !!el;
   }
 
-  function showCalc() {
-    tabCalc.classList.add('is-active');
-    tabPractice.classList.remove('is-active');
-
-    // Only Calculations is visible & clickable
-    calcView.style.display = 'block';
-    calcView.style.pointerEvents = 'auto';
-
-    practiceView.style.display = 'none';
-    practiceView.style.pointerEvents = 'none';
+  if (!exists(tabCalc,'tabCalc') || !exists(tabPractice,'tabPractice') || !exists(calcView,'calcView') || !exists(practiceView,'practiceView')) {
+    // We still proceed, but behavior may be partial.
   }
 
-  function showPractice() {
-    tabPractice.classList.add('is-active');
-    tabCalc.classList.remove('is-active');
-
-    practiceView.style.display = 'block';
-    practiceView.style.pointerEvents = 'auto';
-
-    calcView.style.display = 'none';
-    calcView.style.pointerEvents = 'none';
+  function activate(view){
+    [calcView, practiceView, chartsView].forEach(v=>{
+      if(!v) return;
+      const active = (v === view);
+      v.style.display = active ? 'block' : 'none';
+      v.style.pointerEvents = active ? 'auto' : 'none';
+    });
   }
 
-  // Wire up click handlers
-  tabCalc.addEventListener('click', (e) => {
-    e.preventDefault();
-    showCalc();
-  });
+  function setActiveTab(activeTab){
+    [tabCalc, tabPractice, tabCharts].forEach(t=>{
+      if(!t) return;
+      if(t === activeTab) t.classList.add('is-active');
+      else t.classList.remove('is-active');
+    });
+  }
 
-  tabPractice.addEventListener('click', (e) => {
-    e.preventDefault();
-    showPractice();
-  });
+  function showCalc(){
+    activate(calcView);
+    setActiveTab(tabCalc);
+  }
+  function showPractice(){
+    activate(practiceView);
+    setActiveTab(tabPractice);
+  }
+  function showCharts(){
+    activate(chartsView);
+    setActiveTab(tabCharts);
+  }
 
-  // Initial state: show Calculations
+  if (tabCalc) tabCalc.addEventListener('click', (e)=>{ e.preventDefault(); showCalc(); });
+  if (tabPractice) tabPractice.addEventListener('click', (e)=>{ e.preventDefault(); showPractice(); });
+  if (tabCharts) tabCharts.addEventListener('click', (e)=>{ e.preventDefault(); showCharts(); });
+
+  // Default to Calculations on load
   showCalc();
 });
