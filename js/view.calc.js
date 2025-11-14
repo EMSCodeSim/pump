@@ -1,13 +1,15 @@
-// Inject CSS to hide Main / Line A / Line B segment buttons in the editor
+// Inject CSS to hide Main / Line A / Line B segment buttons in the editor (UI only)
 (() => {
-  const style = document.createElement('style');
-  style.textContent = `
-    .segSwitch {
-      display: none !important;
-      visibility: hidden !important;
-    }
-  `;
-  document.head.appendChild(style);
+  try {
+    const style = document.createElement('style');
+    style.textContent = `
+      .segSwitch {
+        display: none !important;
+        visibility: hidden !important;
+      }
+    `;
+    document.head.appendChild(style);
+  } catch (_) {}
 })();
 
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
@@ -537,8 +539,7 @@ function gateWyeBySize(){
   })();
 // Segment switch elements
   const segSwitch  = container.querySelector('#segSwitch');
-  if (segSwitch) { segSwitch.remove(); } // completely remove Main/A/B segment buttons
-  const segBtns    = [];
+  const segBtns    = segSwitch ? Array.from(segSwitch.querySelectorAll('.segBtn')) : [];
   const branchASection = container.querySelector('#branchASection');
   const branchBSection = container.querySelector('#branchBSection');
 
@@ -618,10 +619,6 @@ function gateWyeBySize(){
         : seg === 'A'
           ? 'Line A (left of wye)'
           : 'Line B (right of wye)';
-    }
-    // Keep editorContext.where in sync so Apply knows which segment to write
-    if (typeof editorContext !== 'undefined' && editorContext){
-      editorContext.where = (seg === 'A') ? 'L' : (seg === 'B') ? 'R' : 'main';
     }
   }
 function updateSegSwitchVisibility(){
