@@ -1,3 +1,15 @@
+// Inject CSS to hide Main / Line A / Line B segment buttons in the editor
+(() => {
+  const style = document.createElement('style');
+  style.textContent = `
+    .segSwitch {
+      display: none !important;
+      visibility: hidden !important;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
 document.addEventListener("click", (e) => {
   const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
