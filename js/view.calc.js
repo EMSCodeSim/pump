@@ -645,11 +645,9 @@ export async function render(container){
         </div>
 <!-- Tender controls (minimal) -->
 <div id="staticHelper" class="helperPanel" style="display:none; margin-top:10px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
-  <!-- Compact Tender Shuttle status -->
-  <div class="pill shuttleMeta" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-    <div class="mini" style="font-weight:700;">Supply Mode</div>
-    <div class="mini">Tender shuttle</div>
-    <div class="gpmLine">Total Shuttle GPM: <span id="shuttleTotalGpm">0</span> gpm</div>
+  <!-- Hidden Tender Shuttle status container (keeps #shuttleTotalGpm for JS, but shows text only in summary card) -->
+  <div class="pill shuttleMeta" style="display:none;">
+    <span id="shuttleTotalGpm">0</span>
   </div>
 
   <div class="row" style="gap:10px; align-items:flex-end;">
