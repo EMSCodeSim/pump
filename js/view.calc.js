@@ -606,6 +606,10 @@ function gateWyeBySize(){
           ? 'Line A (left of wye)'
           : 'Line B (right of wye)';
     }
+    // Keep editorContext.where in sync so Apply knows which segment to write
+    if (typeof editorContext !== 'undefined' && editorContext){
+      editorContext.where = (seg === 'A') ? 'L' : (seg === 'B') ? 'R' : 'main';
+    }
   }
 function updateSegSwitchVisibility(){
     const wyeOn = teWye && teWye.value === 'on';
@@ -1190,7 +1194,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
-    const {key, where} = editorContext; const L = state.lines[key];
+    const size = teSize.value;
+    let len;
+    if (where === 'L') {
+      len = Math.max(0, +(teLenA?.value || 0));
+    } else if (where === 'R') {
+      len = Math.max(0, +(teLenB?.value || 0));
+    } else {
+      len = Math.max(0, +teLen.value||0);
+    }
     const size = teSize.value; const len = Math.max(0, +teLen.value||0);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
