@@ -1,3 +1,16 @@
+// GLOBAL DELEGATED HANDLER FOR + BUTTONS
+document.addEventListener("click", (e) => {
+  const plus = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
+  if (!plus) return;
+  const lineKey = plus.getAttribute("data-line");
+  const where   = plus.getAttribute("data-where");
+  const evt = new CustomEvent("pump-open-editor", {
+    bubbles: true,
+    detail: { line: lineKey, where: where }
+  });
+  plus.dispatchEvent(evt);
+});
+
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
