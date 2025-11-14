@@ -10,43 +10,9 @@
     `;
     document.head.appendChild(style);
   } catch (_) {}
-})()
-// Global capturing handler to reliably open tip editor from + icons,
-// even across view switches (Practice <-> Calc)
-window.addEventListener('click', (e) => {
-  try {
-    const tip = e.target.closest('.hose-end, .plus-hit, .plus-circle, .plus-sign');
-    if (!tip) return;
+})();
 
-    // Only handle clicks inside the calc view root
-    const root = document.querySelector('[data-calc-root]') || document.getElementById('stage')?.closest('section');
-    if (!root || !root.contains(tip)) return;
 
-    e.preventDefault();
-    e.stopPropagation();
-
-    const key = tip.getAttribute('data-line');
-    const where = tip.getAttribute('data-where');
-    if (typeof onOpenPopulateEditor === 'function') {
-      onOpenPopulateEditor(key, where);
-      if (root && root.__segEnsureUI) root.__segEnsureUI(where);
-    }
-  } catch (_err) {
-    // fail silently; stageSvg handler may still catch it
-  }
-}, true);
-
-;
-
-// GLOBAL DELEGATED HANDLER FOR + BUTTONS
-document.addEventListener("click", (e) => {
-  const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
-  if (!tip) return;
-  e.preventDefault(); e.stopPropagation();
-  const key = tip.getAttribute("data-line");
-  const where = tip.getAttribute("data-where");
-  if (window._openTipEditor) window._openTipEditor(key, where);
-});
 
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
