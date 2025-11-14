@@ -352,7 +352,7 @@ export function render(container) {
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
-      .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; pointer-events: auto !important; }
+      .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
       /* Hose styling — 1¾″ red, 2½″ blue */
@@ -656,6 +656,40 @@ export function render(container) {
     }
   });
 
+  // Global capture handler: on desktop some overlay may intercept clicks,
+  // so we map clicks by screen position into the three header buttons.
+  const globalPracticeClick = (e)=>{
+    try{
+      const x = e.clientX, y = e.clientY;
+      const pairs = [
+        [container.querySelector('#newScenarioBtn'), ()=> makePractice()],
+        [eqToggleBtn, ()=> eqToggleBtn.click()],
+        [container.querySelector('#revealBtn'), ()=> container.querySelector('#revealBtn').click()],
+      ];
+      for(const [btn, handler] of pairs){
+        if(!btn) continue;
+        const r = btn.getBoundingClientRect();
+        if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom){
+          e.preventDefault();
+          handler();
+          return;
+        }
+      }
+    }catch(_){}
+  };
+  window.addEventListener('click', globalPracticeClick, true);
+
+    eqVisible = !eqVisible;
+    if(eqVisible){
+      eqBox.innerHTML = renderEquations(scenario);
+      eqBox.style.display = 'block';
+      eqToggleBtn.textContent = 'Hide Equations';
+    }else{
+      eqBox.style.display = 'none';
+      eqToggleBtn.textContent = 'Equations';
+    }
+  });
+
   // external events (optional)
   const onNew = ()=> makePractice();
   const onEq  = ()=> eqToggleBtn.click();
@@ -669,6 +703,7 @@ export function render(container) {
     dispose(){
       window.removeEventListener('practice:newProblem', onNew);
       window.removeEventListener('toggle:equations', onEq);
+      window.removeEventListener('click', globalPracticeClick, true);
     }
   };
 }
