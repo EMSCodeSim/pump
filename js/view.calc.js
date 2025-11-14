@@ -12,20 +12,6 @@
   } catch (_) {}
 })();
 
-// Inject CSS to hide Main / Line A / Line B segment buttons in the editor (UI only)
-(() => {
-  try {
-    const style = document.createElement('style');
-    style.textContent = `
-      .segSwitch {
-        display: none !important;
-        visibility: hidden !important;
-      }
-    `;
-    document.head.appendChild(style);
-  } catch (_) {}
-})();
-
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
 document.addEventListener("click", (e) => {
   const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
@@ -1193,10 +1179,31 @@ function onOpenPopulateEditor(key, where){ window._openTipEditor = onOpenPopulat
 // Initialize segment selection based on clicked tip
     if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
     updateSegSwitchVisibility();
-    // Always show inline editor; avoid BottomSheetEditor stale state across view switches
+if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
+      window.BottomSheetEditor.open();
+    } else {
+      // Minimal fallback
+      tipEditor.classList.remove('is-hidden');
+      tipEditor.classList.add('is-open');
+    }
+  });
+
+  // Extra safety: delegate + clicks off the container as well,
+  // in case the SVG listener ever misses them after a view swap.
+  container.addEventListener('click', (e)=>{
+    const tip = e.target.closest('.hose-end');
+    if (!tip) return;
+    e.preventDefault(); e.stopPropagation();
+    const key = tip.getAttribute('data-line');
+    const where = tip.getAttribute('data-where');
+    onOpenPopulateEditor(key, where);
+    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
+    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
+    updateSegSwitchVisibility();
     tipEditor.classList.remove('is-hidden');
     tipEditor.classList.add('is-open');
   });
+
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
