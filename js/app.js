@@ -56,7 +56,18 @@ async function setView(name){
 // Intercept bottom-nav clicks: open overlay for Charts, swap view for others
 buttons.forEach(b => b.addEventListener('click', ()=> {
   const v = b.dataset.view;
-  if(v === 'charts'){ openCharts(); return; }
+
+  if(v === 'charts'){
+    openCharts();
+    return;
+  }
+
+  // If coming back to calc from practice, force a full page reload
+  if (v === 'calc' && currentView?.name === 'practice') {
+    window.location.reload();
+    return;
+  }
+
   setView(v);
 }));
 
