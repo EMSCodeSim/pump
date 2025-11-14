@@ -1,20 +1,18 @@
 workflows:
-  ios-app-store:
+  ios_release:
     name: iOS App Store build
     instance_type: mac_mini_m1
     max_build_duration: 60
 
     environment:
-      # Vars you can tweak for your project structure
       vars:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"   # <- update if different
         XCODE_SCHEME: "App"                          # <- update if different
         CONFIGURATION: "Release"
         EXPORT_METHOD: "app-store"
 
-      # This must match the group name you created in Codemagic
       groups:
-        - appstore_connect
+        - appstore_connect   # <- this matches the env group you created
 
     scripts:
       - name: Install signing assets (p12 + provisioning profile)
@@ -113,10 +111,6 @@ workflows:
 
     publishing:
       app_store_connect:
-        # These should also be in your appstore_connect group:
-        # APP_STORE_CONNECT_ISSUER_ID
-        # APP_STORE_CONNECT_KEY_IDENTIFIER
-        # APP_STORE_CONNECT_PRIVATE_KEY
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
