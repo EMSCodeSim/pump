@@ -1203,6 +1203,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       len = Math.max(0, +(teLenB?.value || 0));
     } else {
       len = Math.max(0, +teLen.value||0);
+    }
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
