@@ -352,7 +352,7 @@ export function render(container) {
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
-      .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
+      .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; pointer-events: auto !important; }
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
       /* Hose styling — 1¾″ red, 2½″ blue */
