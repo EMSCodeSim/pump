@@ -7,6 +7,35 @@
         display: none !important;
         visibility: hidden !important;
       }
+
+      /* Improve contrast/legibility of the PDP "Why?" chip on desktop */
+      [data-calc-root] .kpis .whyBtn,
+      .kpis .whyBtn {
+        background: rgba(15, 23, 42, 0.95);
+        color: #eaf2ff;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      /* Improve visibility of Hydrant / Tender mode buttons on larger screens */
+      [data-calc-root] .supplybtn,
+      .supplybtn {
+        background: #111827;
+        color: #eaf2ff;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+      }
+
+      /* Optional hover/focus styling for desktop mice */
+      @media (hover: hover) and (pointer: fine) {
+        [data-calc-root] .supplybtn:hover,
+        .supplybtn:hover,
+        [data-calc-root] .whyBtn:hover,
+        .whyBtn:hover {
+          background: #1f2937;
+          box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.8);
+        }
+      }
     `;
     document.head.appendChild(style);
   } catch (_) {}
@@ -1187,23 +1216,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       tipEditor.classList.add('is-open');
     }
   });
-
-  // Extra safety: delegate + clicks off the container as well,
-  // in case the SVG listener ever misses them after a view swap.
-  container.addEventListener('click', (e)=>{
-    const tip = e.target.closest('.hose-end');
-    if (!tip) return;
-    e.preventDefault(); e.stopPropagation();
-    const key = tip.getAttribute('data-line');
-    const where = tip.getAttribute('data-where');
-    onOpenPopulateEditor(key, where);
-    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
-    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
-    updateSegSwitchVisibility();
-    tipEditor.classList.remove('is-hidden');
-    tipEditor.classList.add('is-open');
-  });
-
 
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
