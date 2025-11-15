@@ -9,8 +9,8 @@ workflows:
         # Path to your Xcode workspace inside the repo
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
 
-        # Correct scheme name
-        XCODE_SCHEME: "FireOpsCalc"
+        # Correct scheme name (must match your new App.xcscheme file)
+        XCODE_SCHEME: "App"
 
         CONFIGURATION: "Release"
         EXPORT_METHOD: "app-store"
