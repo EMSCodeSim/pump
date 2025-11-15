@@ -8,8 +8,10 @@ workflows:
       vars:
         # Path to your Xcode workspace inside the repo
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
-        # <- CHANGE THIS if your scheme has a different name
+
+        # Correct scheme name
         XCODE_SCHEME: "FireOpsCalc"
+
         CONFIGURATION: "Release"
         EXPORT_METHOD: "app-store"
 
@@ -76,7 +78,6 @@ workflows:
         script: |
           #!/bin/bash
           set -eo pipefail
-
           echo "📋 Listing schemes for workspace: $XCODE_WORKSPACE"
           xcodebuild -workspace "$XCODE_WORKSPACE" -list
 
