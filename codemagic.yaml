@@ -2,12 +2,9 @@ workflows:
   android-release:
     name: FireOps Calc – Android Release
     max_build_duration: 60
-    instance_type: mac_mini_m2   # same type you use for iOS is fine
+    instance_type: mac_mini_m2
 
     environment:
-      # Keystore + passwords live in this group (set up in Codemagic UI)
-      groups:
-        - android_keystore
       vars:
         ANDROID_APP_ID: "com.fireopscalc.app"
         ANDROID_APP_NAME: "FireOps Calc"
@@ -17,9 +14,8 @@ workflows:
         script: |
           npm install
 
-      # If you have a build step (Vite/webpack/etc), run it here.
-      # If your dist/ folder is already committed and up to date,
-      # you can leave this as-is or comment it out.
+      # If you have a web build step (like Vite/webpack), it will run.
+      # If not, this just prints a message and continues.
       - name: Build web assets
         script: |
           if npm run | grep -q "build"; then
@@ -44,7 +40,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - "you@example.com"   # change to your email
+          - "you@example.com"   # <-- change this to your email
         notify:
           success: true
           failure: true
