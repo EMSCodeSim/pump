@@ -66,7 +66,7 @@ workflows:
 
           echo "✅ Signing assets installed"
 
-      - name: Build IPA
+      - name: Build and export IPA (raw xcodebuild)
         script: |
           set -e
 
@@ -75,27 +75,36 @@ workflows:
           echo "🔎 Debug: listing ios/App:"
           ls -R ios/App || true
 
-          echo "Preparing export_options.plist for xcode-project…"
-          if [ -f "export_options.plist" ]; then
-            echo "Found export_options.plist in repo root, copying to \$HOME…"
-            cp "export_options.plist" "$HOME/export_options.plist"
-          else
-            echo "❌ export_options.plist not found in repo root"
-            echo "Contents of current directory:"
-            ls -R .
-            exit 1
-          fi
+          ARCHIVE_PATH="$CM_BUILD_DIR/App.xcarchive"
+          EXPORT_PATH="$CM_BUILD_DIR/ipa"
 
           echo "🔎 Debug: listing schemes in project..."
           xcodebuild -project "$XCODE_PROJECT" -list || true
 
           echo "🔎 Debug: showing build settings for scheme '$XCODE_SCHEME'..."
-          xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings
+          xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings || true
 
-          echo "📦 Building signed IPA with xcode-project (project, not workspace)…"
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+          echo "📦 Archiving with xcodebuild…"
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            clean archive \
+            CODE_SIGN_STYLE=Manual \
+            "CODE_SIGN_IDENTITY=Apple Distribution" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+          echo "📤 Exporting IPA…"
+          mkdir -p "$EXPORT_PATH"
+
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist export_options.plist \
+            -exportPath "$EXPORT_PATH"
+
+          echo "✅ IPA export complete"
+          ls -R "$EXPORT_PATH" || true
 
     artifacts:
       - $CM_BUILD_DIR/**/*.ipa
