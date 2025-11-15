@@ -16,8 +16,8 @@ workflows:
           set -e
 
           echo "Checking env vars…"
-          if [ -z "$IOS_CERTIFICATE_BASE64" ]; then
-            echo "❌ IOS_CERTIFICATE_BASE64 is EMPTY"
+          if [ -z "$IOS_CERTIFICATE_P12_BASE64" ]; then
+            echo "❌ IOS_CERTIFICATE_P12_BASE64 is EMPTY"
             exit 1
           fi
 
@@ -26,18 +26,18 @@ workflows:
             exit 1
           fi
 
-          if [ -z "$IOS_CERTIFICATE_PASSWORD" ]; then
-            echo "❌ IOS_CERTIFICATE_PASSWORD is EMPTY"
+          if [ -z "$P12_PASSWORD" ]; then
+            echo "❌ P12_PASSWORD is EMPTY"
             exit 1
           fi
 
           echo "Decoding certificate and provisioning profile…"
-          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > certificate.p12
           echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > provisioning.mobileprovision
 
           echo "Importing certificate…"
           security import certificate.p12 \
-            -P "$IOS_CERTIFICATE_PASSWORD" \
+            -P "$P12_PASSWORD" \
             -A -t cert -f pkcs12 \
             -k ~/Library/Keychains/login.keychain-db
 
