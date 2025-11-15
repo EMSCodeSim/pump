@@ -70,17 +70,16 @@ workflows:
         script: |
           set -e
 
-          echo "Preparing export_options.plist for xcode-project…"
-          if [ -f "$CM_BUILD_DIR/export_options.plist" ]; then
-            echo "Found export_options.plist in repo, copying to HOME…"
-            cp "$CM_BUILD_DIR/export_options.plist" "$HOME/export_options.plist"
-          else
-            echo "❌ export_options.plist not found at $CM_BUILD_DIR/export_options.plist"
-            echo "Current directory: $(pwd)"
-            echo "Listing contents of $CM_BUILD_DIR:"
-            ls -R "$CM_BUILD_DIR"
-            exit 1
-          fi
+          echo "🔎 Debug: where are we?"
+          pwd
+          echo "🔎 Debug: listing ios/App:"
+          ls -R ios/App || true
+
+          echo "🔎 Debug: listing schemes in workspace..."
+          xcodebuild -workspace "$XCODE_WORKSPACE" -list || true
+
+          echo "🔎 Debug: showing build settings for scheme '$XCODE_SCHEME'..."
+          xcodebuild -workspace "$XCODE_WORKSPACE" -scheme "$XCODE_SCHEME" -showBuildSettings
 
           echo "📦 Building signed IPA with xcode-project…"
           xcode-project build-ipa \
