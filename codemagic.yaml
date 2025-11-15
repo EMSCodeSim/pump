@@ -1,130 +1,46 @@
 workflows:
-  ios-app-store:
-    name: iOS App Store build
-    instance_type: mac_mini_m1
+  android-release:
+    name: FireOps Calc – Android Release
     max_build_duration: 60
+    instance_type: mac_mini_m2
 
     environment:
       vars:
-        # Path to your Xcode workspace inside the repo
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
-
-        # Correct scheme name (must match your new App.xcscheme file)
-        XCODE_SCHEME: "App"
-
-        CONFIGURATION: "Release"
-        EXPORT_METHOD: "app-store"
-
-      # Uses the env group you created in Codemagic
-      groups:
-        - appstore_connect
+        ANDROID_APP_ID: "com.fireopscalc.app"
+        ANDROID_APP_NAME: "FireOps Calc"
 
     scripts:
-      - name: Install signing assets (p12 + provisioning profile)
+      - name: Install Node dependencies
         script: |
-          #!/bin/bash
-          set -eo pipefail
+          npm install
 
-          echo "🔐 Installing iOS signing assets..."
-
-          # --- Sanity checks for env vars ---
-          if [ -z "${IOS_CERTIFICATE_P12_BASE64:-}" ]; then
-            echo "❌ IOS_CERTIFICATE_P12_BASE64 is not set"
-            exit 1
+      # If you have a web build step (like Vite/webpack), it will run.
+      # If not, this just prints a message and continues.
+      - name: Build web assets
+        script: |
+          if npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No npm build script, using existing dist/ folder"
           fi
 
-          if [ -z "${IOS_PROVISION_PROFILE_BASE64:-}" ]; then
-            echo "❌ IOS_PROVISION_PROFILE_BASE64 is not set"
-            exit 1
-          fi
-
-          if [ -z "${P12_PASSWORD:-}" ]; then
-            echo "❌ P12_PASSWORD is not set"
-            exit 1
-          fi
-
-          # --- Decode certificate & profile ---
-          CERT_PATH="/tmp/certificate.p12"
-          PROFILE_PATH="/tmp/profile.mobileprovision"
-
-          echo "📄 Decoding p12 certificate..."
-          echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
-
-          echo "📄 Decoding provisioning profile..."
-          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
-
-          # --- Install provisioning profile ---
-          echo "📥 Installing provisioning profile..."
-          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
-          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/fireopscalc_profile.mobileprovision"
-
-          # --- Create & use build keychain ---
-          KEYCHAIN_NAME="build.keychain"
-          KEYCHAIN_PWD=""
-
-          echo "🔑 Creating keychain..."
-          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-          security import "$CERT_PATH" -k "$KEYCHAIN_NAME" -P "$P12_PASSWORD" -A
-
-          echo "🔓 Configuring keychain..."
-          security list-keychains -s "$KEYCHAIN_NAME"
-          security default-keychain -s "$KEYCHAIN_NAME"
-          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_NAME"
-          security set-keychain-settings "$KEYCHAIN_NAME"
-
-          echo "✅ iOS signing assets installed."
-
-      - name: List Xcode schemes (debug helper)
+      - name: Sync Capacitor to Android
         script: |
-          #!/bin/bash
-          set -eo pipefail
-          echo "📋 Listing schemes for workspace: $XCODE_WORKSPACE"
-          xcodebuild -workspace "$XCODE_WORKSPACE" -list
+          npx cap sync android
 
-      - name: Build Xcode archive
+      - name: Build Android app (AAB + APK)
+        working_directory: android
         script: |
-          #!/bin/bash
-          set -eo pipefail
-
-          echo "🏗  Building Xcode archive..."
-          xcodebuild \
-            -workspace "$XCODE_WORKSPACE" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration "$CONFIGURATION" \
-            -sdk iphoneos \
-            -archivePath "$CM_BUILD_DIR/ios_archive.xcarchive" \
-            clean archive
-
-      - name: Export .ipa
-        script: |
-          #!/bin/bash
-          set -eo pipefail
-
-          echo "📦 Exporting IPA..."
-          EXPORT_OPTIONS_PLIST="$CM_BUILD_DIR/exportOptions.plist"
-
-          cat <<EOF > "$EXPORT_OPTIONS_PLIST"
-          {
-            "method": "$EXPORT_METHOD",
-            "compileBitcode": false,
-            "signingStyle": "manual",
-            "stripSwiftSymbols": true
-          }
-          EOF
-
-          xcodebuild \
-            -exportArchive \
-            -archivePath "$CM_BUILD_DIR/ios_archive.xcarchive" \
-            -exportOptionsPlist "$EXPORT_OPTIONS_PLIST" \
-            -exportPath "$CM_BUILD_DIR/ipa"
+          ./gradlew clean bundleRelease assembleRelease
 
     artifacts:
-      - "$CM_BUILD_DIR/ipa/*.ipa"
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
 
     publishing:
-      app_store_connect:
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        submit_to_testflight: true
-        submit_to_app_store: false
+      email:
+        recipients:
+          - "you@example.com"   # <-- change this to your email
+        notify:
+          success: true
+          failure: true

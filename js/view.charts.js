@@ -67,7 +67,6 @@ export async function render(container){
     </section>
   `;
 
-  
   injectLocalStyles(container, `
 /* Charts: keep launcher buttons on one row (iPhone-friendly) */
 .controls{display:flex;gap:6px;flex-wrap:nowrap}
@@ -76,7 +75,7 @@ export async function render(container){
   .controls .btn{padding:8px 6px;font-size:13px;line-height:1.1}
 }
 `);
-// ====== Local styles (original + mobile polish)
+  // ====== Local styles (original + mobile polish)
   injectLocalStyles(container, `
     /* Prevent iOS zoom; bigger tap targets + clearer focus */
     input, select, textarea, button { font-size:16px; }
@@ -152,22 +151,22 @@ export async function render(container){
 
   // Smooth Bore — Handline 50 psi, Master 80 psi
   const SB_HANDLINE_50 = [
-    { tip:'7/8″',  gpm:161, NP:50 },
-    { tip:'15/16″',gpm:185, NP:50 },
-    { tip:'1″',    gpm:210, NP:50 },
-    { tip:'1 1/8″',gpm:266, NP:50 },
-    { tip:'1 1/4″',gpm:328, NP:50 },
-    { tip:'1 3/8″',gpm:398, NP:50 },
-    { tip:'1 1/2″',gpm:473, NP:50 },
+    { tip:'7/8"',  gpm:161, NP:50 },
+    { tip:'15/16"',gpm:185, NP:50 },
+    { tip:'1"',    gpm:210, NP:50 },
+    { tip:'1 1/8"',gpm:266, NP:50 },
+    { tip:'1 1/4"',gpm:328, NP:50 },
+    { tip:'1 3/8"',gpm:398, NP:50 },
+    { tip:'1 1/2"',gpm:473, NP:50 },
   ];
   const SB_MASTER_80 = [
-    { tip:'1″',     gpm:266,  NP:80 },
-    { tip:'1 1/8″', gpm:336,  NP:80 },
-    { tip:'1 1/4″', gpm:415,  NP:80 },
-    { tip:'1 3/8″', gpm:502,  NP:80 },
-    { tip:'1 1/2″', gpm:598,  NP:80 },
-    { tip:'1 3/4″', gpm:814,  NP:80 },
-    { tip:'2″',     gpm:1063, NP:80 },
+    { tip:'1"',     gpm:266,  NP:80 },
+    { tip:'1 1/8"', gpm:336,  NP:80 },
+    { tip:'1 1/4"', gpm:415,  NP:80 },
+    { tip:'1 3/8"', gpm:502,  NP:80 },
+    { tip:'1 1/2"', gpm:598,  NP:80 },
+    { tip:'1 3/4"', gpm:814,  NP:80 },
+    { tip:'2"',     gpm:1063, NP:80 },
   ];
 
   // Fog (handline LP & standard, plus Master Fog @100 NP)
@@ -175,11 +174,11 @@ export async function render(container){
     { label:'Fog 150@75', gpm:150, NP:75, note:'Handline' },
     { label:'Fog 185@75', gpm:185, NP:75, note:'Handline high-flow' },
     { label:'Fog 200@75', gpm:200, NP:75, note:'Handline high-flow' },
-    { label:'Fog 250@75 (2½″)', gpm:250, NP:75, note:'2½″ line' },
+    { label:'Fog 250@75 (2½")', gpm:250, NP:75, note:'2½" line' },
     { label:'ChiefXD 150@50', gpm:150, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 185@50', gpm:185, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 200@50', gpm:200, NP:50, note:'Low-pressure' },
-    { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½″ capable)' },
+    { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½" capable)' },
     // Optional 100 psi legacy
     { label:'Fog 95@100',  gpm:95,  NP:100, note:'Legacy in some depts' },
     { label:'Fog 125@100', gpm:125, NP:100, note:'Legacy in some depts' },
@@ -208,18 +207,18 @@ export async function render(container){
     { tag:'Cellar',        title:'NP 80 psi',               text:'Cellar nozzle nozzle pressure.' },
   ];
 
-  // Hose sizes to display — (3″ removed)
+  // Hose sizes to display — (3" removed)
   const HOSE_ORDER = ['1.75','2.5','5'];
   const HOSE_LABEL = s =>
-    s==='1.75' ? '1¾″' :
-    s==='2.5'  ? '2½″' :
-    `${s}″`;
+    s==='1.75' ? '1¾"' :
+    s==='2.5'  ? '2½"' :
+    `${s}"`;
 
-  // FL ranges (still used to populate the table; chips highlighting removed)
+  // FL ranges: aligned with common nozzle GPMs (incl. 185 & 265)
   const GPM_SETS = {
-    '1.75': [100, 125, 150, 160, 175, 185],
-    '2.5':  buildRange(150, 600, 50),
-    '5':    buildRange(500, 1000, 50)
+    '1.75': [95, 125, 150, 160, 175, 185, 200],
+    '2.5':  [150, 185, 200, 250, 265, 300, 325, 400, 500, 600],
+    '5':    [500, 750, 800, 1000, 1250],
   };
 
   // ====== DOM refs
@@ -244,7 +243,7 @@ export async function render(container){
     rulesCard.style.display = (card === rulesCard)? 'block' : 'none';
   }
 
-  // --- NOZZLES (chips removed)
+  // --- NOZZLES
   function renderNozzlesSB(){
     sbWrap.innerHTML = `
       <div class="groupHeader">Handline Smooth Bore (50 psi NP)</div>
@@ -283,7 +282,7 @@ export async function render(container){
     `;
   }
 
-  // --- FL (Common GPM preset chips removed)
+  // --- FL
   function renderHoseButtons(){
     hoseRow.innerHTML = '';
     const available = HOSE_ORDER.filter(s => COEFF[s] != null);
@@ -358,7 +357,6 @@ export async function render(container){
   btnShowNozzles.addEventListener('click', ()=>{
     renderNozzlesSB();
     renderNozzlesFog();
-    // default to Smooth Bore visible (SB first)
     container.querySelectorAll('.segBtn').forEach(b=>{
       const on = b.dataset.type==='sb';
       b.classList.toggle('segOn', on);
@@ -407,5 +405,11 @@ function injectLocalStyles(root, cssText){
   root.appendChild(style);
 }
 function escapeHTML(s){
-  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  return String(s).replace(/[&<>"']/g, m => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[m]));
 }

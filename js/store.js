@@ -23,40 +23,62 @@ export const COLORS = {
 };
 
 /* =========================
- * Nozzle catalog (common)
+ * Nozzle catalog (expanded)
  * ========================= */
 export const NOZ = {
-  // Fogs
-  fog95_50:      { id:'fog95_50',      name:'Fog 95 @ 50',   gpm:95,  NP:50 },
-  fog150_75:     { id:'fog150_75',     name:'Fog 150 @ 75',  gpm:150, NP:75 },
+  // 1.75″ fog nozzles
+  fog95_50:       { id:'fog95_50',      name:'Fog 95 @ 50',        gpm:95,   NP:50 },
+  fog125_50:      { id:'fog125_50',     name:'Fog 125 @ 50',       gpm:125,  NP:50 },
+  fog150_50:      { id:'fog150_50',     name:'Fog 150 @ 50',       gpm:150,  NP:50 },
 
-  // “Chief” fogs seen in your files
-  chief185_50:   { id:'chief185_50',   name:'Fog 185 @ 50',  gpm:185, NP:50 },
-  chiefXD:       { id:'chiefXD',       name:'Fog 185 @ 50',  gpm:185, NP:50 },   // alias
-  chiefXD265:    { id:'chiefXD265',    name:'Fog 265 @ 50',  gpm:265, NP:50 },
+  fog95_75:       { id:'fog95_75',      name:'Fog 95 @ 75',        gpm:95,   NP:75 },
+  fog125_75:      { id:'fog125_75',     name:'Fog 125 @ 75',       gpm:125,  NP:75 },
+  fog150_75:      { id:'fog150_75',     name:'Fog 150 @ 75',       gpm:150,  NP:75 },
 
-  // Smooth bores
-  sb7_8:         { id:'sb7_8',         name:'SB 7/8″ @ 50',  gpm:160, NP:50 },
-  sb1_1_8:       { id:'sb1_1_8',       name:'SB 1 1/8″ @ 50',gpm:265, NP:50 },
+  // NEW — very common 1.75″ fog @ 100 psi
+  fog150_100:     { id:'fog150_100',    name:'Fog 150 @ 100',      gpm:150,  NP:100 },
+
+  // “Chief” style fogs (your originals)
+  chief185_50:    { id:'chief185_50',   name:'Fog 185 @ 50',       gpm:185,  NP:50 },
+  chiefXD:        { id:'chiefXD',       name:'Fog 185 @ 50',       gpm:185,  NP:50 },
+  chiefXD200_75:  { id:'chiefXD200_75', name:'Fog 200 @ 75',       gpm:200,  NP:75 },
+  chiefXD265:     { id:'chiefXD265',    name:'Fog 265 @ 50',       gpm:265,  NP:50 },
+
+  // 2½″ fog nozzles
+  fog250_50:      { id:'fog250_50',     name:'2½″ Fog 250 @ 50',   gpm:250,  NP:50 },
+  fog250_75:      { id:'fog250_75',     name:'2½″ Fog 250 @ 75',   gpm:250,  NP:75 },
+
+  // Smooth-bores (handline)
+  sb7_8:          { id:'sb7_8',         name:'SB 7/8″ @ 50',       gpm:160,  NP:50 },
+  sb15_16:        { id:'sb15_16',       name:'SB 15/16″ @ 50',     gpm:185,  NP:50 },
+
+  // 2½″ smooth-bore
+  sb1:            { id:'sb1',           name:'SB 1″ @ 50',         gpm:210,  NP:50 },
+  sb1_1_8:        { id:'sb1_1_8',       name:'SB 1 1/8″ @ 50',     gpm:265,  NP:50 },
+  sb1_1_4:        { id:'sb1_1_4',       name:'SB 1 1/4″ @ 50',     gpm:325,  NP:50 },
+
+  // Master stream smooth-bore (deck gun) @ 80 psi
+  ms1_3_8_80:     { id:'ms1_3_8_80',    name:'MS 1 3/8″ @ 80',     gpm:500,  NP:80 },
+  ms1_1_2_80:     { id:'ms1_1_2_80',    name:'MS 1 1/2″ @ 80',     gpm:600,  NP:80 },
+  ms1_3_4_80:     { id:'ms1_3_4_80',    name:'MS 1 3/4″ @ 80',     gpm:800,  NP:80 },
+  ms2_80:         { id:'ms2_80',        name:'MS 2″ @ 80',         gpm:1000, NP:80 },
 };
+
 export const NOZ_LIST = Object.values(NOZ);
 
 /* =========================
- * Friction-loss coefficients (per 100 ft formula)
- *   FL_100 = C * (GPM/100)^2
- * Exported for Practice/Charts views.
+ * Friction-loss coefficients
  * ========================= */
 export const COEFF = {
-  '1.5':  24,    // optional/common reference (not used by default lines)
+  '1.5':  24,
   '1.75': 15,
-  '2.0':  8,     // optional/common reference
+  '2.0':  8,
   '2.5':  2,
-  '3':    0.8,   // optional/common reference
-  '4':    0.2,   // optional/common reference
+  '3':    0.8,
+  '4':    0.2,
   '5':    0.08,
 };
 
-/* Pretty size label for UI */
 export function sizeLabel(v){
   return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
 }
@@ -65,28 +87,23 @@ export function sizeLabel(v){
  * Hydraulics helpers
  * ========================= */
 
-/** NFPA elevation: 0.5 psi per 10 ft -> 0.05 psi/ft */
 export const PSI_PER_FT = 0.5;
 
-/** Appliance loss: +10 psi only when total flow exceeds 350 gpm */
 export function applianceLoss(totalGpm){
   return totalGpm > 350 ? 10 : 0;
 }
 
-/** Internal: pick C for size */
 function flPer100(size, gpm){
   const q = Math.max(0, gpm) / 100;
-  const C = COEFF[size] ?? 10; // fallback
+  const C = COEFF[size] ?? 10;
   return C * q * q;
 }
 
-/** Friction loss for a single segment (psi) */
 export function FL(gpm, size, lengthFt){
   if(!size || !lengthFt || !gpm) return 0;
   return flPer100(size, gpm) * (lengthFt/100);
 }
 
-/** Sum friction loss across segments */
 export function FL_total(gpm, items){
   if(!Array.isArray(items) || !items.length || !gpm) return 0;
   let sum = 0;
@@ -94,26 +111,19 @@ export function FL_total(gpm, items){
   return sum;
 }
 
-/** Sum length (ft) */
 export function sumFt(items){
   if(!Array.isArray(items)) return 0;
   return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
 }
 
-/** Keep section list stable (UI can show each authored segment) */
 export function splitIntoSections(items){
   if(!Array.isArray(items)) return [];
   return items.map(s => ({ size: String(s.size), lengthFt: Number(s.lengthFt)||0 }));
 }
 
 /* =========================
- * Line defaults (start hidden)
+ * Line defaults
  * ========================= */
-/*
-  L1: 200′ of 1¾″, 185 @ 50 (hidden)
-  L2: 200′ of 1¾″, 185 @ 50 (hidden)
-  L3: 250′ of 2½″, 265 @ 50 (hidden)
-*/
 function seedInitialDefaults(){
   if (state.lines) return;
   const L1N = NOZ.chief185_50;
@@ -154,7 +164,6 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-/** Ensure a line exists without overwriting user edits */
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
   if(state.lines[key]) return state.lines[key];
@@ -211,7 +220,7 @@ export function seedDefaultsForKey(key){
 }
 
 /* =========================
- * Wye convenience helpers
+ * Wye helpers
  * ========================= */
 export function isSingleWye(L){
   if(!L || !L.hasWye) return false;
@@ -221,6 +230,7 @@ export function isSingleWye(L){
   const rightOn  = rightLen > 0 || !!L.nozRight;
   return (leftOn && !rightOn) || (!leftOn && rightOn);
 }
+
 export function activeSide(L){
   if(!L) return 'R';
   const l = sumFt(L.itemsLeft || []);
@@ -229,21 +239,23 @@ export function activeSide(L){
   if(r > 0 && l <= 0) return 'R';
   return 'R';
 }
+
 export function activeNozzle(L){
   if(!L) return null;
   if(isSingleWye(L)){
-    return activeSide(L) === 'L' ? (L.nozLeft || L.nozRight) : (L.nozRight || L.nozLeft);
+    return activeSide(L) === 'L'
+      ? (L.nozLeft || L.nozRight)
+      : (L.nozRight || L.nozLeft);
   }
   return L.nozRight || L.nozLeft || null;
 }
 
-/* Convenience alias */
 export function computeApplianceLoss(totalGpm){
   return applianceLoss(totalGpm);
 }
 
 /* =========================
- * Presets (with persistence)
+ * Presets
  * ========================= */
 const PRESET_STORAGE_KEY = 'pump_presets_v1';
 
@@ -315,21 +327,16 @@ function defaultPresets(){
   };
 }
 
-/** Read presets (storage -> memory -> defaults) */
 export function loadPresets(){
   const fromStore = readStorage();
   if(fromStore) return fromStore;
   if(state._presetsMem) return state._presetsMem;
-  const d = defaultPresets();
-  // do not auto-write defaults; let callers save only when modified
-  return d;
+  return defaultPresets();
 }
 
-/** Persist presets for Settings page & others */
 export function savePresets(presetsObj){
-  // basic validation: must be an object
   if(!presetsObj || typeof presetsObj !== 'object') return false;
-  state._presetsMem = presetsObj; // in-memory fallback
+  state._presetsMem = presetsObj;
   return writeStorage(presetsObj);
 }
 
