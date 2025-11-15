@@ -35,11 +35,29 @@ workflows:
           echo "$IOS_CERTIFICATE_P12_BASE64" | base64 --decode > certificate.p12
           echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > provisioning.mobileprovision
 
-          echo "Importing certificate…"
+          echo "Creating and unlocking temporary keychain…"
+          KEYCHAIN_PATH="$HOME/Library/Keychains/build.keychain-db"
+
+          # Create a new keychain with empty password
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+
+          # Make it the default keychain
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Unlock the keychain and keep it unlocked for a while
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+
+          echo "Importing certificate into keychain…"
           security import certificate.p12 \
+            -k "$KEYCHAIN_PATH" \
             -P "$P12_PASSWORD" \
             -A -t cert -f pkcs12 \
-            -k ~/Library/Keychains/login.keychain-db
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          echo "Listing keychains to confirm..."
+          security list-keychains
 
           echo "Installing provisioning profile…"
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
