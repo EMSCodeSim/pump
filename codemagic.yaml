@@ -75,6 +75,17 @@ workflows:
           echo "🔎 Debug: listing ios/App:"
           ls -R ios/App || true
 
+          echo "Preparing export_options.plist for xcode-project…"
+          if [ -f "export_options.plist" ]; then
+            echo "Found export_options.plist in repo root, copying to \$HOME…"
+            cp "export_options.plist" "$HOME/export_options.plist"
+          else
+            echo "❌ export_options.plist not found in repo root"
+            echo "Contents of current directory:"
+            ls -R .
+            exit 1
+          fi
+
           echo "🔎 Debug: listing schemes in project..."
           xcodebuild -project "$XCODE_PROJECT" -list || true
 
