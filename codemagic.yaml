@@ -72,9 +72,7 @@ workflows:
           echo "📦 Building signed IPA with xcode-project…"
           xcode-project build-ipa \
             --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME" \
-            --archive-path "$CM_BUILD_DIR/App.xcarchive" \
-            --export-method app-store
+            --scheme "$XCODE_SCHEME"
 
     artifacts:
       - $CM_BUILD_DIR/**/*.ipa
