@@ -6,13 +6,16 @@ workflows:
 
     environment:
       vars:
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"   # <- update if your workspace path is different
-        XCODE_SCHEME: "App"                          # <- update if your scheme name is different
+        # Path to your Xcode workspace inside the repo
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        # <- CHANGE THIS if your scheme has a different name
+        XCODE_SCHEME: "FireOpsCalc"
         CONFIGURATION: "Release"
         EXPORT_METHOD: "app-store"
 
+      # Uses the env group you created in Codemagic
       groups:
-        - appstore_connect   # <- this matches your env group
+        - appstore_connect
 
     scripts:
       - name: Install signing assets (p12 + provisioning profile)
@@ -68,6 +71,14 @@ workflows:
           security set-keychain-settings "$KEYCHAIN_NAME"
 
           echo "✅ iOS signing assets installed."
+
+      - name: List Xcode schemes (debug helper)
+        script: |
+          #!/bin/bash
+          set -eo pipefail
+
+          echo "📋 Listing schemes for workspace: $XCODE_WORKSPACE"
+          xcodebuild -workspace "$XCODE_WORKSPACE" -list
 
       - name: Build Xcode archive
         script: |
