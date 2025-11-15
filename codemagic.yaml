@@ -5,7 +5,7 @@ workflows:
 
     environment:
       groups:
-        - appstore_connect        # <- your env group name in Codemagic
+        - appstore_connect       # your env group in Codemagic
       vars:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
@@ -63,9 +63,3 @@ workflows:
 
     artifacts:
       - $CM_BUILD_DIR/**
-
-    publishing:
-      app_store_connect:
-        apple_id: "YOUR_APPLE_ID_EMAIL_HERE"
-        submit_to_app_store: false
-        submit_to_testflight: true
