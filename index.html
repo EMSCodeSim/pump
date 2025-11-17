@@ -40,42 +40,154 @@
       --muted:#cfe4ff; --accent:#46b0ff; --warn:#ffa74d; --alert:#ff6b6b;
     }
     *{box-sizing:border-box}
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-size:16px}
+    html,body{
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+      font-size:16px;
+    }
     a{color:var(--accent);text-decoration:none}
     .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
     .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
     .grid{display:grid;gap:8px}
-    .bottom-nav{position:fixed;left:0;right:0;bottom:0;background:#08111e;border-top:1px solid var(--edge);display:flex;gap:6px;padding:10px 10px 12px 10px;z-index:2000}
-    .navbtn{flex:1 1 auto;background:#0b1a29;border:1px solid var(--edge);border-radius:12px;color:#d2e7ff;padding:10px 12px;font-weight:600}
+    .bottom-nav{
+      position:fixed;left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      display:flex;gap:6px;
+      padding:10px 10px 12px 10px;
+      z-index:2000;
+    }
+    .navbtn{
+      flex:1 1 auto;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      color:#d2e7ff;
+      padding:10px 12px;
+      font-weight:600;
+    }
     .navbtn.active{outline:2px solid var(--accent);color:#fff}
     #app{min-height:50vh}
 
     /* KPIs + math */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .kpi{
+      background:#0b1320;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      padding:8px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
     .kpi b{font-size:18px}
-    .whyBtn{margin-left:auto;background:#0b1a29;border:1px solid var(--edge);border-radius:999px;padding:6px 9px;font-size:12px;cursor:pointer}
+    .whyBtn{
+      margin-left:auto;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:6px 9px;
+      font-size:12px;
+      cursor:pointer;
+    }
     .whyBtn:active{transform:translateY(1px)}
     #PDP.orange{color:var(--warn)}
     #PDP.red{color:var(--alert)}
 
-    .linesTable{margin-top:8px;border-top:1px solid var(--edge);padding-top:8px;display:grid;gap:8px}
-    .lineRow{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:8px}
-    .lineHeader{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:2px;font-size:12px;color:#cfe4ff}
-    .lineHeader .title{font-weight:700;color:#eaf2ff}
-    .lineHeader .tag{display:inline-block;background:#0b1a29;border:1px solid var(--edge);border-radius:999px;padding:3px 7px;margin:2px 2px;font-size:11px}
-    details.math{background:#0b1a29;border:1px solid var(--edge);border-radius:8px;padding:6px 8px}
-    details.math summary{cursor:pointer;font-weight:600;color:#eaf2ff}
+    .linesTable{
+      margin-top:8px;
+      border-top:1px solid var(--edge);
+      padding-top:8px;
+      display:grid;
+      gap:8px;
+    }
+    .lineRow{
+      background:#0b1320;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      padding:8px;
+    }
+    .lineHeader{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:2px;
+      font-size:12px;
+      color:#cfe4ff;
+    }
+    .lineHeader .title{
+      font-weight:700;
+      color:#eaf2ff;
+    }
+    .lineHeader .tag{
+      display:inline-block;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:3px 7px;
+      margin:2px 2px;
+      font-size:11px;
+    }
+    details.math{
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:8px;
+      padding:6px 8px;
+    }
+    details.math summary{
+      cursor:pointer;
+      font-weight:600;
+      color:#eaf2ff;
+    }
 
     /* Charts overlay panel */
-    #chartsOverlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:saturate(120%) blur(2px);display:none;z-index:9999}
-    #chartsSheet{position:absolute;left:0;right:0;bottom:0;background:#08111e;border-top:1px solid var(--edge);border-radius:16px 16px 0 0;max-height:85vh;overflow:auto;padding:10px}
-    #chartsHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 4px 10px 4px;position:sticky;top:0;background:linear-gradient(#08111e,#08111e);z-index:1;border-bottom:1px solid #0d1b2b}
+    #chartsOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.5);
+      backdrop-filter:saturate(120%) blur(2px);
+      display:none;
+      z-index:9999;
+    }
+    #chartsSheet{
+      position:absolute;
+      left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      border-radius:16px 16px 0 0;
+      max-height:85vh;
+      overflow:auto;
+      padding:10px;
+    }
+    #chartsHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      padding:6px 4px 10px 4px;
+      position:sticky;
+      top:0;
+      background:linear-gradient(#08111e,#08111e);
+      z-index:1;
+      border-bottom:1px solid #0d1b2b;
+    }
     #chartsHeader h3{margin:0;font-size:16px}
-    #closeCharts{background:#0b1a29;border:1px solid var(--edge);border-radius:10px;padding:6px 10px;color:#d2e7ff;font-size:13px}
+    #closeCharts{
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:10px;
+      padding:6px 10px;
+      color:#d2e7ff;
+      font-size:13px;
+    }
     #chartsMount > * { margin-bottom: 12px; }
   </style>
-  <script src="js/boot.reset.js"></script>
+  <!-- NOTE: boot.reset.js removed so it no longer hides presets -->
 </head>
 <body>
   <div class="shell">
@@ -109,7 +221,7 @@
     </div>
   </div>
 
-  <!-- App JS -->
+  <!-- App JS (router + view.calc.js, etc.) -->
   <script type="module" src="/js/app.js"></script>
 
   <!-- App-only guards for presets links -->
@@ -130,6 +242,6 @@
       });
     })();
   </script>
-  <script src="js/view.calc.reset2.js"></script>
+  <!-- NOTE: view.calc.reset2.js removed so it no longer deletes/hides #presetsBtn -->
 </body>
 </html>
