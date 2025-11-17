@@ -1572,46 +1572,55 @@ function initBranchPlusMenus(root){
 
 /* AUTO-RESET & PRESETS-HIDE ON LOAD */
 (function(){
-  function safeFogId(){
-    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_e){ return null; }
+  function makeDefaultLine(){
+    return {
+      hasWye: false,
+      elevFt: 0,
+      itemsMain: [{ size: '1.75', lengthFt: 200 }],
+      itemsLeft: [],
+      itemsRight: []
+    };
   }
-  function resetAllDeployedLines(){
+  function resetAllLines(){
     try{
-      if (!window.state || !state.lines) return;
-      var id = safeFogId();
-      for (var k in state.lines){
-        if (!Object.prototype.hasOwnProperty.call(state.lines, k)) continue;
-        var L = state.lines[k] || {};
-        L.hasWye = false;
-        L.elevFt = 0;
-        L.itemsLeft = [];
-        L.itemsRight = [];
-        L.itemsMain = [{ size: '1.75', lengthFt: 200 }];
-        if (id && window.NOZ){ L.nozMain = NOZ[id] || L.nozMain || { id: id }; }
-        state.lines[k] = L;
-      }
+      if (!window.state) return;
+      if (!state.lines) state.lines = {};
+      var keys = Object.keys(state.lines);
+      if (!keys.length) keys = ['left','right','attack','supply'];
+      keys.forEach(function(k){
+        state.lines[k] = makeDefaultLine();
+      });
       if (typeof state.save === 'function') state.save();
     }catch(_e){}
   }
-  function hidePresetsUI(){
-    // Presets button should always be visible in this build.
-    // We keep this function as a no-op so older calls don't break.
+  function hidePresetsDOM(root){
+    // keep for compatibility; no-op so presets button stays visible
+    return;
   }
-function init(){
-    resetAllDeployedLines();
-    hidePresetsUI();
-    // If your app has a render() or drawAll(), trigger a first draw safely
-    try{
-      if (typeof render === 'function') render();
-      else if (typeof drawAll === 'function') drawAll();
-    }catch(_e){}
+
+  var ran = false;
+  function tick(){
+    if (ran) return;
+    if (window.state){
+      try{
+        resetAllLines();
+        hidePresetsDOM(document.body || document);
+        if (typeof render === 'function') render();
+        else if (typeof drawAll === 'function') drawAll();
+      }finally{
+        ran = true;
+      }
+    }else{
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(tick);
+      else setTimeout(tick, 16);
+    }
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once:true });
-  } else {
-    setTimeout(init, 0);
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', tick, { once:true });
+  }else{
+    tick();
   }
-})();
+})();;
 
 
     document.addEventListener('tender-trip-stopped', (ev)=>{
