@@ -350,25 +350,8 @@ export async function render(container){
         
 
         
-<!-- Relay Pumping helper -->
-<div id="relayHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.2); border-radius:12px; padding:12px;">
-  <div style="font-weight:700;margin-bottom:4px;color:#eaf2ff">
-    Relay Pumping Quick Guide
-  </div>
-  <p style="margin:0 0 4px 0;font-size:13px;color:#cfe4ff">
-    Use relay when a single LDH lay is too long or intake pressure would drop too low.
-  </p>
-  <ul style="margin:0 0 6px 18px;padding:0;font-size:12px;color:#cfe4ff;list-style:disc">
-    <li>Keep intake &gt; 20 psi at each engine.</li>
-    <li>Space engines roughly every 800–1,000 ft for 4″–5″ LDH at working flows.</li>
-    <li>Each relay engine boosts pressure for the next engine / attack pumper.</li>
-  </ul>
-  <p style="margin:0;font-size:12px;color:#9fb7d8">
-    Rule of thumb: add engines or reduce flow if any pump can’t maintain safe intake
-    pressure while supplying the target PDP.
-  </p>
-</div>
-
+        <!-- Relay Pumping mini-app mount -->
+        <div id="relayMount" class="relayMount" style="display:none; margin-top:10px;"></div>
 
 <div class="linesTable is-hidden" id="linesTable"></div>
       </section>
@@ -723,7 +706,7 @@ function updateSegSwitchVisibility(){
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
   const staticHelper  = container.querySelector('#staticHelper');
-  const relayHelper   = container.querySelector('#relayHelper');
+  const relayMount    = container.querySelector('#relayMount');
 
   /* -------------------------- Water Supply wiring ------------------------- */
 
@@ -1329,31 +1312,45 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* --------------------------- Supply buttons ----------------------------- */
 
-  const hydrantBtn = container.querySelector('#hydrantBtn');
-  const relayBtn   = container.querySelector('#relayBtn');
-  const tenderBtn  = container.querySelector('#tenderBtn');
+  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
+    state.supply = 'pressurized'; drawAll(); markDirty();
+  });
+  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
+    state.supply = 'static'; drawAll(); markDirty();
+  });
 
-  function setSupplyMode(mode){
-    state.supply = mode;
+  // Relay Pumping mini-app toggle (lazy-loads view.relay.js into relayMount)
+  const relayBtn = container.querySelector('#relayBtn');
+  if (relayBtn && relayMount) {
+    let relayVisible = false;
+    let relayLoaded  = false;
 
-    // Button visual states
-    if (hydrantBtn) hydrantBtn.classList.toggle('active', mode === 'pressurized');
-    if (relayBtn)   relayBtn.classList.toggle('active',   mode === 'relay');
-    if (tenderBtn)  tenderBtn.classList.toggle('active',  mode === 'static');
+    relayBtn.addEventListener('click', async () => {
+      if (!relayLoaded) {
+        try {
+          const mod = await import('./view.relay.js');
+          if (mod && typeof mod.render === 'function') {
+            await mod.render(relayMount);
+          } else {
+            relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Relay module missing render(container).</div>';
+          }
+        } catch (err) {
+          console.error('Failed to load relay view', err);
+          relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Unable to load relay pumping helper.</div>';
+        }
+        relayLoaded = true;
+      }
 
-    // Helper panels
-    if (hydrantHelper) hydrantHelper.style.display = (mode === 'pressurized') ? 'block' : 'none';
-    if (staticHelper)  staticHelper.style.display  = (mode === 'static')      ? 'block' : 'none';
-    if (relayHelper)   relayHelper.style.display   = (mode === 'relay')       ? 'block' : 'none';
+      relayVisible = !relayVisible;
+      relayMount.style.display = relayVisible ? 'block' : 'none';
 
-    refreshSupplySummary();
-    drawAll();
-    markDirty();
+      if (relayVisible) {
+        try {
+          relayMount.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (_e) {}
+      }
+    });
   }
-
-  if (hydrantBtn) hydrantBtn.addEventListener('click', ()=> setSupplyMode('pressurized'));
-  if (relayBtn)   relayBtn.addEventListener('click',   ()=> setSupplyMode('relay'));
-  if (tenderBtn)  tenderBtn.addEventListener('click',  ()=> setSupplyMode('static'));
 
   // Presets button (web): route to app-only presets info page
   const presetsBtn = container.querySelector('#presetsBtn');
