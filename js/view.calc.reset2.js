@@ -1,53 +1,33 @@
+<script>
+// FireOps Calc – force fresh hoselines every time the site loads
+(function () {
+  try {
+    // IMPORTANT:
+    // 1) Open DevTools → Application → Local Storage → https://fireopscalc.com
+    // 2) Look at the keys used by the pump calc.
+    //    Replace the example keys below with the exact ones you see.
 
-/* view.calc.reset2.js — drop-in: force fresh lines + hide presets even after app restore */
-(function(){
-  // 1) Force a truly fresh set of lines
-  function safeFogId(){
-    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_){ return null; }
-  }
-  function makeDefaultLine(){
-    var id = safeFogId();
-    var L = { hasWye:false, elevFt:0, itemsMain:[{ size:'1.75', lengthFt:200 }], itemsLeft:[], itemsRight:[] };
-    if (id && typeof NOZ !== 'undefined'){ L.nozMain = NOZ[id] || { id:id }; }
-    return L;
-  }
-  function resetAllLines(){
-    try{
-      if (!window.state) return;
-      if (!state.lines) state.lines = {};
-      var keys = Object.keys(state.lines);
-      if (!keys.length) keys = ['left','right','attack','supply']; // common defaults
-      keys.forEach(function(k){ state.lines[k] = makeDefaultLine(); });
-      if (typeof state.save === 'function') state.save();
-    }catch(_){}
-  }
+    var KEYS_TO_CLEAR = [
+      'fireopscalc_state',       // example – change to your real key
+      'fireopscalc_pump_state',  // example – change/remove as needed
+    ];
 
-  // 2) Hide presets in the calc view hierarchy too
-  function hidePresetsDOM(root){
-    // presets button stays visible in this build
-    return;
-  }
-
-  
-// 3) Run as soon as state exists and before first draw if possible
-  var ran = false;
-  function tick(){
-    if (ran) return;
-    if (window.state) {
-      try {
-        resetAllLines();
-        hidePresetsDOM(document.body);
-      } finally {
-        ran = true;
+    KEYS_TO_CLEAR.forEach(function (k) {
+      if (localStorage.getItem(k) !== null) {
+        localStorage.removeItem(k);
       }
-    } else {
-      // keep polling until state is ready
-      requestAnimationFrame(tick);
-    }
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', tick, { once:true });
-  } else {
-    tick();
+    });
+
+    // If your app namespaces everything under one prefix, you can do:
+    //
+    // Object.keys(localStorage).forEach(function (k) {
+    //   if (k.indexOf('fireopscalc') !== -1 || k.indexOf('pump') !== -1) {
+    //     localStorage.removeItem(k);
+    //   }
+    // });
+
+  } catch (e) {
+    // fail quietly – app should still run
   }
 })();
+</script>
