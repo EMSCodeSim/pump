@@ -237,7 +237,7 @@ export async function render(container){
             </div>
           </div>
 
-          <div class="info" id="topInfo">No lines deployed</div>
+          <div class="info" id="topInfo">No lines deployed (v-preset)</div>
         </div>
 
         <!-- Controls -->
@@ -1322,7 +1322,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed';
+    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
 
     ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
