@@ -343,6 +343,7 @@ export async function render(container){
 
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
+    .presetsbtn{display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.18);background:#0b1420;color:#eaf2ff;}
     .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
     ...
 
