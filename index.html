@@ -1,103 +1,245 @@
-// /js/index.js
-// Tiny router + lazy loading for FireOps Calc
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
+  <meta name="description" content="Phone-friendly fire pump calculator for hydrants, tender shuttle GPM with round-trip timers, and fast line math presets."/>
+  <link rel="canonical" href="https://fireopscalc.com/"/>
+  <link rel="manifest" href="/manifest.json">
 
-const app = document.getElementById('app');
-const navButtons = Array.from(document.querySelectorAll('.navbtn'));
-let currentView = null;    // { dispose?: () => void }
-let currentName = null;
+  <!-- Open Graph -->
+  <meta property="og:type" content="website"/>
+  <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
+  <meta property="og:description" content="Hydrant % drop to estimate main capacity, tender shuttle GPM with round trip, and quick line math — built for phones on the rig."/>
+  <meta property="og:url" content="https://fireopscalc.com/"/>
+  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
-// Map data-view names → modules
-const loaders = {
-  calc:     () => import('./view.calc.js'),
-  practice: () => import('./view.practice.js'),
-  charts:   () => import('./view.charts.js'),
-  settings: () => import('./view.settings.js'),
-  // NEW Relay view
-  relay:    () => import('./view.relay.js'),
-};
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="FireOps Calc — Fast fire pump calculations"/>
+  <meta name="twitter:description" content="Hydrant % drop, tender shuttle GPM, and line math — phone friendly."/>
+  <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
-async function show(viewName) {
-  const loader = loaders[viewName];
-  if (!loader) {
-    console.warn('No loader for view:', viewName);
-    return;
-  }
+  <!-- Icons / PWA -->
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-  // Dispose old view if it exposes a dispose()
-  if (currentView && typeof currentView.dispose === 'function') {
-    try {
-      currentView.dispose();
-    } catch (err) {
-      console.error('Error disposing view:', currentName, err);
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-6W3WSFVFGW"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-6W3WSFVFGW');
+  </script>
+
+  <style>
+    :root{
+      --bg:#060d17; --panel:#0b1320; --edge:#15253b; --fg:#e9f1ff;
+      --muted:#cfe4ff; --accent:#46b0ff; --warn:#ffa74d; --alert:#ff6b6b;
     }
-  }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+      font-size:16px;
+    }
+    a{color:var(--accent);text-decoration:none}
+    .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
+    .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
+    .grid{display:grid;gap:8px}
+    .bottom-nav{
+      position:fixed;left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      display:flex;gap:6px;
+      padding:10px 10px 12px 10px;
+      z-index:2000;
+    }
+    .navbtn{
+      flex:1 1 auto;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      color:#d2e7ff;
+      padding:10px 12px;
+      font-weight:600;
+    }
+    .navbtn.active{outline:2px solid var(--accent);color:#fff}
+    #app{min-height:50vh}
 
-  // Simple loading state
-  if (app) {
-    app.innerHTML = `
-      <section class="card" style="padding:16px; text-align:center;">
-        <div class="mini" style="opacity:.8">Loading ${viewName}…</div>
-      </section>
-    `;
-  }
+    /* KPIs + math */
+    .kpis{display:flex;gap:8px;flex-wrap:wrap}
+    .kpi{
+      background:#0b1320;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      padding:8px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+    }
+    .kpi b{font-size:18px}
+    .whyBtn{
+      margin-left:auto;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:6px 9px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .whyBtn:active{transform:translateY(1px)}
+    #PDP.orange{color:var(--warn)}
+    #PDP.red{color:var(--alert)}
 
-  try {
-    const mod = await loader();
-
-    if (!mod || typeof mod.render !== 'function') {
-      console.error('View module missing render():', viewName, mod);
-      if (app) {
-        app.innerHTML = `
-          <section class="card" style="padding:16px; color:#fee2e2; background:#450a0a;">
-            Unable to load view: <b>${viewName}</b>
-          </section>
-        `;
-      }
-      return;
+    .linesTable{
+      margin-top:8px;
+      border-top:1px solid var(--edge);
+      padding-top:8px;
+      display:grid;
+      gap:8px;
+    }
+    .lineRow{
+      background:#0b1320;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      padding:8px;
+    }
+    .lineHeader{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:2px;
+      font-size:12px;
+      color:#cfe4ff;
+    }
+    .lineHeader .title{
+      font-weight:700;
+      color:#eaf2ff;
+    }
+    .lineHeader .tag{
+      display:inline-block;
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:3px 7px;
+      margin:2px 2px;
+      font-size:11px;
+    }
+    details.math{
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:8px;
+      padding:6px 8px;
+    }
+    details.math summary{
+      cursor:pointer;
+      font-weight:600;
+      color:#eaf2ff;
     }
 
-    const result = await mod.render(app);
-    currentView = result || {};
-    currentName = viewName;
-  } catch (err) {
-    console.error('Failed to load view:', viewName, err);
-    if (app) {
-      app.innerHTML = `
-        <section class="card" style="padding:16px; color:#fee2e2; background:#450a0a;">
-          Error loading view: <b>${viewName}</b>
-        </section>
-      `;
+    /* Charts overlay panel */
+    #chartsOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.5);
+      backdrop-filter:saturate(120%) blur(2px);
+      display:none;
+      z-index:9999;
     }
-  }
+    #chartsSheet{
+      position:absolute;
+      left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      border-radius:16px 16px 0 0;
+      max-height:85vh;
+      overflow:auto;
+      padding:10px;
+    }
+    #chartsHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      padding:6px 4px 10px 4px;
+      position:sticky;
+      top:0;
+      background:linear-gradient(#08111e,#08111e);
+      z-index:1;
+      border-bottom:1px solid #0d1b2b;
+    }
+    #chartsHeader h3{margin:0;font-size:16px}
+    #closeCharts{
+      background:#0b1a29;
+      border:1px solid var(--edge);
+      border-radius:10px;
+      padding:6px 10px;
+      color:#d2e7ff;
+      font-size:13px;
+    }
+    #chartsMount > * { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="grid">
+      <h1 style="margin:0;font-size:22px;display:flex;align-items:center;gap:8px">
+        <img src="/fireopscalc2.png" alt="FireOps Calc" style="width:28px;height:28px;border-radius:6px;border:1px solid var(--edge)"/>
+        FireOps Calc
+      </h1>
+      <p style="margin:0;color:#cfe4ff">Hydrant drop, tender shuttle, and fast line math.</p>
+    </header>
 
-  // Highlight active nav button
-  navButtons.forEach(btn => {
-    const v = btn.dataset.view;
-    btn.classList.toggle('active', v === viewName);
-  });
+    <main id="app" class="grid" aria-live="polite" aria-busy="false">
+      <div class="card">Loading…</div>
+    </main>
+  </div>
 
-  // Remember last view
-  try {
-    localStorage.setItem('fireops.view', viewName);
-  } catch (_) {}
-}
+  <nav class="bottom-nav">
+    <button class="navbtn active" data-view="calc">Calculations</button>
+    <button class="navbtn" data-view="practice">Practice</button>
+    <button class="navbtn" data-view="charts">Charts</button>
+  </nav>
 
-// Wire up nav buttons
-navButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const viewName = btn.dataset.view;
-    if (!viewName || viewName === currentName) return;
-    show(viewName);
-  });
-});
+  <!-- Charts overlay -->
+  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference charts">
+    <div id="chartsSheet">
+      <div id="chartsHeader">
+        <h3>Reference Charts</h3>
+        <button id="closeCharts" type="button">Close</button>
+      </div>
+      <div id="chartsMount"></div>
+    </div>
+  </div>
 
-// Initial view (load last used if available)
-let initial = 'calc';
-try {
-  const saved = localStorage.getItem('fireops.view');
-  if (saved && loaders[saved]) {
-    initial = saved;
-  }
-} catch (_) {}
+  <!-- App JS (router + view.calc.js, etc.) -->
+  <script type="module" src="/js/app.js"></script>
 
-show(initial);
+  <!-- App-only guards for presets links -->
+  <script>
+    (function(){
+      const IS_APP = /Capacitor|iPhone.*Safari\/|Android.*wv/.test(navigator.userAgent);
+      const presetButtons = [
+        ...document.querySelectorAll('[href*="presets"]'),
+        ...document.querySelectorAll('#openPresets')
+      ];
+      presetButtons.forEach(pbtn => {
+        pbtn.addEventListener('click', (e) => {
+          if (!IS_APP) {
+            e.preventDefault();
+            window.location.href = '/app-only-presets.html';
+          }
+        }, { capture: true });
+      });
+    })();
+  </script>
+</body>
+</html>
