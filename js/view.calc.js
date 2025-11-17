@@ -1586,7 +1586,7 @@ function initBranchPlusMenus(root){
     try{
       var css = document.createElement('style');
       css.setAttribute('data-auto-hide','presets');
-      css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
+      css.textContent = '#presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
       document.head && document.head.appendChild(css);
       var btn = document.getElementById('presetsBtn');
       if (btn){ btn.replaceWith(btn.cloneNode(true)); }
