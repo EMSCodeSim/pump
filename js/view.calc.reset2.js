@@ -24,17 +24,12 @@
 
   // 2) Hide presets in the calc view hierarchy too
   function hidePresetsDOM(root){
-    try{
-      if (!root) return;
-      var ids = ['presetsBtn','presetSheet','sheetBackdrop'];
-      ids.forEach(function(id){ var el = root.querySelector && root.querySelector('#'+id); if(el && el.parentNode) el.parentNode.removeChild(el); });
-      var css = document.createElement('style');
-      css.textContent = '#presetsBtn,#presetSheet,#sheetBackdrop{display:none!important;visibility:hidden!important;pointer-events:none!important;}';
-      (document.head||root).appendChild(css);
-    }catch(_){}
+    // presets button stays visible in this build
+    return;
   }
 
-  // 3) Run as soon as state exists and before first draw if possible
+  
+// 3) Run as soon as state exists and before first draw if possible
   var ran = false;
   function tick(){
     if (ran) return;
