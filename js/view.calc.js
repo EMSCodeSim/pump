@@ -247,8 +247,6 @@ export async function render(container){
               <button class="linebtn" data-line="left">Line 1</button>
               <button class="linebtn" data-line="back">Line 2</button>
               <button class="linebtn" data-line="right">Line 3</button>
-            </div>
-            <div class="actionGroup">
               <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
