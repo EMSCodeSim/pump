@@ -187,7 +187,6 @@
     }
     #chartsMount > * { margin-bottom: 12px; }
   </style>
-  <!-- NOTE: boot.reset.js intentionally NOT loaded so it doesn't hide presets -->
 </head>
 <body>
   <div class="shell">
@@ -242,8 +241,5 @@
       });
     })();
   </script>
-
-  <!-- Force fresh hoselines once state is ready (hidePresetsDOM is a no-op in this build) -->
-  <script src="js/view.calc.reset2.js"></script>
 </body>
 </html>
