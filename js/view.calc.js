@@ -1583,16 +1583,10 @@ function initBranchPlusMenus(root){
     }catch(_e){}
   }
   function hidePresetsUI(){
-    try{
-      var css = document.createElement('style');
-      css.setAttribute('data-auto-hide','presets');
-      css.textContent = '#presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
-      document.head && document.head.appendChild(css);
-      var btn = document.getElementById('presetsBtn');
-      if (btn){ btn.replaceWith(btn.cloneNode(true)); }
-    }catch(_e){}
+    // Presets button should always be visible in this build.
+    // We keep this function as a no-op so older calls don't break.
   }
-  function init(){
+function init(){
     resetAllDeployedLines();
     hidePresetsUI();
     // If your app has a render() or drawAll(), trigger a first draw safely
