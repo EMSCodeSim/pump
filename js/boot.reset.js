@@ -26,7 +26,7 @@
     var css = document.createElement('style');
     css.setAttribute('data-boot-hide', 'presets');
     css.textContent = [
-      '#presetsBtn','[data-presets]','#presetSheet','#sheetBackdrop',
+      '#presetSheet','#sheetBackdrop',
       '.presets','.preset-sheet','.sheet-backdrop'
     ].join(',') + '{display:none!important;visibility:hidden!important;pointer-events:none!important;}';
     document.head && document.head.appendChild(css);
