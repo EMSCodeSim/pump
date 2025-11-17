@@ -1291,6 +1291,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     state.supply = 'static'; drawAll(); markDirty();
   });
 
+  // Presets button: show app-only presets info page
+  const presetsBtn = container.querySelector('#presetsBtn');
+  if (presetsBtn){
+    presetsBtn.addEventListener('click', ()=>{
+      try {
+        window.location.href = '/app-only-presets.html';
+      } catch(_e) {}
+    });
+  }
+
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
     if (!rootEl) return;
