@@ -86,13 +86,22 @@ export async function render(container){
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
   if (saved_at_mount?.state) {
+    const s = saved_at_mount.state;
+
     // Do NOT carry over hose layouts between full page loads.
-    // Clear any persisted lines so the default engine setups are used fresh.
-    if (saved_at_mount.state.lines) {
-      saved_at_mount.state.lines = null;
+    // Let store.js seed the default engine setups again.
+    if (s.lines) {
+      s.lines = null;
     }
-    restoreState(saved_at_mount.state);
+
+    // Also reset water supply mode each full load so users start clean.
+    if ('supply' in s) {
+      delete s.supply;
+    }
+
+    restoreState(s);
   }
+
 
   // Persist on hide/close
   window.addEventListener('beforeunload', ()=>{
@@ -1584,47 +1593,7 @@ function initBranchPlusMenus(root){
 
 
 /* AUTO-RESET & PRESETS-HIDE ON LOAD */
-(function(){
-  function safeFogId(){
-    try { return (typeof findNozzleId==='function') ? findNozzleId({ gpm:185, NP:50, preferFog:true }) : null; } catch(_e){ return null; }
-  }
-  function resetAllDeployedLines(){
-    try{
-      if (!window.state || !state.lines) return;
-      var id = safeFogId();
-      for (var k in state.lines){
-        if (!Object.prototype.hasOwnProperty.call(state.lines, k)) continue;
-        var L = state.lines[k] || {};
-        L.hasWye = false;
-        L.elevFt = 0;
-        L.itemsLeft = [];
-        L.itemsRight = [];
-        L.itemsMain = [{ size: '1.75', lengthFt: 200 }];
-        if (id && window.NOZ){ L.nozMain = NOZ[id] || L.nozMain || { id: id }; }
-        state.lines[k] = L;
-      }
-      if (typeof state.save === 'function') state.save();
-    }catch(_e){}
-  }
-  function hidePresetsUI(){
-    // Presets button should always be visible in this build.
-    // We keep this function as a no-op so older calls don't break.
-  }
-function init(){
-    resetAllDeployedLines();
-    hidePresetsUI();
-    // If your app has a render() or drawAll(), trigger a first draw safely
-    try{
-      if (typeof render === 'function') render();
-      else if (typeof drawAll === 'function') drawAll();
-    }catch(_e){}
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once:true });
-  } else {
-    setTimeout(init, 0);
-  }
-})();
+;
 
 
     document.addEventListener('tender-trip-stopped', (ev)=>{
