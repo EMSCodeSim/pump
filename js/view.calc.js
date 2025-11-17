@@ -70,12 +70,13 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
-import { WaterSupplyUI } from './waterSupply.js';
-
 // Expose shared state for legacy helpers (reset scripts, etc.)
 if (typeof window !== 'undefined') {
   window.state = state;
 }
+
+
+import { WaterSupplyUI } from './waterSupply.js';
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -1295,6 +1296,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#tenderBtn').addEventListener('click', ()=>{
     state.supply = 'static'; drawAll(); markDirty();
   });
+
+  // Presets button (web): route to app-only presets info page
+  const presetsBtn = container.querySelector('#presetsBtn');
+  if (presetsBtn){
+    presetsBtn.addEventListener('click', ()=>{
+      try {
+        window.location.href = '/app-only-presets.html';
+      } catch(_e) {}
+    });
+  }
 
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
