@@ -70,6 +70,12 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
+// Expose shared state for legacy helpers (reset scripts, etc.)
+if (typeof window !== 'undefined') {
+  window.state = state;
+}
+
+
 import { WaterSupplyUI } from './waterSupply.js';
 
 /*                                Main render                                 */
@@ -237,7 +243,7 @@ export async function render(container){
             </div>
           </div>
 
-          <div class="info" id="topInfo">No lines deployed</div>
+          <div class="info" id="topInfo">No lines deployed (v-preset)</div>
         </div>
 
         <!-- Controls -->
@@ -247,8 +253,6 @@ export async function render(container){
               <button class="linebtn" data-line="left">Line 1</button>
               <button class="linebtn" data-line="back">Line 2</button>
               <button class="linebtn" data-line="right">Line 3</button>
-            </div>
-            <div class="actionGroup">
               <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
@@ -345,6 +349,7 @@ export async function render(container){
 
     input, select, textarea, button { font-size:16px; }
     .btn, .linebtn, .supplybtn, .presetsbtn, .whyBtn { min-height:44px; padding:10px 14px; border-radius:12px; }
+    .presetsbtn{display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.18);background:#0b1420;color:#eaf2ff;}
     .controlBlock { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
     ...
 
@@ -1292,6 +1297,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     state.supply = 'static'; drawAll(); markDirty();
   });
 
+  // Presets button (web): route to app-only presets info page
+  const presetsBtn = container.querySelector('#presetsBtn');
+  if (presetsBtn){
+    presetsBtn.addEventListener('click', ()=>{
+      try {
+        window.location.href = '/app-only-presets.html';
+      } catch(_e) {}
+    });
+  }
+
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
     if (!rootEl) return;
@@ -1324,7 +1339,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed';
+    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
 
     ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
@@ -1585,16 +1600,10 @@ function initBranchPlusMenus(root){
     }catch(_e){}
   }
   function hidePresetsUI(){
-    try{
-      var css = document.createElement('style');
-      css.setAttribute('data-auto-hide','presets');
-      css.textContent = '#presetsBtn, #presetSheet, #sheetBackdrop{display:none!important;visibility:hidden!important;}';
-      document.head && document.head.appendChild(css);
-      var btn = document.getElementById('presetsBtn');
-      if (btn){ btn.replaceWith(btn.cloneNode(true)); }
-    }catch(_e){}
+    // Presets button should always be visible in this build.
+    // We keep this function as a no-op so older calls don't break.
   }
-  function init(){
+function init(){
     resetAllDeployedLines();
     hidePresetsUI();
     // If your app has a render() or drawAll(), trigger a first draw safely
