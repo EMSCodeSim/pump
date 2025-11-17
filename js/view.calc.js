@@ -85,7 +85,14 @@ export async function render(container){
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
-  if (saved_at_mount?.state) restoreState(saved_at_mount.state);
+  if (saved_at_mount?.state) {
+    // Do NOT carry over hose layouts between full page loads.
+    // Clear any persisted lines so the default engine setups are used fresh.
+    if (saved_at_mount.state.lines) {
+      saved_at_mount.state.lines = null;
+    }
+    restoreState(saved_at_mount.state);
+  }
 
   // Persist on hide/close
   window.addEventListener('beforeunload', ()=>{
