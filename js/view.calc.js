@@ -1325,6 +1325,18 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     let relayVisible = false;
     let relayLoaded  = false;
 
+    const syncRelayFlow = () => {
+      if (!relayMount) return;
+      const mainGpmEl = container.querySelector('#GPM');
+      if (!mainGpmEl) return;
+      const txt = (mainGpmEl.textContent || '').replace(/[^0-9.]/g, '');
+      const val = parseFloat(txt);
+      const rpFlowInput = relayMount.querySelector('#rpFlow');
+      if (rpFlowInput && val > 0) {
+        rpFlowInput.value = String(Math.round(val));
+      }
+    };
+
     relayBtn.addEventListener('click', async () => {
       if (!relayLoaded) {
         try {
@@ -1341,15 +1353,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         relayLoaded = true;
       }
 
-      // Each time we open Relay, sync the Required Flow with the total GPM from calc
-      if (relayMount && GPMel) {
-        const gpmText = (GPMel.textContent || '').replace(/[^0-9.]/g, '');
-        const gpmVal = parseFloat(gpmText);
-        const rpFlowInput = relayMount.querySelector('#rpFlow');
-        if (rpFlowInput && gpmVal > 0) {
-          rpFlowInput.value = String(Math.round(gpmVal));
-        }
-      }
+      // Sync flow every time we toggle Relay on
+      syncRelayFlow();
 
       relayVisible = !relayVisible;
       relayMount.style.display = relayVisible ? 'block' : 'none';
@@ -1360,6 +1365,14 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         } catch (_e) {}
       }
     });
+
+    // Hook into global drawAll so flow updates whenever lines/GPM change
+    const oldDrawAll = drawAll;
+    drawAll = function(...args){
+      const result = oldDrawAll.apply(this, args);
+      if (relayVisible) syncRelayFlow();
+      return result;
+    };
   }
 
   // Presets button (web): route to app-only presets info page
