@@ -1341,6 +1341,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         relayLoaded = true;
       }
 
+      // Each time we open Relay, sync the Required Flow with the total GPM from calc
+      if (relayMount && GPMel) {
+        const gpmText = (GPMel.textContent || '').replace(/[^0-9.]/g, '');
+        const gpmVal = parseFloat(gpmText);
+        const rpFlowInput = relayMount.querySelector('#rpFlow');
+        if (rpFlowInput && gpmVal > 0) {
+          rpFlowInput.value = String(Math.round(gpmVal));
+        }
+      }
+
       relayVisible = !relayVisible;
       relayMount.style.display = relayVisible ? 'block' : 'none';
 
