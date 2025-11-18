@@ -16,7 +16,7 @@ export async function render(container) {
 
       <div class="field">
         <label>Target Intake Pressure (psi)</label>
-        <input id="rpIntake" type="number" inputmode="numeric" placeholder="20–30" value="25">
+        <input id="rpIntake" type="number" inputmode="numeric" placeholder="20–30" value="30">
       </div>
 
       <div class="field">
@@ -72,7 +72,7 @@ export async function render(container) {
   const mode = container.querySelector('#rpMode');
   const results = container.querySelector('#rpResults');
 
-  // 🔹 Initialize Required Flow from main calc total GPM if present
+  // Try to initialize Required Flow from main calc total GPM if present
   try {
     const mainGpmEl = document.querySelector('#GPM');
     if (mainGpmEl) {
@@ -83,7 +83,6 @@ export async function render(container) {
       }
     }
   } catch (_e) {}
-
   hose.addEventListener('change', () => {
     customWrap.style.display = hose.value === 'custom' ? '' : 'none';
   });
