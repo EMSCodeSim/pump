@@ -19,7 +19,7 @@ export async function render(container) {
 
       <div class="field">
         <label>Target Intake Pressure (psi)</label>
-        <input id="rpIntake" type="number" inputmode="numeric" placeholder="20–30" value="30">
+        <input id="rpIntake" type="number" inputmode="numeric" placeholder="20–50" value="30">
       </div>
 
       <div class="field">
