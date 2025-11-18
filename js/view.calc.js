@@ -128,6 +128,23 @@ export async function render(container){
             <g id="tips"></g>
             <g id="supplyG"></g>
           </svg>
+          <!-- Hose color key -->
+          <div class="hoseKey"
+               style="margin-top:8px; font-size:12px; display:flex; gap:12px; align-items:center; opacity:.85;">
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="width:18px; height:4px; border-radius:999px; background:#ff4b4b;"></span>
+              1&nbsp;3/4″
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="width:18px; height:4px; border-radius:999px; background:#3b82f6;"></span>
+              2&nbsp;1/2″
+            </span>
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="width:18px; height:4px; border-radius:999px; background:#fbbf24;"></span>
+              5″
+            </span>
+          </div>
+
 
           <!-- Editor (opened by bottom-sheet-editor.js or our fallback) -->
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
