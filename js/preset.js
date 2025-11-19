@@ -590,7 +590,7 @@ function injectAppPresetStyles() {
       inset: 0;
       z-index: 9999;
       display: flex;
-      align-items: flex-end;
+      align-items: flex-start; /* moved to top */
       justify-content: center;
     }
     .preset-panel-wrapper.hidden {
@@ -789,7 +789,7 @@ function injectWebPresetInfoStyles() {
       inset: 0;
       z-index: 9999;
       display: flex;
-      align-items: flex-end;
+      align-items: flex-start; /* moved to top */
       justify-content: center;
     }
     .preset-info-wrapper.hidden {
