@@ -13,6 +13,7 @@
 
 const STORAGE_KEY = 'fireops_presets_v1';
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+const STORAGE_LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
 
 let state = {
   // wiring from setupPresets()
@@ -35,6 +36,9 @@ let state = {
 
   deptAccessories: [],
   customAccessories: [],
+
+  // department line defaults
+  lineDefaults: {},
 };
 
 // === Shared styles for preset / dept popups =======================================
@@ -461,6 +465,28 @@ function saveDeptToStorage() {
     localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(payload));
   } catch (e) {
     console.warn('Dept save failed', e);
+  }
+}
+
+
+function loadLineDefaultsFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    console.warn('Line defaults load failed', e);
+    return {};
+  }
+}
+
+function saveLineDefaultsToStorage() {
+  try {
+    const payload = state.lineDefaults || {};
+    localStorage.setItem(STORAGE_LINE_DEFAULTS_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn('Line defaults save failed', e);
   }
 }
 
@@ -1362,6 +1388,99 @@ function renderLineInfoScreen(lineNumber) {
 
 // === Main Presets menu ===========================================================
 
+
+
+function renderDeptLineDefaultsScreen(lineNumber) {
+  ensureAppPresetPanelExists();
+  const wrap = document.getElementById('appPresetWrapper');
+  if (!wrap) return;
+  const body   = wrap.querySelector('#appPresetBody');
+  const footer = wrap.querySelector('#appPresetFooter');
+  const titleEl= wrap.querySelector('.preset-panel-title');
+  if (!body || !footer || !titleEl) return;
+
+  const key = 'line' + String(lineNumber);
+  const currentDefaults = (state.lineDefaults && state.lineDefaults[key]) || {};
+
+  const hoseVal = currentDefaults.hoseDiameter ?? '';
+  const lenVal  = (typeof currentDefaults.lengthFt === 'number'
+    ? currentDefaults.lengthFt
+    : (currentDefaults.lengthFt ?? ''));
+  const nozVal  = currentDefaults.nozzleId ?? '';
+  const psiVal  = (typeof currentDefaults.nozzlePsi === 'number'
+    ? currentDefaults.nozzlePsi
+    : (currentDefaults.nozzlePsi ?? ''));
+
+  titleEl.textContent = `Line ${lineNumber} department default`;
+
+  body.innerHTML = `
+    <p class="dept-intro">
+      Set the default configuration for Line ${lineNumber}. This is your rig/department
+      starting point and does <strong>not</strong> change automatically when you adjust
+      lines on the main calculator screen.
+    </p>
+    <div class="dept-list">
+      <div class="dept-custom-row">
+        <label>Hose diameter (inches)
+          <input type="number" id="deptLineHoseDia" inputmode="decimal" value="${hoseVal}">
+        </label>
+        <label>Length (ft)
+          <input type="number" id="deptLineLength" inputmode="numeric" value="${lenVal}">
+        </label>
+      </div>
+      <div class="dept-custom-row">
+        <label>Nozzle ID / label
+          <input type="text" id="deptLineNozId" value="${nozVal}">
+        </label>
+        <label>Nozzle PSI
+          <input type="number" id="deptLineNozPsi" inputmode="numeric" value="${psiVal}">
+        </label>
+      </div>
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button type="button" class="btn-secondary" id="deptLineBackBtn">Back</button>
+    <button type="button" class="btn-primary" id="deptLineSaveBtn">Save default</button>
+  `;
+
+  footer.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
+    openPresetMainMenu();
+  });
+
+  footer.querySelector('#deptLineSaveBtn')?.addEventListener('click', () => {
+    const hoseEl = body.querySelector('#deptLineHoseDia');
+    const lenEl  = body.querySelector('#deptLineLength');
+    const nozEl  = body.querySelector('#deptLineNozId');
+    const psiEl  = body.querySelector('#deptLineNozPsi');
+
+    const next = { ...(state.lineDefaults && state.lineDefaults[key] ? state.lineDefaults[key] : {}) };
+
+    if (hoseEl) {
+      const v = hoseEl.value.trim();
+      next.hoseDiameter = v ? Number(v) : null;
+    }
+    if (lenEl) {
+      const v = lenEl.value.trim();
+      next.lengthFt = v ? Number(v) : null;
+    }
+    if (nozEl) {
+      next.nozzleId = nozEl.value.trim();
+    }
+    if (psiEl) {
+      const v = psiEl.value.trim();
+      next.nozzlePsi = v ? Number(v) : null;
+    }
+
+    if (!state.lineDefaults) state.lineDefaults = {};
+    state.lineDefaults[key] = next;
+    saveLineDefaultsToStorage();
+    openPresetMainMenu();
+  });
+
+  wrap.classList.remove('hidden');
+}
+
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
@@ -1395,6 +1514,15 @@ function openPresetMainMenu() {
     </div>
 
     <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+      Department line defaults
+    </p>
+    <div class="dept-menu" style="margin-bottom:8px;">
+      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="1">Line 1 default</button>
+      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="2">Line 2 default</button>
+      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="3">Line 3 default</button>
+    </div>
+
+    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
       Quick line setup
     </p>
     <div class="dept-menu" style="margin-bottom:8px;">
@@ -1425,47 +1553,23 @@ function openPresetMainMenu() {
     });
   }
 
-  // Line buttons
-  function openLineEditorFromPresets(lineNumber) {
-    const key = lineNumber === 1 ? 'left' : (lineNumber === 2 ? 'back' : 'right');
-
-    if (window._openTipEditor) {
-      try {
-        // Use the main + editor, but hide elevation when launched from Presets
-        window._openTipEditor(key, 'main', { hideElevation: true });
-
-        // Open the bottom-sheet editor UI
-        if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
-          window.BottomSheetEditor.open();
-        } else {
-          const tipEditor = document.querySelector('#tipEditor');
-          if (tipEditor) {
-            tipEditor.classList.remove('is-hidden');
-            tipEditor.classList.add('is-open');
-          }
-        }
-
-        // Hide the Presets panel while editing the line
-        if (wrap) wrap.classList.add('hidden');
-      } catch (e) {
-        console.warn('openLineEditorFromPresets failed, falling back to inline screen', e);
-        renderLineInfoScreen(lineNumber);
-      }
-    } else {
-      // Fallback: use the inline Line info screen if the main editor is not available
-      renderLineInfoScreen(lineNumber);
-    }
-  }
-
-  body.querySelectorAll('.preset-line-btn').forEach(btn => {
+  // Department line defaults buttons
+  body.querySelectorAll('.preset-dept-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const line = Number(btn.getAttribute('data-line') || '1');
-      openLineEditorFromPresets(line);
+      renderDeptLineDefaultsScreen(line);
     });
   });
 
+  // Quick line setup buttons (scene-only)
+  body.querySelectorAll('.preset-line-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderLineInfoScreen(line);
+    });
+  });
 
-// Saved preset buttons: apply directly when clicked
+  // Saved preset buttons: apply directly when clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-preset-id');
@@ -1486,6 +1590,11 @@ function openPresetMainMenu() {
   }
 
   wrap.classList.remove('hidden');
+}
+
+// Legacy helper: keep name but point to new main menu
+function openPresetPanelApp() {
+  openPresetMainMenu();
 }
 
 // Legacy helper: keep name but point to new main menu
@@ -1537,20 +1646,8 @@ function openPresetInfoPanelWeb() {
 // === Public API ===================================================================
 
 
-
-export function getDeptNozzleIds() {
-  try {
-    const dept = loadDeptFromStorage();
-    if (!dept || typeof dept !== 'object') return [];
-    const base = Array.isArray(dept.nozzles) ? dept.nozzles : [];
-    const custom = Array.isArray(dept.customNozzles)
-      ? dept.customNozzles.map(n => n && n.id).filter(Boolean)
-      : [];
-    return [...base, ...custom];
-  } catch (e) {
-    console.warn('getDeptNozzleIds failed', e);
-    return [];
-  }
+export function getDeptLineDefaults() {
+  return state.lineDefaults || {};
 }
 
 export function setupPresets(opts = {}) {
@@ -1563,6 +1660,7 @@ export function setupPresets(opts = {}) {
 
   // Always load from storage so it works in web + app
   state.presets = loadPresetsFromStorage();
+  state.lineDefaults = loadLineDefaultsFromStorage();
   const dept = loadDeptFromStorage();
   state.deptNozzles = dept.nozzles;
   state.customNozzles = dept.customNozzles;
