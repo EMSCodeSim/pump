@@ -98,20 +98,22 @@ const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 // Department NOZZLES only (for now).
 // These IDs can later be tied to the main calc nozzle table.
 const NOZZLES_SMOOTH = [
-  { id: 'sb_78_50_160',  label: '7/8" smooth bore 160 gpm @ 50 psi' },
-  { id: 'sb_1516_50_185',label: '15/16" smooth bore 185 gpm @ 50 psi' },
-  { id: 'sb_1_50_210',   label: '1" smooth bore 210 gpm @ 50 psi' },
-  { id: 'sb_1118_50_265',label: '1 1/8" smooth bore 265 gpm @ 50 psi' },
-  { id: 'sb_114_50_325', label: '1 1/4" smooth bore 325 gpm @ 50 psi' },
+  { id: 'sb_78_50_160',   label: '7/8" smooth bore 160 gpm @ 50 psi' },
+  { id: 'sb_1516_50_185', label: '15/16" smooth bore 185 gpm @ 50 psi' },
+  { id: 'sb_1_50_210',    label: '1" smooth bore 210 gpm @ 50 psi' },
+  { id: 'sb_1118_50_265', label: '1 1/8" smooth bore 265 gpm @ 50 psi' },
+  { id: 'sb_114_50_325',  label: '1 1/4" smooth bore 325 gpm @ 50 psi' },
 ];
 
 const NOZZLES_FOG = [
-  { id: 'fog_15_100_95',   label: '1½" fog 95 gpm @ 100 psi' },
-  { id: 'fog_15_100_125',  label: '1½" fog 125 gpm @ 100 psi' },
-  { id: 'fog_175_75_150',  label: '1¾" fog 150 gpm @ 75 psi' },
-  { id: 'fog_175_100_150', label: '1¾" fog 150 gpm @ 100 psi' },
-  { id: 'fog_25_100_250',  label: '2½" fog 250 gpm @ 100 psi' },
-  { id: 'fog_25_100_300',  label: '2½" fog 300 gpm @ 100 psi' },
+  { id: 'fog_15_100_95',      label: '1½" fog 95 gpm @ 100 psi' },
+  { id: 'fog_15_100_125',     label: '1½" fog 125 gpm @ 100 psi' },
+  { id: 'fog_175_75_150',     label: '1¾" fog 150 gpm @ 75 psi' },
+  { id: 'fog_175_100_150',    label: '1¾" fog 150 gpm @ 100 psi' },
+  { id: 'fog_cxd_175_75_150', label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
+  { id: 'fog_cxd_175_75_185', label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
+  { id: 'fog_25_100_250',     label: '2½" fog 250 gpm @ 100 psi' },
+  { id: 'fog_25_100_300',     label: '2½" fog 300 gpm @ 100 psi' },
 ];
 
 const NOZZLES_MASTER = [
@@ -126,14 +128,15 @@ const NOZZLES_MASTER = [
 ];
 
 const NOZZLES_SPECIAL = [
-  { id: 'sp_celler',       label: 'Celler nozzle' },
-  { id: 'sp_piercing',     label: 'Piercing nozzle (pike pole)' },
-  { id: 'sp_bresnan',      label: 'Bresnan distributor' },
-  { id: 'sp_distributor',  label: 'Rotary distributor nozzle' },
-  { id: 'sp_foammaster',   label: 'High expansion foam nozzle' },
-  { id: 'sp_forestry',     label: 'Forestry nozzle (1")' },
-  { id: 'sp_wildland_gated',label:'Wildland gated wye / nozzle set' },
+  { id: 'sp_celler',         label: 'Celler nozzle' },
+  { id: 'sp_piercing',       label: 'Piercing nozzle (pike pole)' },
+  { id: 'sp_bresnan',        label: 'Bresnan distributor' },
+  { id: 'sp_distributor',    label: 'Rotary distributor nozzle' },
+  { id: 'sp_foammaster',     label: 'High expansion foam nozzle' },
+  { id: 'sp_forestry',       label: 'Forestry nozzle (1")' },
+  { id: 'sp_wildland_gated', label: 'Wildland gated wye / nozzle set' },
 ];
+
 function loadDeptFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_DEPT_KEY);
@@ -160,6 +163,8 @@ function saveDeptToStorage() {
   } catch (err) {
     console.warn('Dept equipment save failed:', err);
   }
+}
+
 }
 
 // Ensure the shared popup wrapper exists
