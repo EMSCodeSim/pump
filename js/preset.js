@@ -2,7 +2,7 @@
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
-//   • Line 1 / Line 2 / Line 3 quick views
+//   • Line 1 / Line 2 / Line 3 quick views (editable)
 //   • Saved presets list
 //   • "Add preset" button
 // - Department setup popup (Nozzles, Hoses, Accessories)
@@ -31,7 +31,7 @@ let state = {
   customNozzles: [],
 
   deptHoses: [],
-  customHoses: [],
+  customHoses: [],,
 
   deptAccessories: [],
   customAccessories: [],
@@ -163,7 +163,7 @@ function injectAppPresetStyles() {
       transform: translateY(1px);
     }
 
-    /* Dept / wizard */
+    /* Dept / wizard & line edit form */
     .dept-intro {
       font-size: 0.82rem;
       color: #cbd5f5;
@@ -746,7 +746,8 @@ function renderNozzleSelectionScreen() {
       });
       state.deptNozzles = chosen;
       saveDeptToStorage();
-      wrap.classList.add('hidden');
+      const wrap2 = document.getElementById('deptPopupWrapper');
+      if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
     });
   }
@@ -963,7 +964,8 @@ function renderHoseSelectionScreen() {
       });
       state.deptHoses = chosen;
       saveDeptToStorage();
-      wrap.classList.add('hidden');
+      const wrap2 = document.getElementById('deptPopupWrapper');
+      if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
     });
   }
@@ -1162,7 +1164,8 @@ function renderAccessorySelectionScreen() {
       });
       state.deptAccessories = chosen;
       saveDeptToStorage();
-      wrap.classList.add('hidden');
+      const wrap2 = document.getElementById('deptPopupWrapper');
+      if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
     });
   }
@@ -1216,29 +1219,7 @@ function ensureAppPresetPanelExists() {
   });
 }
 
-// === Helpers for line summary =====================================================
-
-function buildLineSummary(lineNumber) {
-  if (!state.getLineState) {
-    return `<div class="preset-list-empty">Line info not available.</div>`;
-  }
-  const lineState = state.getLineState(lineNumber) || {};
-  const hose = lineState.hoseDiameter ? `${lineState.hoseDiameter}"` : '—';
-  const len  = typeof lineState.lengthFt === 'number' ? `${lineState.lengthFt} ft` : '—';
-  const noz  = lineState.nozzleId || '—';
-  const press = typeof lineState.nozzlePsi === 'number' ? `${lineState.nozzlePsi} psi` : '—';
-
-  return `
-    <div class="dept-list">
-      <div class="dept-option"><span><strong>Hose:</strong> ${hose}</span></div>
-      <div class="dept-option"><span><strong>Length:</strong> ${len}</span></div>
-      <div class="dept-option"><span><strong>Nozzle:</strong> ${noz}</span></div>
-      <div class="dept-option"><span><strong>Nozzle pressure:</strong> ${press}</span></div>
-    </div>
-  `;
-}
-
-// === Line detail screen (Line 1 / Line 2 / Line 3) ===============================
+// === Line detail screen (Line 1 / Line 2 / Line 3) – EDITABLE =====================
 
 function renderLineInfoScreen(lineNumber) {
   ensureAppPresetPanelExists();
@@ -1249,54 +1230,117 @@ function renderLineInfoScreen(lineNumber) {
   const titleEl= wrap.querySelector('.preset-panel-title');
   if (!body || !footer || !titleEl) return;
 
+  const current = state.getLineState ? (state.getLineState(lineNumber) || {}) : {};
+
+  const hoseVal = current.hoseDiameter ?? '';
+  const lenVal  = (typeof current.lengthFt === 'number' ? current.lengthFt : (current.lengthFt ?? ''));
+  const nozVal  = current.nozzleId ?? '';
+  const psiVal  = (typeof current.nozzlePsi === 'number' ? current.nozzlePsi : (current.nozzlePsi ?? ''));
+
   titleEl.textContent = `Line ${lineNumber} setup`;
 
   body.innerHTML = `
     <p class="dept-intro">
-      This shows the current Line ${lineNumber} setup from the main calculator.
-      To change it, adjust Line ${lineNumber} on the main screen, then refresh and (optionally)
-      save it as a named preset.
+      Edit the Line ${lineNumber} setup here. This does not change the main line until you
+      hit "Apply to line". You can also save this as a reusable preset.
     </p>
-    <div id="lineSummaryArea">
-      ${buildLineSummary(lineNumber)}
+    <div class="dept-list">
+      <div class="dept-custom-row">
+        <label>Hose diameter (inches)
+          <input type="number" id="lineEditHoseDia" inputmode="decimal" value="${hoseVal}">
+        </label>
+        <label>Length (ft)
+          <input type="number" id="lineEditLength" inputmode="numeric" value="${lenVal}">
+        </label>
+      </div>
+      <div class="dept-custom-row">
+        <label>Nozzle ID / label
+          <input type="text" id="lineEditNozId" value="${nozVal}">
+        </label>
+        <label>Nozzle PSI
+          <input type="number" id="lineEditNozPsi" inputmode="numeric" value="${psiVal}">
+        </label>
+      </div>
     </div>
   `;
 
   footer.innerHTML = `
     <button type="button" class="btn-secondary" id="lineBackBtn">Back</button>
-    <button type="button" class="btn-secondary" id="lineRefreshBtn">Refresh from current calc</button>
+    <button type="button" class="btn-secondary" id="lineRefreshBtn">Refresh from calc</button>
+    <button type="button" class="btn-secondary" id="lineApplyBtn">Apply to line</button>
     <button type="button" class="btn-primary" id="lineSavePresetBtn">Save as preset</button>
   `;
+
+  function readEditedLineState() {
+    const hoseEl = body.querySelector('#lineEditHoseDia');
+    const lenEl  = body.querySelector('#lineEditLength');
+    const nozEl  = body.querySelector('#lineEditNozId');
+    const psiEl  = body.querySelector('#lineEditNozPsi');
+    const edited = { ...(state.getLineState ? (state.getLineState(lineNumber) || {}) : {}) };
+
+    if (hoseEl) {
+      const v = hoseEl.value.trim();
+      edited.hoseDiameter = v ? Number(v) : null;
+    }
+    if (lenEl) {
+      const v = lenEl.value.trim();
+      edited.lengthFt = v ? Number(v) : null;
+    }
+    if (nozEl) {
+      edited.nozzleId = nozEl.value.trim();
+    }
+    if (psiEl) {
+      const v = psiEl.value.trim();
+      edited.nozzlePsi = v ? Number(v) : null;
+    }
+    return edited;
+  }
 
   footer.querySelector('#lineBackBtn')?.addEventListener('click', () => {
     openPresetMainMenu();
   });
 
   footer.querySelector('#lineRefreshBtn')?.addEventListener('click', () => {
-    const area = body.querySelector('#lineSummaryArea');
-    if (area) {
-      area.innerHTML = buildLineSummary(lineNumber);
+    if (!state.getLineState) return;
+    const latest = state.getLineState(lineNumber) || {};
+    const hoseEl = body.querySelector('#lineEditHoseDia');
+    const lenEl  = body.querySelector('#lineEditLength');
+    const nozEl  = body.querySelector('#lineEditNozId');
+    const psiEl  = body.querySelector('#lineEditNozPsi');
+    if (hoseEl) hoseEl.value = latest.hoseDiameter ?? '';
+    if (lenEl)  lenEl.value  = (typeof latest.lengthFt === 'number' ? latest.lengthFt : (latest.lengthFt ?? ''));
+    if (nozEl)  nozEl.value  = latest.nozzleId ?? '';
+    if (psiEl)  psiEl.value  = (typeof latest.nozzlePsi === 'number' ? latest.nozzlePsi : (latest.nozzlePsi ?? ''));
+  });
+
+  footer.querySelector('#lineApplyBtn')?.addEventListener('click', () => {
+    if (!state.applyPresetToCalc) {
+      alert('Apply function not wired yet.');
+      return;
     }
+    const edited = readEditedLineState();
+    const tempPreset = {
+      id: null,
+      name: `Line ${lineNumber} (edited)`,
+      lineNumber,
+      summary: '',
+      payload: edited,
+    };
+    state.applyPresetToCalc(tempPreset);
+    const wrap2 = document.getElementById('appPresetWrapper');
+    if (wrap2) wrap2.classList.add('hidden');
   });
 
   footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
-    if (!state.getLineState) {
-      alert('Line state function not available.');
-      return;
-    }
-    const current = state.getLineState(lineNumber);
-    if (!current) {
-      alert('Could not read current line.');
-      return;
-    }
+    const edited = readEditedLineState();
     const defaultName = `Line ${lineNumber} preset`;
     const name = prompt('Preset name', defaultName);
     if (!name) return;
 
     const summaryParts = [];
-    if (current.hoseDiameter) summaryParts.push(current.hoseDiameter + '"');
-    if (typeof current.lengthFt === 'number') summaryParts.push(current.lengthFt + ' ft');
-    if (current.nozzleId) summaryParts.push('Nozzle: ' + current.nozzleId);
+    if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
+    if (typeof edited.lengthFt === 'number') summaryParts.push(edited.lengthFt + ' ft');
+    if (edited.nozzleId) summaryParts.push('Nozzle: ' + edited.nozzleId);
     const summary = summaryParts.join(' • ');
 
     const preset = {
@@ -1304,7 +1348,7 @@ function renderLineInfoScreen(lineNumber) {
       name,
       lineNumber,
       summary,
-      payload: current,
+      payload: edited,
     };
 
     if (!Array.isArray(state.presets)) state.presets = [];
@@ -1453,7 +1497,7 @@ function handleAddPresetClick() {
   savePresetsToStorage();
 }
 
-// Simple info panel for web-only mode (not used now, but kept for compatibility)
+// Simple info panel for web-only mode (currently forwards to main menu)
 function openPresetInfoPanelWeb() {
   openPresetMainMenu();
 }
@@ -1482,7 +1526,7 @@ export function setupPresets(opts = {}) {
   if (!triggerBtn) return;
 
   triggerBtn.addEventListener('click', () => {
-    // Always show full menu, even in web mode
+    // Always show full menu
     openPresetPanelApp();
   });
 }
