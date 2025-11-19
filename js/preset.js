@@ -1,9 +1,10 @@
 // preset.js
 // Lightweight preset system for FireOps Calc
-// - APP + WEB: full preset UI + apply to pump calc
-// (web "app only" info panel is currently disabled)
+// - In APP mode: full preset UI + apply to pump calc
+// - In WEB mode: shows info + store buttons
 
 const STORAGE_KEY = 'fireops_presets_v1';
+const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
 let state = {
   isApp: false,
@@ -15,18 +16,20 @@ let state = {
   // Callbacks provided by view.calc.js
   getLineState: null,
   applyPresetToCalc: null,
+  deptHoses: [],
+  deptNozzles: [],
 };
 
 /**
  * Initialize preset system
  * @param {Object} options
- * @param {boolean} options.isApp              - kept for compatibility, but full UI now shown in both
+ * @param {boolean} options.isApp              - true = full presets, false = info-only
  * @param {string} [options.triggerButtonId]   - ID of the "Preset" button
  * @param {string} [options.activePresetLabelId] - ID of label where active preset name shows
- * @param {function} [options.getLineState]    - (lineNumber) => { ... line state ... }
- * @param {function} [options.applyPresetToCalc] - (presetObj) => void
- * @param {string} [options.appStoreUrl]       - (unused for now)
- * @param {string} [options.playStoreUrl]      - (unused for now)
+ * @param {function} [options.getLineState]    - (lineNumber) => { ... line state ... }  (APP ONLY)
+ * @param {function} [options.applyPresetToCalc] - (presetObj) => void (APP ONLY)
+ * @param {string} [options.appStoreUrl]       - App Store link for web-only panel
+ * @param {string} [options.playStoreUrl]      - Play Store link for web-only panel
  */
 export function setupPresets(options = {}) {
   state = {
@@ -34,19 +37,31 @@ export function setupPresets(options = {}) {
     ...options,
   };
 
-  // Keep isApp flag for future if you want to differentiate, but
-  // for now we treat both APP + WEB the same (full preset UI visible).
   state.isApp = !!options.isApp;
 
-  // Load presets for BOTH app and web
-  state.presets = loadPresetsFromStorage();
+  // Load presets only in app mode
+  if (state.isApp) {
+    state.presets = loadPresetsFromStorage();
+  }
 
   // Attach click handler to "Preset" button
   const triggerBtn = document.getElementById(state.triggerButtonId);
   if (triggerBtn) {
     triggerBtn.addEventListener('click', () => {
-      // APP + WEB: always open full preset UI
-      openPresetPanelApp();
+      if (state.isApp) {
+        const hasDept =
+          (state.deptHoses && state.deptHoses.length) ||
+          (state.deptNozzles && state.deptNozzles.length);
+        if (!hasDept) {
+          // First stop: let the user pick department equipment
+          openDeptEquipmentPanel();
+        } else {
+          // If department gear is already set, go straight to presets
+          openPresetPanelApp();
+        }
+      } else {
+        openPresetInfoPanelWeb();
+      }
     });
   }
 }
@@ -77,7 +92,162 @@ function savePresetsToStorage() {
 }
 
 // =========================
-// Full preset UI (APP + WEB)
+// Department equipment config
+// =========================
+
+const DEFAULT_HOSES = [
+  { id: '1.75', label: '1¾\" Attack line' },
+  { id: '2.5', label: '2½\" Attack / supply' },
+  { id: '3',   label: '3\" Supply' },
+  { id: '4',   label: '4\" LDH' },
+  { id: '5',   label: '5\" LDH' },
+];
+
+const DEFAULT_NOZZLES = [
+  { id: 'noz_combo_175_75',  label: '1¾\" Combo – 75 psi' },
+  { id: 'noz_combo_175_100', label: '1¾\" Combo – 100 psi' },
+  { id: 'noz_smooth_15_50',  label: '1½\" Smooth bore – 50 psi' },
+  { id: 'noz_smooth_15_80',  label: '1½\" Smooth bore – 80 psi' },
+  { id: 'noz_master_1000_80',label: 'Master stream – 1000 gpm @ 80 psi' },
+];
+
+function loadDeptFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+    if (!raw) return { hoses: [], nozzles: [] };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return { hoses: [], nozzles: [] };
+    return {
+      hoses: Array.isArray(parsed.hoses) ? parsed.hoses : [],
+      nozzles: Array.isArray(parsed.nozzles) ? parsed.nozzles : [],
+    };
+  } catch (err) {
+    console.warn('Dept equipment load failed:', err);
+    return { hoses: [], nozzles: [] };
+  }
+}
+
+function saveDeptToStorage() {
+  try {
+    const payload = {
+      hoses: state.deptHoses || [],
+      nozzles: state.deptNozzles || [],
+    };
+    localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Dept equipment save failed:', err);
+  }
+}
+
+// Creates or returns the department equipment panel DOM
+function ensureDeptPanelExists() {
+  if (document.getElementById('deptEquipWrapper')) return;
+
+  const wrap = document.createElement('div');
+  wrap.id = 'deptEquipWrapper';
+  wrap.className = 'preset-panel-wrapper hidden';
+
+  const hoseOptionsHtml = DEFAULT_HOSES.map(h => `
+    <label class="dept-option">
+      <input type="checkbox" data-dept-hose="${h.id}">
+      <span>${h.label}</span>
+    </label>
+  `).join('');
+
+  const nozzleOptionsHtml = DEFAULT_NOZZLES.map(n => `
+    <label class="dept-option">
+      <input type="checkbox" data-dept-noz="${n.id}">
+      <span>${n.label}</span>
+    </label>
+  `).join('');
+
+  wrap.innerHTML = `
+    <div class="preset-panel-backdrop" data-dept-close="1"></div>
+    <div class="preset-panel">
+      <div class="preset-panel-header">
+        <div class="preset-panel-title">Department equipment</div>
+        <button type="button" class="preset-close-btn" data-dept-close="1">✕</button>
+      </div>
+
+      <div class="preset-panel-body dept-body">
+        <p class="dept-intro">
+          Pick the hose sizes and nozzles your department actually carries.
+          Future updates will use this list to shorten hose/nozzle dropdowns.
+        </p>
+
+        <div class="dept-columns">
+          <div class="dept-column">
+            <h3>Hoses</h3>
+            <div class="dept-list">
+              ${hoseOptionsHtml}
+            </div>
+          </div>
+          <div class="dept-column">
+            <h3>Nozzles</h3>
+            <div class="dept-list">
+              ${nozzleOptionsHtml}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preset-panel-footer">
+        <button type="button" class="btn-secondary" data-dept-skip="1">Skip for now</button>
+        <button type="button" class="btn-primary" data-dept-save="1">Save & continue</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(wrap);
+
+  // Wire close actions
+  wrap.addEventListener('click', (ev) => {
+    const target = ev.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.deptClose === '1' || target.dataset.deptSkip === '1') {
+      wrap.classList.add('hidden');
+    }
+    if (target.dataset.deptSave === '1') {
+      const hoses = [];
+      const nozzles = [];
+      wrap.querySelectorAll('input[data-dept-hose]').forEach((cb) => {
+        if (cb.checked) hoses.push(cb.getAttribute('data-dept-hose'));
+      });
+      wrap.querySelectorAll('input[data-dept-noz]').forEach((cb) => {
+        if (cb.checked) nozzles.push(cb.getAttribute('data-dept-noz'));
+      });
+      state.deptHoses = hoses;
+      state.deptNozzles = nozzles;
+      saveDeptToStorage();
+      wrap.classList.add('hidden');
+      // After saving, go straight into full presets panel
+      openPresetPanelApp();
+    }
+  });
+}
+
+// Opens the department equipment panel and syncs checkboxes from state
+function openDeptEquipmentPanel() {
+  ensureDeptPanelExists();
+  const wrap = document.getElementById('deptEquipWrapper');
+  if (!wrap) return;
+
+  // Sync checkbox states from current selections
+  wrap.querySelectorAll('input[data-dept-hose]').forEach((cb) => {
+    const id = cb.getAttribute('data-dept-hose');
+    cb.checked = !!(state.deptHoses && state.deptHoses.includes(id));
+  });
+  wrap.querySelectorAll('input[data-dept-noz]').forEach((cb) => {
+    const id = cb.getAttribute('data-dept-noz');
+    cb.checked = !!(state.deptNozzles && state.deptNozzles.includes(id));
+  });
+
+  wrap.classList.remove('hidden');
+}
+
+
+// =========================
+// APP MODE: full preset UI
 // =========================
 
 function openPresetPanelApp() {
@@ -251,14 +421,7 @@ function deletePresetByIndex(idx) {
   if (!confirmDel) return;
   state.presets.splice(idx, 1);
   savePresetsToStorage();
-  renderPresetsAfterDelete();
-}
-
-function renderPresetsAfterDelete() {
   renderPresetList();
-  if (!state.presets.length) {
-    setActivePresetLabel(null);
-  }
 }
 
 function setActivePresetLabel(preset) {
@@ -408,11 +571,10 @@ function injectAppPresetStyles() {
 }
 
 // =========================
-// Old WEB "info" panel (unused for now)
+// WEB MODE: info + store links
 // =========================
 
 function openPresetInfoPanelWeb() {
-  // Left in place in case you want to re-enable app-only info later
   ensureWebInfoPanelExists();
   document.getElementById('presetInfoWrapper')?.classList.remove('hidden');
 }
@@ -439,16 +601,27 @@ function ensureWebInfoPanelExists() {
         <button type="button" class="preset-close-btn" data-preset-info-close="1">✕</button>
       </div>
       <div class="preset-info-body">
-        <!-- Currently unused -->
-        <p>The mobile app preset info panel is disabled in this build.</p>
-        ${
-          hasAppStore || hasPlayStore
-            ? `<div class="preset-store-buttons">
-                 ${hasAppStore ? `<a href="${state.appStoreUrl}" target="_blank" rel="noopener" class="preset-store-btn">App Store</a>` : ''}
-                 ${hasPlayStore ? `<a href="${state.playStoreUrl}" target="_blank" rel="noopener" class="preset-store-btn">Google Play</a>` : ''}
-               </div>`
-            : ''
-        }
+        <p>
+          In the FireOps Calc <strong>mobile app</strong>, you can create quick-line presets like:
+        </p>
+        <ul>
+          <li><strong>Blitz 2½ – 265 GPM</strong></li>
+          <li><strong>High-Rise 2½ – 200'</strong></li>
+          <li><strong>Foam Handline – 1¾</strong></li>
+        </ul>
+        <p>
+          Each preset saves hose size, length, C value, nozzle, elevation, and appliances.
+          Tapping a preset instantly updates the pump calculation (GPM and PP) and shows the preset name on screen.
+        </p>
+        ${hasAppStore || hasPlayStore ? `
+          <p>Get the app to unlock presets:</p>
+          <div class="preset-store-buttons">
+            ${hasAppStore ? `<a href="${state.appStoreUrl}" target="_blank" rel="noopener" class="preset-store-btn">App Store</a>` : ''}
+            ${hasPlayStore ? `<a href="${state.playStoreUrl}" target="_blank" rel="noopener" class="preset-store-btn">Google Play</a>` : ''}
+          </div>
+        ` : `
+          <p>The mobile app with presets will be available soon.</p>
+        `}
       </div>
     </div>
   `;
@@ -474,8 +647,8 @@ function injectWebPresetInfoStyles() {
     .preset-info-wrapper {
       position: fixed;
       inset: 0;
-      z-index: 9998;
-      display: none;
+      z-index: 9999;
+      display: flex;
       align-items: flex-end;
       justify-content: center;
     }
@@ -498,8 +671,9 @@ function injectWebPresetInfoStyles() {
       box-sizing: border-box;
       font-size: 0.9rem;
     }
-    .preset-info-body {
-      padding: 8px 0;
+    .preset-info-body ul {
+      margin: 4px 0 8px;
+      padding-left: 18px;
     }
     .preset-store-buttons {
       display: flex;
