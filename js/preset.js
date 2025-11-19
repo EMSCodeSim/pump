@@ -165,8 +165,6 @@ function saveDeptToStorage() {
   }
 }
 
-}
-
 // Ensure the shared popup wrapper exists
 function ensureDeptPopupWrapper() {
   // Ensure shared styles for preset panels (top-modal)
@@ -446,7 +444,6 @@ function renderNozzleSelectionScreen() {
   }
 
   wrap.classList.remove('hidden');
-}
 }
 
 // Public entry: open the wizard starting at the home screen
