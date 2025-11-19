@@ -77,7 +77,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets } from './preset.js';
+import { setupPresets, getDeptNozzleIds } from './preset.js';
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -715,11 +715,59 @@ function updateSegSwitchVisibility(){
   const branchBlock = container.querySelector('#branchBlock');
   const rowNoz      = container.querySelector('#rowNoz');
 
-  // Populate nozzle selects
-  [teNoz, teNozA, teNozB].forEach(sel=>{
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name||n.label||n.id}</option>`).join('');
+
+  // Populate nozzle selects, prioritizing Department Setup choices if available
+  function buildNozzleOptionsHTML() {
+    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    let deptIds = [];
+
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids)) deptIds = ids.filter(x => typeof x === 'string' && x.trim().length > 0);
+      }
+    } catch (_e) {
+      deptIds = [];
+    }
+
+    if (deptIds.length) {
+      const deptSet = new Set(deptIds);
+      const deptOpts = fullList
+        .filter(n => n && n.id && deptSet.has(n.id))
+        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+        .join('');
+      const otherOpts = fullList
+        .filter(n => n && n.id && !deptSet.has(n.id))
+        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+        .join('');
+
+      // If none of the ids matched the known nozzle list, fall back to plain list
+      if (!deptOpts) {
+        return fullList
+          .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+          .join('');
+      }
+
+      return `
+        <optgroup label="Dept nozzles">
+          ${deptOpts}
+        </optgroup>
+        ${otherOpts ? `<optgroup label="All nozzles">${otherOpts}</optgroup>` : ''}
+      `;
+    }
+
+    // Default: full list only
+    return fullList
+      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+      .join('');
+  }
+
+  const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  [teNoz, teNozA, teNozB].forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = nozzleOptionsHTML;
   });
+
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1152,10 +1200,30 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where){ window._openTipEditor = onOpenPopulateEditor; 
+function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
+
+    // Optional: hide elevation controls when launched from Presets
+    const hideElev = opts && opts.hideElevation;
+    try {
+      const rowElevMain = container.querySelector('#rowElev');
+      if (rowElevMain) {
+        if (hideElev) hideEl(rowElevMain); else showEl(rowElevMain);
+      }
+
+      ['#teElevA', '#teElevB'].forEach(sel => {
+        const elevInput = container.querySelector(sel);
+        if (!elevInput) return;
+        const row = elevInput.closest('.te-row');
+        if (!row) return;
+        if (hideElev) hideEl(row); else showEl(row);
+      });
+    } catch (_e) {
+      // Non-fatal: editor still works even if we couldn't toggle elevation rows
+    }
+
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
