@@ -4,7 +4,6 @@
 // - In WEB mode: shows info + store buttons
 
 const STORAGE_KEY = 'fireops_presets_v1';
-const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
 let state = {
   isApp: false,
