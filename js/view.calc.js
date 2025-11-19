@@ -77,6 +77,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
+import { setupPresets } from './preset.js';
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -1392,14 +1393,89 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     };
   }
 
-// Presets button (web): temporarily disabled so web view stays fully usable.
-// (We'll hook this back up to the full preset editor in the app later.)
-const presetsBtn = container.querySelector('#presetsBtn');
-if (presetsBtn){
-  presetsBtn.addEventListener('click', ()=>{
-    // no-op in web for now
-  });
-}
+// Presets button: wire to full preset system even on PC/web
+  // Map line number (1/2/3) to calc state key
+  function mapLineKeyFromNumber(lineNumber){
+    return lineNumber === 1 ? 'left'
+         : lineNumber === 2 ? 'back'
+         : 'right';
+  }
+
+  // Read the current hydraulic setup for a given line so we can save as a preset
+  function getLineStateFromCalc(lineNumber){
+    const key = mapLineKeyFromNumber(lineNumber);
+    const L = seedDefaultsForKey(key);
+    if (!L) return null;
+    const main = (L.itemsMain && L.itemsMain[0]) || {};
+    const hoseDiameter = main.size || '';
+    const lengthFt = typeof main.lengthFt === 'number' ? main.lengthFt : 0;
+    const nozzle = L.nozRight || L.nozLeft || null;
+
+    return {
+      hoseDiameter,
+      cValue: null,         // C is implied from hose size in the main calc for now
+      lengthFt,
+      nozzleId: nozzle && nozzle.id || '',
+      elevation: typeof L.elevFt === 'number' ? L.elevFt : 0,
+      appliances: 0
+    };
+  }
+
+  // Apply a saved preset back into the calc for the chosen line
+  function applyPresetToCalc(preset){
+    if (!preset) return;
+    const key = mapLineKeyFromNumber(preset.lineNumber || 1);
+    const L = seedDefaultsForKey(key);
+    if (!L) return;
+
+    // Main hose segment
+    const main = (L.itemsMain && L.itemsMain[0]) || {};
+    if (preset.hoseDiameter) {
+      main.size = preset.hoseDiameter;
+    }
+    if (typeof preset.lengthFt === 'number') {
+      main.lengthFt = preset.lengthFt;
+    }
+    L.itemsMain = [main];
+
+    // For now, presets always restore as a single straight line (no wye branches)
+    L.hasWye = false;
+    L.itemsLeft = [];
+    L.itemsRight = [];
+
+    // Elevation
+    if (typeof preset.elevation === 'number') {
+      L.elevFt = preset.elevation;
+    }
+
+    // Nozzle
+    if (preset.nozzleId && NOZ[preset.nozzleId]) {
+      L.nozRight = NOZ[preset.nozzleId];
+    }
+
+    // Make sure line is visible & button looks active
+    L.visible = true;
+    const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
+    if (btn) btn.classList.add('active');
+
+    // Re-draw + persist
+    drawAll();
+    markDirty();
+  }
+
+  try {
+    setupPresets({
+      // Treat PC/web as "app" so we get the full preset editor while you build it.
+      isApp: true,
+      triggerButtonId: 'presetsBtn',
+      appStoreUrl: '',
+      playStoreUrl: '',
+      getLineState: getLineStateFromCalc,
+      applyPresetToCalc
+    });
+  } catch (e) {
+    console.warn('setupPresets failed', e);
+  }
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
     if (!rootEl) return;
