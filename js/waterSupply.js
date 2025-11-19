@@ -203,8 +203,8 @@ export class WaterSupplyUI {
 
     if(this.tenderList){
       this.tenderList.addEventListener('click', (e) => {
-        const tr = e.target.closest('tr[data-i]'); if(!tr) return;
-        const i = Number(tr.getAttribute('data-i'));
+        const card = e.target.closest('[data-i]'); if(!card) return;
+        const i = Number(card.getAttribute('data-i'));
         const t = this.tenders[i]; if(!t) return;
 
         const actEl = e.target.closest('[data-act]'); if(!actEl) return;
@@ -237,7 +237,7 @@ export class WaterSupplyUI {
       });
     }
 
-    // initial render (empty table message)
+    // initial render (empty layout message)
     this.#renderTenderTable();
   }
 
@@ -250,39 +250,40 @@ export class WaterSupplyUI {
       return;
     }
 
-    // Build rows; while a timer is running we will NOT re-render each tick,
-    // we only update the timer text node. That keeps the Start/Stop buttons
-    // stationary and easy to tap (esp. on the second/third rows).
-    let rows = '';
+    // Build compact card layout; while a timer is running we will NOT re-render
+    // each tick, we only update the timer text node. That keeps the buttons
+    // stationary and easy to tap on phones.
+    let cards = '';
     for(let i=0;i<this.tenders.length;i++){
       const t = this.tenders[i];
       const dispSec = t.running ? (t.sec + this.#runningDelta(t)) : t.sec;
 
       // GPM display rule: only show GPM after a completed round trip (not running, sec>0)
-      const gpmCellText = (!t.running && t.sec > 0)
-        ? this.#fmt1(this.#gpmForTenderStopped(t))
-        : '—';
+      const gpmText = (!t.running && t.sec > 0)
+        ? 'GPM: ' + this.#fmt1(this.#gpmForTenderStopped(t))
+        : 'GPM: \u2014';
 
-      rows += '<tr data-i="'+i+'">'
-            + '<td><button class="tInfoBtn" data-act="info" title="Show details for '+this.#esc(t.id)+'">'
-            + '<span class="tBadge">'+this.#esc(t.id)+'</span>'
-            + '</button></td>'
-            + '<td class="tTimer"><span id="tTimer_'+i+'">'+this.#fmtTime(dispSec)+'</span></td>'
-            + '<td><b id="tGpm_'+i+'">'+gpmCellText+'</b></td>'
-            + '<td><div class="tCtrlWrap">'
-            +   '<button class="btn btnIcon tStartStop" data-act="startstop" title="'+(t.running?'Stop':'Start')+'">'
-            +     (t.running?'Stop':'Start')
-            +   '</button>'
-            +   '<button class="btn tReset" data-act="reset" title="Reset timer">Reset</button>'
-            +   '<button class="btn tDelete" data-act="del" title="Remove tender">Delete</button>'
-            + '</div></td>'
-            + '</tr>';
+      cards += ''
+        + '<div class="tCard" data-i="'+i+'">'
+        +   '<div class="tHeader">'
+        +     '<div class="tLabel">'+this.#esc(t.id)+'</div>'
+        +     '<div class="tMeta">'
+        +       '<div class="tTimer"><span id="tTimer_'+i+'">'+this.#fmtTime(dispSec)+'</span></div>'
+        +       '<div class="tGpm" id="tGpm_'+i+'">'+gpmText+'</div>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="tCtrlWrap">'
+        +     '<button class="btn tStartStop" data-act="startstop" title="'+(t.running?'Stop':'Start')+'">'
+        +       (t.running?'Stop':'Start')
+        +     '</button>'
+        +     '<button class="btn tReset" data-act="reset" title="Reset timer">Reset</button>'
+        +     '<button class="btn tDelete" data-act="del" title="Remove tender">Delete</button>'
+        +     '<button class="btn tInfoBtn" data-act="info" title="Show details for '+this.#esc(t.id)+'">Info</button>'
+        +   '</div>'
+        + '</div>';
     }
 
-    this.tenderList.innerHTML =
-      '<table class="tTable" role="table" aria-label="Tender Shuttle (compact)">'
-      + '<thead><tr><th>Tender</th><th>Round Trip</th><th>GPM</th><th>Controls</th></tr></thead>'
-      + '<tbody>'+rows+'</tbody></table>';
+    this.tenderList.innerHTML = cards;
 
     // Update total (completed trips only)
     if(this.shuttleTotalGpm) this.shuttleTotalGpm.textContent = this.getShuttleTotalGpm();
@@ -291,25 +292,63 @@ export class WaterSupplyUI {
     if(!document.getElementById('tenderShuttleStyle')){
       const s=document.createElement('style'); s.id='tenderShuttleStyle';
       s.textContent = `
-        .tTable { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; }
-        .tTable thead th { background:#162130; color:#fff; padding:10px; text-align:left; border-bottom:1px solid rgba(255,255,255,.1); }
-        .tTable tbody td { padding:10px; vertical-align:middle; }
-        .tTable tbody tr:nth-child(odd) td { background:#0e151e; color:#dfeaff; }
-        .tTable tbody tr:nth-child(even) td { background:#111924; color:#dfeaff; }
-
-        .tBadge { background:#0e151e; border:1px solid rgba(255,255,255,.15); padding:4px 10px; border-radius:999px; font-weight:700; }
-        .tTimer { font-family: ui-monospace, Menlo, Consolas, monospace; min-width:86px; display:inline-block; text-align:left; }
-
-        /* Larger, easier tap targets */
-        .tCtrlWrap { display:flex; gap:8px; flex-wrap:wrap; }
-        .btnIcon, .tStartStop, .tReset, .tDelete {
-          min-width: 64px;
-          min-height: 36px;
-          padding: 8px 12px;
+        #tenderList {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
         }
-        .tStartStop { font-weight:800; }
-        /* Prevent layout shift while running by keeping cells stable */
-        #tenderList b { display:inline-block; min-width: 40px; text-align:right; }
+        .tCard {
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,.15);
+          background: #0e151e;
+          padding: 8px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .tHeader {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .tLabel {
+          font-size: 1.3rem;
+          font-weight: 800;
+          color: #ffd447; /* high-visibility tender label */
+        }
+        .tMeta {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 2px;
+          text-align: right;
+        }
+        .tTimer span {
+          font-family: ui-monospace, Menlo, Consolas, monospace;
+          font-size: 1.1rem;
+          color: #ffffff;
+        }
+        .tGpm {
+          font-size: 0.8rem;
+          color: #cfe4ff;
+        }
+        .tCtrlWrap {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .tCtrlWrap .btn {
+          flex: 1 1 auto;
+          min-height: 32px;
+          padding: 6px 4px;
+          font-size: 0.85rem;
+        }
+        .tStartStop {
+          font-weight: 800;
+        }
+        .tDelete {
+          background: #5a1414;
+        }
       `;
       document.head.appendChild(s);
     }
