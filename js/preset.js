@@ -31,7 +31,7 @@ let state = {
   customNozzles: [],
 
   deptHoses: [],
-  customHoses: [],,
+  customHoses: [],
 
   deptAccessories: [],
   customAccessories: [],
