@@ -592,8 +592,12 @@ function injectAppPresetStyles() {
       inset: 0;
       z-index: 9999;
       display: flex;
-      align-items: flex-start; /* moved to top */
+      align-items: flex-start;
       justify-content: center;
+      padding: 12px 8px;
+      box-sizing: border-box;
+      background: rgba(3, 7, 18, 0.55);
+      backdrop-filter: blur(6px);
     }
     .preset-panel-wrapper.hidden {
       display: none;
@@ -601,71 +605,222 @@ function injectAppPresetStyles() {
     .preset-panel-backdrop {
       position: absolute;
       inset: 0;
-      background: rgba(0,0,0,0.4);
     }
     .preset-panel {
       position: relative;
-      width: 100%;
       max-width: 480px;
-      max-height: 80vh;
-      background: #111;
-      color: #fff;
-      border-radius: 16px 16px 0 0;
-      padding: 8px 12px 12px;
-      box-shadow: 0 -4px 12px rgba(0,0,0,0.5);
-      z-index: 1;
+      width: 100%;
+      margin: 0 auto;
+      background: #020617;
+      border-radius: 18px;
+      box-shadow:
+        0 18px 30px rgba(15, 23, 42, 0.75),
+        0 0 0 1px rgba(148, 163, 184, 0.35);
+      padding: 12px 14px 10px;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      box-sizing: border-box;
+      gap: 8px;
+    }
+    @media (min-width: 640px) {
+      .preset-panel {
+        margin-top: 12px;
+        border-radius: 20px;
+        padding: 14px 16px 12px;
+      }
     }
     .preset-panel-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding-bottom: 4px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
-      margin-bottom: 4px;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
     }
     .preset-panel-title {
-      font-weight: 600;
       font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
     }
     .preset-close-btn {
-      background: none;
-      border: none;
-      color: #fff;
-      font-size: 1rem;
-      padding: 4px 8px;
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
+      color: #e5e7eb;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
     }
-    .preset-list {
-      flex: 1;
+    .preset-close-btn:hover {
+      background: #111827;
+    }
+    .preset-panel-body {
+      font-size: 0.85rem;
+      line-height: 1.45;
+      max-height: min(60vh, 420px);
       overflow-y: auto;
-      padding: 4px 0;
-      margin-bottom: 8px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .preset-panel-body p {
+      margin: 0 0 6px 0;
+    }
+    .preset-panel-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .btn-primary,
+    .btn-secondary {
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8, #22c55e);
+      color: #020617;
+      font-weight: 600;
+    }
+    .btn-secondary {
+      background: rgba(15, 23, 42, 0.9);
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+    }
+    .btn-primary:active,
+    .btn-secondary:active {
+      transform: translateY(1px);
+    }
+
+    /* Dept / nozzle wizard */
+    .dept-intro {
+      font-size: 0.82rem;
+      color: #cbd5f5;
+      margin-bottom: 10px;
+    }
+    .dept-menu {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .dept-columns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    @media (min-width: 480px) {
+      .dept-columns {
+        flex-direction: row;
+      }
+    }
+    .dept-column h3 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0 4px 0;
+      color: #bfdbfe;
+    }
+    .dept-list {
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(30, 64, 175, 0.5);
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .dept-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+    .dept-option input[type="checkbox"] {
+      margin-top: 2px;
+      width: 14px;
+      height: 14px;
+    }
+    .dept-option span {
+      flex: 1;
+      word-break: break-word;
+    }
+
+    .dept-custom {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.4);
+    }
+    .dept-custom h3 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin: 0 0 4px 0;
+      color: #e5e7eb;
+    }
+    .dept-custom-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 4px;
+      font-size: 0.78rem;
+    }
+    .dept-custom-row label {
+      flex: 1 1 90px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .dept-custom-row input,
+    .dept-custom-row select {
+      background: #020617;
+      border-radius: 8px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      color: #e5e7eb;
+      padding: 4px 6px;
+      font-size: 0.8rem;
+    }
+
+    /* Existing preset list styles (kept, just slightly tuned) */
+    .preset-list-empty {
+      font-size: 0.8rem;
+      opacity: 0.8;
     }
     .preset-row {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      padding: 6px 4px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
       gap: 6px;
-      font-size: 0.85rem;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(30, 41, 59, 0.9);
+      font-size: 0.8rem;
+    }
+    .preset-row:last-child {
+      border-bottom: none;
     }
     .preset-row-main {
-      flex: 1;
       min-width: 0;
     }
-    .preset-row-name {
+    .preset-row-title {
       font-weight: 500;
+      font-size: 0.82rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .preset-row-sub {
-      opacity: 0.7;
-      font-size: 0.8rem;
+      opacity: 0.75;
+      font-size: 0.75rem;
     }
     .preset-row-actions {
       display: flex;
@@ -673,40 +828,19 @@ function injectAppPresetStyles() {
     }
     .preset-apply-btn,
     .preset-delete-btn {
-      border: none;
       border-radius: 999px;
-      padding: 4px 8px;
-      font-size: 0.75rem;
+      padding: 3px 8px;
+      font-size: 0.72rem;
       cursor: pointer;
+      border: none;
     }
     .preset-apply-btn {
-      background: #00b37a;
-      color: #000;
+      background: #22c55e;
+      color: #020617;
     }
     .preset-delete-btn {
-      background: #333;
-      color: #fff;
-    }
-    .preset-panel-footer {
-      border-top: 1px solid rgba(255,255,255,0.1);
-      padding-top: 6px;
-      display: flex;
-      justify-content: flex-end;
-    }
-    .preset-primary {
-      border-radius: 999px;
-      border: none;
-      padding: 6px 12px;
-      font-size: 0.85rem;
-      background: #0af;
-      color: #000;
-      cursor: pointer;
-    }
-    .preset-empty {
-      text-align: center;
-      opacity: 0.8;
-      font-size: 0.85rem;
-      padding: 12px 6px;
+      background: #111827;
+      color: #e5e7eb;
     }
   `;
   document.head.appendChild(style);
