@@ -141,6 +141,8 @@ function saveDeptToStorage() {
 
 // Ensure the shared popup wrapper exists
 function ensureDeptPopupWrapper() {
+  // Ensure shared styles for preset panels (top-modal)
+  injectAppPresetStyles();
   if (document.getElementById('deptPopupWrapper')) return;
 
   const wrap = document.createElement('div');
