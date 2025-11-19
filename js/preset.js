@@ -95,22 +95,45 @@ function savePresetsToStorage() {
 // =========================
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
-// For now, focus on department NOZZLES only.
+// Department NOZZLES only (for now).
 // These IDs can later be tied to the main calc nozzle table.
 const NOZZLES_SMOOTH = [
-  { id: 'sb_15_50_150', label: '1½" smooth bore 150 gpm @ 50 psi' },
-  { id: 'sb_15_50_185', label: '1½" smooth bore 185 gpm @ 50 psi' },
-  { id: 'sb_15_80_150', label: '1½" smooth bore 150 gpm @ 80 psi' },
-  { id: 'sb_2_50_265',  label: '2" smooth bore 265 gpm @ 50 psi' },
+  { id: 'sb_78_50_160',  label: '7/8" smooth bore 160 gpm @ 50 psi' },
+  { id: 'sb_1516_50_185',label: '15/16" smooth bore 185 gpm @ 50 psi' },
+  { id: 'sb_1_50_210',   label: '1" smooth bore 210 gpm @ 50 psi' },
+  { id: 'sb_1118_50_265',label: '1 1/8" smooth bore 265 gpm @ 50 psi' },
+  { id: 'sb_114_50_325', label: '1 1/4" smooth bore 325 gpm @ 50 psi' },
 ];
 
 const NOZZLES_FOG = [
+  { id: 'fog_15_100_95',   label: '1½" fog 95 gpm @ 100 psi' },
+  { id: 'fog_15_100_125',  label: '1½" fog 125 gpm @ 100 psi' },
   { id: 'fog_175_75_150',  label: '1¾" fog 150 gpm @ 75 psi' },
   { id: 'fog_175_100_150', label: '1¾" fog 150 gpm @ 100 psi' },
-  { id: 'fog_2_75_200',    label: '2" fog 200 gpm @ 75 psi' },
-  { id: 'fog_master_1000', label: 'Master fog 1000 gpm @ 80 psi' },
+  { id: 'fog_25_100_250',  label: '2½" fog 250 gpm @ 100 psi' },
+  { id: 'fog_25_100_300',  label: '2½" fog 300 gpm @ 100 psi' },
 ];
 
+const NOZZLES_MASTER = [
+  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
+  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
+  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
+  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
+  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
+  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
+  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
+  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
+];
+
+const NOZZLES_SPECIAL = [
+  { id: 'sp_celler',       label: 'Celler nozzle' },
+  { id: 'sp_piercing',     label: 'Piercing nozzle (pike pole)' },
+  { id: 'sp_bresnan',      label: 'Bresnan distributor' },
+  { id: 'sp_distributor',  label: 'Rotary distributor nozzle' },
+  { id: 'sp_foammaster',   label: 'High expansion foam nozzle' },
+  { id: 'sp_forestry',     label: 'Forestry nozzle (1")' },
+  { id: 'sp_wildland_gated',label:'Wildland gated wye / nozzle set' },
+];
 function loadDeptFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_DEPT_KEY);
@@ -232,6 +255,20 @@ function renderNozzleSelectionScreen() {
     </label>
   `).join('');
 
+  const masterHtml = NOZZLES_MASTER.map(n => `
+    <label class="dept-option">
+      <input type="checkbox" data-noz-id="${n.id}">
+      <span>${n.label}</span>
+    </label>
+  `).join('');
+
+  const specialHtml = NOZZLES_SPECIAL.map(n => `
+    <label class="dept-option">
+      <input type="checkbox" data-noz-id="${n.id}">
+      <span>${n.label}</span>
+    </label>
+  `).join('');
+
   bodyEl.innerHTML = `
     <p class="dept-intro">
       Check the nozzles your department actually carries. These will be used in future
@@ -249,6 +286,18 @@ function renderNozzleSelectionScreen() {
         <h3>Fog / Combination</h3>
         <div class="dept-list" id="deptFogList">
           ${fogHtml}
+        </div>
+      </div>
+      <div class="dept-column">
+        <h3>Master stream</h3>
+        <div class="dept-list" id="deptMasterList">
+          ${masterHtml}
+        </div>
+      </div>
+      <div class="dept-column">
+        <h3>Specialty</h3>
+        <div class="dept-list" id="deptSpecialList">
+          ${specialHtml}
         </div>
       </div>
     </div>
@@ -271,6 +320,8 @@ function renderNozzleSelectionScreen() {
           <select id="customNozType">
             <option value="smooth">Smooth bore</option>
             <option value="fog">Fog / Combo</option>
+            <option value="master">Master stream</option>
+            <option value="special">Specialty</option>
           </select>
         </label>
       </div>
@@ -289,9 +340,16 @@ function renderNozzleSelectionScreen() {
   const savedCustom = Array.isArray(state.customNozzles) ? state.customNozzles : [];
   const smoothList = bodyEl.querySelector('#deptSmoothList');
   const fogList    = bodyEl.querySelector('#deptFogList');
+  const masterList = bodyEl.querySelector('#deptMasterList');
+  const specialList= bodyEl.querySelector('#deptSpecialList');
 
   for (const cn of savedCustom) {
-    const host = cn.type === 'smooth' ? smoothList : fogList;
+    let host = null;
+    if (cn.type === 'smooth') host = smoothList;
+    else if (cn.type === 'fog') host = fogList;
+    else if (cn.type === 'master') host = masterList;
+    else host = specialList || fogList;
+
     if (!host) continue;
     const row = document.createElement('label');
     row.className = 'dept-option';
@@ -326,7 +384,8 @@ function renderNozzleSelectionScreen() {
       }
       const gpm = Number(gpmEl.value || 0);
       const psi = Number(psiEl.value || 0);
-      const type = typeEl.value === 'smooth' ? 'smooth' : 'fog';
+      let type = String(typeEl.value || 'fog');
+      if (!['smooth','fog','master','special'].includes(type)) type = 'fog';
 
       const id = 'custom_' + Date.now() + '_' + Math.floor(Math.random()*1000);
       const labelParts = [name];
@@ -338,7 +397,12 @@ function renderNozzleSelectionScreen() {
       if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
       state.customNozzles.push(custom);
 
-      const host = type === 'smooth' ? smoothList : fogList;
+      let host = null;
+      if (type === 'smooth') host = smoothList;
+      else if (type === 'fog') host = fogList;
+      else if (type === 'master') host = masterList;
+      else host = specialList || fogList;
+
       if (host) {
         const row = document.createElement('label');
         row.className = 'dept-option';
@@ -377,6 +441,7 @@ function renderNozzleSelectionScreen() {
   }
 
   wrap.classList.remove('hidden');
+}
 }
 
 // Public entry: open the wizard starting at the home screen
@@ -719,10 +784,15 @@ function injectAppPresetStyles() {
       flex-direction: column;
       gap: 10px;
       margin-bottom: 10px;
+      flex-wrap: nowrap;
     }
     @media (min-width: 480px) {
       .dept-columns {
         flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .dept-column {
+        flex: 1 1 200px;
       }
     }
     .dept-column h3 {
