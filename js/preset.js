@@ -49,14 +49,14 @@ export function setupPresets(options = {}) {
   if (triggerBtn) {
     triggerBtn.addEventListener('click', () => {
       if (state.isApp) {
-        const hasDept =
-          (state.deptHoses && state.deptHoses.length) ||
-          (state.deptNozzles && state.deptNozzles.length);
-        if (!hasDept) {
-          // First stop: let the user pick department equipment
-          openDeptEquipmentPanel();
+        const hasNozzles =
+          (state.deptNozzles && state.deptNozzles.length) ||
+          (state.customNozzles && state.customNozzles.length);
+        if (!hasNozzles) {
+          // First time (or not configured) – run nozzle wizard first
+          openDeptNozzleWizard();
         } else {
-          // If department gear is already set, go straight to presets
+          // If department nozzles are already set, go straight to presets
           openPresetPanelApp();
         }
       } else {
@@ -94,44 +94,45 @@ function savePresetsToStorage() {
 // =========================
 // Department equipment config
 // =========================
+const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
-const DEFAULT_HOSES = [
-  { id: '1.75', label: '1¾\" Attack line' },
-  { id: '2.5', label: '2½\" Attack / supply' },
-  { id: '3',   label: '3\" Supply' },
-  { id: '4',   label: '4\" LDH' },
-  { id: '5',   label: '5\" LDH' },
+// For now, focus on department NOZZLES only.
+// These IDs can later be tied to the main calc nozzle table.
+const NOZZLES_SMOOTH = [
+  { id: 'sb_15_50_150', label: '1½" smooth bore 150 gpm @ 50 psi' },
+  { id: 'sb_15_50_185', label: '1½" smooth bore 185 gpm @ 50 psi' },
+  { id: 'sb_15_80_150', label: '1½" smooth bore 150 gpm @ 80 psi' },
+  { id: 'sb_2_50_265',  label: '2" smooth bore 265 gpm @ 50 psi' },
 ];
 
-const DEFAULT_NOZZLES = [
-  { id: 'noz_combo_175_75',  label: '1¾\" Combo – 75 psi' },
-  { id: 'noz_combo_175_100', label: '1¾\" Combo – 100 psi' },
-  { id: 'noz_smooth_15_50',  label: '1½\" Smooth bore – 50 psi' },
-  { id: 'noz_smooth_15_80',  label: '1½\" Smooth bore – 80 psi' },
-  { id: 'noz_master_1000_80',label: 'Master stream – 1000 gpm @ 80 psi' },
+const NOZZLES_FOG = [
+  { id: 'fog_175_75_150',  label: '1¾" fog 150 gpm @ 75 psi' },
+  { id: 'fog_175_100_150', label: '1¾" fog 150 gpm @ 100 psi' },
+  { id: 'fog_2_75_200',    label: '2" fog 200 gpm @ 75 psi' },
+  { id: 'fog_master_1000', label: 'Master fog 1000 gpm @ 80 psi' },
 ];
 
 function loadDeptFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-    if (!raw) return { hoses: [], nozzles: [] };
+    if (!raw) return { nozzles: [], customNozzles: [] };
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return { hoses: [], nozzles: [] };
+    if (!parsed || typeof parsed !== 'object') return { nozzles: [], customNozzles: [] };
     return {
-      hoses: Array.isArray(parsed.hoses) ? parsed.hoses : [],
       nozzles: Array.isArray(parsed.nozzles) ? parsed.nozzles : [],
+      customNozzles: Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [],
     };
   } catch (err) {
     console.warn('Dept equipment load failed:', err);
-    return { hoses: [], nozzles: [] };
+    return { nozzles: [], customNozzles: [] };
   }
 }
 
 function saveDeptToStorage() {
   try {
     const payload = {
-      hoses: state.deptHoses || [],
       nozzles: state.deptNozzles || [],
+      customNozzles: state.customNozzles || [],
     };
     localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(payload));
   } catch (err) {
@@ -139,112 +140,252 @@ function saveDeptToStorage() {
   }
 }
 
-// Creates or returns the department equipment panel DOM
-function ensureDeptPanelExists() {
-  if (document.getElementById('deptEquipWrapper')) return;
+// Ensure the shared popup wrapper exists
+function ensureDeptPopupWrapper() {
+  if (document.getElementById('deptPopupWrapper')) return;
 
   const wrap = document.createElement('div');
-  wrap.id = 'deptEquipWrapper';
+  wrap.id = 'deptPopupWrapper';
   wrap.className = 'preset-panel-wrapper hidden';
-
-  const hoseOptionsHtml = DEFAULT_HOSES.map(h => `
-    <label class="dept-option">
-      <input type="checkbox" data-dept-hose="${h.id}">
-      <span>${h.label}</span>
-    </label>
-  `).join('');
-
-  const nozzleOptionsHtml = DEFAULT_NOZZLES.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-dept-noz="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
 
   wrap.innerHTML = `
     <div class="preset-panel-backdrop" data-dept-close="1"></div>
     <div class="preset-panel">
       <div class="preset-panel-header">
-        <div class="preset-panel-title">Department equipment</div>
+        <div class="preset-panel-title" id="deptPopupTitle">Presets</div>
         <button type="button" class="preset-close-btn" data-dept-close="1">✕</button>
       </div>
-
-      <div class="preset-panel-body dept-body">
-        <p class="dept-intro">
-          Pick the hose sizes and nozzles your department actually carries.
-          Future updates will use this list to shorten hose/nozzle dropdowns.
-        </p>
-
-        <div class="dept-columns">
-          <div class="dept-column">
-            <h3>Hoses</h3>
-            <div class="dept-list">
-              ${hoseOptionsHtml}
-            </div>
-          </div>
-          <div class="dept-column">
-            <h3>Nozzles</h3>
-            <div class="dept-list">
-              ${nozzleOptionsHtml}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="preset-panel-footer">
-        <button type="button" class="btn-secondary" data-dept-skip="1">Skip for now</button>
-        <button type="button" class="btn-primary" data-dept-save="1">Save & continue</button>
-      </div>
+      <div class="preset-panel-body" id="deptPopupBody"></div>
+      <div class="preset-panel-footer" id="deptPopupFooter"></div>
     </div>
   `;
 
   document.body.appendChild(wrap);
 
-  // Wire close actions
+  // Generic close handler
   wrap.addEventListener('click', (ev) => {
     const target = ev.target;
     if (!(target instanceof HTMLElement)) return;
-    if (target.dataset.deptClose === '1' || target.dataset.deptSkip === '1') {
+    if (target.dataset.deptClose === '1') {
       wrap.classList.add('hidden');
-    }
-    if (target.dataset.deptSave === '1') {
-      const hoses = [];
-      const nozzles = [];
-      wrap.querySelectorAll('input[data-dept-hose]').forEach((cb) => {
-        if (cb.checked) hoses.push(cb.getAttribute('data-dept-hose'));
-      });
-      wrap.querySelectorAll('input[data-dept-noz]').forEach((cb) => {
-        if (cb.checked) nozzles.push(cb.getAttribute('data-dept-noz'));
-      });
-      state.deptHoses = hoses;
-      state.deptNozzles = nozzles;
-      saveDeptToStorage();
-      wrap.classList.add('hidden');
-      // After saving, go straight into full presets panel
-      openPresetPanelApp();
     }
   });
 }
 
-// Opens the department equipment panel and syncs checkboxes from state
-function openDeptEquipmentPanel() {
-  ensureDeptPanelExists();
-  const wrap = document.getElementById('deptEquipWrapper');
+// First screen: simple menu with a "Department setup" button
+function renderDeptHomeScreen() {
+  ensureDeptPopupWrapper();
+  const wrap = document.getElementById('deptPopupWrapper');
   if (!wrap) return;
 
-  // Sync checkbox states from current selections
-  wrap.querySelectorAll('input[data-dept-hose]').forEach((cb) => {
-    const id = cb.getAttribute('data-dept-hose');
-    cb.checked = !!(state.deptHoses && state.deptHoses.includes(id));
-  });
-  wrap.querySelectorAll('input[data-dept-noz]').forEach((cb) => {
-    const id = cb.getAttribute('data-dept-noz');
-    cb.checked = !!(state.deptNozzles && state.deptNozzles.includes(id));
-  });
+  const titleEl = wrap.querySelector('#deptPopupTitle');
+  const bodyEl  = wrap.querySelector('#deptPopupBody');
+  const footerEl= wrap.querySelector('#deptPopupFooter');
+  if (!titleEl || !bodyEl || !footerEl) return;
+
+  titleEl.textContent = 'Presets';
+  bodyEl.innerHTML = `
+    <p>Select what you want to configure.</p>
+    <div class="dept-menu">
+      <button type="button" class="btn-primary" id="deptSetupBtn">Department setup</button>
+    </div>
+  `;
+  footerEl.innerHTML = `
+    <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
+  `;
+
+  const deptBtn = bodyEl.querySelector('#deptSetupBtn');
+  if (deptBtn) {
+    deptBtn.addEventListener('click', () => {
+      renderNozzleSelectionScreen();
+    });
+  }
 
   wrap.classList.remove('hidden');
 }
 
+// Second screen: nozzle selection with smooth bore / fog lists + custom nozzle form
+function renderNozzleSelectionScreen() {
+  ensureDeptPopupWrapper();
+  const wrap = document.getElementById('deptPopupWrapper');
+  if (!wrap) return;
+
+  const titleEl = wrap.querySelector('#deptPopupTitle');
+  const bodyEl  = wrap.querySelector('#deptPopupBody');
+  const footerEl= wrap.querySelector('#deptPopupFooter');
+  if (!titleEl || !bodyEl || !footerEl) return;
+
+  titleEl.textContent = 'Department nozzles';
+
+  const smoothHtml = NOZZLES_SMOOTH.map(n => `
+    <label class="dept-option">
+      <input type="checkbox" data-noz-id="${n.id}">
+      <span>${n.label}</span>
+    </label>
+  `).join('');
+
+  const fogHtml = NOZZLES_FOG.map(n => `
+    <label class="dept-option">
+      <input type="checkbox" data-noz-id="${n.id}">
+      <span>${n.label}</span>
+    </label>
+  `).join('');
+
+  bodyEl.innerHTML = `
+    <p class="dept-intro">
+      Check the nozzles your department actually carries. These will be used in future
+      updates to shorten nozzle dropdowns and presets.
+    </p>
+
+    <div class="dept-columns">
+      <div class="dept-column">
+        <h3>Smooth bore</h3>
+        <div class="dept-list" id="deptSmoothList">
+          ${smoothHtml}
+        </div>
+      </div>
+      <div class="dept-column">
+        <h3>Fog / Combination</h3>
+        <div class="dept-list" id="deptFogList">
+          ${fogHtml}
+        </div>
+      </div>
+    </div>
+
+    <div class="dept-custom">
+      <h3>Custom nozzle</h3>
+      <div class="dept-custom-row">
+        <label>Name / label
+          <input type="text" id="customNozName" placeholder="Example: 1¾\" task line 160 gpm @ 75 psi">
+        </label>
+      </div>
+      <div class="dept-custom-row">
+        <label>GPM
+          <input type="number" id="customNozGpm" inputmode="numeric" placeholder="160">
+        </label>
+        <label>Nozzle PSI
+          <input type="number" id="customNozPsi" inputmode="numeric" placeholder="75">
+        </label>
+        <label>Type
+          <select id="customNozType">
+            <option value="smooth">Smooth bore</option>
+            <option value="fog">Fog / Combo</option>
+          </select>
+        </label>
+      </div>
+      <div class="dept-custom-row">
+        <button type="button" class="btn-secondary" id="customNozAddBtn">Add custom nozzle</button>
+      </div>
+    </div>
+  `;
+
+  footerEl.innerHTML = `
+    <button type="button" class="btn-secondary" data-dept-close="1">Cancel</button>
+    <button type="button" class="btn-primary" id="deptNozSaveBtn">Save & continue</button>
+  `;
+
+  // Render any saved custom nozzles into the appropriate list
+  const savedCustom = Array.isArray(state.customNozzles) ? state.customNozzles : [];
+  const smoothList = bodyEl.querySelector('#deptSmoothList');
+  const fogList    = bodyEl.querySelector('#deptFogList');
+
+  for (const cn of savedCustom) {
+    const host = cn.type === 'smooth' ? smoothList : fogList;
+    if (!host) continue;
+    const row = document.createElement('label');
+    row.className = 'dept-option';
+    row.innerHTML = `
+      <input type="checkbox" data-noz-id="${cn.id}">
+      <span>${cn.label}</span>
+    `;
+    host.appendChild(row);
+  }
+
+  // Pre-check based on state.deptNozzles
+  const selected = new Set(state.deptNozzles || []);
+  bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
+    const id = cb.getAttribute('data-noz-id');
+    if (id && selected.has(id)) cb.checked = true;
+  });
+
+  // Custom nozzle add handler
+  const addBtn = bodyEl.querySelector('#customNozAddBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const nameEl = bodyEl.querySelector('#customNozName');
+      const gpmEl  = bodyEl.querySelector('#customNozGpm');
+      const psiEl  = bodyEl.querySelector('#customNozPsi');
+      const typeEl = bodyEl.querySelector('#customNozType');
+      if (!nameEl || !gpmEl || !psiEl || !typeEl) return;
+
+      const name = String(nameEl.value || '').trim();
+      if (!name) {
+        alert('Please enter a name/label for the custom nozzle.');
+        return;
+      }
+      const gpm = Number(gpmEl.value || 0);
+      const psi = Number(psiEl.value || 0);
+      const type = typeEl.value === 'smooth' ? 'smooth' : 'fog';
+
+      const id = 'custom_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+      const labelParts = [name];
+      if (gpm > 0) labelParts.push(gpm + ' gpm');
+      if (psi > 0) labelParts.push('@ ' + psi + ' psi');
+      const fullLabel = labelParts.join(' ');
+
+      const custom = { id, label: fullLabel, type, gpm, psi };
+      if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
+      state.customNozzles.push(custom);
+
+      const host = type === 'smooth' ? smoothList : fogList;
+      if (host) {
+        const row = document.createElement('label');
+        row.className = 'dept-option';
+        row.innerHTML = `
+          <input type="checkbox" data-noz-id="${id}" checked>
+          <span>${fullLabel}</span>
+        `;
+        host.appendChild(row);
+      }
+
+      saveDeptToStorage();
+
+      nameEl.value = '';
+      gpmEl.value = '';
+      psiEl.value = '';
+    });
+  }
+
+  // Save & continue
+  const saveBtn = footerEl.querySelector('#deptNozSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      const chosen = [];
+      bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
+        if (cb.checked) {
+          const id = cb.getAttribute('data-noz-id');
+          if (id) chosen.push(id);
+        }
+      });
+      state.deptNozzles = chosen;
+      saveDeptToStorage();
+      wrap.classList.add('hidden');
+      // After saving, go into full preset editor
+      openPresetPanelApp();
+    });
+  }
+
+  wrap.classList.remove('hidden');
+}
+
+// Public entry: open the wizard starting at the home screen
+function openDeptNozzleWizard() {
+  // Load from storage into state if not already present
+  const stored = loadDeptFromStorage();
+  if (!Array.isArray(state.deptNozzles)) state.deptNozzles = stored.nozzles || [];
+  if (!Array.isArray(state.customNozzles)) state.customNozzles = stored.customNozzles || [];
+  renderDeptHomeScreen();
+}
 
 // =========================
 // APP MODE: full preset UI
