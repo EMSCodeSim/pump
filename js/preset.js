@@ -1,3 +1,4 @@
+
 // preset.js – Department presets + line presets for FireOps Calc
 // - Department setup popup (Nozzles, Hoses, Accessories)
 // - Grouped nozzle selection (smooth / fog / master / specialty + custom)
@@ -336,14 +337,19 @@ const NOZZLES_SMOOTH = [
 ];
 
 const NOZZLES_FOG = [
-  { id: 'fog_15_100_95',      label: '1½" fog 95 gpm @ 100 psi' },
-  { id: 'fog_15_100_125',     label: '1½" fog 125 gpm @ 100 psi' },
-  { id: 'fog_175_75_150',     label: '1¾" fog 150 gpm @ 75 psi' },
-  { id: 'fog_175_100_150',    label: '1¾" fog 150 gpm @ 100 psi' },
-  { id: 'fog_xd_175_75_150',  label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
-  { id: 'fog_xd_175_75_185',  label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
-  { id: 'fog_25_100_250',     label: '2½" fog 250 gpm @ 100 psi' },
-  { id: 'fog_25_100_300',     label: '2½" fog 300 gpm @ 100 psi' },
+  { id: 'fog_15_100_95',       label: '1½" fog 95 gpm @ 100 psi' },
+  { id: 'fog_15_100_125',      label: '1½" fog 125 gpm @ 100 psi' },
+  { id: 'fog_175_75_150',      label: '1¾" fog 150 gpm @ 75 psi' },
+  { id: 'fog_175_100_150',     label: '1¾" fog 150 gpm @ 100 psi' },
+
+  // Chief XD options
+  { id: 'fog_xd_175_75_150',   label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
+  { id: 'fog_xd_175_75_185',   label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
+  { id: 'fog_xd_175_50_165',   label: 'Chief XD 1¾" 165 gpm @ 50 psi' },
+  { id: 'fog_xd_25_50_265',    label: 'Chief XD 2½" 265 gpm @ 50 psi' },
+
+  { id: 'fog_25_100_250',      label: '2½" fog 250 gpm @ 100 psi' },
+  { id: 'fog_25_100_300',      label: '2½" fog 300 gpm @ 100 psi' },
 ];
 
 const NOZZLES_MASTER = [
@@ -641,7 +647,7 @@ function renderNozzleSelectionScreen() {
       <h3>Custom nozzle</h3>
       <div class="dept-custom-row">
         <label>Name / label
-          <input type="text" id="customNozName" placeholder="Example: 1¾\\" task line 160 gpm @ 75 psi">
+          <input type="text" id="customNozName" placeholder="Example: 1 3/4&quot; attack line 160 gpm @ 75 psi">
         </label>
       </div>
       <div class="dept-custom-row">
@@ -856,7 +862,7 @@ function renderHoseSelectionScreen() {
       <h3>Custom hose</h3>
       <div class="dept-custom-row">
         <label>Name / label
-          <input type="text" id="customHoseName" placeholder="Example: 1¾\\" low-friction preconnect">
+          <input type="text" id="customHoseName" placeholder="Example: 1 3/4&quot; low-friction preconnect">
         </label>
       </div>
       <div class="dept-custom-row">
@@ -1306,7 +1312,7 @@ function handleAddPresetClick() {
     return;
   }
 
-  const name = prompt('Preset name (example: "150\' 1¾\" task line")', '');
+  const name = prompt('Preset name (example: "150\' 1 3/4\\\" task line")', '');
   if (!name) return;
 
   const summaryParts = [];
