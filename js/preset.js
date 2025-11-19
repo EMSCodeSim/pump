@@ -1426,14 +1426,46 @@ function openPresetMainMenu() {
   }
 
   // Line buttons
+  function openLineEditorFromPresets(lineNumber) {
+    const key = lineNumber === 1 ? 'left' : (lineNumber === 2 ? 'back' : 'right');
+
+    if (window._openTipEditor) {
+      try {
+        // Use the main + editor, but hide elevation when launched from Presets
+        window._openTipEditor(key, 'main', { hideElevation: true });
+
+        // Open the bottom-sheet editor UI
+        if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
+          window.BottomSheetEditor.open();
+        } else {
+          const tipEditor = document.querySelector('#tipEditor');
+          if (tipEditor) {
+            tipEditor.classList.remove('is-hidden');
+            tipEditor.classList.add('is-open');
+          }
+        }
+
+        // Hide the Presets panel while editing the line
+        if (wrap) wrap.classList.add('hidden');
+      } catch (e) {
+        console.warn('openLineEditorFromPresets failed, falling back to inline screen', e);
+        renderLineInfoScreen(lineNumber);
+      }
+    } else {
+      // Fallback: use the inline Line info screen if the main editor is not available
+      renderLineInfoScreen(lineNumber);
+    }
+  }
+
   body.querySelectorAll('.preset-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const line = Number(btn.getAttribute('data-line') || '1');
-      renderLineInfoScreen(line);
+      openLineEditorFromPresets(line);
     });
   });
 
-  // Saved preset buttons: apply directly when clicked
+
+// Saved preset buttons: apply directly when clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-preset-id');
@@ -1503,6 +1535,23 @@ function openPresetInfoPanelWeb() {
 }
 
 // === Public API ===================================================================
+
+
+
+export function getDeptNozzleIds() {
+  try {
+    const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
+    const base = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+    const custom = Array.isArray(dept.customNozzles)
+      ? dept.customNozzles.map(n => n && n.id).filter(Boolean)
+      : [];
+    return [...base, ...custom];
+  } catch (e) {
+    console.warn('getDeptNozzleIds failed', e);
+    return [];
+  }
+}
 
 export function setupPresets(opts = {}) {
   state.isApp = !!opts.isApp;
