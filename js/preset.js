@@ -1,7 +1,7 @@
 // preset.js
 // Lightweight preset system for FireOps Calc
 // - In APP mode: full preset UI + apply to pump calc
-// - In WEB mode: shows info + store buttons
+// - In WEB mode: (temporarily disabled – no redirect/info panel)
 
 const STORAGE_KEY = 'fireops_presets_v1';
 
@@ -46,9 +46,12 @@ export function setupPresets(options = {}) {
   if (triggerBtn) {
     triggerBtn.addEventListener('click', () => {
       if (state.isApp) {
+        // APP MODE: open full preset UI
         openPresetPanelApp();
       } else {
-        openPresetInfoPanelWeb();
+        // WEB MODE: temporarily DISABLED – do nothing for now.
+        // (We can re-enable openPresetInfoPanelWeb() later when app redirects are desired again.)
+        return;
       }
     });
   }
@@ -404,10 +407,11 @@ function injectAppPresetStyles() {
 }
 
 // =========================
-// WEB MODE: info + store links
+// WEB MODE: info + store links (currently unused)
 // =========================
 
 function openPresetInfoPanelWeb() {
+  // Temporarily disabled – left in place for future re-enable if needed.
   ensureWebInfoPanelExists();
   document.getElementById('presetInfoWrapper')?.classList.remove('hidden');
 }
