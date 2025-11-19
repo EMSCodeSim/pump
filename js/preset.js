@@ -1,10 +1,15 @@
 
 // preset.js – Department presets + line presets for FireOps Calc
+// - Main Presets menu from the Preset button
+//   • Department Setup
+//   • Line 1 / Line 2 / Line 3 quick views
+//   • Saved presets list
+//   • "Add preset" button
 // - Department setup popup (Nozzles, Hoses, Accessories)
 // - Grouped nozzle selection (smooth / fog / master / specialty + custom)
 // - Hose selection (attack / supply / wildland / low-friction + custom C)
 // - Accessories selection (appliances, foam/eductors, gauges, misc + custom)
-// - Line preset list (save/apply) wired to view.calc via getLineState / applyPresetToCalc
+// - Line preset list stored in localStorage and applied via applyPresetToCalc
 
 const STORAGE_KEY = 'fireops_presets_v1';
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
@@ -139,6 +144,9 @@ function injectAppPresetStyles() {
       border: none;
       cursor: pointer;
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .btn-primary {
       background: linear-gradient(135deg, #38bdf8, #22c55e);
@@ -262,55 +270,27 @@ function injectAppPresetStyles() {
       font-size: 0.8rem;
     }
 
-    /* Preset list */
+    /* Preset list bits */
     .preset-list-empty {
       font-size: 0.8rem;
       opacity: 0.8;
     }
-    .preset-row {
+    .preset-menu-presets {
       display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 4px;
+    }
+    .preset-menu-preset-btn {
+      width: 100%;
       justify-content: space-between;
-      gap: 6px;
-      padding: 6px 0;
-      border-bottom: 1px solid rgba(30, 41, 59, 0.9);
       font-size: 0.8rem;
     }
-    .preset-row:last-child {
-      border-bottom: none;
-    }
-    .preset-row-main {
-      min-width: 0;
-    }
-    .preset-row-title {
-      font-weight: 500;
-      font-size: 0.82rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .preset-row-sub {
-      opacity: 0.75;
-      font-size: 0.75rem;
-    }
-    .preset-row-actions {
-      display: flex;
-      gap: 4px;
-    }
-    .preset-apply-btn,
-    .preset-delete-btn {
-      border-radius: 999px;
-      padding: 3px 8px;
+    .preset-menu-preset-meta {
+      display: block;
       font-size: 0.72rem;
-      cursor: pointer;
-      border: none;
-    }
-    .preset-apply-btn {
-      background: #22c55e;
-      color: #020617;
-    }
-    .preset-delete-btn {
-      background: #111827;
-      color: #e5e7eb;
+      opacity: 0.75;
+      margin-left: 4px;
     }
   `;
   document.head.appendChild(style);
@@ -484,7 +464,7 @@ function saveDeptToStorage() {
   }
 }
 
-// === Shared popup wrapper =========================================================
+// === Shared popup wrapper: Dept wizard ===========================================
 
 function ensureDeptPopupWrapper() {
   injectAppPresetStyles();
@@ -545,7 +525,6 @@ function renderDeptHomeScreen() {
 
   footerEl.innerHTML = `
     <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
-    <button type="button" class="btn-primary" id="deptOpenPresetsBtn">Open line presets</button>
   `;
 
   const nozBtn = bodyEl.querySelector('#deptNozzlesBtn');
@@ -556,14 +535,6 @@ function renderDeptHomeScreen() {
 
   const accBtn = bodyEl.querySelector('#deptAccessoriesBtn');
   if (accBtn) accBtn.addEventListener('click', () => renderAccessorySelectionScreen());
-
-  const openPresetsBtn = footerEl.querySelector('#deptOpenPresetsBtn');
-  if (openPresetsBtn) {
-    openPresetsBtn.addEventListener('click', () => {
-      wrap.classList.add('hidden');
-      openPresetPanelApp();
-    });
-  }
 
   wrap.classList.remove('hidden');
 }
@@ -674,7 +645,7 @@ function renderNozzleSelectionScreen() {
 
   footerEl.innerHTML = `
     <button type="button" class="btn-secondary" id="deptNozBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptNozSaveBtn">Save & continue</button>
+    <button type="button" class="btn-primary" id="deptNozSaveBtn">Save</button>
   `;
 
   const smoothList = bodyEl.querySelector('#deptSmoothList');
@@ -776,7 +747,7 @@ function renderNozzleSelectionScreen() {
       state.deptNozzles = chosen;
       saveDeptToStorage();
       wrap.classList.add('hidden');
-      openPresetPanelApp();
+      openPresetMainMenu();
     });
   }
 
@@ -889,7 +860,7 @@ function renderHoseSelectionScreen() {
 
   footerEl.innerHTML = `
     <button type="button" class="btn-secondary" id="deptHoseBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptHoseSaveBtn">Save & continue</button>
+    <button type="button" class="btn-primary" id="deptHoseSaveBtn">Save</button>
   `;
 
   const attackList = bodyEl.querySelector('#deptHoseAttackList');
@@ -993,7 +964,7 @@ function renderHoseSelectionScreen() {
       state.deptHoses = chosen;
       saveDeptToStorage();
       wrap.classList.add('hidden');
-      openPresetPanelApp();
+      openPresetMainMenu();
     });
   }
 
@@ -1100,7 +1071,7 @@ function renderAccessorySelectionScreen() {
 
   footerEl.innerHTML = `
     <button type="button" class="btn-secondary" id="deptAccBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptAccSaveBtn">Save & continue</button>
+    <button type="button" class="btn-primary" id="deptAccSaveBtn">Save</button>
   `;
 
   const appList = bodyEl.querySelector('#deptAccAppList');
@@ -1192,7 +1163,7 @@ function renderAccessorySelectionScreen() {
       state.deptAccessories = chosen;
       saveDeptToStorage();
       wrap.classList.add('hidden');
-      openPresetPanelApp();
+      openPresetMainMenu();
     });
   }
 
@@ -1212,7 +1183,7 @@ function openDeptWizard() {
   renderDeptHomeScreen();
 }
 
-// === Full preset panel (line presets) ============================================
+// === App Preset panel wrapper (top-level presets menu) ============================
 
 function ensureAppPresetPanelExists() {
   injectAppPresetStyles();
@@ -1226,13 +1197,11 @@ function ensureAppPresetPanelExists() {
     <div class="preset-panel-backdrop" data-app-preset-close="1"></div>
     <div class="preset-panel">
       <div class="preset-panel-header">
-        <div class="preset-panel-title">Line presets</div>
+        <div class="preset-panel-title">Presets</div>
         <button type="button" class="preset-close-btn" data-app-preset-close="1">✕</button>
       </div>
       <div class="preset-panel-body" id="appPresetBody"></div>
-      <div class="preset-panel-footer">
-        <button type="button" class="btn-secondary" id="presetNewPresetBtn">Save current line</button>
-      </div>
+      <div class="preset-panel-footer" id="appPresetFooter"></div>
     </div>
   `;
 
@@ -1245,67 +1214,217 @@ function ensureAppPresetPanelExists() {
       wrap.classList.add('hidden');
     }
   });
-
-  const newBtn = wrap.querySelector('#presetNewPresetBtn');
-  if (newBtn) {
-    newBtn.addEventListener('click', () => {
-      handleAddPresetClick();
-    });
-  }
 }
 
-function renderPresetList() {
+// === Helpers for line summary =====================================================
+
+function buildLineSummary(lineNumber) {
+  if (!state.getLineState) {
+    return `<div class="preset-list-empty">Line info not available.</div>`;
+  }
+  const lineState = state.getLineState(lineNumber) || {};
+  const hose = lineState.hoseDiameter ? `${lineState.hoseDiameter}"` : '—';
+  const len  = typeof lineState.lengthFt === 'number' ? `${lineState.lengthFt} ft` : '—';
+  const noz  = lineState.nozzleId || '—';
+  const press = typeof lineState.nozzlePsi === 'number' ? `${lineState.nozzlePsi} psi` : '—';
+
+  return `
+    <div class="dept-list">
+      <div class="dept-option"><span><strong>Hose:</strong> ${hose}</span></div>
+      <div class="dept-option"><span><strong>Length:</strong> ${len}</span></div>
+      <div class="dept-option"><span><strong>Nozzle:</strong> ${noz}</span></div>
+      <div class="dept-option"><span><strong>Nozzle pressure:</strong> ${press}</span></div>
+    </div>
+  `;
+}
+
+// === Line detail screen (Line 1 / Line 2 / Line 3) ===============================
+
+function renderLineInfoScreen(lineNumber) {
+  ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
   if (!wrap) return;
-  const body = wrap.querySelector('#appPresetBody');
-  if (!body) return;
+  const body   = wrap.querySelector('#appPresetBody');
+  const footer = wrap.querySelector('#appPresetFooter');
+  const titleEl= wrap.querySelector('.preset-panel-title');
+  if (!body || !footer || !titleEl) return;
 
-  if (!state.presets || !state.presets.length) {
-    body.innerHTML = `<div class="preset-list-empty">No presets saved yet. Use "Save current line" to add one.</div>`;
-    return;
+  titleEl.textContent = `Line ${lineNumber} setup`;
+
+  body.innerHTML = `
+    <p class="dept-intro">
+      This shows the current Line ${lineNumber} setup from the main calculator.
+      To change it, adjust Line ${lineNumber} on the main screen, then refresh and (optionally)
+      save it as a named preset.
+    </p>
+    <div id="lineSummaryArea">
+      ${buildLineSummary(lineNumber)}
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button type="button" class="btn-secondary" id="lineBackBtn">Back</button>
+    <button type="button" class="btn-secondary" id="lineRefreshBtn">Refresh from current calc</button>
+    <button type="button" class="btn-primary" id="lineSavePresetBtn">Save as preset</button>
+  `;
+
+  footer.querySelector('#lineBackBtn')?.addEventListener('click', () => {
+    openPresetMainMenu();
+  });
+
+  footer.querySelector('#lineRefreshBtn')?.addEventListener('click', () => {
+    const area = body.querySelector('#lineSummaryArea');
+    if (area) {
+      area.innerHTML = buildLineSummary(lineNumber);
+    }
+  });
+
+  footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
+    if (!state.getLineState) {
+      alert('Line state function not available.');
+      return;
+    }
+    const current = state.getLineState(lineNumber);
+    if (!current) {
+      alert('Could not read current line.');
+      return;
+    }
+    const defaultName = `Line ${lineNumber} preset`;
+    const name = prompt('Preset name', defaultName);
+    if (!name) return;
+
+    const summaryParts = [];
+    if (current.hoseDiameter) summaryParts.push(current.hoseDiameter + '"');
+    if (typeof current.lengthFt === 'number') summaryParts.push(current.lengthFt + ' ft');
+    if (current.nozzleId) summaryParts.push('Nozzle: ' + current.nozzleId);
+    const summary = summaryParts.join(' • ');
+
+    const preset = {
+      id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      name,
+      lineNumber,
+      summary,
+      payload: current,
+    };
+
+    if (!Array.isArray(state.presets)) state.presets = [];
+    state.presets.push(preset);
+    savePresetsToStorage();
+    openPresetMainMenu();
+  });
+
+  wrap.classList.remove('hidden');
+}
+
+// === Main Presets menu ===========================================================
+
+function openPresetMainMenu() {
+  ensureAppPresetPanelExists();
+  const wrap = document.getElementById('appPresetWrapper');
+  if (!wrap) return;
+  const body   = wrap.querySelector('#appPresetBody');
+  const footer = wrap.querySelector('#appPresetFooter');
+  const titleEl= wrap.querySelector('.preset-panel-title');
+  if (!body || !footer || !titleEl) return;
+
+  titleEl.textContent = 'Presets';
+
+  const presets = state.presets || [];
+  const savedHtml = presets.length
+    ? presets.map(p => `
+        <button type="button"
+                class="btn-secondary preset-menu-preset-btn"
+                data-preset-id="${p.id}">
+          <span>${p.name}</span>
+          <span class="preset-menu-preset-meta">
+            Line ${p.lineNumber || 1}${p.summary ? ' • ' + p.summary : ''}
+          </span>
+        </button>
+      `).join('')
+    : `<div class="preset-list-empty">No saved presets yet.</div>`;
+
+  body.innerHTML = `
+    <div class="dept-menu" style="margin-bottom:8px;">
+      <button type="button" class="btn-primary" id="presetDeptSetupBtn">
+        Department setup
+      </button>
+    </div>
+
+    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+      Quick line setup
+    </p>
+    <div class="dept-menu" style="margin-bottom:8px;">
+      <button type="button" class="btn-secondary preset-line-btn" data-line="1">Line 1</button>
+      <button type="button" class="btn-secondary preset-line-btn" data-line="2">Line 2</button>
+      <button type="button" class="btn-secondary preset-line-btn" data-line="3">Line 3</button>
+    </div>
+
+    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+      Saved presets
+    </p>
+    <div class="preset-menu-presets" id="presetSavedList">
+      ${savedHtml}
+    </div>
+  `;
+
+  footer.innerHTML = `
+    <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
+    <button type="button" class="btn-primary" id="presetAddPresetBtn">Add preset</button>
+  `;
+
+  // Department setup button
+  const deptBtn = body.querySelector('#presetDeptSetupBtn');
+  if (deptBtn) {
+    deptBtn.addEventListener('click', () => {
+      wrap.classList.add('hidden');
+      openDeptWizard();
+    });
   }
 
-  body.innerHTML = state.presets.map(p => `
-    <div class="preset-row">
-      <div class="preset-row-main">
-        <div class="preset-row-title">${p.name}</div>
-        <div class="preset-row-sub">
-          Line ${p.lineNumber || 1} • ${p.summary || ''}
-        </div>
-      </div>
-      <div class="preset-row-actions">
-        <button type="button" class="preset-apply-btn" data-preset-apply="${p.id}">Apply</button>
-        <button type="button" class="preset-delete-btn" data-preset-delete="${p.id}">Delete</button>
-      </div>
-    </div>
-  `).join('');
-
-  body.querySelectorAll('[data-preset-apply]').forEach(btn => {
+  // Line buttons
+  body.querySelectorAll('.preset-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-preset-apply');
-      const preset = state.presets.find(p => p.id === id);
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderLineInfoScreen(line);
+    });
+  });
+
+  // Saved preset buttons: apply directly when clicked
+  body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-preset-id');
+      const preset = (state.presets || []).find(p => p.id === id);
       if (!preset || !state.applyPresetToCalc) return;
       state.applyPresetToCalc(preset);
-      const wrap2 = document.getElementById('appPresetWrapper');
-      if (wrap2) wrap2.classList.add('hidden');
+      wrap.classList.add('hidden');
     });
   });
-  body.querySelectorAll('[data-preset-delete]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-preset-delete');
-      state.presets = (state.presets || []).filter(p => p.id !== id);
-      savePresetsToStorage();
-      renderPresetList();
+
+  // Add preset button: saves current Line 1 by default (user can rename)
+  const addBtn = footer.querySelector('#presetAddPresetBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      handleAddPresetClick();
+      openPresetMainMenu(); // refresh list
     });
-  });
+  }
+
+  wrap.classList.remove('hidden');
 }
+
+// Legacy helper: keep name but point to new main menu
+function openPresetPanelApp() {
+  openPresetMainMenu();
+}
+
+// === Add preset from current calc (defaults to Line 1) ===========================
 
 function handleAddPresetClick() {
   if (!state.getLineState) {
     alert('Preset system not fully wired yet (missing getLineState).');
     return;
   }
-  const lineNumber = 1; // TODO: tie into active line if needed
+  const lineNumber = 1; // base line; user can still pick a name
   const lineState = state.getLineState(lineNumber);
   if (!lineState) {
     alert('Could not read current line to save as a preset.');
@@ -1322,7 +1441,7 @@ function handleAddPresetClick() {
   const summary = summaryParts.join(' • ');
 
   const preset = {
-    id: 'preset_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+    id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
     name,
     lineNumber,
     summary,
@@ -1332,38 +1451,11 @@ function handleAddPresetClick() {
   if (!Array.isArray(state.presets)) state.presets = [];
   state.presets.push(preset);
   savePresetsToStorage();
-  renderPresetList();
 }
 
-function openPresetPanelApp() {
-  ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
-  if (!wrap) return;
-  renderPresetList();
-  wrap.classList.remove('hidden');
-}
-
-// Simple info panel for web-only mode
+// Simple info panel for web-only mode (not used now, but kept for compatibility)
 function openPresetInfoPanelWeb() {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
-  titleEl.textContent = 'Presets (info)';
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Line presets and department setup are best used in the app version of FireOps Calc.
-    </p>
-  `;
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
-  `;
-  wrap.classList.remove('hidden');
+  openPresetMainMenu();
 }
 
 // === Public API ===================================================================
@@ -1376,25 +1468,21 @@ export function setupPresets(opts = {}) {
   state.getLineState = typeof opts.getLineState === 'function' ? opts.getLineState : null;
   state.applyPresetToCalc = typeof opts.applyPresetToCalc === 'function' ? opts.applyPresetToCalc : null;
 
-  if (state.isApp) {
-    state.presets = loadPresetsFromStorage();
-    const dept = loadDeptFromStorage();
-    state.deptNozzles = dept.nozzles;
-    state.customNozzles = dept.customNozzles;
-    state.deptHoses = dept.hoses;
-    state.customHoses = dept.customHoses;
-    state.deptAccessories = dept.accessories;
-    state.customAccessories = dept.customAccessories;
-  }
+  // Always load from storage so it works in web + app
+  state.presets = loadPresetsFromStorage();
+  const dept = loadDeptFromStorage();
+  state.deptNozzles = dept.nozzles;
+  state.customNozzles = dept.customNozzles;
+  state.deptHoses = dept.hoses;
+  state.customHoses = dept.customHoses;
+  state.deptAccessories = dept.accessories;
+  state.customAccessories = dept.customAccessories;
 
   const triggerBtn = document.getElementById(state.triggerButtonId);
   if (!triggerBtn) return;
 
   triggerBtn.addEventListener('click', () => {
-    if (state.isApp) {
-      openDeptWizard();
-    } else {
-      openPresetInfoPanelWeb();
-    }
+    // Always show full menu, even in web mode
+    openPresetPanelApp();
   });
 }
