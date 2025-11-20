@@ -378,6 +378,11 @@ export function render(container) {
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
       .practice-answer-card{ position:static !important; }
+      @media (min-width: 900px){
+        .stage { min-height: 140px; }
+        #truckImgP { height: 220px; }
+      }
+
 
     </style>
 
@@ -612,6 +617,16 @@ export function render(container) {
     const rev = buildReveal(S);
     practiceAnswer = rev.total;
     drawScenario(S);
+
+    // On larger screens, make sure the stage is visible above the answer card
+    try {
+      if (window && typeof stageEl?.scrollIntoView === 'function') {
+        stageEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    } catch (_e) {
+      try { stageEl.scrollIntoView(); } catch(__e) {}
+    }
+
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
 
     // Reset previous work/answer
