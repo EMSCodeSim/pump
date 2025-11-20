@@ -1543,7 +1543,7 @@ function openPresetMainMenu() {
     <div class="preset-menu-presets" id="presetSavedList">
       ${savedHtml}
     </div>
-  `;  `;
+  `;
 
   footer.innerHTML = `
     <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
