@@ -37,7 +37,7 @@ let state = {
   deptAccessories: [],
   customAccessories: [],
 
-  // department line defaults
+  // department line defaults (per lineNumber)
   lineDefaults: {},
 };
 
@@ -1389,15 +1389,15 @@ function renderLineInfoScreen(lineNumber) {
 // === Main Presets menu ===========================================================
 
 
-
 function renderDeptLineDefaultsScreen(lineNumber) {
-  ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
+  ensureDeptPopupWrapper();
+  const wrap = document.getElementById('deptPopupWrapper');
   if (!wrap) return;
-  const body   = wrap.querySelector('#appPresetBody');
-  const footer = wrap.querySelector('#appPresetFooter');
-  const titleEl= wrap.querySelector('.preset-panel-title');
-  if (!body || !footer || !titleEl) return;
+
+  const titleEl = wrap.querySelector('#deptPopupTitle');
+  const bodyEl  = wrap.querySelector('#deptPopupBody');
+  const footerEl= wrap.querySelector('#deptPopupFooter');
+  if (!titleEl || !bodyEl || !footerEl) return;
 
   const key = 'line' + String(lineNumber);
   const currentDefaults = (state.lineDefaults && state.lineDefaults[key]) || {};
@@ -1413,7 +1413,7 @@ function renderDeptLineDefaultsScreen(lineNumber) {
 
   titleEl.textContent = `Line ${lineNumber} department default`;
 
-  body.innerHTML = `
+  bodyEl.innerHTML = `
     <p class="dept-intro">
       Set the default configuration for Line ${lineNumber}. This is your rig/department
       starting point and does <strong>not</strong> change automatically when you adjust
@@ -1439,20 +1439,23 @@ function renderDeptLineDefaultsScreen(lineNumber) {
     </div>
   `;
 
-  footer.innerHTML = `
+  footerEl.innerHTML = `
     <button type="button" class="btn-secondary" id="deptLineBackBtn">Back</button>
     <button type="button" class="btn-primary" id="deptLineSaveBtn">Save default</button>
   `;
 
-  footer.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
+  footerEl.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
+    // Go back to main Presets menu instead of dept home
+    const wrap2 = document.getElementById('deptPopupWrapper');
+    if (wrap2) wrap2.classList.add('hidden');
     openPresetMainMenu();
   });
 
-  footer.querySelector('#deptLineSaveBtn')?.addEventListener('click', () => {
-    const hoseEl = body.querySelector('#deptLineHoseDia');
-    const lenEl  = body.querySelector('#deptLineLength');
-    const nozEl  = body.querySelector('#deptLineNozId');
-    const psiEl  = body.querySelector('#deptLineNozPsi');
+  footerEl.querySelector('#deptLineSaveBtn')?.addEventListener('click', () => {
+    const hoseEl = bodyEl.querySelector('#deptLineHoseDia');
+    const lenEl  = bodyEl.querySelector('#deptLineLength');
+    const nozEl  = bodyEl.querySelector('#deptLineNozId');
+    const psiEl  = bodyEl.querySelector('#deptLineNozPsi');
 
     const next = { ...(state.lineDefaults && state.lineDefaults[key] ? state.lineDefaults[key] : {}) };
 
@@ -1475,6 +1478,9 @@ function renderDeptLineDefaultsScreen(lineNumber) {
     if (!state.lineDefaults) state.lineDefaults = {};
     state.lineDefaults[key] = next;
     saveLineDefaultsToStorage();
+
+    const wrap2 = document.getElementById('deptPopupWrapper');
+    if (wrap2) wrap2.classList.add('hidden');
     openPresetMainMenu();
   });
 
@@ -1513,31 +1519,31 @@ function openPresetMainMenu() {
       </button>
     </div>
 
-    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
       Department line defaults
     </p>
     <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="1">Line 1 default</button>
-      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="2">Line 2 default</button>
-      <button type="button" class="btn-secondary preset-dept-line-btn" data-line="3">Line 3 default</button>
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="1">Line 1 default</button>
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="2">Line 2 default</button>
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="3">Line 3 default</button>
     </div>
 
-    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
       Quick line setup
     </p>
     <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-line-btn" data-line="1">Line 1</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="2">Line 2</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="3">Line 3</button>
+      <button type="button" class="btn-secondary preset-line-btn" data-line="1">Line 1 (scene)</button>
+      <button type="button" class="btn-secondary preset-line-btn" data-line="2">Line 2 (scene)</button>
+      <button type="button" class="btn-secondary preset-line-btn" data-line="3">Line 3 (scene)</button>
     </div>
 
-    <p class="dept-intro" style="margin-top:4px; margin-bottom:4px;">
+    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
       Saved presets
     </p>
     <div class="preset-menu-presets" id="presetSavedList">
       ${savedHtml}
     </div>
-  `;
+  `;  `;
 
   footer.innerHTML = `
     <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
@@ -1553,19 +1559,19 @@ function openPresetMainMenu() {
     });
   }
 
-  // Department line defaults buttons
-  body.querySelectorAll('.preset-dept-line-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderDeptLineDefaultsScreen(line);
-    });
-  });
-
-  // Quick line setup buttons (scene-only)
+  // Line buttons (scene-only quick editors)
   body.querySelectorAll('.preset-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const line = Number(btn.getAttribute('data-line') || '1');
       renderLineInfoScreen(line);
+    });
+  });
+
+  // Department line default buttons (open separate defaults editor)
+  body.querySelectorAll('.preset-line-default-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderDeptLineDefaultsScreen(line);
     });
   });
 
@@ -1590,11 +1596,6 @@ function openPresetMainMenu() {
   }
 
   wrap.classList.remove('hidden');
-}
-
-// Legacy helper: keep name but point to new main menu
-function openPresetPanelApp() {
-  openPresetMainMenu();
 }
 
 // Legacy helper: keep name but point to new main menu
