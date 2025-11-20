@@ -349,7 +349,7 @@ export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
-      .stage { min-height: 260px; display:flex; align-items:center; justify-content:center; }
+      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
@@ -377,7 +377,6 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-      .practice-answer-card{ position:static; margin-top:8px; }
     </style>
 
     <section class="card">
@@ -402,14 +401,14 @@ export function render(container) {
         </svg>
       </div>
 
+      <div id="eqBox" style="margin-top:6px; display:none"></div>
+
       <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
 
-    <div id="eqBox" class="card" style="margin-top:8px; display:none"></div>
-
-    <section class="card practice-answer-card">
-      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end>
+    <section class="card">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
           <label>Your PP answer (psi)</label>
           <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;">
