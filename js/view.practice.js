@@ -377,11 +377,11 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-      .practice-answer-card{ position:static !important; }
+    
+      .practice-answer-card{ position:static; margin-top:8px; }
+</style>
 
-    </style>
-
-    <section class="card">
+    <section class="card practice-answer-card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
         <div>
           <b>Practice Mode</b>
@@ -398,7 +398,7 @@ export function render(container) {
     <section class="wrapper card">
       <div class="stage" id="stageP">
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
-          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="200" preserveAspectRatio="xMidYMax meet"></image>
+          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
           <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g><g id="nozzlesP"></g>
         </svg>
       </div>
@@ -409,7 +409,7 @@ export function render(container) {
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
 
-    <section class="card practice-answer-card">
+    <section class="card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
           <label>Your PP answer (psi)</label>
@@ -612,14 +612,6 @@ export function render(container) {
     const rev = buildReveal(S);
     practiceAnswer = rev.total;
     drawScenario(S);
-
-    // Try to keep the stage visible on smaller laptop screens
-    try {
-      if (stageEl && typeof stageEl.scrollIntoView === 'function') {
-        stageEl.scrollIntoView({ block: 'start', behavior: 'auto' });
-      }
-    } catch (_e) {}
-
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
 
     // Reset previous work/answer
