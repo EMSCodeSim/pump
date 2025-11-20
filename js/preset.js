@@ -1651,6 +1651,36 @@ export function getDeptLineDefaults() {
   return state.lineDefaults || {};
 }
 
+
+export function getDeptNozzleIds() {
+  try {
+    const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
+    const out = [];
+    if (Array.isArray(dept.nozzles)) {
+      dept.nozzles.forEach(id => {
+        if (typeof id === 'string' && id.trim().length) out.push(id.trim());
+      });
+    }
+    if (Array.isArray(dept.customNozzles)) {
+      dept.customNozzles.forEach(n => {
+        if (!n) return;
+        if (typeof n === 'string') {
+          const v = n.trim();
+          if (v.length) out.push(v);
+        } else if (typeof n.id === 'string') {
+          const v = n.id.trim();
+          if (v.length) out.push(v);
+        }
+      });
+    }
+    return out;
+  } catch (e) {
+    console.warn('getDeptNozzleIds failed', e);
+    return [];
+  }
+}
+
 export function setupPresets(opts = {}) {
   state.isApp = !!opts.isApp;
   state.triggerButtonId = opts.triggerButtonId || 'presetsBtn';
