@@ -618,13 +618,18 @@ export function render(container) {
     practiceAnswer = rev.total;
     drawScenario(S);
 
-    // On larger screens, make sure the stage is visible above the answer card
+    // Make sure the stage is fully visible above the answer card
     try {
-      if (window && typeof stageEl?.scrollIntoView === 'function') {
-        stageEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+      if (typeof window !== 'undefined' && stageEl && typeof stageEl.getBoundingClientRect === 'function') {
+        const rect = stageEl.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        const target = Math.max(rect.top + scrollTop - 40, 0);
+        window.scrollTo({ top: target, behavior: 'auto' });
+      } else if (stageEl && typeof stageEl.scrollIntoView === 'function') {
+        stageEl.scrollIntoView({ block: 'start', behavior: 'auto' });
       }
     } catch (_e) {
-      try { stageEl.scrollIntoView(); } catch(__e) {}
+      // non‑fatal; if scrolling fails the scenario still works
     }
 
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
