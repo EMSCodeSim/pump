@@ -377,6 +377,8 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
+      .practice-answer-card{ position:static !important; }
+
     </style>
 
     <section class="card">
@@ -407,7 +409,7 @@ export function render(container) {
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
 
-    <section class="card">
+    <section class="card practice-answer-card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
           <label>Your PP answer (psi)</label>
@@ -698,3 +700,4 @@ export function render(container) {
 }
 
 export default { render };
+
