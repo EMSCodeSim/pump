@@ -378,11 +378,6 @@ export function render(container) {
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
       .practice-answer-card{ position:static !important; }
-      @media (min-width: 900px){
-        .stage { min-height: 140px; }
-        #truckImgP { height: 220px; }
-      }
-
 
     </style>
 
@@ -403,7 +398,7 @@ export function render(container) {
     <section class="wrapper card">
       <div class="stage" id="stageP">
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
-          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
+          <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="200" preserveAspectRatio="xMidYMax meet"></image>
           <g id="hosesP"></g><g id="branchesP"></g><g id="labelsP"></g><g id="nozzlesP"></g>
         </svg>
       </div>
@@ -618,19 +613,12 @@ export function render(container) {
     practiceAnswer = rev.total;
     drawScenario(S);
 
-    // Make sure the stage is fully visible above the answer card
+    // Try to keep the stage visible on smaller laptop screens
     try {
-      if (typeof window !== 'undefined' && stageEl && typeof stageEl.getBoundingClientRect === 'function') {
-        const rect = stageEl.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
-        const target = Math.max(rect.top + scrollTop - 40, 0);
-        window.scrollTo({ top: target, behavior: 'auto' });
-      } else if (stageEl && typeof stageEl.scrollIntoView === 'function') {
+      if (stageEl && typeof stageEl.scrollIntoView === 'function') {
         stageEl.scrollIntoView({ block: 'start', behavior: 'auto' });
       }
-    } catch (_e) {
-      // non‑fatal; if scrolling fails the scenario still works
-    }
+    } catch (_e) {}
 
     practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
 
