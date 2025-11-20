@@ -402,11 +402,11 @@ export function render(container) {
         </svg>
       </div>
 
-      <div id="eqBox" style="margin-top:6px; display:none"></div>
-
       <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
+
+    <div id="eqBox" class="card" style="margin-top:8px; display:none"></div>
 
     <section class="card practice-answer-card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end>
