@@ -1,3 +1,44 @@
+
+// === Department-filtered lists (added) ===
+function filteredNozzles(){
+  try{
+    const sel = new Set(state.deptNozzles || []);
+    const list = [];
+    const all = [].concat(
+      NOZZLES_SMOOTH||[], NOZZLES_FOG||[],
+      NOZZLES_MASTER||[], NOZZLES_SPECIAL||[]
+    );
+    for(const n of all){
+      if(n && sel.has(n.id)) list.push(n);
+    }
+    if(Array.isArray(state.customNozzles)){
+      for(const cn of state.customNozzles){
+        if(cn && sel.has(cn.id)) list.push(cn);
+      }
+    }
+    return list;
+  }catch(e){ return []; }
+}
+
+function deptHoseSizes(){
+  try{
+    const sel = new Set(state.deptHoses || []);
+    const list = [];
+    const all = [].concat(
+      HOSES_ATTACK||[], HOSES_SUPPLY||[],
+      HOSES_WILDLAND||[], HOSES_LOWFRICTION||[]
+    );
+    for(const h of all){
+      if(h && sel.has(h.id)) list.push({ val: h.size||h.diameter, labelPlain: h.label });
+    }
+    if(Array.isArray(state.customHoses)){
+      for(const ch of state.customHoses){
+        if(ch && sel.has(ch.id)) list.push({ val: ch.diameter, labelPlain: ch.label });
+      }
+    }
+    return list;
+  }catch(e){ return []; }
+}
 ;
 
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
@@ -1643,7 +1684,8 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  const sizeSeq = [
+  const sizeSeq = deptHoseSizes();
+// const sizeSeq_old = [
     { val: "1.75", labelPlain: "1 3/4″" },
     { val: "2.5",  labelPlain: "2 1/2″" },
     { val: "5",    labelPlain: "5″" }
