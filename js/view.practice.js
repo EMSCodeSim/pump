@@ -50,7 +50,7 @@ function pumpXY(viewH){
 function mainCurve(totalPx, viewH){
   const {x:sx,y:sy} = pumpXY(viewH);
   const ex = sx;
-  const ey = Math.max(60, sy - totalPx);
+  const ey = Math.max(10, sy - totalPx);
   const cx = (sx+ex)/2;
   const cy = sy - (sy-ey)*0.48;
   return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
@@ -59,7 +59,7 @@ function straightBranch(side, startX, startY, totalPx){
   const dir = side==='L'?-1:1;
   const x = startX + dir*20;
   const y1 = startY - BRANCH_LIFT;
-  const y2 = Math.max(60, y1 - totalPx);
+  const y2 = Math.max(8, y1 - totalPx);
   return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
 
@@ -349,7 +349,7 @@ export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
-      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; margin-bottom: 32px; }
+      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
@@ -377,15 +377,9 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-    
-/* Extra space above the answer card so it never crowds the truck on larger screens */
-.card.practice-answer { margin-top: 24px; }
-@media (min-width: 768px){
-  .card.practice-answer { margin-top: 40px; }
-}
-</style>
+    </style>
 
-    <section class="card practice-answer">
+    <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
         <div>
           <b>Practice Mode</b>
@@ -399,7 +393,7 @@ export function render(container) {
       </div>
     </section>
 
-    <section id="practiceGraphicCard" class="wrapper card">
+    <section class="wrapper card">
       <div class="stage" id="stageP">
         <svg id="overlayPractice" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage (practice)">
           <image id="truckImgP" href="https://fireopssim.com/pump/engine181.png" x="0" y="0" width="390" height="260" preserveAspectRatio="xMidYMax meet"></image>
