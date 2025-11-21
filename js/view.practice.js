@@ -50,7 +50,7 @@ function pumpXY(viewH){
 function mainCurve(totalPx, viewH){
   const {x:sx,y:sy} = pumpXY(viewH);
   const ex = sx;
-  const ey = Math.max(10, sy - totalPx);
+  const ey = Math.max(40, sy - totalPx);
   const cx = (sx+ex)/2;
   const cy = sy - (sy-ey)*0.48;
   return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
@@ -59,7 +59,7 @@ function straightBranch(side, startX, startY, totalPx){
   const dir = side==='L'?-1:1;
   const x = startX + dir*20;
   const y1 = startY - BRANCH_LIFT;
-  const y2 = Math.max(8, y1 - totalPx);
+  const y2 = Math.max(40, y1 - totalPx);
   return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
 
@@ -349,7 +349,7 @@ export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
-      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
+      .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; margin-bottom: 24px; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
@@ -377,14 +377,7 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-    
-      /* On larger screens, add extra space under the SVG so the truck never touches the answer card */
-      @media (min-width: 768px){
-        #stageP {
-          padding-bottom: 32px;
-        }
-      }
-</style>
+    </style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
