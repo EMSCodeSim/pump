@@ -43,9 +43,9 @@
     `;
     document.head.appendChild(style);
   } catch (_) {}
-})()
+})();
 
-(function(){
+;(function(){
   const SHEET_ID = 'teSheet';
 
   function hide(el){ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); }
