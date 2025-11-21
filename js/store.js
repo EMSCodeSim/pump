@@ -344,3 +344,54 @@ export function savePresets(presetsObj){
  * Small utils
  * ========================= */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
+
+
+
+// === Department Defaults Persistence (added) ===
+const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
+
+function readDeptStorage(){
+  try {
+    const raw = localStorage.getItem(DEPT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){
+    return null;
+  }
+}
+
+function writeDeptStorage(obj){
+  try {
+    localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(obj));
+    return true;
+  } catch(e){
+    return false;
+  }
+}
+
+export function loadDeptDefaults(){
+  const from = readDeptStorage();
+  if(from) return from;
+
+  // If none found, seed from initial lines in memory
+  return {
+    left:  JSON.parse(JSON.stringify(state.lines.left)),
+    back:  JSON.parse(JSON.stringify(state.lines.back)),
+    right: JSON.parse(JSON.stringify(state.lines.right)),
+  };
+}
+
+export function saveDeptDefaults(obj){
+  if(!obj) return false;
+  return writeDeptStorage(obj);
+}
+
+export function getDeptLineDefault(key){
+  const all = loadDeptDefaults();
+  return all[key] || null;
+}
+
+export function setDeptLineDefault(key, data){
+  const all = loadDeptDefaults();
+  all[key] = data;
+  saveDeptDefaults(all);
+}
