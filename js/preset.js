@@ -547,6 +547,15 @@ function renderDeptHomeScreen() {
       <button type="button" class="btn-secondary" id="deptHosesBtn">Hoses</button>
       <button type="button" class="btn-secondary" id="deptAccessoriesBtn">Accessories</button>
     </div>
+
+    <p class="dept-intro" style="margin-top:12px; margin-bottom:4px;">
+      Department line defaults
+    </p>
+    <div class="dept-menu" style="margin-bottom:8px;">
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="1">Line 1 default</button>
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="2">Line 2 default</button>
+      <button type="button" class="btn-secondary preset-line-default-btn" data-line="3">Line 3 default</button>
+    </div>
   `;
 
   footerEl.innerHTML = `
@@ -561,6 +570,14 @@ function renderDeptHomeScreen() {
 
   const accBtn = bodyEl.querySelector('#deptAccessoriesBtn');
   if (accBtn) accBtn.addEventListener('click', () => renderAccessorySelectionScreen());
+
+  // Line defaults buttons inside Department setup home
+  bodyEl.querySelectorAll('.preset-line-default-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderDeptLineDefaultsScreen(line);
+    });
+  });
 
   wrap.classList.remove('hidden');
 }
@@ -1519,14 +1536,6 @@ function openPresetMainMenu() {
       </button>
     </div>
 
-    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      Department line defaults
-    </p>
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="1">Line 1 default</button>
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="2">Line 2 default</button>
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="3">Line 3 default</button>
-    </div>
 
     <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
       Quick line setup
