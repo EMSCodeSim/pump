@@ -377,7 +377,14 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-    </style>
+    
+      /* On larger screens, add extra space under the SVG so the truck never touches the answer card */
+      @media (min-width: 768px){
+        #stageP {
+          padding-bottom: 32px;
+        }
+      }
+</style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
