@@ -1,13 +1,34 @@
 // view.presetEditor.js
-// Compact preset editor popup (name + type selection).
+// Compact preset editor popup (name + type selection + opens type builders).
+
+import { openMasterStreamPopup }   from "./view.lineMaster.js";
+import { openStandpipePopup }      from "./view.lineStandpipe.js";
+import { openFoamPopup }           from "./view.lineFoam.js";
+import { openSprinklerPopup }      from "./view.lineSprinkler.js";
+import { openStandardLinePopup }   from "./view.lineStandard.js";
+import { openSupplyLinePopup }     from "./view.lineSupply.js";
+import { openCustomBuilderPopup }  from "./view.lineCustom.js";
 
 export function openPresetEditorPopup(options) {
   options = options || {};
-  const onSave = typeof options.onSave === "function" ? options.onSave : function () {};
+  const dept    = options.dept || {};
+  const onSave  = typeof options.onSave === "function" ? options.onSave : function () {};
   const onCancel = typeof options.onCancel === "function" ? options.onCancel : function () {};
 
-  let selectedType = "";
-  let nameValue = "";
+  // Simple state
+  const state = {
+    name: "",
+    selectedType: "",
+    configs: {
+      standard: null,
+      master: null,
+      standpipe: null,
+      sprinkler: null,
+      foam: null,
+      supply: null,
+      custom: null
+    }
+  };
 
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
@@ -144,7 +165,7 @@ export function openPresetEditorPopup(options) {
   nameInput.style.width = "100%";
 
   nameInput.addEventListener("input", function () {
-    nameValue = nameInput.value || "";
+    state.name = nameInput.value || "";
     updatePreview();
   });
 
@@ -196,9 +217,14 @@ export function openPresetEditorPopup(options) {
     btn.style.cursor = "pointer";
 
     btn.addEventListener("click", function () {
-      selectedType = id;
+      if (!state.name.trim()) {
+        alert("Enter a preset name first.");
+        return;
+      }
+      state.selectedType = id;
       updateTypeButtons();
       updatePreview();
+      openTypeBuilder(id);
     });
 
     typeButtons.push({ id: id, btn: btn });
@@ -210,7 +236,7 @@ export function openPresetEditorPopup(options) {
   }
 
   const typeHint = document.createElement("div");
-  typeHint.textContent = "Enter a name and tap a type. Later we can open detailed builders per type.";
+  typeHint.textContent = "Enter a name, choose a type, then use the type window to set hose/nozzles/etc.";
   typeHint.style.fontSize = "0.75rem";
   typeHint.style.opacity = "0.8";
   typeHint.style.marginTop = "4px";
@@ -231,7 +257,7 @@ export function openPresetEditorPopup(options) {
   function updateTypeButtons() {
     for (let i = 0; i < typeButtons.length; i++) {
       const tb = typeButtons[i];
-      if (tb.id === selectedType) {
+      if (tb.id === state.selectedType) {
         tb.btn.style.borderColor = "#22c55e";
         tb.btn.style.background = "#022c22";
       } else {
@@ -242,12 +268,58 @@ export function openPresetEditorPopup(options) {
   }
 
   function updatePreview() {
-    if (!nameValue) {
+    if (!state.name) {
       preview.textContent = "Enter a preset name to begin.";
-    } else if (!selectedType) {
-      preview.textContent = 'Preset: "' + nameValue + '" – choose a type.';
+    } else if (!state.selectedType) {
+      preview.textContent = 'Preset: "' + state.name + '" – choose a type.';
     } else {
-      preview.textContent = 'Preset: "' + nameValue + '" • Type: ' + selectedType;
+      preview.textContent = 'Preset: "' + state.name + '" • Type: ' + state.selectedType;
+    }
+  }
+
+  function openTypeBuilder(id) {
+    if (id === "standard") {
+      openStandardLinePopup({
+        dept: dept,
+        initial: state.configs.standard,
+        onSave: function (cfg) { state.configs.standard = cfg; }
+      });
+    } else if (id === "master") {
+      openMasterStreamPopup({
+        dept: dept,
+        initial: state.configs.master,
+        onSave: function (cfg) { state.configs.master = cfg; }
+      });
+    } else if (id === "standpipe") {
+      openStandpipePopup({
+        dept: dept,
+        initial: state.configs.standpipe,
+        onSave: function (cfg) { state.configs.standpipe = cfg; }
+      });
+    } else if (id === "sprinkler") {
+      openSprinklerPopup({
+        dept: dept,
+        initial: state.configs.sprinkler,
+        onSave: function (cfg) { state.configs.sprinkler = cfg; }
+      });
+    } else if (id === "foam") {
+      openFoamPopup({
+        dept: dept,
+        initial: state.configs.foam,
+        onSave: function (cfg) { state.configs.foam = cfg; }
+      });
+    } else if (id === "supply") {
+      openSupplyLinePopup({
+        dept: dept,
+        initial: state.configs.supply,
+        onSave: function (cfg) { state.configs.supply = cfg; }
+      });
+    } else if (id === "custom") {
+      openCustomBuilderPopup({
+        dept: dept,
+        initial: state.configs.custom,
+        onSave: function (cfg) { state.configs.custom = cfg; }
+      });
     }
   }
 
@@ -256,17 +328,18 @@ export function openPresetEditorPopup(options) {
 
   saveBtn.addEventListener("click", function (e) {
     e.preventDefault();
-    if (!nameValue.trim()) {
+    if (!state.name.trim()) {
       alert("Please enter a preset name before saving.");
       return;
     }
-    if (!selectedType) {
+    if (!state.selectedType) {
       alert("Please choose a build type before saving.");
       return;
     }
     onSave({
-      name: nameValue,
-      lineType: selectedType
+      name: state.name,
+      lineType: state.selectedType,
+      configs: state.configs
     });
     close(false);
   });
