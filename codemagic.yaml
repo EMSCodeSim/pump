@@ -9,28 +9,23 @@ workflows:
       vars:
         ANDROID_APP_ID: "com.fireopscalc.app"
         ANDROID_APP_NAME: "FireOps Calc"
+      android_signing:
+        # This must match the name shown under “Available keystores”
+        - FireOpsCalcReleaseKey
 
     scripts:
       - name: Install Node dependencies
         script: |
           npm install
 
-      - name: Build web assets (if you have a build script)
+      - name: Build signed Android App Bundle
         script: |
-          if npm run | grep -q "build"; then
-            npm run build
-          else
-            echo "No npm build script, using existing dist/ folder"
-          fi
-
-      - name: Sync Capacitor to Android
-        script: |
-          npx cap sync android
-
-      - name: Build Android app (AAB + APK)
-        working_directory: android
-        script: |
-          ./gradlew clean bundleRelease assembleRelease
+          cd android
+          ./gradlew clean bundleRelease \
+            -Pandroid.injected.signing.store.file=$CM_KEYSTORE_PATH \
+            -Pandroid.injected.signing.store.password=$CM_KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$CM_KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$CM_KEY_PASSWORD
 
     artifacts:
       - android/app/build/outputs/**/*.aab
