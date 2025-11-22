@@ -1,13 +1,16 @@
 // view.presetEditor.js
 // Popup Preset Line Editor for FireOpsCalc
-// - Type picker: Standard, Blitz, Master, Standpipe, Sprinkler, Foam, Custom
-// - Each type shows its own mini-menu
-// - Global GPM / PDP preview
-// - Uses separate popups for Master Stream, Foam, Sprinkler
+// - Type picker (standard, blitz, master, standpipe, sprinkler, foam, custom)
+// - Basic hose + nozzle setup + optional wye
+// - For Master / Standpipe / Foam, opens dedicated popups:
+//     view.lineMaster.js      -> openMasterStreamPopup
+//     view.lineStandpipe.js   -> openStandpipePopup
+//     view.lineFoam.js        -> openFoamPopup
+// - Each popup returns a config with lastCalc we use for the preview bar.
 
-import { openMasterStreamPopup } from './view.lineMaster.js';
+import { openMasterStreamPopup }   from './view.lineMaster.js';
+import { openStandpipePopup }     from './view.lineStandpipe.js';
 import { openFoamPopup }          from './view.lineFoam.js';
-import { openSprinklerPopup }     from './view.lineSprinkler.js';
 
 let presetEditorStylesInjected = false;
 
@@ -32,7 +35,6 @@ function injectPresetEditorStyles() {
   overflow-y: auto;
 }
 
-/* Panel matches the look of .preset-panel from preset.js */
 .preset-line-panel {
   position: relative;
   max-width: 480px;
@@ -113,7 +115,7 @@ function injectPresetEditorStyles() {
   border-top: 1px solid rgba(148, 163, 184, 0.25);
 }
 
-/* Buttons match btn-primary / btn-secondary vibe */
+/* Buttons */
 .pe-btn-primary,
 .pe-btn-secondary {
   border-radius: 999px;
@@ -192,7 +194,7 @@ function injectPresetEditorStyles() {
   color: rgba(148, 163, 184, 0.9);
 }
 
-/* Subsections (branches / feeds) – card inside panel */
+/* Subsections (branches) – card inside panel */
 .pe-subsection {
   border: 1px solid rgba(30, 64, 175, 0.5);
   background: rgba(15, 23, 42, 0.85);
@@ -312,70 +314,6 @@ function injectPresetEditorStyles() {
     min-width: 120px;
   }
 }
-
-/* Explain-math popup styling (used by Standpipe) */
-.pe-explain-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(3, 7, 18, 0.75);
-  backdrop-filter: blur(6px);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 40px;
-  z-index: 10050;
-  overflow-y: auto;
-}
-.pe-explain-panel {
-  max-width: 480px;
-  width: 100%;
-  margin: 0 12px 24px;
-  background: #020617;
-  border-radius: 18px;
-  box-shadow:
-    0 18px 30px rgba(15, 23, 42, 0.85),
-    0 0 0 1px rgba(148, 163, 184, 0.45);
-  padding: 12px 14px 10px;
-  color: #e5e7eb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.pe-explain-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-}
-.pe-explain-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-.pe-explain-body {
-  font-size: 0.83rem;
-  line-height: 1.5;
-  max-height: min(60vh, 420px);
-  overflow-y: auto;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-.pe-explain-body code {
-  font-size: 0.8rem;
-  background: rgba(15, 23, 42, 0.9);
-  border-radius: 4px;
-  padding: 1px 4px;
-}
-.pe-explain-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-}
   `;
   document.head.appendChild(style);
 }
@@ -464,9 +402,6 @@ export function openPresetEditorPopup({
       if (typeof onSave === 'function') onSave(presetConfig);
       close(false);
     },
-    onCancel() {
-      close(true);
-    },
     saveButton: saveBtn
   });
 }
@@ -478,7 +413,6 @@ export function renderPresetEditor(mountEl, {
   dept = {},
   initialPreset = null,
   onSave = () => {},
-  onCancel = () => {},
   saveButton = null,
 } = {}) {
   injectPresetEditorStyles();
@@ -503,60 +437,15 @@ export function renderPresetEditor(mountEl, {
       branchB: { hoseSizeId: hoses[0]?.id || '', lengthFt: 100, nozzleId: nozzles[0]?.id || '' }
     },
 
-    // Master / Blitz summary – detailed config in view.lineMaster.js
-    hasMaster: false,
-    master: {
-      mountType: 'deck',
-      feedLines: 1,
-      applianceId: appliances[0]?.id || '',
-      desiredGpm: 800,
-      applianceLossPsi: 25,
-      elevationFt: 0,
-      leftFeed:  { hoseSizeId: hoses[0]?.id || '', lengthFt: 150, intakePsi: '' },
-      rightFeed: { hoseSizeId: hoses[0]?.id || '', lengthFt: 150, intakePsi: '' },
-      blitzFeed: { hoseSizeId: hoses[0]?.id || '', lengthFt: 150, intakePsi: '' },
-      lastCalc: null
-    },
-
-    // Foam config is handled by view.lineFoam.js
-    foam: {
-      lastCalc: null
-    },
-
-    // Sprinkler config is handled by view.lineSprinkler.js
-    sprinkler: {
-      lastCalc: null
-    },
-
-    // Standpipe stays inline here
-    standpipe: {
-      floor: '',
-      outletPsi: 100,
-      floorsUp: 0,
-      systemLossPsi: 25,
-      attackHoseId: hoses[0]?.id || '',
-      attackLengthFt: 150,
-    },
+    // External popup configs:
+    masterConfig:    null,  // from openMasterStreamPopup
+    standpipeConfig: null,  // from openStandpipePopup
+    foamConfig:      null,  // from openFoamPopup
   };
 
   const state = deepClone(defaults);
   if (initialPreset) {
     Object.assign(state, initialPreset);
-
-    if (initialPreset.master) {
-      Object.assign(state.master, initialPreset.master);
-      if (state.master.mountType === 'mounted') state.master.mountType = 'deck';
-      if (state.master.mountType === 'base')    state.master.mountType = 'portable';
-    }
-    if (initialPreset.foam) {
-      state.foam = { ...state.foam, ...initialPreset.foam };
-    }
-    if (initialPreset.sprinkler) {
-      state.sprinkler = { ...state.sprinkler, ...initialPreset.sprinkler };
-    }
-    if (initialPreset.standpipe) {
-      Object.assign(state.standpipe, initialPreset.standpipe);
-    }
   }
 
   // === helpers ===
@@ -618,210 +507,8 @@ export function renderPresetEditor(mountEl, {
     });
   }
 
-  // --- Nozzle & hose helpers for standpipe/master math ---
-  function parseGpmFromNozzle(nozzleId) {
-    const noz = nozzles.find(n => n.id === nozzleId);
-    if (!noz || !noz.label) return 150;
-    const m = noz.label.match(/(\d+)\s*gpm/i);
-    return m ? Number(m[1]) : 150;
-  }
+  // --- Type buttons ---
 
-  function parseNpFromNozzle(nozzleId) {
-    const noz = nozzles.find(n => n.id === nozzleId);
-    if (!noz || !noz.label) return 100;
-    const m = noz.label.match(/@\s*(\d+)\s*psi/i);
-    return m ? Number(m[1]) : 100;
-  }
-
-  const SP_C_BY_DIA = {
-    '1.75': 15.5,
-    '1.5': 24,
-    '2.5': 2,
-    '3':   0.8,
-    '4':   0.2,
-    '5':   0.08,
-  };
-
-  function guessDiaFromHoseLabel(label) {
-    if (!label) return 2.5;
-    const m = label.match(/(\d(?:\.\d+)?)\s*"/);
-    if (m) return Number(m[1]);
-    if (/1 3\/4/.test(label)) return 1.75;
-    if (/1¾/.test(label))     return 1.75;
-    if (/1\s?1\/2/.test(label)) return 1.5;
-    if (/2\s?1\/2/.test(label)) return 2.5;
-    if (/3"/.test(label))     return 3;
-    if (/5"/.test(label))     return 5;
-    return 2.5;
-  }
-
-  function getHoseLabelById(id) {
-    const h = hoses.find(x => x.id === id);
-    return h ? h.label : '';
-  }
-
-  function calcFL(C, gpm, lengthFt) {
-    if (!C || !gpm || !lengthFt) return 0;
-    const per100 = C * Math.pow(gpm / 100, 2);
-    return per100 * (lengthFt / 100);
-  }
-
-  function calcElevationPsi(floorsUp) {
-    if (!floorsUp) return 0;
-    return floorsUp * 5;
-  }
-
-  // --- Standpipe numbers ---
-  function calcStandpipeNumbers(currentState) {
-    const gpm = parseGpmFromNozzle(currentState.nozzleId);
-    const np  = parseNpFromNozzle(currentState.nozzleId);
-
-    const engineHoseLabel = getHoseLabelById(currentState.hoseSizeId);
-    const engineDia       = String(guessDiaFromHoseLabel(engineHoseLabel));
-    const C1              = SP_C_BY_DIA[engineDia] || 2;
-    const FL1             = calcFL(C1, gpm, currentState.lengthFt || 0);
-
-    const spState = currentState.standpipe || {};
-    const atkHoseId     = spState.attackHoseId || currentState.hoseSizeId;
-    const atkLengthFt   = spState.attackLengthFt || currentState.lengthFt || 0;
-    const attackHoseLbl = getHoseLabelById(atkHoseId);
-    const attackDia     = String(guessDiaFromHoseLabel(attackHoseLbl));
-    const C2            = SP_C_BY_DIA[attackDia] || 2;
-    const FL2           = calcFL(C2, gpm, atkLengthFt);
-
-    const floorsUp      = spState.floorsUp ?? 0;
-    const elev          = calcElevationPsi(floorsUp);
-    const systemLoss    = spState.systemLossPsi ?? 25;
-
-    const PDP           = np + FL1 + FL2 + elev + systemLoss;
-
-    return {
-      gpm,
-      np,
-      FL1: Math.round(FL1),
-      FL2: Math.round(FL2),
-      elev: Math.round(elev),
-      system: Math.round(systemLoss),
-      PDP: Math.round(PDP),
-      engineHoseLabel,
-      attackHoseLabel,
-      floorsUp,
-    };
-  }
-
-  // --- Master stream numbers (preview only; main config handled by view.lineMaster.js) ---
-  function calcMasterNumbers(currentState) {
-    const m = currentState.master || {};
-    const gpm = Number(m.desiredGpm || 800);
-    const NP  = 80; // standard master stream NP assumption
-
-    const lines = m.feedLines === 2 ? 2 : 1;
-
-    let feeds = [];
-    if (lines === 1) {
-      if (m.mountType === 'portable') {
-        feeds = [m.blitzFeed];
-      } else {
-        feeds = [m.leftFeed];
-      }
-    } else {
-      feeds = [m.leftFeed, m.rightFeed];
-    }
-
-    let FL = 0;
-    const gpmPerLine = gpm / lines;
-    feeds.forEach(feed => {
-      if (!feed) return;
-      const label = getHoseLabelById(feed.hoseSizeId);
-      const dia   = String(guessDiaFromHoseLabel(label));
-      const C     = SP_C_BY_DIA[dia] || 2;
-      const len   = feed.lengthFt || 0;
-      const fl    = calcFL(C, gpmPerLine, len);
-      if (fl > FL) FL = fl;
-    });
-
-    const applianceLoss = m.applianceLossPsi || 25;
-    const elevPsi       = (m.elevationFt || 0) * 0.434;
-    const PDP           = NP + FL + applianceLoss + elevPsi;
-
-    return {
-      gpm: Math.round(gpm),
-      NP,
-      FL: Math.round(FL),
-      applianceLoss: Math.round(applianceLoss),
-      elevPsi: Math.round(elevPsi),
-      PDP: Math.round(PDP),
-      lines,
-      mountType: m.mountType,
-    };
-  }
-
-  // === PREVIEW (type-aware) ===
-  function calculatePPandGPM(currentState) {
-    // Standpipe uses inline math
-    if (currentState.lineType === 'standpipe') {
-      const vals = calcStandpipeNumbers(currentState);
-      return { gpm: vals.gpm, pp: vals.PDP };
-    }
-
-    // Master / Blitz: prefer lastCalc from popup, otherwise local calc
-    if (currentState.lineType === 'master' || currentState.lineType === 'blitz') {
-      if (currentState.master && currentState.master.lastCalc) {
-        const lc = currentState.master.lastCalc;
-        return { gpm: lc.gpm || lc.totalGpm || 800, pp: lc.PDP || lc.pdp || 150 };
-      }
-      const vals = calcMasterNumbers(currentState);
-      return { gpm: vals.gpm, pp: vals.PDP };
-    }
-
-    // Foam: use popup math if available
-    if (currentState.lineType === 'foam') {
-      if (currentState.foam && currentState.foam.lastCalc) {
-        const lc = currentState.foam.lastCalc;
-        const gpm = lc.solutionGpm || lc.waterGpm || 150;
-        const pp  = lc.pdp || currentState.foam.eductorPdp || 200;
-        return { gpm: Math.round(gpm), pp: Math.round(pp) };
-      }
-      // Fallback
-      return { gpm: 150, pp: 200 };
-    }
-
-    // Sprinkler: use popup math if available
-    if (currentState.lineType === 'sprinkler') {
-      if (currentState.sprinkler && currentState.sprinkler.lastCalc) {
-        const lc = currentState.sprinkler.lastCalc;
-        const gpm = lc.totalGpm || lc.designGpm || 300;
-        const pp  = lc.pdp || 150;
-        return { gpm: Math.round(gpm), pp: Math.round(pp) };
-      }
-      // Fallback
-      return { gpm: 300, pp: 150 };
-    }
-
-    // Other / custom placeholder logic
-    let gpm = 150;
-    let pp  = 150;
-
-    switch (currentState.lineType) {
-      case 'standard':
-        gpm = 150;
-        if (currentState.hasWye) gpm += 50;
-        break;
-      case 'custom':
-      default:
-        gpm = 200;
-        if (currentState.hasMaster) gpm += 200;
-        if (currentState.hasWye) gpm += 50;
-        break;
-    }
-
-    return { gpm: Math.round(gpm), pp: Math.round(pp) };
-  }
-
-  // === UI skeleton ===
-  const container = el('div', { class: 'preset-editor' });
-
-  // --- TYPE SELECTION ---
   const typeButtons = [];
 
   function makeTypeButton(id, label, sublabel) {
@@ -829,7 +516,7 @@ export function renderPresetEditor(mountEl, {
       class: 'pe-type-btn',
       onclick: (e) => {
         e.preventDefault();
-        setLineType(id);
+        setLineType(id, true); // true = open popup when relevant
       }
     },
       document.createTextNode(label),
@@ -845,15 +532,48 @@ export function renderPresetEditor(mountEl, {
     });
   }
 
-  function setLineType(type) {
+  function openMasterConfig() {
+    openMasterStreamPopup({
+      dept: { hoses, appliances },
+      initial: state.masterConfig || null,
+      onSave(config) {
+        state.masterConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
+  function openStandpipeConfig() {
+    openStandpipePopup({
+      dept: { hoses, nozzles },
+      initial: state.standpipeConfig || null,
+      onSave(config) {
+        state.standpipeConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
+  function openFoamConfig() {
+    openFoamPopup({
+      dept: { nozzles },
+      initial: state.foamConfig || null,
+      onSave(config) {
+        state.foamConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
+  function setLineType(type, openPopup) {
     state.lineType = type;
-    if (type === 'standard') {
-      state.hasMaster = false;
-    } else if (type === 'blitz' || type === 'master') {
-      state.hasMaster = true;
-    }
     updateTypeButtons();
     renderLayout();
+    if (openPopup) {
+      if (type === 'master')    openMasterConfig();
+      if (type === 'standpipe') openStandpipeConfig();
+      if (type === 'foam')      openFoamConfig();
+    }
     updatePreview();
   }
 
@@ -932,266 +652,6 @@ export function renderPresetEditor(mountEl, {
 
   basicSection.append(basicRow1, basicRow2);
 
-  // --- Standpipe explain popup ---
-  function openStandpipeExplainPopup() {
-    const vals = calcStandpipeNumbers(state);
-
-    const overlay = document.createElement('div');
-    overlay.className = 'pe-explain-overlay';
-
-    const panel = document.createElement('div');
-    panel.className = 'pe-explain-panel';
-
-    const header = document.createElement('div');
-    header.className = 'pe-explain-header';
-
-    const title = document.createElement('div');
-    title.className = 'pe-explain-title';
-    title.textContent = 'Standpipe math breakdown';
-
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'preset-line-close';
-    closeBtn.textContent = '✕';
-
-    header.appendChild(title);
-    header.appendChild(closeBtn);
-
-    const body = document.createElement('div');
-    body.className = 'pe-explain-body';
-
-    const gpm = vals.gpm;
-    const np  = vals.np;
-
-    body.innerHTML = `
-      <p>We use a simple standpipe formula:</p>
-      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss</code></p>
-
-      <p><strong>Inputs:</strong></p>
-      <ul>
-        <li>Nozzle: <code>${state.nozzleId || ''}</code> → approx <code>${gpm} gpm</code> @ <code>${np} psi</code></li>
-        <li>Engine → standpipe hose: <code>${vals.engineHoseLabel || 'engine hose'}</code>,
-            length <code>${state.lengthFt || 0} ft</code></li>
-        <li>Standpipe → nozzle hose: <code>${vals.attackHoseLabel || 'attack hose'}</code>,
-            length <code>${(state.standpipe && state.standpipe.attackLengthFt) || state.lengthFt || 0} ft</code></li>
-        <li>Floors up / elevation: <code>${vals.floorsUp || 0}</code></li>
-        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>
-      </ul>
-
-      <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
-        <code>FL₁ = C₁ × (GPM/100)² × (length/100)</code><br>
-        → FL₁ ≈ <code>${vals.FL1} psi</code>
-      </p>
-
-      <p><strong>Step 2 – Friction loss (standpipe → nozzle):</strong><br>
-        <code>FL₂ = C₂ × (GPM/100)² × (length/100)</code><br>
-        → FL₂ ≈ <code>${vals.FL2} psi</code>
-      </p>
-
-      <p><strong>Step 3 – Elevation:</strong><br>
-        Approx 5 psi per floor up.<br>
-        → Elevation ≈ <code>${vals.elev} psi</code>
-      </p>
-
-      <p><strong>Step 4 – System loss:</strong><br>
-        User-estimated loss for standpipe valves, PRVs, etc.<br>
-        → System loss ≈ <code>${vals.system} psi</code>
-      </p>
-
-      <p><strong>Final pump discharge pressure (PDP):</strong></p>
-      <p>
-        <code>
-          PDP = ${np} (NP) +
-                ${vals.FL1} (FL₁) +
-                ${vals.FL2} (FL₂) +
-                ${vals.elev} (elev) +
-                ${vals.system} (system)
-          = ${vals.PDP} psi
-        </code>
-      </p>
-    `;
-
-    const footer = document.createElement('div');
-    footer.className = 'pe-explain-footer';
-
-    const okBtn = document.createElement('button');
-    okBtn.type = 'button';
-    okBtn.className = 'pe-btn-primary';
-    okBtn.textContent = 'Close';
-
-    footer.appendChild(okBtn);
-
-    panel.append(header, body, footer);
-    overlay.appendChild(panel);
-    document.body.appendChild(overlay);
-
-    function closeExplain() {
-      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    }
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeExplain();
-    });
-    closeBtn.addEventListener('click', closeExplain);
-    okBtn.addEventListener('click', closeExplain);
-  }
-
-  // --- SPECIAL SECTION (foam / sprinkler / standpipe / custom) ---
-  const specialSection = el('section', { class: 'pe-section', id: 'pe-special' });
-
-  function renderSpecialSection() {
-    specialSection.innerHTML = '';
-
-    const targets = [];
-    if (state.lineType === 'foam')      targets.push('foam');
-    if (state.lineType === 'sprinkler') targets.push('sprinkler');
-    if (state.lineType === 'standpipe') targets.push('standpipe');
-    if (state.lineType === 'custom')    targets.push('foam','sprinkler','standpipe');
-
-    if (!targets.length) return;
-
-    // FOAM: button opens view.lineFoam.js popup
-    if (targets.includes('foam')) {
-      const foamHeader = el('h3', { text: 'Foam options' });
-
-      const summaryText = (() => {
-        const lc = state.foam && state.foam.lastCalc;
-        if (!lc) return 'No foam setup yet. Tap "Configure foam system" to build one.';
-        const water = lc.waterGpm ?? 0;
-        const foam  = lc.foamGpm ?? 0;
-        const sol   = lc.solutionGpm ?? (water + foam);
-        const pdp   = lc.pdp ?? '—';
-        return `Flow ~${sol} gpm (water ${water} + foam ${foam}) • PDP ~${pdp} psi`;
-      })();
-
-      const row = el('div', { class: 'pe-row' },
-        el('label', { text: 'Foam system:' }),
-        el('span', { text: summaryText }),
-        el('button', {
-          class: 'pe-btn-secondary',
-          text: 'Configure foam system',
-          onclick: (e) => {
-            e.preventDefault();
-            openFoamPopup({
-              dept: { nozzles },
-              initial: state.foam,
-              onSave(config) {
-                state.foam = config;
-                // Make sure preview uses foam for this preset
-                state.lineType = state.lineType === 'custom' ? state.lineType : 'foam';
-                updateTypeButtons();
-                renderSpecialSection();
-                updatePreview();
-              }
-            });
-          }
-        })
-      );
-
-      specialSection.append(foamHeader, row);
-    }
-
-    // SPRINKLER: button opens view.lineSprinkler.js popup
-    if (targets.includes('sprinkler')) {
-      const sprHeader = el('h3', { text: 'Sprinkler options' });
-
-      const summaryText = (() => {
-        const lc = state.sprinkler && state.sprinkler.lastCalc;
-        if (!lc) return 'No sprinkler setup yet. Tap "Configure sprinkler system" to build one.';
-        const flow = lc.totalGpm ?? lc.designGpm ?? 0;
-        const pdp  = lc.pdp ?? '—';
-        return `Flow ~${flow} gpm • PDP ~${pdp} psi`;
-      })();
-
-      const row = el('div', { class: 'pe-row' },
-        el('label', { text: 'Sprinkler system:' }),
-        el('span', { text: summaryText }),
-        el('button', {
-          class: 'pe-btn-secondary',
-          text: 'Configure sprinkler system',
-          onclick: (e) => {
-            e.preventDefault();
-            openSprinklerPopup({
-              initial: state.sprinkler,
-              onSave(config) {
-                state.sprinkler = config;
-                state.lineType = state.lineType === 'custom' ? state.lineType : 'sprinkler';
-                updateTypeButtons();
-                renderSpecialSection();
-                updatePreview();
-              }
-            });
-          }
-        })
-      );
-
-      specialSection.append(sprHeader, row);
-    }
-
-    // STANDPIPE: keep inline mini-editor + explain math popup
-    if (targets.includes('standpipe')) {
-      const spState = state.standpipe || {};
-
-      const section = el('div', null,
-        el('h3', { text: 'Standpipe options' }),
-        el('div', { class: 'pe-row' },
-          el('label', { text: 'Floors up:' }),
-          numberInput(spState.floorsUp ?? 0, v => {
-            state.standpipe.floorsUp = v || 0;
-            updatePreview();
-          }),
-          el('span', { text: '≈ 5 psi / floor' })
-        ),
-        el('div', { class: 'pe-row' },
-          el('label', { text: 'System loss:' }),
-          numberInput(spState.systemLossPsi ?? 25, v => {
-            state.standpipe.systemLossPsi = v || 0;
-            updatePreview();
-          }),
-          el('span', { text: 'psi (valves, PRVs, etc.)' })
-        ),
-        el('div', { class: 'pe-row' },
-          el('label', { text: 'Standpipe → nozzle hose:' }),
-          select(
-            hoses,
-            spState.attackHoseId || state.hoseSizeId,
-            v => {
-              state.standpipe.attackHoseId = v;
-              updatePreview();
-            }
-          ),
-          el('span', { text: 'Length:' }),
-          numberInput(spState.attackLengthFt ?? state.lengthFt ?? 150, v => {
-            state.standpipe.attackLengthFt = v || 0;
-            updatePreview();
-          }),
-          el('span', { text: 'ft' })
-        ),
-        el('div', { class: 'pe-row' },
-          el('label', { text: 'Nozzle:' }),
-          select(
-            nozzles,
-            state.nozzleId,
-            v => { state.nozzleId = v; updatePreview(); }
-          )
-        ),
-        el('div', { class: 'pe-row' },
-          el('span', { text: '' }),
-          el('button', {
-            class: 'pe-btn-secondary',
-            text: 'Explain math',
-            onclick: (e) => {
-              e.preventDefault();
-              openStandpipeExplainPopup();
-            }
-          })
-        )
-      );
-
-      specialSection.append(section);
-    }
-  }
-
   // --- WYE SECTION (standard + custom) ---
   const wyeSection = el('section', { class: 'pe-section' });
   const wyeContent = el('div');
@@ -1261,74 +721,137 @@ export function renderPresetEditor(mountEl, {
 
   wyeSection.append(wyeToggleRow, wyeContent);
 
-  // --- MASTER / BLITZ SECTION (summary + button to popup) ---
-  const masterSection = el('section', { class: 'pe-section' });
+  // --- SPECIAL SECTION (foam / sprinkler / standpipe / master shortcuts) ---
+  const specialSection = el('section', { class: 'pe-section', id: 'pe-special' });
 
-  function renderMasterSection() {
-    masterSection.innerHTML = '';
+  function renderSpecialSection() {
+    specialSection.innerHTML = '';
 
-    if (
-      state.lineType !== 'blitz' &&
-      state.lineType !== 'master' &&
-      state.lineType !== 'custom'
-    ) {
-      return;
+    // For now, this just shows "configure" shortcuts for the external popups,
+    // plus sprinkler placeholder fields.
+    const targets = [];
+    if (state.lineType === 'foam')      targets.push('foam');
+    if (state.lineType === 'standpipe') targets.push('standpipe');
+    if (state.lineType === 'master')    targets.push('master');
+    if (state.lineType === 'sprinkler') targets.push('sprinkler');
+    if (state.lineType === 'custom')    targets.push('foam', 'standpipe', 'master', 'sprinkler');
+
+    if (!targets.length) return;
+
+    if (targets.includes('foam')) {
+      specialSection.append(
+        el('h3', { text: 'Foam options' }),
+        el('div', { class: 'pe-row' },
+          el('span', { text: 'Open foam setup:' }),
+          el('button', {
+            class: 'pe-btn-secondary',
+            text: 'Configure foam system…',
+            onclick: (e) => {
+              e.preventDefault();
+              openFoamConfig();
+            }
+          })
+        )
+      );
     }
 
-    const isBlitz = state.lineType === 'blitz';
-
-    masterSection.append(
-      el('h3', {
-        text: isBlitz ? 'Blitz fire setup' : 'Master stream builder'
-      })
-    );
-
-    const lc = state.master && state.master.lastCalc
-      ? state.master.lastCalc
-      : calcMasterNumbers(state);
-
-    const mode = state.master.mountType === 'portable'
-      ? 'Portable / Blitz'
-      : 'Deck gun';
-
-    const lines = state.master.feedLines === 2 ? 2 : 1;
-
-    const summaryRow = el('div', { class: 'pe-row' },
-      el('label', { text: 'Current master setup:' }),
-      el('span', {
-        text: lc && lc.gpm
-          ? `${mode}, ${lines} line${lines > 1 ? 's' : ''} – ~${lc.gpm} gpm, PDP ~${lc.PDP || lc.pdp || 150} psi`
-          : 'No master stream setup yet. Tap "Configure master stream" to build one.'
-      })
-    );
-
-    const btnRow = el('div', { class: 'pe-row' },
-      el('span', { text: '' }),
-      el('button', {
-        class: 'pe-btn-secondary',
-        text: 'Configure master stream',
-        onclick: (e) => {
-          e.preventDefault();
-          openMasterStreamPopup({
-            dept: { hoses, appliances },
-            initial: state.master,
-            onSave(config) {
-              state.master = config;
-              state.hasMaster = true;
-              // Ensure type stays master/blitz/custom – don't override
-              renderMasterSection();
-              updatePreview();
+    if (targets.includes('standpipe')) {
+      specialSection.append(
+        el('h3', { text: 'Standpipe options' }),
+        el('div', { class: 'pe-row' },
+          el('span', { text: 'Open standpipe setup:' }),
+          el('button', {
+            class: 'pe-btn-secondary',
+            text: 'Configure standpipe…',
+            onclick: (e) => {
+              e.preventDefault();
+              openStandpipeConfig();
             }
-          });
-        }
-      })
-    );
+          })
+        )
+      );
+    }
 
-    masterSection.append(summaryRow, btnRow);
+    if (targets.includes('master')) {
+      specialSection.append(
+        el('h3', { text: 'Master stream options' }),
+        el('div', { class: 'pe-row' },
+          el('span', { text: 'Open master stream setup:' }),
+          el('button', {
+            class: 'pe-btn-secondary',
+            text: 'Configure master stream…',
+            onclick: (e) => {
+              e.preventDefault();
+              openMasterConfig();
+            }
+          })
+        )
+      );
+    }
+
+    if (targets.includes('sprinkler')) {
+      specialSection.append(
+        el('h3', { text: 'Sprinkler options (placeholder)' }),
+        el('div', { class: 'pe-row' },
+          el('span', { text: 'Sprinkler presets will be added here.' })
+        )
+      );
+    }
   }
 
   // --- PREVIEW BAR ---
   const previewBar = el('div', { class: 'pe-preview' });
+
+  function calculatePPandGPM(currentState) {
+    // If external popup configs have lastCalc, use them.
+    if (currentState.lineType === 'master' && currentState.masterConfig?.lastCalc) {
+      const lc = currentState.masterConfig.lastCalc;
+      const gpm = lc.gpm ?? lc.GPM ?? 0;
+      const pp  = lc.PDP ?? lc.pp ?? lc.pdp ?? 0;
+      return { gpm: Math.round(gpm), pp: Math.round(pp) };
+    }
+
+    if (currentState.lineType === 'standpipe' && currentState.standpipeConfig?.lastCalc) {
+      const lc = currentState.standpipeConfig.lastCalc;
+      const gpm = lc.gpm ?? lc.GPM ?? 0;
+      const pp  = lc.PDP ?? lc.pp ?? lc.pdp ?? 0;
+      return { gpm: Math.round(gpm), pp: Math.round(pp) };
+    }
+
+    if (currentState.lineType === 'foam' && currentState.foamConfig?.lastCalc) {
+      const lc = currentState.foamConfig.lastCalc;
+      const gpm = lc.solutionGpm ?? lc.waterGpm ?? lc.gpm ?? 0;
+      const pp  = lc.pdp ?? lc.PDP ?? 0;
+      return { gpm: Math.round(gpm), pp: Math.round(pp || 150) };
+    }
+
+    // Placeholder / simple preview for other types.
+    let gpm = 150;
+    let pp  = 150;
+
+    switch (currentState.lineType) {
+      case 'standard':
+        gpm = 150;
+        if (currentState.hasWye) gpm += 50;
+        break;
+      case 'blitz':
+        gpm = 500;
+        pp  = 150;
+        break;
+      case 'sprinkler':
+        gpm = 250;
+        pp  = 150;
+        break;
+      case 'custom':
+      default:
+        gpm = 200;
+        if (currentState.hasWye) gpm += 50;
+        if (currentState.masterConfig) gpm += 200;
+        break;
+    }
+
+    return { gpm: Math.round(gpm), pp: Math.round(pp) };
+  }
 
   function updatePreview() {
     const { gpm, pp } = calculatePPandGPM(state);
@@ -1344,6 +867,8 @@ export function renderPresetEditor(mountEl, {
   }
 
   // --- LAYOUT RENDERING ---
+  const container = el('div', { class: 'preset-editor' });
+
   function renderLayout() {
     container.innerHTML = '';
 
@@ -1360,19 +885,13 @@ export function renderPresetEditor(mountEl, {
       container.append(wyeSection);
     }
 
-    if (state.lineType === 'blitz' || state.lineType === 'master' || state.lineType === 'custom') {
-      renderMasterSection();
-      container.append(masterSection);
-    }
-
     container.append(previewBar);
   }
 
   // Initial render
   updateTypeButtons();
-  renderSpecialSection();
   renderWyeContent();
-  renderMasterSection();
+  renderSpecialSection();
   updatePreview();
   renderLayout();
 
