@@ -1,5 +1,6 @@
 // view.presetEditor.js
 // Popup Preset Line Editor for FireOpsCalc
+// Now styled to visually match the dark "Presets" panel.
 
 let presetEditorStylesInjected = false;
 
@@ -9,12 +10,13 @@ function injectPresetEditorStyles() {
 
   const style = document.createElement('style');
   style.textContent = `
-/* ==== PRESET EDITOR – POPUP & MOBILE FIRST ==== */
+/* ==== PRESET LINE EDITOR – POPUP & DARK THEME ==== */
 
-.preset-overlay {
+.preset-line-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.45);
+  background: rgba(3, 7, 18, 0.55);
+  backdrop-filter: blur(6px);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -23,28 +25,137 @@ function injectPresetEditorStyles() {
   overflow-y: auto;
 }
 
-.preset-editor {
-  background: #ffffff;
-  padding: 12px;
-  margin: 16px;
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  font-size: 15px;
+/* Panel matches the look of .preset-panel from preset.js */
+.preset-line-panel {
+  position: relative;
   max-width: 480px;
   width: 100%;
+  margin: 0 12px 24px;
+  background: #020617;
+  border-radius: 18px;
+  box-shadow:
+    0 18px 30px rgba(15, 23, 42, 0.75),
+    0 0 0 1px rgba(148, 163, 184, 0.35);
+  padding: 12px 14px 10px;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .preset-line-panel {
+    margin-top: 12px;
+    border-radius: 20px;
+    padding: 14px 16px 12px;
+  }
+}
+
+/* Header row (title + close) */
+.preset-line-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.preset-line-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.preset-line-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
+  color: #e5e7eb;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+.preset-line-close:hover {
+  background: #111827;
+}
+
+/* Body is scrollable form */
+.preset-line-body {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Footer: buttons */
+.preset-line-footer {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* Re-use visual style of btn-primary / btn-secondary from preset.js */
+.pe-btn-primary,
+.pe-btn-secondary {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #22c55e);
+  color: #020617;
+  font-weight: 600;
+}
+
+.pe-btn-secondary {
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.pe-btn-primary:active,
+.pe-btn-secondary:active {
+  transform: translateY(1px);
+}
+
+/* ==== FORM LAYOUT (MOBILE FIRST) ==== */
+
+.preset-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* Sections */
 .preset-editor section.pe-section {
-  border-top: 1px solid #ddd;
+  border-top: 1px solid rgba(148, 163, 184, 0.4);
   padding-top: 8px;
 }
 
-/* Rows: mobile = stacked vertical */
+.preset-editor section.pe-section:first-of-type {
+  border-top: none;
+}
+
+/* Rows: stacked on phone, horizontal on wider screens */
 .pe-row {
   display: flex;
   flex-direction: column;
@@ -54,33 +165,43 @@ function injectPresetEditorStyles() {
 
 .pe-row label {
   font-weight: 500;
+  font-size: 0.82rem;
 }
 
-/* Inputs & selects full-width on phone */
+/* Inputs & selects full width on phone */
 .preset-editor input[type="text"],
 .preset-editor input[type="number"],
 .preset-editor select {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 65, 81, 0.9);
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 0.8rem;
 }
 
-/* Smaller inline spans (units, etc.) */
-.pe-row span {
-  font-size: 0.9em;
+.preset-editor input::placeholder {
+  color: rgba(148, 163, 184, 0.9);
 }
 
-/* Subsections (branches / feeds) – full width on phone */
+/* Subsections (branches / feeds) – card inside panel */
 .pe-subsection {
-  border: 1px solid #eee;
+  border: 1px solid rgba(30, 64, 175, 0.5);
+  background: rgba(15, 23, 42, 0.85);
   padding: 6px;
-  border-radius: 4px;
+  border-radius: 10px;
   margin-top: 6px;
 }
 
-/* Toggle buttons */
+.pe-subsection h4 {
+  margin: 0 0 4px 0;
+  font-size: 0.8rem;
+  color: #bfdbfe;
+}
+
+/* Toggle pill group */
 .pe-toggle-group {
   display: inline-flex;
   gap: 4px;
@@ -89,59 +210,37 @@ function injectPresetEditorStyles() {
 .pe-toggle-group button {
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid #ccc;
-  background: #f5f5f5;
-  font-size: 0.9em;
+  border: 1px solid rgba(75, 85, 99, 0.9);
+  background: rgba(15, 23, 42, 0.9);
+  font-size: 0.78rem;
+  color: #e5e7eb;
+  cursor: pointer;
 }
 
 .pe-toggle-on {
-  background: #007aff;
-  border-color: #007aff;
-  color: #fff;
-}
-
-/* Name row */
-.pe-name input {
-  width: 100%;
+  background: #0ea5e9;
+  border-color: #0ea5e9;
+  color: #020617;
 }
 
 /* Preview bar */
 .pe-preview {
   margin-top: 8px;
   padding: 8px;
-  border-radius: 4px;
-  background: #f3f6ff;
+  border-radius: 10px;
+  background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
+  border: 1px solid rgba(37, 99, 235, 0.8);
   font-weight: 600;
+  font-size: 0.82rem;
   text-align: center;
 }
 
-/* Actions */
-.pe-actions {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 4px;
+/* Name row margin tweak */
+.pe-name {
+  margin-top: 0;
 }
 
-.pe-actions button {
-  padding: 8px 16px;
-  border-radius: 4px;
-  border: none;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pe-save {
-  background: #007aff;
-  color: #fff;
-}
-
-.pe-cancel {
-  background: #eee;
-}
-
-/* ====== DESKTOP / TABLET ENHANCEMENTS ====== */
+/* Desktop / tablet enhancements */
 @media (min-width: 640px) {
   .pe-row {
     flex-direction: row;
@@ -181,7 +280,7 @@ function deepClone(obj) {
 }
 
 /**
- * Open the preset editor as a popup overlay.
+ * Open the preset line editor as a popup overlay.
  *
  * Usage:
  *   import { openPresetEditorPopup } from './view.presetEditor.js';
@@ -196,27 +295,66 @@ export function openPresetEditorPopup({
   injectPresetEditorStyles();
 
   const overlay = document.createElement('div');
-  overlay.className = 'preset-overlay';
+  overlay.className = 'preset-line-overlay';
 
-  const mount = document.createElement('div');
-  overlay.appendChild(mount);
+  const panel = document.createElement('div');
+  panel.className = 'preset-line-panel';
+
+  const header = document.createElement('div');
+  header.className = 'preset-line-header';
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'preset-line-title';
+  titleEl.textContent = 'Preset line editor';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'preset-line-close';
+  closeBtn.textContent = '✕';
+
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  const body = document.createElement('div');
+  body.className = 'preset-line-body';
+
+  const footer = document.createElement('div');
+  footer.className = 'preset-line-footer';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'pe-btn-secondary';
+  cancelBtn.textContent = 'Cancel';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'pe-btn-primary';
+  saveBtn.textContent = 'Save preset';
+
+  footer.appendChild(cancelBtn);
+  footer.appendChild(saveBtn);
+
+  panel.appendChild(header);
+  panel.appendChild(body);
+  panel.appendChild(footer);
+
+  overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
   function close(cancelled = true) {
-    if (overlay.parentNode) {
-      overlay.parentNode.removeChild(overlay);
-    }
-    if (cancelled && typeof onCancel === 'function') {
-      onCancel();
-    }
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    if (cancelled && typeof onCancel === 'function') onCancel();
   }
 
-  // Click outside to close
+  // Close on outside click
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close(true);
   });
+  closeBtn.addEventListener('click', () => close(true));
+  cancelBtn.addEventListener('click', () => close(true));
 
-  renderPresetEditor(mount, {
+  // Render the inner editor into body
+  renderPresetEditor(body, {
     dept,
     initialPreset,
     onSave(presetConfig) {
@@ -225,7 +363,8 @@ export function openPresetEditorPopup({
     },
     onCancel() {
       close(true);
-    }
+    },
+    saveButton: saveBtn // we’ll wire the click after render
   });
 }
 
@@ -237,7 +376,8 @@ export function renderPresetEditor(mountEl, {
   dept = {},
   initialPreset = null,
   onSave = () => {},
-  onCancel = () => {}
+  onCancel = () => {},
+  saveButton = null, // optional external save button (for popup footer)
 } = {}) {
   injectPresetEditorStyles();
 
@@ -316,7 +456,14 @@ export function renderPresetEditor(mountEl, {
       value: value ?? '',
       step: extra.step ?? '1',
       min: extra.min ?? '0',
-      onchange: e => onChange(e.target.value === '' ? '' : Number(e.target.value))
+      onchange: e => {
+        const raw = e.target.value;
+        if (raw === '') {
+          onChange('');
+        } else {
+          onChange(Number(raw));
+        }
+      }
     });
   }
 
@@ -353,13 +500,13 @@ export function renderPresetEditor(mountEl, {
     textInput(
       state.name,
       v => { state.name = v; updatePreview(); },
-      'Example: 1 3/4" Crosslay'
+      'Example: 1 3/4" front crosslay'
     )
   );
 
   // Basic hose section
   const basicSection = el('section', { class: 'pe-section' },
-    el('h3', { text: 'Hose & Basic Setup' })
+    el('h3', { text: 'Hose & basic setup' })
   );
 
   const basicRow1 = el('div', { class: 'pe-row' },
@@ -370,36 +517,38 @@ export function renderPresetEditor(mountEl, {
     el('span', { text: 'ft' })
   );
 
+  const pressureToggle = (() => {
+    const autoBtn = el('button', {
+      text: 'Auto',
+      onclick: (e) => {
+        e.preventDefault();
+        state.pressureMode = 'auto';
+        refresh();
+        updatePreview();
+      }
+    });
+    const manBtn = el('button', {
+      text: 'Manual',
+      onclick: (e) => {
+        e.preventDefault();
+        state.pressureMode = 'manual';
+        refresh();
+        updatePreview();
+      }
+    });
+    function refresh() {
+      autoBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'auto');
+      manBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'manual');
+    }
+    refresh();
+    return el('span', { class: 'pe-toggle-group' }, autoBtn, manBtn);
+  })();
+
   const basicRow2 = el('div', { class: 'pe-row' },
     el('label', { text: 'Nozzle:' }),
     select(nozzles, state.nozzleId, v => { state.nozzleId = v; updatePreview(); }),
     el('span', { text: 'Pressure:' }),
-    (function () {
-      const autoBtn = el('button', {
-        text: 'Auto',
-        onclick: (e) => {
-          e.preventDefault();
-          state.pressureMode = 'auto';
-          refresh();
-          updatePreview();
-        }
-      });
-      const manBtn = el('button', {
-        text: 'Manual',
-        onclick: (e) => {
-          e.preventDefault();
-          state.pressureMode = 'manual';
-          refresh();
-          updatePreview();
-        }
-      });
-      function refresh() {
-        autoBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'auto');
-        manBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'manual');
-      }
-      refresh();
-      return el('span', { class: 'pe-toggle-group' }, autoBtn, manBtn);
-    })()
+    pressureToggle
   );
 
   const specialRow = el('div', { class: 'pe-row' },
@@ -424,7 +573,7 @@ export function renderPresetEditor(mountEl, {
     specialSection.innerHTML = '';
     if (state.specialType === 'Foam') {
       specialSection.append(
-        el('h3', { text: 'Foam Options' }),
+        el('h3', { text: 'Foam options' }),
         el('div', { class: 'pe-row' },
           el('label', { text: 'Foam %:' }),
           numberInput(state.foam.percent, v => { state.foam.percent = v; updatePreview(); }, { step: '0.1' }),
@@ -436,7 +585,7 @@ export function renderPresetEditor(mountEl, {
       );
     } else if (state.specialType === 'Sprinkler') {
       specialSection.append(
-        el('h3', { text: 'Sprinkler Options' }),
+        el('h3', { text: 'Sprinkler options' }),
         el('div', { class: 'pe-row' },
           el('label', { text: 'Area:' }),
           numberInput(state.sprinkler.areaSqFt, v => { state.sprinkler.areaSqFt = v; updatePreview(); }),
@@ -453,7 +602,7 @@ export function renderPresetEditor(mountEl, {
       );
     } else if (state.specialType === 'Standpipe') {
       specialSection.append(
-        el('h3', { text: 'Standpipe Options' }),
+        el('h3', { text: 'Standpipe options' }),
         el('div', { class: 'pe-row' },
           el('label', { text: 'Floor / elevation:' }),
           textInput(state.standpipe.floor, v => { state.standpipe.floor = v; updatePreview(); }, 'e.g. 5th floor'),
@@ -469,42 +618,39 @@ export function renderPresetEditor(mountEl, {
   const wyeSection = el('section', { class: 'pe-section' });
   const wyeContent = el('div');
 
-  const wyeToggleRow = el('div', { class: 'pe-row' },
-    el('h3', { text: 'Wye / Branch Builder' }),
-    el('span', { text: 'Add Wye:' }),
-    (function () {
-      const noBtn = el('button', {
-        text: 'No',
-        onclick: (e) => {
-          e.preventDefault();
-          state.hasWye = false;
-          renderWyeContent();
-          updatePreview();
-        }
-      });
-      const yesBtn = el('button', {
-        text: 'Yes',
-        onclick: (e) => {
-          e.preventDefault();
-          state.hasWye = true;
-          renderWyeContent();
-          updatePreview();
-        }
-      });
-      function refresh() {
-        noBtn.classList.toggle('pe-toggle-on', !state.hasWye);
-        yesBtn.classList.toggle('pe-toggle-on', state.hasWye);
-      }
-      refresh();
-      const group = el('span', { class: 'pe-toggle-group' }, noBtn, yesBtn);
-      // re-run when state changes:
-      const origRender = renderWyeContent;
-      renderWyeContent = function () {
-        origRender();
+  const wyeToggleGroup = (() => {
+    const noBtn = el('button', {
+      text: 'No',
+      onclick: (e) => {
+        e.preventDefault();
+        state.hasWye = false;
         refresh();
-      };
-      return group;
-    })()
+        renderWyeContent();
+        updatePreview();
+      }
+    });
+    const yesBtn = el('button', {
+      text: 'Yes',
+      onclick: (e) => {
+        e.preventDefault();
+        state.hasWye = true;
+        refresh();
+        renderWyeContent();
+        updatePreview();
+      }
+    });
+    function refresh() {
+      noBtn.classList.toggle('pe-toggle-on', !state.hasWye);
+      yesBtn.classList.toggle('pe-toggle-on', state.hasWye);
+    }
+    refresh();
+    return { groupEl: el('span', { class: 'pe-toggle-group' }, noBtn, yesBtn), refresh };
+  })();
+
+  const wyeToggleRow = el('div', { class: 'pe-row' },
+    el('h3', { text: 'Wye / branch builder' }),
+    el('span', { text: 'Add Wye:' }),
+    wyeToggleGroup.groupEl
   );
 
   function branchBlock(label, bState) {
@@ -541,41 +687,39 @@ export function renderPresetEditor(mountEl, {
   const masterSection = el('section', { class: 'pe-section' });
   const masterContent = el('div');
 
-  const masterToggleRow = el('div', { class: 'pe-row' },
-    el('h3', { text: 'Master Stream Builder' }),
-    el('span', { text: 'Add Master Stream:' }),
-    (function () {
-      const noBtn = el('button', {
-        text: 'No',
-        onclick: (e) => {
-          e.preventDefault();
-          state.hasMaster = false;
-          renderMasterContent();
-          updatePreview();
-        }
-      });
-      const yesBtn = el('button', {
-        text: 'Yes',
-        onclick: (e) => {
-          e.preventDefault();
-          state.hasMaster = true;
-          renderMasterContent();
-          updatePreview();
-        }
-      });
-      function refresh() {
-        noBtn.classList.toggle('pe-toggle-on', !state.hasMaster);
-        yesBtn.classList.toggle('pe-toggle-on', state.hasMaster);
-      }
-      refresh();
-      const group = el('span', { class: 'pe-toggle-group' }, noBtn, yesBtn);
-      const origRender = renderMasterContent;
-      renderMasterContent = function () {
-        origRender();
+  const masterToggleGroup = (() => {
+    const noBtn = el('button', {
+      text: 'No',
+      onclick: (e) => {
+        e.preventDefault();
+        state.hasMaster = false;
         refresh();
-      };
-      return group;
-    })()
+        renderMasterContent();
+        updatePreview();
+      }
+    });
+    const yesBtn = el('button', {
+      text: 'Yes',
+      onclick: (e) => {
+        e.preventDefault();
+        state.hasMaster = true;
+        refresh();
+        renderMasterContent();
+        updatePreview();
+      }
+    });
+    function refresh() {
+      noBtn.classList.toggle('pe-toggle-on', !state.hasMaster);
+      yesBtn.classList.toggle('pe-toggle-on', state.hasMaster);
+    }
+    refresh();
+    return { groupEl: el('span', { class: 'pe-toggle-group' }, noBtn, yesBtn), refresh };
+  })();
+
+  const masterToggleRow = el('div', { class: 'pe-row' },
+    el('h3', { text: 'Master stream builder' }),
+    el('span', { text: 'Add master stream:' }),
+    masterToggleGroup.groupEl
   );
 
   function feedBlock(label, fState) {
@@ -617,7 +761,7 @@ export function renderPresetEditor(mountEl, {
 
   masterSection.append(masterToggleRow, masterContent);
 
-  // Preview & actions
+  // Preview
   const previewBar = el('div', { class: 'pe-preview' });
 
   function updatePreview() {
@@ -625,24 +769,13 @@ export function renderPresetEditor(mountEl, {
     previewBar.textContent = `Preview – GPM: ${gpm}   |   PDP: ${pp} psi`;
   }
 
-  const actionsRow = el('div', { class: 'pe-actions' },
-    el('button', {
-      class: 'pe-save',
-      text: 'Save preset',
-      onclick: (e) => {
-        e.preventDefault();
-        onSave(deepClone(state));
-      }
-    }),
-    el('button', {
-      class: 'pe-cancel',
-      text: 'Cancel',
-      onclick: (e) => {
-        e.preventDefault();
-        onCancel();
-      }
-    })
-  );
+  // Wire external save button (popup footer) if provided
+  if (saveButton) {
+    saveButton.onclick = (e) => {
+      e.preventDefault();
+      onSave(deepClone(state));
+    };
+  }
 
   // Initial render
   renderSpecialSection();
@@ -656,8 +789,7 @@ export function renderPresetEditor(mountEl, {
     specialSection,
     wyeSection,
     masterSection,
-    previewBar,
-    actionsRow
+    previewBar
   );
 
   mountEl.innerHTML = '';
