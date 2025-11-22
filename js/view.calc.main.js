@@ -684,36 +684,30 @@ function updateSegSwitchVisibility(){
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids)) deptIds = ids.filter(x => typeof x === 'string' && x.trim().length > 0);
+        if (Array.isArray(ids)) {
+          deptIds = ids.filter(x => typeof x === 'string' && x.trim().length > 0);
+        }
       }
     } catch (_e) {
       deptIds = [];
     }
 
+    // If department has selected nozzles, only show those.
     if (deptIds.length) {
       const deptSet = new Set(deptIds);
       const deptOpts = fullList
         .filter(n => n && n.id && deptSet.has(n.id))
         .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
         .join('');
-      const otherOpts = fullList
-        .filter(n => n && n.id && !deptSet.has(n.id))
-        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-        .join('');
 
-      // If none of the ids matched the known nozzle list, fall back to plain list
+      // If none of the ids matched the known nozzle list, fall back to plain full list
       if (!deptOpts) {
         return fullList
           .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
           .join('');
       }
 
-      return `
-        <optgroup label="Dept nozzles">
-          ${deptOpts}
-        </optgroup>
-        ${otherOpts ? `<optgroup label="All nozzles">${otherOpts}</optgroup>` : ''}
-      `;
+      return deptOpts;
     }
 
     // Default: full list only
@@ -1452,24 +1446,17 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Apply a saved preset back into the calc for the chosen line
   function applyPresetToCalc(preset){
     if (!preset) return;
-
-    // Many presets are stored as { id, name, lineNumber, summary, payload: { ... } }
-    // but we also support a "flat" shape for safety.
-    const src = (preset && typeof preset.payload === 'object' && preset.payload)
-      ? preset.payload
-      : preset;
-
-    const key = mapLineKeyFromNumber(preset.lineNumber || src.lineNumber || 1);
+    const key = mapLineKeyFromNumber(preset.lineNumber || 1);
     const L = seedDefaultsForKey(key);
     if (!L) return;
 
     // Main hose segment
     const main = (L.itemsMain && L.itemsMain[0]) || {};
-    if (src.hoseDiameter) {
-      main.size = src.hoseDiameter;
+    if (preset.hoseDiameter) {
+      main.size = preset.hoseDiameter;
     }
-    if (typeof src.lengthFt === 'number') {
-      main.lengthFt = src.lengthFt;
+    if (typeof preset.lengthFt === 'number') {
+      main.lengthFt = preset.lengthFt;
     }
     L.itemsMain = [main];
 
@@ -1479,13 +1466,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     L.itemsRight = [];
 
     // Elevation
-    if (typeof src.elevation === 'number') {
-      L.elevFt = src.elevation;
+    if (typeof preset.elevation === 'number') {
+      L.elevFt = preset.elevation;
     }
 
     // Nozzle
-    if (src.nozzleId && NOZ[src.nozzleId]) {
-      L.nozRight = NOZ[src.nozzleId];
+    if (preset.nozzleId && NOZ[preset.nozzleId]) {
+      L.nozRight = NOZ[preset.nozzleId];
     }
 
     // Make sure line is visible & button looks active
@@ -1496,7 +1483,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     // Re-draw + persist
     drawAll();
     markDirty();
-}
+  }
 
   try {
     setupPresets({
@@ -1650,11 +1637,43 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  const sizeSeq = [
-    { val: "1.75", labelPlain: "1 3/4″" },
-    { val: "2.5",  labelPlain: "2 1/2″" },
-    { val: "5",    labelPlain: "5″" }
-  ];
+  // Build hose diameter sequence from department setup if available,
+  // otherwise fall back to standard 1.75 / 2.5 / 5.
+  let sizeSeq = [];
+  try {
+    if (typeof getDeptHoseDiameters === 'function') {
+      const diams = getDeptHoseDiameters() || [];
+      if (Array.isArray(diams) && diams.length) {
+        sizeSeq = diams
+          .map(d => {
+            const val = String(d).trim();
+            if (!val) return null;
+            const plain =
+              val === '1.75' ? '1 3/4″' :
+              val === '1.5'  ? '1 1/2″' :
+              val === '2.0'  ? '2″' :
+              val === '2.5'  ? '2 1/2″' :
+              val === '3'    ? '3″' :
+              val === '4'    ? '4″' :
+              val === '5'    ? '5″' :
+              val + '"';
+            return { val, labelPlain: plain };
+          })
+          .filter(Boolean);
+      }
+    }
+  } catch (_e) {
+    sizeSeq = [];
+  }
+
+  if (!sizeSeq.length) {
+    sizeSeq = [
+      { val: "1.75", labelPlain: "1 3/4″" },
+      { val: "2.5",  labelPlain: "2 1/2″" },
+      { val: "5",    labelPlain: "5″" }
+    ];
+  }
+
   const teSize = root.querySelector('#teSize');
   const sizeLabel = root.querySelector('#sizeLabel');
   const sizeMinus = root.querySelector('#sizeMinus');
