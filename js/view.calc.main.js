@@ -1452,17 +1452,24 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Apply a saved preset back into the calc for the chosen line
   function applyPresetToCalc(preset){
     if (!preset) return;
-    const key = mapLineKeyFromNumber(preset.lineNumber || 1);
+
+    // Many presets are stored as { id, name, lineNumber, summary, payload: { ... } }
+    // but we also support a "flat" shape for safety.
+    const src = (preset && typeof preset.payload === 'object' && preset.payload)
+      ? preset.payload
+      : preset;
+
+    const key = mapLineKeyFromNumber(preset.lineNumber || src.lineNumber || 1);
     const L = seedDefaultsForKey(key);
     if (!L) return;
 
     // Main hose segment
     const main = (L.itemsMain && L.itemsMain[0]) || {};
-    if (preset.hoseDiameter) {
-      main.size = preset.hoseDiameter;
+    if (src.hoseDiameter) {
+      main.size = src.hoseDiameter;
     }
-    if (typeof preset.lengthFt === 'number') {
-      main.lengthFt = preset.lengthFt;
+    if (typeof src.lengthFt === 'number') {
+      main.lengthFt = src.lengthFt;
     }
     L.itemsMain = [main];
 
@@ -1472,13 +1479,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     L.itemsRight = [];
 
     // Elevation
-    if (typeof preset.elevation === 'number') {
-      L.elevFt = preset.elevation;
+    if (typeof src.elevation === 'number') {
+      L.elevFt = src.elevation;
     }
 
     // Nozzle
-    if (preset.nozzleId && NOZ[preset.nozzleId]) {
-      L.nozRight = NOZ[preset.nozzleId];
+    if (src.nozzleId && NOZ[src.nozzleId]) {
+      L.nozRight = NOZ[src.nozzleId];
     }
 
     // Make sure line is visible & button looks active
@@ -1489,7 +1496,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     // Re-draw + persist
     drawAll();
     markDirty();
-  }
+}
 
   try {
     setupPresets({
