@@ -1,9 +1,8 @@
 // view.presetEditor.js
-// Clean preset editor popup
+// Minimal preset editor popup:
 // - Name required BEFORE choosing type
 // - Types: standard, master, standpipe, sprinkler, foam, supply, custom
-// - Each type opens its own builder file
-// - No internal hose / wye builder here
+// - Each type opens its own popup file
 
 import { openMasterStreamPopup }   from './view.lineMaster.js';
 import { openStandpipePopup }      from './view.lineStandpipe.js';
@@ -21,248 +20,240 @@ function injectPresetEditorStyles() {
 
   const style = document.createElement('style');
   style.textContent = `
-.preset-line-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(3, 7, 18, 0.55);
-  backdrop-filter: blur(6px);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 40px;
-  z-index: 9999;
-  overflow-y: auto;
-}
+  .preset-line-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+    z-index: 9999;
+    overflow-y: auto;
+  }
 
-.preset-line-panel {
-  position: relative;
-  max-width: 480px;
-  width: 100%;
-  margin: 0 12px 24px;
-  background: #020617;
-  border-radius: 18px;
-  box-shadow:
-    0 18px 30px rgba(15, 23, 42, 0.75),
-    0 0 0 1px rgba(148, 163, 184, 0.35);
-  padding: 12px 14px 10px;
-  color: #e5e7eb;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-@media (min-width: 640px) {
   .preset-line-panel {
-    margin-top: 12px;
-    border-radius: 20px;
-    padding: 14px 16px 12px;
+    position: relative;
+    max-width: 480px;
+    width: 100%;
+    margin: 0 12px 24px;
+    background: #020617;
+    border-radius: 18px;
+    box-shadow:
+      0 18px 30px rgba(15, 23, 42, 0.75),
+      0 0 0 1px rgba(148, 163, 184, 0.35);
+    padding: 12px 14px 10px;
+    color: #e5e7eb;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
-}
 
-.preset-line-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-}
+  @media (min-width: 640px) {
+    .preset-line-panel {
+      margin-top: 12px;
+      border-radius: 20px;
+      padding: 14px 16px 12px;
+    }
+  }
 
-.preset-line-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.preset-line-close {
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.6);
-  background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
-  color: #e5e7eb;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
-}
-.preset-line-close:hover {
-  background: #111827;
-}
-
-.preset-line-body {
-  font-size: 0.85rem;
-  line-height: 1.45;
-  max-height: min(60vh, 420px);
-  overflow-y: auto;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-.preset-line-footer {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-  justify-content: flex-end;
-  padding-top: 8px;
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-}
-
-.pe-btn-primary,
-.pe-btn-secondary {
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 0.82rem;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pe-btn-primary {
-  background: linear-gradient(135deg, #38bdf8, #22c55e);
-  color: #020617;
-  font-weight: 600;
-}
-
-.pe-btn-secondary {
-  background: rgba(15, 23, 42, 0.9);
-  color: #e5e7eb;
-  border: 1px solid rgba(148, 163, 184, 0.7);
-}
-
-.pe-btn-primary:active,
-.pe-btn-secondary:active {
-  transform: translateY(1px);
-}
-
-/* Layout */
-
-.preset-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.preset-editor section.pe-section {
-  border-top: 1px solid rgba(148, 163, 184, 0.4);
-  padding-top: 8px;
-}
-.preset-editor section.pe-section:first-of-type {
-  border-top: none;
-}
-
-.pe-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.pe-row label {
-  font-weight: 500;
-  font-size: 0.82rem;
-}
-
-.preset-editor input[type="text"] {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  background: #020617;
-  color: #e5e7eb;
-  font-size: 0.8rem;
-}
-
-.preset-editor input::placeholder {
-  color: rgba(148, 163, 184, 0.9);
-}
-
-/* Type buttons */
-
-.pe-type-section h3 {
-  margin: 0 0 6px 0;
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #bfdbfe;
-}
-
-.pe-type-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.pe-type-btn {
-  flex: 1 1 45%;
-  min-width: 120px;
-  padding: 6px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(55, 65, 81, 0.9);
-  background: rgba(15, 23, 42, 0.8);
-  color: #e5e7eb;
-  font-size: 0.78rem;
-  text-align: left;
-  cursor: pointer;
-}
-.pe-type-btn span {
-  display: block;
-  font-size: 0.72rem;
-  opacity: 0.8;
-}
-.pe-type-btn.pe-type-active {
-  border-color: #22c55e;
-  background: radial-gradient(circle at 0% 0%, #022c22, #020617);
-}
-.pe-type-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.pe-preview {
-  margin-top: 8px;
-  padding: 8px;
-  border-radius: 10px;
-  background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
-  border: 1px solid rgba(37, 99, 235, 0.8);
-  font-weight: 600;
-  font-size: 0.82rem;
-  text-align: center;
-}
-
-.pe-name {
-  margin-top: 0;
-}
-
-.pe-hint {
-  font-size: 0.75rem;
-  opacity: 0.8;
-}
-
-@media (min-width: 640px) {
-  .pe-row {
-    flex-direction: row;
-    flex-wrap: wrap;
+  .preset-line-header {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
   }
 
-  .pe-row > label {
-    min-width: 100px;
+  .preset-line-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .preset-line-close {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
+    color: #e5e7eb;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+  }
+  .preset-line-close:hover {
+    background: #111827;
+  }
+
+  .preset-line-body {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .preset-line-footer {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+  }
+
+  .pe-btn-primary,
+  .pe-btn-secondary {
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pe-btn-primary {
+    background: linear-gradient(135deg, #38bdf8, #22c55e);
+    color: #020617;
+    font-weight: 600;
+  }
+
+  .pe-btn-secondary {
+    background: rgba(15, 23, 42, 0.9);
+    color: #e5e7eb;
+    border: 1px solid rgba(148, 163, 184, 0.7);
+  }
+
+  .pe-btn-primary:active,
+  .pe-btn-secondary:active {
+    transform: translateY(1px);
+  }
+
+  .preset-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .preset-editor section.pe-section {
+    border-top: 1px solid rgba(148, 163, 184, 0.4);
+    padding-top: 8px;
+  }
+  .preset-editor section.pe-section:first-of-type {
+    border-top: none;
+  }
+
+  .pe-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .pe-row label {
+    font-weight: 500;
+    font-size: 0.82rem;
   }
 
   .preset-editor input[type="text"] {
-    width: auto;
-    min-width: 200px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    background: #020617;
+    color: #e5e7eb;
+    font-size: 0.8rem;
   }
-}
-`;
+
+  .preset-editor input::placeholder {
+    color: rgba(148, 163, 184, 0.9);
+  }
+
+  .pe-type-section h3 {
+    margin: 0 0 6px 0;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #bfdbfe;
+  }
+
+  .pe-type-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .pe-type-btn {
+    flex: 1 1 45%;
+    min-width: 120px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    border: 1px solid rgba(55, 65, 81, 0.9);
+    background: rgba(15, 23, 42, 0.8);
+    color: #e5e7eb;
+    font-size: 0.78rem;
+    text-align: left;
+    cursor: pointer;
+  }
+  .pe-type-btn span {
+    display: block;
+    font-size: 0.72rem;
+    opacity: 0.8;
+  }
+  .pe-type-btn.pe-type-active {
+    border-color: #22c55e;
+    background: radial-gradient(circle at 0% 0%, #022c22, #020617);
+  }
+  .pe-type-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .pe-preview {
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 10px;
+    background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
+    border: 1px solid rgba(37, 99, 235, 0.8);
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-align: center;
+  }
+
+  .pe-hint {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+
+  @media (min-width: 640px) {
+    .pe-row {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pe-row > label {
+      min-width: 100px;
+    }
+
+    .preset-editor input[type="text"] {
+      width: auto;
+      min-width: 200px;
+    }
+  }
+  `;
   document.head.appendChild(style);
 }
 
@@ -272,13 +263,13 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-// ---------- Public: open as popup ----------
+// --------- PUBLIC: open as popup ---------
 
 export function openPresetEditorPopup({
   dept = {},
   initialPreset = null,
   onSave = () => {},
-  onCancel = () => {},
+  onCancel = () => {}
 } = {}) {
   injectPresetEditorStyles();
 
@@ -347,11 +338,11 @@ export function openPresetEditorPopup({
       onSave(presetConfig);
       close(false);
     },
-    saveButton: saveBtn,
+    saveButton: saveBtn
   });
 }
 
-// ---------- Core renderer ----------
+// --------- Core renderer (used by popup) ---------
 
 export function renderPresetEditor(
   mountEl,
@@ -366,14 +357,13 @@ export function renderPresetEditor(
   const defaults = {
     name: '',
     lineType: '',
-
     standardConfig:   null,
     masterConfig:     null,
     standpipeConfig:  null,
     sprinklerConfig:  null,
     foamConfig:       null,
     supplyConfig:     null,
-    customConfig:     null,
+    customConfig:     null
   };
 
   const state = deepClone(defaults);
@@ -397,7 +387,7 @@ export function renderPresetEditor(
     return e;
   }
 
-  // --- preview ---
+  // Preview
 
   const previewBar = el('div', { class: 'pe-preview' });
 
@@ -413,7 +403,7 @@ export function renderPresetEditor(
     previewBar.textContent = `Preset: "${state.name}"   •   Type: ${state.lineType} (tap type to reopen editor)`;
   }
 
-  // --- name row ---
+  // Name row
 
   const nameInput = el('input', {
     type: 'text',
@@ -423,17 +413,17 @@ export function renderPresetEditor(
       state.name = e.target.value || '';
       updateTypeButtons();
       updatePreview();
-    },
+    }
   });
 
   const nameRow = el(
     'div',
-    { class: 'pe-row pe-name' },
+    { class: 'pe-row' },
     el('label', { text: 'Preset name:' }),
     nameInput
   );
 
-  // --- type grid ---
+  // Type buttons
 
   const typeButtons = [];
 
@@ -449,7 +439,7 @@ export function renderPresetEditor(
             return;
           }
           setLineType(id, true);
-        },
+        }
       },
       document.createTextNode(label),
       el('span', { text: sublabel || '' })
@@ -473,7 +463,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.standardConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -484,7 +474,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.masterConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -495,7 +485,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.standpipeConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -506,7 +496,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.sprinklerConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -517,7 +507,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.foamConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -528,7 +518,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.supplyConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -539,7 +529,7 @@ export function renderPresetEditor(
       onSave(config) {
         state.customConfig = config;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -572,14 +562,15 @@ export function renderPresetEditor(
         makeTypeButton('sprinkler', 'Sprinkler',      'Sprinkler / FDC supply'),
         makeTypeButton('foam',      'Foam line',      'Foam eductor / foam setup'),
         makeTypeButton('supply',    'Supply line',    'Hydrant / relay / feed line'),
-        makeTypeButton('custom',    'Custom builder', 'Any layout, wyes, siamese, etc.')
+        makeTypeButton('custom',    'Custom builder', 'Any layout: wyes, siamese, etc.')
       );
       return grid;
     })(),
-    el('div', { class: 'pe-hint', text: 'Enter a preset name first, then tap a type to open its builder. Tap the same type later to reopen and edit.' })
+    el('div', {
+      class: 'pe-hint',
+      text: 'Enter a preset name first, then tap a type to open its builder. Tap again later to reopen and edit.'
+    })
   );
-
-  // --- layout container ---
 
   const container = el('div', { class: 'preset-editor' });
   container.append(nameRow, typeSection, previewBar);
