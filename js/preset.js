@@ -1,15 +1,15 @@
-
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
-//   • Line 1 / Line 2 / Line 3 quick views (editable)
 //   • Saved presets list
-//   • "Add preset" button
+//   • "Add preset" button (opens popup line builder)
 // - Department setup popup (Nozzles, Hoses, Accessories)
 // - Grouped nozzle selection (smooth / fog / master / specialty + custom)
 // - Hose selection (attack / supply / wildland / low-friction + custom C)
 // - Accessories selection (appliances, foam/eductors, gauges, misc + custom)
 // - Line preset list stored in localStorage and applied via applyPresetToCalc
+
+import { openPresetEditorPopup } from './view.presetEditor.js';
 
 const STORAGE_KEY = 'fireops_presets_v1';
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
@@ -405,9 +405,9 @@ const ACCESSORIES_MONITORING = [
 ];
 
 const ACCESSORIES_MONITORS = [
-  { id: 'acc_deck_gun',     label: 'Deck gun / apparatus monitor' },
+  { id: 'acc_deck_gun',       label: 'Deck gun / apparatus monitor' },
   { id: 'acc_ground_monitor', label: 'Portable ground monitor' },
-  { id: 'acc_blitzfire',    label: 'Blitzfire / RAM monitor' },
+  { id: 'acc_blitzfire',      label: 'Blitzfire / RAM monitor' },
 ];
 
 // === Storage helpers ==============================================================
@@ -1262,149 +1262,7 @@ function ensureAppPresetPanelExists() {
   });
 }
 
-// === Line detail screen (Line 1 / Line 2 / Line 3) – EDITABLE =====================
-
-function renderLineInfoScreen(lineNumber) {
-  ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
-  if (!wrap) return;
-  const body   = wrap.querySelector('#appPresetBody');
-  const footer = wrap.querySelector('#appPresetFooter');
-  const titleEl= wrap.querySelector('.preset-panel-title');
-  if (!body || !footer || !titleEl) return;
-
-  const current = state.getLineState ? (state.getLineState(lineNumber) || {}) : {};
-
-  const hoseVal = current.hoseDiameter ?? '';
-  const lenVal  = (typeof current.lengthFt === 'number' ? current.lengthFt : (current.lengthFt ?? ''));
-  const nozVal  = current.nozzleId ?? '';
-  const psiVal  = (typeof current.nozzlePsi === 'number' ? current.nozzlePsi : (current.nozzlePsi ?? ''));
-
-  titleEl.textContent = `Line ${lineNumber} setup`;
-
-  body.innerHTML = `
-    <p class="dept-intro">
-      Edit the Line ${lineNumber} setup here. This does not change the main line until you
-      hit "Apply to line". You can also save this as a reusable preset.
-    </p>
-    <div class="dept-list">
-      <div class="dept-custom-row">
-        <label>Hose diameter (inches)
-          <input type="number" id="lineEditHoseDia" inputmode="decimal" value="${hoseVal}">
-        </label>
-        <label>Length (ft)
-          <input type="number" id="lineEditLength" inputmode="numeric" value="${lenVal}">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Nozzle ID / label
-          <input type="text" id="lineEditNozId" value="${nozVal}">
-        </label>
-        <label>Nozzle PSI
-          <input type="number" id="lineEditNozPsi" inputmode="numeric" value="${psiVal}">
-        </label>
-      </div>
-    </div>
-  `;
-
-  footer.innerHTML = `
-    <button type="button" class="btn-secondary" id="lineBackBtn">Back</button>
-    <button type="button" class="btn-secondary" id="lineRefreshBtn">Refresh from calc</button>
-    <button type="button" class="btn-secondary" id="lineApplyBtn">Apply to line</button>
-    <button type="button" class="btn-primary" id="lineSavePresetBtn">Save as preset</button>
-  `;
-
-  function readEditedLineState() {
-    const hoseEl = body.querySelector('#lineEditHoseDia');
-    const lenEl  = body.querySelector('#lineEditLength');
-    const nozEl  = body.querySelector('#lineEditNozId');
-    const psiEl  = body.querySelector('#lineEditNozPsi');
-    const edited = { ...(state.getLineState ? (state.getLineState(lineNumber) || {}) : {}) };
-
-    if (hoseEl) {
-      const v = hoseEl.value.trim();
-      edited.hoseDiameter = v ? Number(v) : null;
-    }
-    if (lenEl) {
-      const v = lenEl.value.trim();
-      edited.lengthFt = v ? Number(v) : null;
-    }
-    if (nozEl) {
-      edited.nozzleId = nozEl.value.trim();
-    }
-    if (psiEl) {
-      const v = psiEl.value.trim();
-      edited.nozzlePsi = v ? Number(v) : null;
-    }
-    return edited;
-  }
-
-  footer.querySelector('#lineBackBtn')?.addEventListener('click', () => {
-    openPresetMainMenu();
-  });
-
-  footer.querySelector('#lineRefreshBtn')?.addEventListener('click', () => {
-    if (!state.getLineState) return;
-    const latest = state.getLineState(lineNumber) || {};
-    const hoseEl = body.querySelector('#lineEditHoseDia');
-    const lenEl  = body.querySelector('#lineEditLength');
-    const nozEl  = body.querySelector('#lineEditNozId');
-    const psiEl  = body.querySelector('#lineEditNozPsi');
-    if (hoseEl) hoseEl.value = latest.hoseDiameter ?? '';
-    if (lenEl)  lenEl.value  = (typeof latest.lengthFt === 'number' ? latest.lengthFt : (latest.lengthFt ?? ''));
-    if (nozEl)  nozEl.value  = latest.nozzleId ?? '';
-    if (psiEl)  psiEl.value  = (typeof latest.nozzlePsi === 'number' ? latest.nozzlePsi : (latest.nozzlePsi ?? ''));
-  });
-
-  footer.querySelector('#lineApplyBtn')?.addEventListener('click', () => {
-    if (!state.applyPresetToCalc) {
-      alert('Apply function not wired yet.');
-      return;
-    }
-    const edited = readEditedLineState();
-    const tempPreset = {
-      id: null,
-      name: `Line ${lineNumber} (edited)`,
-      lineNumber,
-      summary: '',
-      payload: edited,
-    };
-    state.applyPresetToCalc(tempPreset);
-    const wrap2 = document.getElementById('appPresetWrapper');
-    if (wrap2) wrap2.classList.add('hidden');
-  });
-
-  footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
-    const edited = readEditedLineState();
-    const defaultName = `Line ${lineNumber} preset`;
-    const name = prompt('Preset name', defaultName);
-    if (!name) return;
-
-    const summaryParts = [];
-    if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
-    if (typeof edited.lengthFt === 'number') summaryParts.push(edited.lengthFt + ' ft');
-    if (edited.nozzleId) summaryParts.push('Nozzle: ' + edited.nozzleId);
-    const summary = summaryParts.join(' • ');
-
-    const preset = {
-      id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-      name,
-      lineNumber,
-      summary,
-      payload: edited,
-    };
-
-    if (!Array.isArray(state.presets)) state.presets = [];
-    state.presets.push(preset);
-    savePresetsToStorage();
-    openPresetMainMenu();
-  });
-
-  wrap.classList.remove('hidden');
-}
-
-// === Main Presets menu ===========================================================
-
+// === Dept line defaults screen ====================================================
 
 function renderDeptLineDefaultsScreen(lineNumber) {
   ensureDeptPopupWrapper();
@@ -1462,7 +1320,6 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   `;
 
   footerEl.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
-    // Go back to main Presets menu instead of dept home
     const wrap2 = document.getElementById('deptPopupWrapper');
     if (wrap2) wrap2.classList.add('hidden');
     openPresetMainMenu();
@@ -1504,6 +1361,91 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   wrap.classList.remove('hidden');
 }
 
+// === Helper: Build dept config for popup editor ===================================
+
+function buildDeptConfigForEditor() {
+  const dept = loadDeptFromStorage();
+
+  // Hoses
+  const allHoses = [
+    ...HOSES_ATTACK,
+    ...HOSES_SUPPLY,
+    ...HOSES_WILDLAND,
+    ...HOSES_LOWFRICTION,
+  ];
+  const hoseMap = new Map();
+  allHoses.forEach(h => hoseMap.set(h.id, h.label));
+  if (Array.isArray(dept.customHoses)) {
+    dept.customHoses.forEach(h => {
+      if (h && h.id && h.label) hoseMap.set(h.id, h.label);
+    });
+  }
+  const hoses = [];
+  (dept.hoses || []).forEach(id => {
+    const label = hoseMap.get(id);
+    if (label) hoses.push({ id, label });
+  });
+  // Fallback if dept not configured
+  if (!hoses.length) {
+    hoses.push(...HOSES_ATTACK.map(h => ({ id: h.id, label: h.label })));
+  }
+
+  // Nozzles
+  const allNozzles = [
+    ...NOZZLES_SMOOTH,
+    ...NOZZLES_FOG,
+    ...NOZZLES_MASTER,
+    ...NOZZLES_SPECIAL,
+  ];
+  const nozMap = new Map();
+  allNozzles.forEach(n => nozMap.set(n.id, n.label));
+  if (Array.isArray(dept.customNozzles)) {
+    dept.customNozzles.forEach(n => {
+      if (!n) return;
+      if (typeof n.id === 'string' && typeof n.label === 'string') {
+        nozMap.set(n.id, n.label);
+      }
+    });
+  }
+  const nozzles = [];
+  (dept.nozzles || []).forEach(id => {
+    const label = nozMap.get(id);
+    if (label) nozzles.push({ id, label });
+  });
+  if (!nozzles.length) {
+    nozzles.push(...NOZZLES_FOG.map(n => ({ id: n.id, label: n.label })));
+  }
+
+  // Appliances for master streams (deck gun / portable monitor / blitzfire)
+  const applianceSource = [...ACCESSORIES_MONITORS];
+  const appMap = new Map();
+  applianceSource.forEach(a => appMap.set(a.id, a.label));
+  if (Array.isArray(dept.customAccessories)) {
+    dept.customAccessories.forEach(a => {
+      if (!a) return;
+      if (
+        (a.category === 'monitor' || a.category === 'appliance') &&
+        a.id &&
+        a.label
+      ) {
+        appMap.set(a.id, a.label);
+      }
+    });
+  }
+  const appliances = [];
+  (dept.accessories || []).forEach(id => {
+    const label = appMap.get(id);
+    if (label) appliances.push({ id, label });
+  });
+  if (!appliances.length) {
+    appliances.push(...ACCESSORIES_MONITORS.map(a => ({ id: a.id, label: a.label })));
+  }
+
+  return { hoses, nozzles, appliances };
+}
+
+// === Main Presets menu ============================================================
+
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
@@ -1536,16 +1478,6 @@ function openPresetMainMenu() {
       </button>
     </div>
 
-
-    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      Quick line setup
-    </p>
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-line-btn" data-line="1">Line 1 (scene)</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="2">Line 2 (scene)</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="3">Line 3 (scene)</button>
-    </div>
-
     <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
       Saved presets
     </p>
@@ -1568,22 +1500,6 @@ function openPresetMainMenu() {
     });
   }
 
-  // Line buttons (scene-only quick editors)
-  body.querySelectorAll('.preset-line-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderLineInfoScreen(line);
-    });
-  });
-
-  // Department line default buttons (open separate defaults editor)
-  body.querySelectorAll('.preset-line-default-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderDeptLineDefaultsScreen(line);
-    });
-  });
-
   // Saved preset buttons: apply directly when clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1595,12 +1511,11 @@ function openPresetMainMenu() {
     });
   });
 
-  // Add preset button: saves current Line 1 by default (user can rename)
+  // Add preset button -> open new popup editor
   const addBtn = footer.querySelector('#presetAddPresetBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
       handleAddPresetClick();
-      openPresetMainMenu(); // refresh list
     });
   }
 
@@ -1612,40 +1527,70 @@ function openPresetPanelApp() {
   openPresetMainMenu();
 }
 
-// === Add preset from current calc (defaults to Line 1) ===========================
+// === Add preset from popup editor ================================================
 
 function handleAddPresetClick() {
-  if (!state.getLineState) {
-    alert('Preset system not fully wired yet (missing getLineState).');
-    return;
+  const deptConfig = buildDeptConfigForEditor();
+
+  // Optional: seed from current Line 1
+  let initialPreset = null;
+  if (state.getLineState) {
+    const lineState = state.getLineState(1) || {};
+    initialPreset = {
+      lengthFt: typeof lineState.lengthFt === 'number' ? lineState.lengthFt : undefined,
+    };
   }
-  const lineNumber = 1; // base line; user can still pick a name
-  const lineState = state.getLineState(lineNumber);
-  if (!lineState) {
-    alert('Could not read current line to save as a preset.');
-    return;
-  }
 
-  const name = prompt('Preset name (example: "150\' 1 3/4\\\" task line")', '');
-  if (!name) return;
+  const wrap = document.getElementById('appPresetWrapper');
+  if (wrap) wrap.classList.add('hidden');
 
-  const summaryParts = [];
-  if (lineState.hoseDiameter) summaryParts.push(lineState.hoseDiameter + '"');
-  if (typeof lineState.lengthFt === 'number') summaryParts.push(lineState.lengthFt + ' ft');
-  if (lineState.nozzleId) summaryParts.push('Nozzle: ' + lineState.nozzleId);
-  const summary = summaryParts.join(' • ');
+  openPresetEditorPopup({
+    dept: {
+      hoses: deptConfig.hoses,
+      nozzles: deptConfig.nozzles,
+      appliances: deptConfig.appliances,
+    },
+    initialPreset,
+    onSave(presetConfig) {
+      const name = (presetConfig.name || '').trim() || 'New preset';
+      const lineNumber = 1; // for now all presets are line-based; can expand later
 
-  const preset = {
-    id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-    name,
-    lineNumber,
-    summary,
-    payload: lineState,
-  };
+      const summaryParts = [];
+      if (presetConfig.hoseSizeId) {
+        const hose = deptConfig.hoses.find(h => h.id === presetConfig.hoseSizeId);
+        if (hose) summaryParts.push(hose.label);
+      }
+      if (typeof presetConfig.lengthFt === 'number') {
+        summaryParts.push(presetConfig.lengthFt + ' ft');
+      }
+      if (presetConfig.specialType && presetConfig.specialType !== 'Standard Line') {
+        summaryParts.push(presetConfig.specialType);
+      }
+      const summary = summaryParts.join(' • ');
 
-  if (!Array.isArray(state.presets)) state.presets = [];
-  state.presets.push(preset);
-  savePresetsToStorage();
+      const preset = {
+        id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        name,
+        lineNumber,
+        summary,
+        payload: presetConfig,
+      };
+
+      if (!Array.isArray(state.presets)) state.presets = [];
+      state.presets.push(preset);
+      savePresetsToStorage();
+
+      // Optionally apply to calc immediately
+      if (state.applyPresetToCalc) {
+        state.applyPresetToCalc(preset);
+      }
+
+      openPresetMainMenu();
+    },
+    onCancel() {
+      openPresetMainMenu();
+    }
+  });
 }
 
 // Simple info panel for web-only mode (currently forwards to main menu)
@@ -1655,11 +1600,9 @@ function openPresetInfoPanelWeb() {
 
 // === Public API ===================================================================
 
-
 export function getDeptLineDefaults() {
   return state.lineDefaults || {};
 }
-
 
 export function getDeptNozzleIds() {
   try {
