@@ -1,16 +1,5 @@
 // view.presetEditor.js
-// Simple preset editor popup wired to the dedicated line builders.
-//
-// Types:
-//  - standard  -> openStandardLinePopup
-//  - master    -> openMasterStreamPopup
-//  - standpipe -> openStandpipePopup
-//  - sprinkler -> openSprinklerPopup
-//  - foam      -> openFoamPopup
-//  - supply    -> openSupplyLinePopup
-//  - custom    -> openCustomBuilderPopup
-//
-// Name is required before type buttons are enabled.
+// Simple preset line editor popup wired to dedicated line builder popups.
 
 import { openMasterStreamPopup }   from "./view.lineMaster.js";
 import { openStandpipePopup }      from "./view.lineStandpipe.js";
@@ -20,7 +9,7 @@ import { openStandardLinePopup }   from "./view.lineStandard.js";
 import { openSupplyLinePopup }     from "./view.lineSupply.js";
 import { openCustomBuilderPopup }  from "./view.lineCustom.js";
 
-function clonePreset(obj) {
+function cloneConfig(obj) {
   if (!obj || typeof obj !== "object") return obj;
   try {
     if (typeof structuredClone === "function") return structuredClone(obj);
@@ -28,16 +17,40 @@ function clonePreset(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-// ---------- Public: open as popup ----------
-
 export function openPresetEditorPopup(options) {
   options = options || {};
-  const dept         = options.dept || {};
-  const initial      = options.initialPreset || null;
-  const onSave       = typeof options.onSave === "function" ? options.onSave : function() {};
-  const onCancel     = typeof options.onCancel === "function" ? options.onCancel : function() {};
+  var dept     = options.dept || {};
+  var initial  = options.initialPreset || null;
+  var onSave   = typeof options.onSave === "function" ? options.onSave : function() {};
+  var onCancel = typeof options.onCancel === "function" ? options.onCancel : function() {};
 
-  const overlay = document.createElement("div");
+  var state = {
+    name: "",
+    lineType: "",
+    standardConfig: null,
+    masterConfig: null,
+    standpipeConfig: null,
+    sprinklerConfig: null,
+    foamConfig: null,
+    supplyConfig: null,
+    customConfig: null
+  };
+
+  if (initial && typeof initial === "object") {
+    if (initial.name) state.name = initial.name;
+    if (initial.lineType) state.lineType = initial.lineType;
+    if (initial.standardConfig) state.standardConfig = cloneConfig(initial.standardConfig);
+    if (initial.masterConfig) state.masterConfig = cloneConfig(initial.masterConfig);
+    if (initial.standpipeConfig) state.standpipeConfig = cloneConfig(initial.standpipeConfig);
+    if (initial.sprinklerConfig) state.sprinklerConfig = cloneConfig(initial.sprinklerConfig);
+    if (initial.foamConfig) state.foamConfig = cloneConfig(initial.foamConfig);
+    if (initial.supplyConfig) state.supplyConfig = cloneConfig(initial.supplyConfig);
+    if (initial.customConfig) state.customConfig = cloneConfig(initial.customConfig);
+  }
+
+  // --- overlay + panel ---
+
+  var overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.left = "0";
   overlay.style.top = "0";
@@ -50,7 +63,7 @@ export function openPresetEditorPopup(options) {
   overlay.style.paddingTop = "40px";
   overlay.style.zIndex = "9999";
 
-  const panel = document.createElement("div");
+  var panel = document.createElement("div");
   panel.style.maxWidth = "480px";
   panel.style.width = "100%";
   panel.style.background = "#020617";
@@ -62,62 +75,6 @@ export function openPresetEditorPopup(options) {
   panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
   panel.style.boxSizing = "border-box";
 
-  const header = document.createElement("div");
-  header.style.display = "flex";
-  header.style.alignItems = "center";
-  header.style.justifyContent = "space-between";
-  header.style.marginBottom = "6px";
-  header.style.borderBottom = "1px solid rgba(148,163,184,0.25)";
-  header.style.paddingBottom = "4px";
-
-  const title = document.createElement("div");
-  title.textContent = "Preset line editor";
-  title.style.fontSize = "0.95rem";
-  title.style.fontWeight = "600";
-
-  const closeBtn = document.createElement("button");
-  closeBtn.type = "button";
-  closeBtn.textContent = "✕";
-  closeBtn.style.width = "26px";
-  closeBtn.style.height = "26px";
-  closeBtn.style.borderRadius = "999px";
-  closeBtn.style.border = "1px solid rgba(148,163,184,0.6)";
-  closeBtn.style.background = "#020617";
-  closeBtn.style.color = "#e5e7eb";
-  closeBtn.style.cursor = "pointer";
-
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-
-  const body = document.createElement("div");
-  body.style.maxHeight = "60vh";
-  body.style.overflowY = "auto";
-  body.style.fontSize = "0.85rem";
-
-  const footer = document.createElement("div");
-  footer.style.display = "flex";
-  footer.style.justifyContent = "flex-end";
-  footer.style.gap = "6px";
-  footer.style.marginTop = "8px";
-  footer.style.borderTop = "1px solid rgba(148,163,184,0.25)";
-  footer.style.paddingTop = "6px";
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.type = "button";
-  cancelBtn.textContent = "Cancel";
-  styleSecondaryButton(cancelBtn);
-
-  const saveBtn = document.createElement("button");
-  saveBtn.type = "button";
-  saveBtn.textContent = "Save preset";
-  stylePrimaryButton(saveBtn);
-
-  footer.appendChild(cancelBtn);
-  footer.appendChild(saveBtn);
-
-  panel.appendChild(header);
-  panel.appendChild(body);
-  panel.appendChild(footer);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
@@ -127,80 +84,86 @@ export function openPresetEditorPopup(options) {
   }
 
   overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      close(true);
-    }
+    if (e.target === overlay) close(true);
   });
+
+  // --- header ---
+
+  var header = document.createElement("div");
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.justifyContent = "space-between";
+  header.style.marginBottom = "6px";
+  header.style.borderBottom = "1px solid rgba(148,163,184,0.25)";
+  header.style.paddingBottom = "4px";
+
+  var title = document.createElement("div");
+  title.textContent = "Preset line editor";
+  title.style.fontSize = "0.95rem";
+  title.style.fontWeight = "600";
+
+  var closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "✕";
+  styleCircleButton(closeBtn);
   closeBtn.addEventListener("click", function() { close(true); });
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  panel.appendChild(header);
+
+  // --- body & footer ---
+
+  var body = document.createElement("div");
+  body.style.maxHeight = "60vh";
+  body.style.overflowY = "auto";
+  body.style.fontSize = "0.85rem";
+  panel.appendChild(body);
+
+  var footer = document.createElement("div");
+  footer.style.display = "flex";
+  footer.style.justifyContent = "flex-end";
+  footer.style.gap = "6px";
+  footer.style.marginTop = "8px";
+  footer.style.borderTop = "1px solid rgba(148,163,184,0.25)";
+  footer.style.paddingTop = "6px";
+  panel.appendChild(footer);
+
+  var cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.textContent = "Cancel";
+  styleSecondaryButton(cancelBtn);
   cancelBtn.addEventListener("click", function() { close(true); });
 
-  renderPresetEditor(body, {
-    dept: dept,
-    initialPreset: initial,
-    onSave: function(presetConfig) {
-      onSave(presetConfig);
-      close(false);
-    },
-    saveButton: saveBtn
-  });
-}
+  var saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = "Save preset";
+  stylePrimaryButton(saveBtn);
 
-// ---------- Core renderer (used by popup) ----------
+  footer.appendChild(cancelBtn);
+  footer.appendChild(saveBtn);
 
-export function renderPresetEditor(mountEl, options) {
-  options = options || {};
-  const dept         = options.dept || {};
-  const initial      = options.initialPreset || null;
-  const onSave       = typeof options.onSave === "function" ? options.onSave : function() {};
-  const saveButton   = options.saveButton || null;
+  // --- content layout ---
 
-  const hoses      = dept.hoses      || [];
-  const nozzles    = dept.nozzles    || [];
-  const appliances = dept.appliances || [];
+  var container = document.createElement("div");
 
-  const defaults = {
-    name: "",
-    lineType: "",
-    standardConfig:   null,
-    masterConfig:     null,
-    standpipeConfig:  null,
-    sprinklerConfig:  null,
-    foamConfig:       null,
-    supplyConfig:     null,
-    customConfig:     null
-  };
+  // name row
+  var nameRow = document.createElement("div");
+  nameRow.style.display = "flex";
+  nameRow.style.flexDirection = "column";
+  nameRow.style.gap = "4px";
+  nameRow.style.marginTop = "4px";
 
-  const state = clonePreset(defaults);
-  if (initial && typeof initial === "object") {
-    Object.assign(state, initial);
-  }
+  var nameLabel = document.createElement("label");
+  nameLabel.textContent = "Preset name:";
+  nameLabel.style.fontSize = "0.82rem";
+  nameLabel.style.fontWeight = "500";
 
-  function makeRow(labelText, inputEl) {
-    const row = document.createElement("div");
-    row.style.display = "flex";
-    row.style.flexDirection = "column";
-    row.style.gap = "4px";
-    row.style.marginTop = "8px";
-
-    const label = document.createElement("label");
-    label.textContent = labelText;
-    label.style.fontSize = "0.82rem";
-    label.style.fontWeight = "500";
-
-    row.appendChild(label);
-    row.appendChild(inputEl);
-    return row;
-  }
-
-  const container = document.createElement("div");
-
-  // --- Name row (required) ---
-
-  const nameInput = document.createElement("input");
+  var nameInput = document.createElement("input");
   nameInput.type = "text";
-  nameInput.value = state.name || "";
-  nameInput.placeholder = 'Example: 1¾" attack 200\' 150 gpm';
+  nameInput.value = state.name;
   styleTextInput(nameInput);
+  nameInput.placeholder = 'Example: 1¾" attack 200\' 150 gpm';
 
   nameInput.addEventListener("input", function() {
     state.name = nameInput.value || "";
@@ -208,22 +171,63 @@ export function renderPresetEditor(mountEl, options) {
     updatePreview();
   });
 
-  const nameRow = makeRow("Preset name:", nameInput);
+  nameRow.appendChild(nameLabel);
+  nameRow.appendChild(nameInput);
+  container.appendChild(nameRow);
 
-  // --- Type buttons ---
+  // type buttons title
+  var typeTitle = document.createElement("div");
+  typeTitle.textContent = "Choose build type";
+  typeTitle.style.marginTop = "10px";
+  typeTitle.style.fontSize = "0.82rem";
+  typeTitle.style.textTransform = "uppercase";
+  typeTitle.style.letterSpacing = "0.06em";
+  typeTitle.style.color = "#bfdbfe";
+  container.appendChild(typeTitle);
 
-  const typeButtons = [];
+  var typeGrid = document.createElement("div");
+  typeGrid.style.display = "flex";
+  typeGrid.style.flexWrap = "wrap";
+  typeGrid.style.gap = "6px";
+  typeGrid.style.marginTop = "6px";
+  container.appendChild(typeGrid);
+
+  var typeHint = document.createElement("div");
+  typeHint.textContent = "Enter a preset name first, then tap a type to open its builder. Tap again later to reopen and edit.";
+  typeHint.style.fontSize = "0.75rem";
+  typeHint.style.opacity = "0.8";
+  typeHint.style.marginTop = "4px";
+  container.appendChild(typeHint);
+
+  // preview bar
+  var preview = document.createElement("div");
+  preview.style.marginTop = "8px";
+  preview.style.padding = "8px";
+  preview.style.borderRadius = "10px";
+  preview.style.border = "1px solid rgba(37,99,235,0.8)";
+  preview.style.background = "#020617";
+  preview.style.fontSize = "0.82rem";
+  preview.style.fontWeight = "600";
+  preview.style.textAlign = "center";
+  container.appendChild(preview);
+
+  body.appendChild(container);
+
+  // --- type buttons + behavior ---
+
+  var typeButtons = [];
 
   function makeTypeButton(id, label, sublabel) {
-    const btn = document.createElement("button");
+    var btn = document.createElement("button");
     btn.type = "button";
-    styleTypeBtn(btn);
-    const titleSpan = document.createElement("div");
+    styleTypeButton(btn);
+
+    var titleSpan = document.createElement("div");
     titleSpan.textContent = label;
     titleSpan.style.fontSize = "0.8rem";
     titleSpan.style.fontWeight = "600";
 
-    const subSpan = document.createElement("div");
+    var subSpan = document.createElement("div");
     subSpan.textContent = sublabel || "";
     subSpan.style.fontSize = "0.72rem";
     subSpan.style.opacity = "0.8";
@@ -241,48 +245,16 @@ export function renderPresetEditor(mountEl, options) {
     });
 
     typeButtons.push({ id: id, btn: btn });
-    return btn;
+    typeGrid.appendChild(btn);
   }
 
-  const typeGrid = document.createElement("div");
-  typeGrid.style.display = "flex";
-  typeGrid.style.flexWrap = "wrap";
-  typeGrid.style.gap = "6px";
-  typeGrid.style.marginTop = "6px";
-
-  typeGrid.appendChild(makeTypeButton("standard",  "Standard line",  "Attack line (wye optional)"));
-  typeGrid.appendChild(makeTypeButton("master",    "Master stream",  "Deck gun or portable base"));
-  typeGrid.appendChild(makeTypeButton("standpipe", "Standpipe",      "High-rise / FDC standpipe"));
-  typeGrid.appendChild(makeTypeButton("sprinkler", "Sprinkler",      "Sprinkler / FDC supply"));
-  typeGrid.appendChild(makeTypeButton("foam",      "Foam line",      "Foam eductor / foam setup"));
-  typeGrid.appendChild(makeTypeButton("supply",    "Supply line",    "Hydrant / relay / feed line"));
-  typeGrid.appendChild(makeTypeButton("custom",    "Custom builder", "Any layout: wyes, siamese, etc."));
-
-  const typeTitle = document.createElement("div");
-  typeTitle.textContent = "Choose build type";
-  typeTitle.style.marginTop = "10px";
-  typeTitle.style.fontSize = "0.82rem";
-  typeTitle.style.textTransform = "uppercase";
-  typeTitle.style.letterSpacing = "0.06em";
-  typeTitle.style.color = "#bfdbfe";
-
-  const typeHint = document.createElement("div");
-  typeHint.textContent = "Enter a preset name first, then tap a type to open its builder. Tap again later to reopen and edit.";
-  typeHint.style.fontSize = "0.75rem";
-  typeHint.style.opacity = "0.8";
-  typeHint.style.marginTop = "4px";
-
-  // --- Preview ---
-
-  const preview = document.createElement("div");
-  preview.style.marginTop = "8px";
-  preview.style.padding = "8px";
-  preview.style.borderRadius = "10px";
-  preview.style.border = "1px solid rgba(37,99,235,0.8)";
-  preview.style.background = "#020617";
-  preview.style.fontSize = "0.82rem";
-  preview.style.fontWeight = "600";
-  preview.style.textAlign = "center";
+  makeTypeButton("standard",  "Standard line",  "Attack line (wye optional)");
+  makeTypeButton("master",    "Master stream",  "Deck gun or portable base");
+  makeTypeButton("standpipe", "Standpipe",      "High-rise / FDC standpipe");
+  makeTypeButton("sprinkler", "Sprinkler",      "Sprinkler / FDC supply");
+  makeTypeButton("foam",      "Foam line",      "Foam eductor / foam setup");
+  makeTypeButton("supply",    "Supply line",    "Hydrant / relay / feed line");
+  makeTypeButton("custom",    "Custom builder", "Any layout: wyes, siamese, etc.");
 
   function updatePreview() {
     if (!state.name.trim()) {
@@ -297,9 +269,9 @@ export function renderPresetEditor(mountEl, options) {
   }
 
   function updateTypeButtons() {
-    const hasName = !!state.name.trim();
-    for (let i = 0; i < typeButtons.length; i++) {
-      const tb = typeButtons[i];
+    var hasName = !!state.name.trim();
+    for (var i = 0; i < typeButtons.length; i++) {
+      var tb = typeButtons[i];
       tb.btn.disabled = !hasName;
       if (state.lineType === tb.id) {
         tb.btn.style.borderColor = "#22c55e";
@@ -313,7 +285,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openStandardConfig() {
     openStandardLinePopup({
-      dept: { hoses: hoses, nozzles: nozzles },
+      dept: { hoses: dept.hoses || [], nozzles: dept.nozzles || [] },
       initial: state.standardConfig,
       onSave: function(cfg) {
         state.standardConfig = cfg;
@@ -324,7 +296,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openMasterConfig() {
     openMasterStreamPopup({
-      dept: { hoses: hoses, appliances: appliances },
+      dept: { hoses: dept.hoses || [], appliances: dept.accessories || [] },
       initial: state.masterConfig,
       onSave: function(cfg) {
         state.masterConfig = cfg;
@@ -335,7 +307,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openStandpipeConfig() {
     openStandpipePopup({
-      dept: { hoses: hoses, nozzles: nozzles },
+      dept: { hoses: dept.hoses || [], nozzles: dept.nozzles || [] },
       initial: state.standpipeConfig,
       onSave: function(cfg) {
         state.standpipeConfig = cfg;
@@ -346,7 +318,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openSprinklerConfig() {
     openSprinklerPopup({
-      dept: { hoses: hoses },
+      dept: { hoses: dept.hoses || [] },
       initial: state.sprinklerConfig,
       onSave: function(cfg) {
         state.sprinklerConfig = cfg;
@@ -357,7 +329,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openFoamConfig() {
     openFoamPopup({
-      dept: { nozzles: nozzles },
+      dept: { nozzles: dept.nozzles || [] },
       initial: state.foamConfig,
       onSave: function(cfg) {
         state.foamConfig = cfg;
@@ -368,7 +340,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openSupplyConfig() {
     openSupplyLinePopup({
-      dept: { hoses: hoses },
+      dept: { hoses: dept.hoses || [] },
       initial: state.supplyConfig,
       onSave: function(cfg) {
         state.supplyConfig = cfg;
@@ -379,7 +351,7 @@ export function renderPresetEditor(mountEl, options) {
 
   function openCustomConfig() {
     openCustomBuilderPopup({
-      dept: { hoses: hoses, appliances: appliances },
+      dept: { hoses: dept.hoses || [], appliances: dept.accessories || [] },
       initial: state.customConfig,
       onSave: function(cfg) {
         state.customConfig = cfg;
@@ -403,35 +375,33 @@ export function renderPresetEditor(mountEl, options) {
     updatePreview();
   }
 
-  container.appendChild(nameRow);
-  container.appendChild(typeTitle);
-  container.appendChild(typeGrid);
-  container.appendChild(typeHint);
-  container.appendChild(preview);
-
-  mountEl.innerHTML = "";
-  mountEl.appendChild(container);
-
+  // initialise preview and type buttons
   updateTypeButtons();
   updatePreview();
 
-  if (saveButton) {
-    saveButton.onclick = function(e) {
-      e.preventDefault();
-      if (!state.name.trim()) {
-        alert("Please enter a preset name before saving.");
-        return;
-      }
-      if (!state.lineType) {
-        alert("Please choose a build type and configure it before saving.");
-        return;
-      }
-      onSave(clonePreset(state));
-    };
-  }
+  // Save handler
+  saveBtn.addEventListener("click", function(e) {
+    e.preventDefault();
+    if (!state.name.trim()) {
+      alert("Please enter a preset name before saving.");
+      return;
+    }
+    if (!state.lineType) {
+      alert("Please choose a build type and configure it before saving.");
+      return;
+    }
+    var payload = cloneConfig(state);
+    onSave(payload);
+    close(false);
+  });
 }
 
-// ---------- tiny style helpers ----------
+// Export a no-op render function to satisfy any imports that expect it
+export function renderPresetEditor(mountEl, options) {
+  openPresetEditorPopup(options || {});
+}
+
+// --- style helpers ---
 
 function styleTextInput(input) {
   input.style.padding = "6px 8px";
@@ -444,7 +414,7 @@ function styleTextInput(input) {
   input.style.width = "100%";
 }
 
-function styleTypeBtn(btn) {
+function styleTypeButton(btn) {
   btn.style.flex = "1 1 45%";
   btn.style.minWidth = "120px";
   btn.style.padding = "6px 8px";
@@ -475,4 +445,14 @@ function styleSecondaryButton(btn) {
   btn.style.cursor = "pointer";
   btn.style.background = "#020617";
   btn.style.color = "#e5e7eb";
+}
+
+function styleCircleButton(btn) {
+  btn.style.width = "26px";
+  btn.style.height = "26px";
+  btn.style.borderRadius = "999px";
+  btn.style.border = "1px solid rgba(148,163,184,0.6)";
+  btn.style.background = "#020617";
+  btn.style.color = "#e5e7eb";
+  btn.style.cursor = "pointer";
 }
