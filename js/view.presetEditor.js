@@ -1,16 +1,22 @@
 // view.presetEditor.js
-// Compact preset editor popup (name + type selection, buttons show a message).
-// This version does NOT import the standpipe/sprinkler/etc. builders yet,
-// so it avoids syntax issues in those files and keeps the app stable.
+// Preset line editor popup (name + type selection).
+// Standpipe uses the real builder; other types are placeholders for now.
+
+import { openStandpipePopup } from "./view.lineStandpipe.js";
 
 export function openPresetEditorPopup(options) {
   options = options || {};
+  const dept     = options.dept || {};
   const onSave   = typeof options.onSave === 'function' ? options.onSave : function () {};
   const onCancel = typeof options.onCancel === 'function' ? options.onCancel : function () {};
 
   const state = {
     name: '',
-    selectedType: ''
+    selectedType: '',
+    // store configs we get back from specific builders (e.g. standpipe)
+    configs: {
+      standpipe: null
+    }
   };
 
   // === Overlay + panel ===
@@ -139,7 +145,7 @@ export function openPresetEditorPopup(options) {
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
-  nameInput.placeholder = 'Example: 1 3/4" 200 ft 150 gpm';
+  nameInput.placeholder = 'Example: Standpipe 5th floor 150 gpm';
   nameInput.style.padding = '6px 8px';
   nameInput.style.borderRadius = '8px';
   nameInput.style.border = '1px solid rgba(55,65,81,0.9)';
@@ -209,8 +215,22 @@ export function openPresetEditorPopup(options) {
       state.selectedType = id;
       updateTypeButtons();
       updatePreview();
-      // Placeholder so each button "does something" without loading other files.
-      alert('Preset type "' + label + '" selected (builder wiring will come next).');
+
+      if (id === 'standpipe') {
+        // Open the real standpipe builder
+        openStandpipePopup({
+          dept,
+          initial: state.configs.standpipe,
+          onSave(config) {
+            state.configs.standpipe = config;
+            // optional: you could tweak the preview to show PDP/GPM here
+            updatePreview();
+          }
+        });
+      } else {
+        // Placeholder for other types (for now)
+        alert('Preset type "' + label + '" selected. Builder coming soon.');
+      }
     });
 
     typeButtons.push({ id, btn });
@@ -222,7 +242,7 @@ export function openPresetEditorPopup(options) {
   }
 
   const typeHint = document.createElement('div');
-  typeHint.textContent = 'Enter a name, choose a type, then Save. Detailed builders will hook in next.';
+  typeHint.textContent = 'Enter a name, choose a type. Standpipe opens its own window; others are placeholders for now.';
   typeHint.style.fontSize = '0.75rem';
   typeHint.style.opacity = '0.8';
   typeHint.style.marginTop = '4px';
@@ -279,7 +299,8 @@ export function openPresetEditorPopup(options) {
     }
     onSave({
       name: state.name,
-      lineType: state.selectedType
+      lineType: state.selectedType,
+      standpipeConfig: state.configs.standpipe || null
     });
     close(false);
   });
