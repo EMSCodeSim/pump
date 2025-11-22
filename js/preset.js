@@ -1645,7 +1645,6 @@ function handleAddPresetClick() {
     }
   });
 }
-}
 
 // Simple info panel for web-only mode (currently forwards to main menu)
 function openPresetInfoPanelWeb() {
