@@ -1,20 +1,13 @@
-
 // view.presetEditor.js
-// Simple popup preset editor for FireOps Calc.
-
-import { openMasterStreamPopup }   from "./view.lineMaster.js";
-import { openStandpipePopup }      from "./view.lineStandpipe.js";
-import { openFoamPopup }           from "./view.lineFoam.js";
-import { openSprinklerPopup }      from "./view.lineSprinkler.js";
-import { openStandardLinePopup }   from "./view.lineStandard.js";
-import { openSupplyLinePopup }     from "./view.lineSupply.js";
-import { openCustomBuilderPopup }  from "./view.lineCustom.js";
+// Compact preset editor popup (name + type selection).
 
 export function openPresetEditorPopup(options) {
-  if (!options) options = {};
-  const dept = options.dept || {};
-  const onSave = typeof options.onSave === "function" ? options.onSave : function() {};
-  const onCancel = typeof options.onCancel === "function" ? options.onCancel : function() {};
+  options = options || {};
+  const onSave = typeof options.onSave === "function" ? options.onSave : function () {};
+  const onCancel = typeof options.onCancel === "function" ? options.onCancel : function () {};
+
+  let selectedType = "";
+  let nameValue = "";
 
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
@@ -117,25 +110,14 @@ export function openPresetEditorPopup(options) {
     if (overlay.parentNode) {
       overlay.parentNode.removeChild(overlay);
     }
-    if (cancelled) {
-      onCancel();
-    }
+    if (cancelled) onCancel();
   }
 
-  overlay.addEventListener("click", function(e) {
-    if (e.target === overlay) {
-      close(true);
-    }
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) close(true);
   });
-  closeBtn.addEventListener("click", function() { close(true); });
-  cancelBtn.addEventListener("click", function() { close(true); });
-
-  // --- simple state for this editor ---
-  const state = {
-    name: "",
-    lineType: "",
-    configs: {}
-  };
+  closeBtn.addEventListener("click", function () { close(true); });
+  cancelBtn.addEventListener("click", function () { close(true); });
 
   // --- name input ---
   const nameRow = document.createElement("div");
@@ -151,7 +133,7 @@ export function openPresetEditorPopup(options) {
 
   const nameInput = document.createElement("input");
   nameInput.type = "text";
-  nameInput.placeholder = 'Example: 1 3/4\" 200 ft 150 gpm';
+  nameInput.placeholder = 'Example: 1 3/4" 200 ft 150 gpm';
   nameInput.style.padding = "6px 8px";
   nameInput.style.borderRadius = "8px";
   nameInput.style.border = "1px solid rgba(55,65,81,0.9)";
@@ -159,10 +141,10 @@ export function openPresetEditorPopup(options) {
   nameInput.style.color = "#e5e7eb";
   nameInput.style.fontSize = "0.8rem";
   nameInput.style.boxSizing = "border-box";
+  nameInput.style.width = "100%";
 
-  nameInput.addEventListener("input", function() {
-    state.name = nameInput.value || "";
-    updateTypeButtons();
+  nameInput.addEventListener("input", function () {
+    nameValue = nameInput.value || "";
     updatePreview();
   });
 
@@ -178,7 +160,6 @@ export function openPresetEditorPopup(options) {
   typeTitle.style.textTransform = "uppercase";
   typeTitle.style.letterSpacing = "0.06em";
   typeTitle.style.color = "#bfdbfe";
-
   body.appendChild(typeTitle);
 
   const typeGrid = document.createElement("div");
@@ -186,14 +167,24 @@ export function openPresetEditorPopup(options) {
   typeGrid.style.flexWrap = "wrap";
   typeGrid.style.gap = "6px";
   typeGrid.style.marginTop = "6px";
-
   body.appendChild(typeGrid);
+
+  const types = [
+    ["standard",  "Standard line"],
+    ["master",    "Master stream"],
+    ["standpipe", "Standpipe"],
+    ["sprinkler", "Sprinkler"],
+    ["foam",      "Foam line"],
+    ["supply",    "Supply line"],
+    ["custom",    "Custom builder"]
+  ];
 
   const typeButtons = [];
 
-  function makeTypeButton(id, label, sublabel) {
+  function makeTypeButton(id, label) {
     const btn = document.createElement("button");
     btn.type = "button";
+    btn.textContent = label;
     btn.style.flex = "1 1 45%";
     btn.style.minWidth = "120px";
     btn.style.padding = "6px 8px";
@@ -201,45 +192,25 @@ export function openPresetEditorPopup(options) {
     btn.style.border = "1px solid rgba(55,65,81,0.9)";
     btn.style.background = "rgba(15,23,42,0.8)";
     btn.style.color = "#e5e7eb";
-    btn.style.textAlign = "left";
+    btn.style.textAlign = "center";
     btn.style.cursor = "pointer";
 
-    const titleSpan = document.createElement("div");
-    titleSpan.textContent = label;
-    titleSpan.style.fontSize = "0.8rem";
-    titleSpan.style.fontWeight = "600";
-
-    const subSpan = document.createElement("div");
-    subSpan.textContent = sublabel || "";
-    subSpan.style.fontSize = "0.72rem";
-    subSpan.style.opacity = "0.8";
-
-    btn.appendChild(titleSpan);
-    btn.appendChild(subSpan);
-
-    btn.addEventListener("click", function(e) {
-      e.preventDefault();
-      if (!state.name.trim()) {
-        alert("Enter a preset name first.");
-        return;
-      }
-      setLineType(id, true);
+    btn.addEventListener("click", function () {
+      selectedType = id;
+      updateTypeButtons();
+      updatePreview();
     });
 
     typeButtons.push({ id: id, btn: btn });
     typeGrid.appendChild(btn);
   }
 
-  makeTypeButton("standard",  "Standard line",  "Attack line (wye optional)");
-  makeTypeButton("master",    "Master stream",  "Deck gun or portable base");
-  makeTypeButton("standpipe", "Standpipe",      "High-rise / FDC standpipe");
-  makeTypeButton("sprinkler", "Sprinkler",      "Sprinkler / FDC supply");
-  makeTypeButton("foam",      "Foam line",      "Foam eductor / foam setup");
-  makeTypeButton("supply",    "Supply line",    "Hydrant / relay / feed line");
-  makeTypeButton("custom",    "Custom builder", "Any layout: wyes, siamese, etc.");
+  for (let i = 0; i < types.length; i++) {
+    makeTypeButton(types[i][0], types[i][1]);
+  }
 
   const typeHint = document.createElement("div");
-  typeHint.textContent = "Enter a preset name first, then tap a type to open its builder.";
+  typeHint.textContent = "Enter a name and tap a type. Later we can open detailed builders per type.";
   typeHint.style.fontSize = "0.75rem";
   typeHint.style.opacity = "0.8";
   typeHint.style.marginTop = "4px";
@@ -255,27 +226,12 @@ export function openPresetEditorPopup(options) {
   preview.style.fontSize = "0.82rem";
   preview.style.fontWeight = "600";
   preview.style.textAlign = "center";
-
   body.appendChild(preview);
 
-  function updatePreview() {
-    if (!state.name.trim()) {
-      preview.textContent = "Enter a preset name to begin.";
-      return;
-    }
-    if (!state.lineType) {
-      preview.textContent = 'Preset: "' + state.name + '" – select a build type to open its editor.';
-      return;
-    }
-    preview.textContent = 'Preset: "' + state.name + '"   •   Type: ' + state.lineType;
-  }
-
   function updateTypeButtons() {
-    const hasName = !!state.name.trim();
     for (let i = 0; i < typeButtons.length; i++) {
       const tb = typeButtons[i];
-      tb.btn.disabled = !hasName;
-      if (state.lineType === tb.id) {
+      if (tb.id === selectedType) {
         tb.btn.style.borderColor = "#22c55e";
         tb.btn.style.background = "#022c22";
       } else {
@@ -285,82 +241,38 @@ export function openPresetEditorPopup(options) {
     }
   }
 
-  function setLineType(type, openPopup) {
-    state.lineType = type;
-    updateTypeButtons();
-    updatePreview();
-
-    if (openPopup) {
-      if (type === "standard") {
-        openStandardLinePopup({
-          dept: dept,
-          initial: state.configs.standard || null,
-          onSave: function(cfg) { state.configs.standard = cfg; updatePreview(); }
-        });
-      } else if (type === "master") {
-        openMasterStreamPopup({
-          dept: dept,
-          initial: state.configs.master || null,
-          onSave: function(cfg) { state.configs.master = cfg; updatePreview(); }
-        });
-      } else if (type === "standpipe") {
-        openStandpipePopup({
-          dept: dept,
-          initial: state.configs.standpipe || null,
-          onSave: function(cfg) { state.configs.standpipe = cfg; updatePreview(); }
-        });
-      } else if (type === "sprinkler") {
-        openSprinklerPopup({
-          dept: dept,
-          initial: state.configs.sprinkler || null,
-          onSave: function(cfg) { state.configs.sprinkler = cfg; updatePreview(); }
-        });
-      } else if (type === "foam") {
-        openFoamPopup({
-          dept: dept,
-          initial: state.configs.foam || null,
-          onSave: function(cfg) { state.configs.foam = cfg; updatePreview(); }
-        });
-      } else if (type === "supply") {
-        openSupplyLinePopup({
-          dept: dept,
-          initial: state.configs.supply || null,
-          onSave: function(cfg) { state.configs.supply = cfg; updatePreview(); }
-        });
-      } else if (type === "custom") {
-        openCustomBuilderPopup({
-          dept: dept,
-          initial: state.configs.custom || null,
-          onSave: function(cfg) { state.configs.custom = cfg; updatePreview(); }
-        });
-      }
+  function updatePreview() {
+    if (!nameValue) {
+      preview.textContent = "Enter a preset name to begin.";
+    } else if (!selectedType) {
+      preview.textContent = 'Preset: "' + nameValue + '" – choose a type.';
+    } else {
+      preview.textContent = 'Preset: "' + nameValue + '" • Type: ' + selectedType;
     }
   }
 
   updateTypeButtons();
   updatePreview();
 
-  saveBtn.addEventListener("click", function(e) {
+  saveBtn.addEventListener("click", function (e) {
     e.preventDefault();
-    if (!state.name.trim()) {
+    if (!nameValue.trim()) {
       alert("Please enter a preset name before saving.");
       return;
     }
-    if (!state.lineType) {
+    if (!selectedType) {
       alert("Please choose a build type before saving.");
       return;
     }
-    const result = {
-      name: state.name,
-      lineType: state.lineType,
-      configs: state.configs
-    };
-    onSave(result);
+    onSave({
+      name: nameValue,
+      lineType: selectedType
+    });
     close(false);
   });
 }
 
-// Optional render function; just calls popup for now
+// For compatibility with older code that might call renderPresetEditor
 export function renderPresetEditor(mountEl, options) {
   openPresetEditorPopup(options || {});
 }
