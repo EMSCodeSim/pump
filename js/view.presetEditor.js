@@ -1,16 +1,27 @@
 // view.presetEditor.js
 // Popup Preset Line Editor for FireOpsCalc
-// - Type picker (standard, blitz, master, standpipe, sprinkler, foam, custom)
-// - Basic hose + nozzle setup + optional wye
-// - For Master / Standpipe / Foam, opens dedicated popups:
-//     view.lineMaster.js      -> openMasterStreamPopup
-//     view.lineStandpipe.js   -> openStandpipePopup
-//     view.lineFoam.js        -> openFoamPopup
-// - Each popup returns a config with lastCalc we use for the preview bar.
+//
+// This version:
+// - Removes Blitz fire button
+// - Adds Supply line button
+// - Hooks each type to its own popup file:
+//     * Standard line  -> view.lineStandard.js (openStandardLinePopup)
+//     * Master stream  -> view.lineMaster.js   (openMasterStreamPopup)
+//     * Standpipe      -> view.lineStandpipe.js(openStandpipePopup)
+//     * Sprinkler      -> view.lineSprinkler.js(openSprinklerPopup)
+//     * Foam line      -> view.lineFoam.js     (openFoamPopup)
+//     * Supply line    -> view.lineSupply.js   (openSupplyLinePopup)
+//     * Custom builder -> view.lineCustom.js   (openCustomBuilderPopup)
+// - Removes internal basic hose + wye builder
+// - Requires preset name BEFORE any type can be selected.
 
 import { openMasterStreamPopup }   from './view.lineMaster.js';
-import { openStandpipePopup }     from './view.lineStandpipe.js';
-import { openFoamPopup }          from './view.lineFoam.js';
+import { openStandpipePopup }      from './view.lineStandpipe.js';
+import { openFoamPopup }           from './view.lineFoam.js';
+import { openSprinklerPopup }      from './view.lineSprinkler.js';
+import { openStandardLinePopup }   from './view.lineStandard.js';
+import { openSupplyLinePopup }     from './view.lineSupply.js';
+import { openCustomBuilderPopup }  from './view.lineCustom.js';
 
 let presetEditorStylesInjected = false;
 
@@ -163,7 +174,7 @@ function injectPresetEditorStyles() {
   border-top: none;
 }
 
-/* Rows: stacked on phone, horizontal on wider screens */
+/* Rows */
 .pe-row {
   display: flex;
   flex-direction: column;
@@ -176,7 +187,7 @@ function injectPresetEditorStyles() {
   font-size: 0.82rem;
 }
 
-/* Inputs & selects full width on phone */
+/* Inputs & selects */
 .preset-editor input[type="text"],
 .preset-editor input[type="number"],
 .preset-editor select {
@@ -192,43 +203,6 @@ function injectPresetEditorStyles() {
 
 .preset-editor input::placeholder {
   color: rgba(148, 163, 184, 0.9);
-}
-
-/* Subsections (branches) – card inside panel */
-.pe-subsection {
-  border: 1px solid rgba(30, 64, 175, 0.5);
-  background: rgba(15, 23, 42, 0.85);
-  padding: 6px;
-  border-radius: 10px;
-  margin-top: 6px;
-}
-
-.pe-subsection h4 {
-  margin: 0 0 4px 0;
-  font-size: 0.8rem;
-  color: #bfdbfe;
-}
-
-/* Toggle pill group */
-.pe-toggle-group {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.pe-toggle-group button {
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(75, 85, 99, 0.9);
-  background: rgba(15, 23, 42, 0.9);
-  font-size: 0.78rem;
-  color: #e5e7eb;
-  cursor: pointer;
-}
-
-.pe-toggle-on {
-  background: #0ea5e9;
-  border-color: #0ea5e9;
-  color: #020617;
 }
 
 /* Type selection grid */
@@ -267,6 +241,10 @@ function injectPresetEditorStyles() {
   border-color: #22c55e;
   background: radial-gradient(circle at 0% 0%, #022c22, #020617);
 }
+.pe-type-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 /* Preview bar */
 .pe-preview {
@@ -280,9 +258,15 @@ function injectPresetEditorStyles() {
   text-align: center;
 }
 
-/* Name row margin tweak */
+/* Name row */
 .pe-name {
   margin-top: 0;
+}
+
+/* Hint text */
+.pe-hint {
+  font-size: 0.75rem;
+  opacity: 0.8;
 }
 
 /* Desktop / tablet enhancements */
@@ -297,21 +281,11 @@ function injectPresetEditorStyles() {
     min-width: 100px;
   }
 
-  .pe-two-cols {
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-  }
-
-  .pe-subsection {
-    flex: 1 1 48%;
-  }
-
   .preset-editor input[type="text"],
   .preset-editor input[type="number"],
   .preset-editor select {
     width: auto;
-    min-width: 120px;
+    min-width: 160px;
   }
 }
   `;
@@ -418,29 +392,22 @@ export function renderPresetEditor(mountEl, {
   injectPresetEditorStyles();
 
   const hoses      = dept.hoses      || []; // [{id, label}]
-  const nozzles    = dept.nozzles    || []; // [{id, label}]
-  const appliances = dept.appliances || []; // [{id, label}]
+  const nozzles    = dept.nozzles    || []; // not used directly here but kept for future
+  const appliances = dept.appliances || [];
 
   // === initial state ===
   const defaults = {
     name: '',
-    lineType: 'standard',         // standard | blitz | master | standpipe | sprinkler | foam | custom
+    lineType: '',         // standard | master | standpipe | sprinkler | foam | supply | custom
 
-    hoseSizeId: hoses[0]?.id || '',
-    lengthFt: 200,
-    nozzleId: nozzles[0]?.id || '',
-    pressureMode: 'auto',         // 'auto' | 'manual'
-
-    hasWye: false,
-    wye: {
-      branchA: { hoseSizeId: hoses[0]?.id || '', lengthFt: 100, nozzleId: nozzles[0]?.id || '' },
-      branchB: { hoseSizeId: hoses[0]?.id || '', lengthFt: 100, nozzleId: nozzles[0]?.id || '' }
-    },
-
-    // External popup configs:
-    masterConfig:    null,  // from openMasterStreamPopup
-    standpipeConfig: null,  // from openStandpipePopup
-    foamConfig:      null,  // from openFoamPopup
+    // Configs from external builders:
+    standardConfig:   null,
+    masterConfig:     null,
+    standpipeConfig:  null,
+    sprinklerConfig:  null,
+    foamConfig:       null,
+    supplyConfig:     null,
+    customConfig:     null,
   };
 
   const state = deepClone(defaults);
@@ -458,10 +425,7 @@ export function renderPresetEditor(mountEl, {
     if (opts.placeholder) e.placeholder = opts.placeholder;
     if (opts.for) e.htmlFor = opts.for;
     if (opts.id) e.id = opts.id;
-    if (opts.disabled) e.disabled = true;
-    if (opts.min != null) e.min = opts.min;
-    if (opts.step != null) e.step = opts.step;
-    if (opts.checked != null) e.checked = !!opts.checked;
+    if (opts.disabled != null) e.disabled = !!opts.disabled;
     if (opts.title) e.title = opts.title;
     if (opts.onchange) e.addEventListener('change', opts.onchange);
     if (opts.onclick) e.addEventListener('click', opts.onclick);
@@ -469,45 +433,104 @@ export function renderPresetEditor(mountEl, {
     return e;
   }
 
-  function select(options, current, onChange) {
-    const s = el('select', { onchange: e => onChange(e.target.value) });
-    options.forEach(opt => {
-      const o = document.createElement('option');
-      o.value = opt.id;
-      o.textContent = opt.label;
-      if (opt.id === current) o.selected = true;
-      s.appendChild(o);
-    });
-    return s;
+  // --- PREVIEW BAR ---
+
+  const previewBar = el('div', { class: 'pe-preview' });
+
+  function extractGpmAndPdpFromLastCalc(lastCalc, fallbackGpm, fallbackPdp) {
+    if (!lastCalc || typeof lastCalc !== 'object') {
+      return { gpm: fallbackGpm, pp: fallbackPdp };
+    }
+
+    let gpm =
+      lastCalc.gpm ??
+      lastCalc.GPM ??
+      lastCalc.flowGpm ??
+      lastCalc.solutionGpm ??
+      lastCalc.waterGpm ??
+      lastCalc.requiredFlowGpm ??
+      lastCalc.targetFlowGpm ??
+      fallbackGpm;
+
+    let pp =
+      lastCalc.PDP ??
+      lastCalc.pdp ??
+      lastCalc.pp ??
+      lastCalc.pumpPsi ??
+      fallbackPdp;
+
+    return {
+      gpm: Math.round(Number(gpm || 0)),
+      pp:  Math.round(Number(pp  || 0)),
+    };
   }
 
-  function numberInput(value, onChange, extra = {}) {
-    return el('input', {
-      type: 'number',
-      value: value ?? '',
-      step: extra.step ?? '1',
-      min: extra.min ?? '0',
-      onchange: e => {
-        const raw = e.target.value;
-        if (raw === '') {
-          onChange('');
-        } else {
-          onChange(Number(raw));
-        }
-      }
-    });
+  function calculatePPandGPM(currentState) {
+    const type = currentState.lineType;
+
+    if (type === 'standard' && currentState.standardConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.standardConfig.lastCalc, 150, 150);
+    }
+    if (type === 'master' && currentState.masterConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.masterConfig.lastCalc, 500, 150);
+    }
+    if (type === 'standpipe' && currentState.standpipeConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.standpipeConfig.lastCalc, 150, 150);
+    }
+    if (type === 'sprinkler' && currentState.sprinklerConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.sprinklerConfig.lastCalc, 250, 150);
+    }
+    if (type === 'foam' && currentState.foamConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.foamConfig.lastCalc, 95, 200);
+    }
+    if (type === 'supply' && currentState.supplyConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.supplyConfig.lastCalc, 500, 80);
+    }
+    if (type === 'custom' && currentState.customConfig?.lastCalc) {
+      return extractGpmAndPdpFromLastCalc(currentState.customConfig.lastCalc, 300, 150);
+    }
+
+    // Fallback if nothing configured yet
+    switch (type) {
+      case 'standard':  return { gpm: 150, pp: 150 };
+      case 'master':    return { gpm: 500, pp: 150 };
+      case 'standpipe': return { gpm: 150, pp: 175 };
+      case 'sprinkler': return { gpm: 250, pp: 150 };
+      case 'foam':      return { gpm: 95,  pp: 200 };
+      case 'supply':    return { gpm: 500, pp: 80 };
+      case 'custom':    return { gpm: 300, pp: 150 };
+      default:          return { gpm: 0,   pp: 0 };
+    }
   }
 
-  function textInput(value, onChange, placeholder = '') {
-    return el('input', {
-      type: 'text',
-      value: value ?? '',
-      placeholder,
-      onchange: e => onChange(e.target.value)
-    });
+  function updatePreview() {
+    if (!state.lineType) {
+      previewBar.textContent = 'Enter a preset name, then choose a build type to open its editor.';
+      return;
+    }
+    const { gpm, pp } = calculatePPandGPM(state);
+    previewBar.textContent = `Preview – Type: ${state.lineType || 'none'}   •   GPM: ${gpm}   •   PDP: ${pp} psi`;
   }
 
-  // --- Type buttons ---
+  // --- NAME FIELD (REQUIRED BEFORE TYPE SELECTION) ---
+
+  const nameInput = el('input', {
+    type: 'text',
+    value: state.name || '',
+    placeholder: 'Example: 1¾\" attack 200\' 150 gpm',
+    onchange: e => {
+      state.name = e.target.value || '';
+      updateTypeButtons();
+      updatePreview();
+    }
+  });
+
+  const nameRow = el('div', { class: 'pe-row pe-name' },
+    el('label', { text: 'Preset name:' }),
+    nameInput
+  );
+
+  // --- TYPE BUTTONS ---
 
   const typeButtons = [];
 
@@ -516,7 +539,12 @@ export function renderPresetEditor(mountEl, {
       class: 'pe-type-btn',
       onclick: (e) => {
         e.preventDefault();
-        setLineType(id, true); // true = open popup when relevant
+        if (!state.name.trim()) {
+          // Guard in case disabled attribute isn't respected somewhere
+          alert('Enter a preset name first.');
+          return;
+        }
+        setLineType(id, true); // true => open popup
       }
     },
       document.createTextNode(label),
@@ -527,8 +555,21 @@ export function renderPresetEditor(mountEl, {
   }
 
   function updateTypeButtons() {
+    const hasName = !!state.name.trim();
     typeButtons.forEach(({ id, btn }) => {
       btn.classList.toggle('pe-type-active', state.lineType === id);
+      btn.disabled = !hasName;
+    });
+  }
+
+  function openStandardConfig() {
+    openStandardLinePopup({
+      dept: { hoses, nozzles },
+      initial: state.standardConfig || null,
+      onSave(config) {
+        state.standardConfig = config;
+        updatePreview();
+      }
     });
   }
 
@@ -554,6 +595,17 @@ export function renderPresetEditor(mountEl, {
     });
   }
 
+  function openSprinklerConfig() {
+    openSprinklerPopup({
+      dept: { hoses },
+      initial: state.sprinklerConfig || null,
+      onSave(config) {
+        state.sprinklerConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
   function openFoamConfig() {
     openFoamPopup({
       dept: { nozzles },
@@ -565,335 +617,93 @@ export function renderPresetEditor(mountEl, {
     });
   }
 
+  function openSupplyConfig() {
+    openSupplyLinePopup({
+      dept: { hoses },
+      initial: state.supplyConfig || null,
+      onSave(config) {
+        state.supplyConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
+  function openCustomConfig() {
+    openCustomBuilderPopup({
+      dept: { hoses, appliances },
+      initial: state.customConfig || null,
+      onSave(config) {
+        state.customConfig = config;
+        updatePreview();
+      }
+    });
+  }
+
   function setLineType(type, openPopup) {
     state.lineType = type;
     updateTypeButtons();
-    renderLayout();
     if (openPopup) {
+      if (type === 'standard')  openStandardConfig();
       if (type === 'master')    openMasterConfig();
       if (type === 'standpipe') openStandpipeConfig();
+      if (type === 'sprinkler') openSprinklerConfig();
       if (type === 'foam')      openFoamConfig();
+      if (type === 'supply')    openSupplyConfig();
+      if (type === 'custom')    openCustomConfig();
     }
     updatePreview();
   }
 
   const typeSection = el('section', { class: 'pe-section pe-type-section' },
-    el('h3', { text: 'Select preset type' }),
+    el('h3', { text: 'Choose build type' }),
     (function () {
       const grid = el('div', { class: 'pe-type-grid' },
-        makeTypeButton('standard',  'Standard line',  'Attack line, optional wye'),
-        makeTypeButton('blitz',     'Blitz fire',     'Portable blitz / RAM'),
-        makeTypeButton('master',    'Master stream',  'Deck gun or portable'),
-        makeTypeButton('standpipe', 'Standpipe',      'High-rise / FDC lines'),
-        makeTypeButton('sprinkler', 'Sprinkler',      'System / FDC supply'),
-        makeTypeButton('foam',      'Foam line',      'Eductor / foam setup'),
-        makeTypeButton('custom',    'Custom builder', 'Mix wyes, foam, master, etc.')
+        makeTypeButton('standard',  'Standard line',  'Attack line (with wye option)'),
+        makeTypeButton('master',    'Master stream',  'Deck gun or portable base'),
+        makeTypeButton('standpipe', 'Standpipe',      'High-rise / FDC standpipe'),
+        makeTypeButton('sprinkler', 'Sprinkler',      'Sprinkler / FDC supply'),
+        makeTypeButton('foam',      'Foam line',      'Foam eductor / foam setup'),
+        makeTypeButton('supply',    'Supply line',    'Hydrant / relay / feed line'),
+        makeTypeButton('custom',    'Custom builder', 'Mix wyes, siamese, appliances')
       );
       return grid;
-    })()
+    })(),
+    el('div', { class: 'pe-hint', text: 'Enter a preset name first, then tap a type to open its builder. Tap the same type again to reopen and edit.' })
   );
 
-  // --- NAME ROW ---
-  const nameRow = el('div', { class: 'pe-row pe-name' },
-    el('label', { text: 'Preset name:' }),
-    textInput(
-      state.name,
-      v => { state.name = v; updatePreview(); },
-      'Example: Deck gun 1000 gpm'
-    )
-  );
+  // --- LAYOUT CONTAINER ---
 
-  // --- BASIC SECTION ---
-  const basicSection = el('section', { class: 'pe-section' },
-    el('h3', { text: 'Hose & basic setup' })
-  );
-
-  const basicRow1 = el('div', { class: 'pe-row' },
-    el('label', { text: 'Hose size:' }),
-    select(hoses, state.hoseSizeId, v => { state.hoseSizeId = v; updatePreview(); }),
-    el('span', { text: 'Total length:' }),
-    numberInput(state.lengthFt, v => { state.lengthFt = v === '' ? 0 : v; updatePreview(); }),
-    el('span', { text: 'ft' })
-  );
-
-  const pressureToggle = (() => {
-    const autoBtn = el('button', {
-      text: 'Auto',
-      onclick: (e) => {
-        e.preventDefault();
-        state.pressureMode = 'auto';
-        refresh();
-        updatePreview();
-      }
-    });
-    const manBtn = el('button', {
-      text: 'Manual',
-      onclick: (e) => {
-        e.preventDefault();
-        state.pressureMode = 'manual';
-        refresh();
-        updatePreview();
-      }
-    });
-    function refresh() {
-      autoBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'auto');
-      manBtn.classList.toggle('pe-toggle-on', state.pressureMode === 'manual');
-    }
-    refresh();
-    return el('span', { class: 'pe-toggle-group' }, autoBtn, manBtn);
-  })();
-
-  const basicRow2 = el('div', { class: 'pe-row' },
-    el('label', { text: 'Nozzle / tip:' }),
-    select(nozzles, state.nozzleId, v => { state.nozzleId = v; updatePreview(); }),
-    el('span', { text: 'Pressure mode:' }),
-    pressureToggle
-  );
-
-  basicSection.append(basicRow1, basicRow2);
-
-  // --- WYE SECTION (standard + custom) ---
-  const wyeSection = el('section', { class: 'pe-section' });
-  const wyeContent = el('div');
-
-  const wyeToggleGroup = (() => {
-    const noBtn = el('button', {
-      text: 'No',
-      onclick: (e) => {
-        e.preventDefault();
-        state.hasWye = false;
-        refresh();
-        renderWyeContent();
-        updatePreview();
-      }
-    });
-    const yesBtn = el('button', {
-      text: 'Yes',
-      onclick: (e) => {
-        e.preventDefault();
-        state.hasWye = true;
-        refresh();
-        renderWyeContent();
-        updatePreview();
-      }
-    });
-    function refresh() {
-      noBtn.classList.toggle('pe-toggle-on', !state.hasWye);
-      yesBtn.classList.toggle('pe-toggle-on', state.hasWye);
-    }
-    refresh();
-    return { groupEl: el('span', { class: 'pe-toggle-group' }, noBtn, yesBtn), refresh };
-  })();
-
-  const wyeToggleRow = el('div', { class: 'pe-row' },
-    el('h3', { text: 'Wye / branch builder' }),
-    el('span', { text: 'Add wye:' }),
-    wyeToggleGroup.groupEl
-  );
-
-  function branchBlock(label, bState) {
-    return el('div', { class: 'pe-subsection' },
-      el('h4', { text: label }),
-      el('div', { class: 'pe-row' },
-        el('label', { text: 'Hose size:' }),
-        select(hoses, bState.hoseSizeId, v => { bState.hoseSizeId = v; updatePreview(); }),
-        el('span', { text: 'Length:' }),
-        numberInput(bState.lengthFt, v => { bState.lengthFt = v === '' ? 0 : v; updatePreview(); }),
-        el('span', { text: 'ft' })
-      ),
-      el('div', { class: 'pe-row' },
-        el('label', { text: 'Nozzle:' }),
-        select(nozzles, bState.nozzleId, v => { bState.nozzleId = v; updatePreview(); })
-      )
-    );
-  }
-
-  function renderWyeContent() {
-    wyeContent.innerHTML = '';
-    if (!state.hasWye) return;
-    wyeContent.append(
-      el('div', { class: 'pe-row pe-two-cols' },
-        branchBlock('Branch A', state.wye.branchA),
-        branchBlock('Branch B', state.wye.branchB)
-      )
-    );
-  }
-
-  wyeSection.append(wyeToggleRow, wyeContent);
-
-  // --- SPECIAL SECTION (foam / sprinkler / standpipe / master shortcuts) ---
-  const specialSection = el('section', { class: 'pe-section', id: 'pe-special' });
-
-  function renderSpecialSection() {
-    specialSection.innerHTML = '';
-
-    // For now, this just shows "configure" shortcuts for the external popups,
-    // plus sprinkler placeholder fields.
-    const targets = [];
-    if (state.lineType === 'foam')      targets.push('foam');
-    if (state.lineType === 'standpipe') targets.push('standpipe');
-    if (state.lineType === 'master')    targets.push('master');
-    if (state.lineType === 'sprinkler') targets.push('sprinkler');
-    if (state.lineType === 'custom')    targets.push('foam', 'standpipe', 'master', 'sprinkler');
-
-    if (!targets.length) return;
-
-    if (targets.includes('foam')) {
-      specialSection.append(
-        el('h3', { text: 'Foam options' }),
-        el('div', { class: 'pe-row' },
-          el('span', { text: 'Open foam setup:' }),
-          el('button', {
-            class: 'pe-btn-secondary',
-            text: 'Configure foam system…',
-            onclick: (e) => {
-              e.preventDefault();
-              openFoamConfig();
-            }
-          })
-        )
-      );
-    }
-
-    if (targets.includes('standpipe')) {
-      specialSection.append(
-        el('h3', { text: 'Standpipe options' }),
-        el('div', { class: 'pe-row' },
-          el('span', { text: 'Open standpipe setup:' }),
-          el('button', {
-            class: 'pe-btn-secondary',
-            text: 'Configure standpipe…',
-            onclick: (e) => {
-              e.preventDefault();
-              openStandpipeConfig();
-            }
-          })
-        )
-      );
-    }
-
-    if (targets.includes('master')) {
-      specialSection.append(
-        el('h3', { text: 'Master stream options' }),
-        el('div', { class: 'pe-row' },
-          el('span', { text: 'Open master stream setup:' }),
-          el('button', {
-            class: 'pe-btn-secondary',
-            text: 'Configure master stream…',
-            onclick: (e) => {
-              e.preventDefault();
-              openMasterConfig();
-            }
-          })
-        )
-      );
-    }
-
-    if (targets.includes('sprinkler')) {
-      specialSection.append(
-        el('h3', { text: 'Sprinkler options (placeholder)' }),
-        el('div', { class: 'pe-row' },
-          el('span', { text: 'Sprinkler presets will be added here.' })
-        )
-      );
-    }
-  }
-
-  // --- PREVIEW BAR ---
-  const previewBar = el('div', { class: 'pe-preview' });
-
-  function calculatePPandGPM(currentState) {
-    // If external popup configs have lastCalc, use them.
-    if (currentState.lineType === 'master' && currentState.masterConfig?.lastCalc) {
-      const lc = currentState.masterConfig.lastCalc;
-      const gpm = lc.gpm ?? lc.GPM ?? 0;
-      const pp  = lc.PDP ?? lc.pp ?? lc.pdp ?? 0;
-      return { gpm: Math.round(gpm), pp: Math.round(pp) };
-    }
-
-    if (currentState.lineType === 'standpipe' && currentState.standpipeConfig?.lastCalc) {
-      const lc = currentState.standpipeConfig.lastCalc;
-      const gpm = lc.gpm ?? lc.GPM ?? 0;
-      const pp  = lc.PDP ?? lc.pp ?? lc.pdp ?? 0;
-      return { gpm: Math.round(gpm), pp: Math.round(pp) };
-    }
-
-    if (currentState.lineType === 'foam' && currentState.foamConfig?.lastCalc) {
-      const lc = currentState.foamConfig.lastCalc;
-      const gpm = lc.solutionGpm ?? lc.waterGpm ?? lc.gpm ?? 0;
-      const pp  = lc.pdp ?? lc.PDP ?? 0;
-      return { gpm: Math.round(gpm), pp: Math.round(pp || 150) };
-    }
-
-    // Placeholder / simple preview for other types.
-    let gpm = 150;
-    let pp  = 150;
-
-    switch (currentState.lineType) {
-      case 'standard':
-        gpm = 150;
-        if (currentState.hasWye) gpm += 50;
-        break;
-      case 'blitz':
-        gpm = 500;
-        pp  = 150;
-        break;
-      case 'sprinkler':
-        gpm = 250;
-        pp  = 150;
-        break;
-      case 'custom':
-      default:
-        gpm = 200;
-        if (currentState.hasWye) gpm += 50;
-        if (currentState.masterConfig) gpm += 200;
-        break;
-    }
-
-    return { gpm: Math.round(gpm), pp: Math.round(pp) };
-  }
-
-  function updatePreview() {
-    const { gpm, pp } = calculatePPandGPM(state);
-    previewBar.textContent = `Preview – GPM: ${gpm}   |   PDP: ${pp} psi`;
-  }
-
-  // --- SAVE HANDLER ---
-  if (saveButton) {
-    saveButton.onclick = (e) => {
-      e.preventDefault();
-      onSave(deepClone(state));
-    };
-  }
-
-  // --- LAYOUT RENDERING ---
   const container = el('div', { class: 'preset-editor' });
 
   function renderLayout() {
     container.innerHTML = '';
-
-    container.append(typeSection, nameRow, basicSection);
-
-    renderSpecialSection();
-    if (specialSection.innerHTML.trim()) {
-      container.append(specialSection);
-    }
-
-    if (state.lineType === 'standard' || state.lineType === 'custom') {
-      wyeToggleGroup.refresh && wyeToggleGroup.refresh();
-      renderWyeContent();
-      container.append(wyeSection);
-    }
-
-    container.append(previewBar);
+    container.append(
+      nameRow,
+      typeSection,
+      previewBar
+    );
   }
 
-  // Initial render
-  updateTypeButtons();
-  renderWyeContent();
-  renderSpecialSection();
-  updatePreview();
+  // Initial setup
   renderLayout();
+  updateTypeButtons();
+  updatePreview();
+
+  // Hook save button to return the whole preset structure
+  if (saveButton) {
+    saveButton.onclick = (e) => {
+      e.preventDefault();
+      if (!state.name.trim()) {
+        alert('Please enter a preset name before saving.');
+        return;
+      }
+      if (!state.lineType) {
+        alert('Please choose a build type and configure it before saving.');
+        return;
+      }
+      onSave(deepClone(state));
+    };
+  }
 
   mountEl.innerHTML = '';
   mountEl.appendChild(container);
