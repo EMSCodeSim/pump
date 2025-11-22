@@ -1,313 +1,116 @@
 // view.presetEditor.js
-// Preset editor popup: choose line type & launch dedicated builders.
-// - Name is required before any type can be selected.
-// - Types: standard, master, standpipe, sprinkler, foam, supply, custom.
+// Simple preset editor popup wired to the dedicated line builders.
+//
+// Types:
+//  - standard  -> openStandardLinePopup
+//  - master    -> openMasterStreamPopup
+//  - standpipe -> openStandpipePopup
+//  - sprinkler -> openSprinklerPopup
+//  - foam      -> openFoamPopup
+//  - supply    -> openSupplyLinePopup
+//  - custom    -> openCustomBuilderPopup
+//
+// Name is required before type buttons are enabled.
 
-import { openMasterStreamPopup }   from './view.lineMaster.js';
-import { openStandpipePopup }      from './view.lineStandpipe.js';
-import { openFoamPopup }           from './view.lineFoam.js';
-import { openSprinklerPopup }      from './view.lineSprinkler.js';
-import { openStandardLinePopup }   from './view.lineStandard.js';
-import { openSupplyLinePopup }     from './view.lineSupply.js';
-import { openCustomBuilderPopup }  from './view.lineCustom.js';
+import { openMasterStreamPopup }   from "./view.lineMaster.js";
+import { openStandpipePopup }      from "./view.lineStandpipe.js";
+import { openFoamPopup }           from "./view.lineFoam.js";
+import { openSprinklerPopup }      from "./view.lineSprinkler.js";
+import { openStandardLinePopup }   from "./view.lineStandard.js";
+import { openSupplyLinePopup }     from "./view.lineSupply.js";
+import { openCustomBuilderPopup }  from "./view.lineCustom.js";
 
-let presetEditorStylesInjected = false;
-
-function injectPresetEditorStyles() {
-  if (presetEditorStylesInjected) return;
-  presetEditorStylesInjected = true;
-
-  const style = document.createElement('style');
-  style.textContent = `
-  .preset-line-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(3, 7, 18, 0.55);
-    backdrop-filter: blur(6px);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 40px;
-    z-index: 9999;
-    overflow-y: auto;
-  }
-
-  .preset-line-panel {
-    position: relative;
-    max-width: 480px;
-    width: 100%;
-    margin: 0 12px 24px;
-    background: #020617;
-    border-radius: 18px;
-    box-shadow:
-      0 18px 30px rgba(15, 23, 42, 0.75),
-      0 0 0 1px rgba(148, 163, 184, 0.35);
-    padding: 12px 14px 10px;
-    color: #e5e7eb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  @media (min-width: 640px) {
-    .preset-line-panel {
-      margin-top: 12px;
-      border-radius: 20px;
-      padding: 14px 16px 12px;
-    }
-  }
-
-  .preset-line-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-  }
-
-  .preset-line-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-
-  .preset-line-close {
-    width: 26px;
-    height: 26px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.6);
-    background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
-    color: #e5e7eb;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
-  }
-  .preset-line-close:hover {
-    background: #111827;
-  }
-
-  .preset-line-body {
-    font-size: 0.85rem;
-    line-height: 1.45;
-    max-height: min(60vh, 420px);
-    overflow-y: auto;
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
-
-  .preset-line-footer {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.25);
-  }
-
-  .pe-btn-primary,
-  .pe-btn-secondary {
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.82rem;
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .pe-btn-primary {
-    background: linear-gradient(135deg, #38bdf8, #22c55e);
-    color: #020617;
-    font-weight: 600;
-  }
-
-  .pe-btn-secondary {
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-  }
-
-  .pe-btn-primary:active,
-  .pe-btn-secondary:active {
-    transform: translateY(1px);
-  }
-
-  .preset-editor {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .preset-editor section.pe-section {
-    border-top: 1px solid rgba(148, 163, 184, 0.4);
-    padding-top: 8px;
-  }
-  .preset-editor section.pe-section:first-of-type {
-    border-top: none;
-  }
-
-  .pe-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 6px;
-  }
-
-  .pe-row label {
-    font-weight: 500;
-    font-size: 0.82rem;
-  }
-
-  .preset-editor input[type="text"] {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 6px 8px;
-    border-radius: 8px;
-    border: 1px solid rgba(55, 65, 81, 0.9);
-    background: #020617;
-    color: #e5e7eb;
-    font-size: 0.8rem;
-  }
-
-  .preset-editor input::placeholder {
-    color: rgba(148, 163, 184, 0.9);
-  }
-
-  .pe-type-section h3 {
-    margin: 0 0 6px 0;
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #bfdbfe;
-  }
-
-  .pe-type-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .pe-type-btn {
-    flex: 1 1 45%;
-    min-width: 120px;
-    padding: 6px 8px;
-    border-radius: 10px;
-    border: 1px solid rgba(55, 65, 81, 0.9);
-    background: rgba(15, 23, 42, 0.8);
-    color: #e5e7eb;
-    font-size: 0.78rem;
-    text-align: left;
-    cursor: pointer;
-  }
-  .pe-type-btn span {
-    display: block;
-    font-size: 0.72rem;
-    opacity: 0.8;
-  }
-  .pe-type-btn.pe-type-active {
-    border-color: #22c55e;
-    background: radial-gradient(circle at 0% 0%, #022c22, #020617);
-  }
-  .pe-type-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .pe-preview {
-    margin-top: 8px;
-    padding: 8px;
-    border-radius: 10px;
-    background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
-    border: 1px solid rgba(37, 99, 235, 0.8);
-    font-weight: 600;
-    font-size: 0.82rem;
-    text-align: center;
-  }
-
-  .pe-hint {
-    font-size: 0.75rem;
-    opacity: 0.8;
-  }
-
-  @media (min-width: 640px) {
-    .pe-row {
-      flex-direction: row;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .pe-row > label {
-      min-width: 100px;
-    }
-
-    .preset-editor input[type="text"] {
-      width: auto;
-      min-width: 200px;
-    }
-  }
-  `;
-  document.head.appendChild(style);
-}
-
-function deepClone(obj) {
-  if (obj == null) return obj;
-  if (typeof structuredClone === 'function') return structuredClone(obj);
+function clonePreset(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  try {
+    if (typeof structuredClone === "function") return structuredClone(obj);
+  } catch (e) {}
   return JSON.parse(JSON.stringify(obj));
 }
 
 // ---------- Public: open as popup ----------
 
-export function openPresetEditorPopup({
-  dept = {},
-  initialPreset = null,
-  onSave = () => {},
-  onCancel = () => {},
-} = {}) {
-  injectPresetEditorStyles();
+export function openPresetEditorPopup(options) {
+  options = options || {};
+  const dept         = options.dept || {};
+  const initial      = options.initialPreset || null;
+  const onSave       = typeof options.onSave === "function" ? options.onSave : function() {};
+  const onCancel     = typeof options.onCancel === "function" ? options.onCancel : function() {};
 
-  const overlay = document.createElement('div');
-  overlay.className = 'preset-line-overlay';
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.right = "0";
+  overlay.style.bottom = "0";
+  overlay.style.background = "rgba(0,0,0,0.55)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "flex-start";
+  overlay.style.justifyContent = "center";
+  overlay.style.paddingTop = "40px";
+  overlay.style.zIndex = "9999";
 
-  const panel = document.createElement('div');
-  panel.className = 'preset-line-panel';
+  const panel = document.createElement("div");
+  panel.style.maxWidth = "480px";
+  panel.style.width = "100%";
+  panel.style.background = "#020617";
+  panel.style.color = "#e5e7eb";
+  panel.style.borderRadius = "16px";
+  panel.style.boxShadow = "0 18px 30px rgba(15,23,42,0.75)";
+  panel.style.border = "1px solid rgba(148,163,184,0.35)";
+  panel.style.padding = "12px 14px 10px";
+  panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+  panel.style.boxSizing = "border-box";
 
-  const header = document.createElement('div');
-  header.className = 'preset-line-header';
+  const header = document.createElement("div");
+  header.style.display = "flex";
+  header.style.alignItems = "center";
+  header.style.justifyContent = "space-between";
+  header.style.marginBottom = "6px";
+  header.style.borderBottom = "1px solid rgba(148,163,184,0.25)";
+  header.style.paddingBottom = "4px";
 
-  const titleEl = document.createElement('div');
-  titleEl.className = 'preset-line-title';
-  titleEl.textContent = 'Preset line editor';
+  const title = document.createElement("div");
+  title.textContent = "Preset line editor";
+  title.style.fontSize = "0.95rem";
+  title.style.fontWeight = "600";
 
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'preset-line-close';
-  closeBtn.textContent = '✕';
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.textContent = "✕";
+  closeBtn.style.width = "26px";
+  closeBtn.style.height = "26px";
+  closeBtn.style.borderRadius = "999px";
+  closeBtn.style.border = "1px solid rgba(148,163,184,0.6)";
+  closeBtn.style.background = "#020617";
+  closeBtn.style.color = "#e5e7eb";
+  closeBtn.style.cursor = "pointer";
 
-  header.appendChild(titleEl);
+  header.appendChild(title);
   header.appendChild(closeBtn);
 
-  const body = document.createElement('div');
-  body.className = 'preset-line-body';
+  const body = document.createElement("div");
+  body.style.maxHeight = "60vh";
+  body.style.overflowY = "auto";
+  body.style.fontSize = "0.85rem";
 
-  const footer = document.createElement('div');
-  footer.className = 'preset-line-footer';
+  const footer = document.createElement("div");
+  footer.style.display = "flex";
+  footer.style.justifyContent = "flex-end";
+  footer.style.gap = "6px";
+  footer.style.marginTop = "8px";
+  footer.style.borderTop = "1px solid rgba(148,163,184,0.25)";
+  footer.style.paddingTop = "6px";
 
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.className = 'pe-btn-secondary';
-  cancelBtn.textContent = 'Cancel';
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.textContent = "Cancel";
+  styleSecondaryButton(cancelBtn);
 
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'pe-btn-primary';
-  saveBtn.textContent = 'Save preset';
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.textContent = "Save preset";
+  stylePrimaryButton(saveBtn);
 
   footer.appendChild(cancelBtn);
   footer.appendChild(saveBtn);
@@ -315,214 +118,273 @@ export function openPresetEditorPopup({
   panel.appendChild(header);
   panel.appendChild(body);
   panel.appendChild(footer);
-
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
   function close(cancelled) {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-    if (cancelled && typeof onCancel === 'function') onCancel();
+    if (cancelled) onCancel();
   }
 
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close(true);
+  overlay.addEventListener("click", function(e) {
+    if (e.target === overlay) {
+      close(true);
+    }
   });
-  closeBtn.addEventListener('click', () => close(true));
-  cancelBtn.addEventListener('click', () => close(true));
+  closeBtn.addEventListener("click", function() { close(true); });
+  cancelBtn.addEventListener("click", function() { close(true); });
 
   renderPresetEditor(body, {
-    dept,
-    initialPreset,
-    onSave(presetConfig) {
+    dept: dept,
+    initialPreset: initial,
+    onSave: function(presetConfig) {
       onSave(presetConfig);
       close(false);
     },
-    saveButton: saveBtn,
+    saveButton: saveBtn
   });
 }
 
-// ---------- Core renderer ----------
+// ---------- Core renderer (used by popup) ----------
 
-export function renderPresetEditor(
-  mountEl,
-  { dept = {}, initialPreset = null, onSave = () => {}, saveButton = null } = {}
-) {
-  injectPresetEditorStyles();
+export function renderPresetEditor(mountEl, options) {
+  options = options || {};
+  const dept         = options.dept || {};
+  const initial      = options.initialPreset || null;
+  const onSave       = typeof options.onSave === "function" ? options.onSave : function() {};
+  const saveButton   = options.saveButton || null;
 
   const hoses      = dept.hoses      || [];
   const nozzles    = dept.nozzles    || [];
   const appliances = dept.appliances || [];
 
   const defaults = {
-    name: '',
-    lineType: '',
+    name: "",
+    lineType: "",
     standardConfig:   null,
     masterConfig:     null,
     standpipeConfig:  null,
     sprinklerConfig:  null,
     foamConfig:       null,
     supplyConfig:     null,
-    customConfig:     null,
+    customConfig:     null
   };
 
-  const state = deepClone(defaults);
-  if (initialPreset && typeof initialPreset === 'object') {
-    Object.assign(state, initialPreset);
+  const state = clonePreset(defaults);
+  if (initial && typeof initial === "object") {
+    Object.assign(state, initial);
   }
 
-  function el(tag, opts = {}, ...children) {
-    const e = document.createElement(tag);
-    if (opts.class) e.className = opts.class;
-    if (opts.text) e.textContent = opts.text;
-    if (opts.type) e.type = opts.type;
-    if (opts.value != null) e.value = opts.value;
-    if (opts.placeholder) e.placeholder = opts.placeholder;
-    if (opts.for) e.htmlFor = opts.for;
-    if (opts.disabled != null) e.disabled = !!opts.disabled;
-    if (opts.title) e.title = opts.title;
-    if (opts.onchange) e.addEventListener('change', opts.onchange);
-    if (opts.onclick) e.addEventListener('click', opts.onclick);
-    children.forEach((c) => e.append(c));
-    return e;
+  function makeRow(labelText, inputEl) {
+    const row = document.createElement("div");
+    row.style.display = "flex";
+    row.style.flexDirection = "column";
+    row.style.gap = "4px";
+    row.style.marginTop = "8px";
+
+    const label = document.createElement("label");
+    label.textContent = labelText;
+    label.style.fontSize = "0.82rem";
+    label.style.fontWeight = "500";
+
+    row.appendChild(label);
+    row.appendChild(inputEl);
+    return row;
   }
 
-  const previewBar = el('div', { class: 'pe-preview' });
+  const container = document.createElement("div");
 
-  function updatePreview() {
-    if (!state.name.trim()) {
-      previewBar.textContent = 'Enter a preset name to begin.';
-      return;
-    }
-    if (!state.lineType) {
-      previewBar.textContent = `Preset: "${state.name}" – select a build type to open its editor.`;
-      return;
-    }
-    previewBar.textContent = `Preset: "${state.name}"   •   Type: ${state.lineType} (tap type to reopen editor)`;
-  }
+  // --- Name row (required) ---
 
-  const nameInput = el('input', {
-    type: 'text',
-    value: state.name || '',
-    placeholder: 'Example: 1¾" attack 200\' 150 gpm',
-    onchange: (e) => {
-      state.name = e.target.value || '';
-      updateTypeButtons();
-      updatePreview();
-    },
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = state.name || "";
+  nameInput.placeholder = 'Example: 1¾" attack 200\' 150 gpm';
+  styleTextInput(nameInput);
+
+  nameInput.addEventListener("input", function() {
+    state.name = nameInput.value || "";
+    updateTypeButtons();
+    updatePreview();
   });
 
-  const nameRow = el(
-    'div',
-    { class: 'pe-row' },
-    el('label', { text: 'Preset name:' }),
-    nameInput
-  );
+  const nameRow = makeRow("Preset name:", nameInput);
+
+  // --- Type buttons ---
 
   const typeButtons = [];
 
   function makeTypeButton(id, label, sublabel) {
-    const btn = el(
-      'button',
-      {
-        class: 'pe-type-btn',
-        onclick: (e) => {
-          e.preventDefault();
-          if (!state.name.trim()) {
-            alert('Enter a preset name first.');
-            return;
-          }
-          setLineType(id, true);
-        },
-      },
-      document.createTextNode(label),
-      el('span', { text: sublabel || '' })
-    );
-    typeButtons.push({ id, btn });
+    const btn = document.createElement("button");
+    btn.type = "button";
+    styleTypeBtn(btn);
+    const titleSpan = document.createElement("div");
+    titleSpan.textContent = label;
+    titleSpan.style.fontSize = "0.8rem";
+    titleSpan.style.fontWeight = "600";
+
+    const subSpan = document.createElement("div");
+    subSpan.textContent = sublabel || "";
+    subSpan.style.fontSize = "0.72rem";
+    subSpan.style.opacity = "0.8";
+
+    btn.appendChild(titleSpan);
+    btn.appendChild(subSpan);
+
+    btn.addEventListener("click", function(e) {
+      e.preventDefault();
+      if (!state.name.trim()) {
+        alert("Enter a preset name first.");
+        return;
+      }
+      setLineType(id, true);
+    });
+
+    typeButtons.push({ id: id, btn: btn });
     return btn;
+  }
+
+  const typeGrid = document.createElement("div");
+  typeGrid.style.display = "flex";
+  typeGrid.style.flexWrap = "wrap";
+  typeGrid.style.gap = "6px";
+  typeGrid.style.marginTop = "6px";
+
+  typeGrid.appendChild(makeTypeButton("standard",  "Standard line",  "Attack line (wye optional)"));
+  typeGrid.appendChild(makeTypeButton("master",    "Master stream",  "Deck gun or portable base"));
+  typeGrid.appendChild(makeTypeButton("standpipe", "Standpipe",      "High-rise / FDC standpipe"));
+  typeGrid.appendChild(makeTypeButton("sprinkler", "Sprinkler",      "Sprinkler / FDC supply"));
+  typeGrid.appendChild(makeTypeButton("foam",      "Foam line",      "Foam eductor / foam setup"));
+  typeGrid.appendChild(makeTypeButton("supply",    "Supply line",    "Hydrant / relay / feed line"));
+  typeGrid.appendChild(makeTypeButton("custom",    "Custom builder", "Any layout: wyes, siamese, etc."));
+
+  const typeTitle = document.createElement("div");
+  typeTitle.textContent = "Choose build type";
+  typeTitle.style.marginTop = "10px";
+  typeTitle.style.fontSize = "0.82rem";
+  typeTitle.style.textTransform = "uppercase";
+  typeTitle.style.letterSpacing = "0.06em";
+  typeTitle.style.color = "#bfdbfe";
+
+  const typeHint = document.createElement("div");
+  typeHint.textContent = "Enter a preset name first, then tap a type to open its builder. Tap again later to reopen and edit.";
+  typeHint.style.fontSize = "0.75rem";
+  typeHint.style.opacity = "0.8";
+  typeHint.style.marginTop = "4px";
+
+  // --- Preview ---
+
+  const preview = document.createElement("div");
+  preview.style.marginTop = "8px";
+  preview.style.padding = "8px";
+  preview.style.borderRadius = "10px";
+  preview.style.border = "1px solid rgba(37,99,235,0.8)";
+  preview.style.background = "#020617";
+  preview.style.fontSize = "0.82rem";
+  preview.style.fontWeight = "600";
+  preview.style.textAlign = "center";
+
+  function updatePreview() {
+    if (!state.name.trim()) {
+      preview.textContent = "Enter a preset name to begin.";
+      return;
+    }
+    if (!state.lineType) {
+      preview.textContent = 'Preset: "' + state.name + '" – select a build type to open its editor.';
+      return;
+    }
+    preview.textContent = 'Preset: "' + state.name + '"   •   Type: ' + state.lineType + " (tap type to reopen editor)";
   }
 
   function updateTypeButtons() {
     const hasName = !!state.name.trim();
-    typeButtons.forEach(({ id, btn }) => {
-      btn.classList.toggle('pe-type-active', state.lineType === id);
-      btn.disabled = !hasName;
-    });
+    for (let i = 0; i < typeButtons.length; i++) {
+      const tb = typeButtons[i];
+      tb.btn.disabled = !hasName;
+      if (state.lineType === tb.id) {
+        tb.btn.style.borderColor = "#22c55e";
+        tb.btn.style.background = "#022c22";
+      } else {
+        tb.btn.style.borderColor = "rgba(55,65,81,0.9)";
+        tb.btn.style.background = "rgba(15,23,42,0.8)";
+      }
+    }
   }
 
   function openStandardConfig() {
     openStandardLinePopup({
-      dept: { hoses, nozzles },
-      initial: state.standardConfig || null,
-      onSave(config) {
-        state.standardConfig = config;
+      dept: { hoses: hoses, nozzles: nozzles },
+      initial: state.standardConfig,
+      onSave: function(cfg) {
+        state.standardConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openMasterConfig() {
     openMasterStreamPopup({
-      dept: { hoses, appliances },
-      initial: state.masterConfig || null,
-      onSave(config) {
-        state.masterConfig = config;
+      dept: { hoses: hoses, appliances: appliances },
+      initial: state.masterConfig,
+      onSave: function(cfg) {
+        state.masterConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openStandpipeConfig() {
     openStandpipePopup({
-      dept: { hoses, nozzles },
-      initial: state.standpipeConfig || null,
-      onSave(config) {
-        state.standpipeConfig = config;
+      dept: { hoses: hoses, nozzles: nozzles },
+      initial: state.standpipeConfig,
+      onSave: function(cfg) {
+        state.standpipeConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openSprinklerConfig() {
     openSprinklerPopup({
-      dept: { hoses },
-      initial: state.sprinklerConfig || null,
-      onSave(config) {
-        state.sprinklerConfig = config;
+      dept: { hoses: hoses },
+      initial: state.sprinklerConfig,
+      onSave: function(cfg) {
+        state.sprinklerConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openFoamConfig() {
     openFoamPopup({
-      dept: { nozzles },
-      initial: state.foamConfig || null,
-      onSave(config) {
-        state.foamConfig = config;
+      dept: { nozzles: nozzles },
+      initial: state.foamConfig,
+      onSave: function(cfg) {
+        state.foamConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openSupplyConfig() {
     openSupplyLinePopup({
-      dept: { hoses },
-      initial: state.supplyConfig || null,
-      onSave(config) {
-        state.supplyConfig = config;
+      dept: { hoses: hoses },
+      initial: state.supplyConfig,
+      onSave: function(cfg) {
+        state.supplyConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
   function openCustomConfig() {
     openCustomBuilderPopup({
-      dept: { hoses, appliances },
-      initial: state.customConfig || null,
-      onSave(config) {
-        state.customConfig = config;
+      dept: { hoses: hoses, appliances: appliances },
+      initial: state.customConfig,
+      onSave: function(cfg) {
+        state.customConfig = cfg;
         updatePreview();
-      },
+      }
     });
   }
 
@@ -530,62 +392,87 @@ export function renderPresetEditor(
     state.lineType = type;
     updateTypeButtons();
     if (openPopup) {
-      if (type === 'standard')  openStandardConfig();
-      if (type === 'master')    openMasterConfig();
-      if (type === 'standpipe') openStandpipeConfig();
-      if (type === 'sprinkler') openSprinklerConfig();
-      if (type === 'foam')      openFoamConfig();
-      if (type === 'supply')    openSupplyConfig();
-      if (type === 'custom')    openCustomConfig();
+      if (type === "standard")  openStandardConfig();
+      else if (type === "master")    openMasterConfig();
+      else if (type === "standpipe") openStandpipeConfig();
+      else if (type === "sprinkler") openSprinklerConfig();
+      else if (type === "foam")      openFoamConfig();
+      else if (type === "supply")    openSupplyConfig();
+      else if (type === "custom")    openCustomConfig();
     }
     updatePreview();
   }
 
-  const typeSection = el(
-    'section',
-    { class: 'pe-section pe-type-section' },
-    el('h3', { text: 'Choose build type' }),
-    (function () {
-      const grid = el(
-        'div',
-        { class: 'pe-type-grid' },
-        makeTypeButton('standard',  'Standard line',  'Attack line (wye optional)'),
-        makeTypeButton('master',    'Master stream',  'Deck gun or portable base'),
-        makeTypeButton('standpipe', 'Standpipe',      'High-rise / FDC standpipe'),
-        makeTypeButton('sprinkler', 'Sprinkler',      'Sprinkler / FDC supply'),
-        makeTypeButton('foam',      'Foam line',      'Foam eductor / foam setup'),
-        makeTypeButton('supply',    'Supply line',    'Hydrant / relay / feed line'),
-        makeTypeButton('custom',    'Custom builder', 'Any layout: wyes, siamese, etc.')
-      );
-      return grid;
-    })(),
-    el('div', {
-      class: 'pe-hint',
-      text: 'Enter a preset name first, then tap a type to open its builder. Tap again later to reopen and edit.',
-    })
-  );
+  container.appendChild(nameRow);
+  container.appendChild(typeTitle);
+  container.appendChild(typeGrid);
+  container.appendChild(typeHint);
+  container.appendChild(preview);
 
-  const container = el('div', { class: 'preset-editor' });
-  container.append(nameRow, typeSection, previewBar);
-
-  mountEl.innerHTML = '';
+  mountEl.innerHTML = "";
   mountEl.appendChild(container);
 
   updateTypeButtons();
   updatePreview();
 
   if (saveButton) {
-    saveButton.onclick = (e) => {
+    saveButton.onclick = function(e) {
       e.preventDefault();
       if (!state.name.trim()) {
-        alert('Please enter a preset name before saving.');
+        alert("Please enter a preset name before saving.");
         return;
       }
       if (!state.lineType) {
-        alert('Please choose a build type and configure it before saving.');
+        alert("Please choose a build type and configure it before saving.");
         return;
       }
-      onSave(deepClone(state));
+      onSave(clonePreset(state));
     };
   }
+}
+
+// ---------- tiny style helpers (no template literals) ----------
+
+function styleTextInput(input) {
+  input.style.padding = "6px 8px";
+  input.style.borderRadius = "8px";
+  input.style.border = "1px solid rgba(55,65,81,0.9)";
+  input.style.background = "#020617";
+  input.style.color = "#e5e7eb";
+  input.style.fontSize = "0.8rem";
+  input.style.boxSizing = "border-box";
+  input.style.width = "100%";
+}
+
+function styleTypeBtn(btn) {
+  btn.style.flex = "1 1 45%";
+  btn.style.minWidth = "120px";
+  btn.style.padding = "6px 8px";
+  btn.style.borderRadius = "10px";
+  btn.style.border = "1px solid rgba(55,65,81,0.9)";
+  btn.style.background = "rgba(15,23,42,0.8)";
+  btn.style.color = "#e5e7eb";
+  btn.style.textAlign = "left";
+  btn.style.cursor = "pointer";
+}
+
+function stylePrimaryButton(btn) {
+  btn.style.borderRadius = "999px";
+  btn.style.padding = "6px 12px";
+  btn.style.fontSize = "0.82rem";
+  btn.style.border = "none";
+  btn.style.cursor = "pointer";
+  btn.style.background = "#22c55e";
+  btn.style.color = "#020617";
+  btn.style.fontWeight = "600";
+}
+
+function styleSecondaryButton(btn) {
+  btn.style.borderRadius = "999px";
+  btn.style.padding = "6px 12px";
+  btn.style.fontSize = "0.82rem";
+  btn.style.border = "1px solid rgba(148,163,184,0.7)";
+  btn.style.cursor = "pointer";
+  btn.style.background = "#020617";
+  btn.style.color = "#e5e7eb";
 }
