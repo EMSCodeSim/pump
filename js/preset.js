@@ -1279,11 +1279,6 @@ function renderLineInfoScreen(lineNumber) {
   const lenVal  = (typeof current.lengthFt === 'number' ? current.lengthFt : (current.lengthFt ?? ''));
   const nozVal  = current.nozzleId ?? '';
   const psiVal  = (typeof current.nozzlePsi === 'number' ? current.nozzlePsi : (current.nozzlePsi ?? ''));
-  const elevVal = (typeof current.elevation === 'number'
-    ? current.elevation
-    : (typeof current.elevFt === 'number'
-        ? current.elevFt
-        : (current.elevation ?? current.elevFt ?? '')));
 
   titleEl.textContent = `Line ${lineNumber} setup`;
 
@@ -1299,11 +1294,6 @@ function renderLineInfoScreen(lineNumber) {
         </label>
         <label>Length (ft)
           <input type="number" id="lineEditLength" inputmode="numeric" value="${lenVal}">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Elevation (ft)
-          <input type="number" id="lineEditElevation" inputmode="numeric" value="${elevVal}">
         </label>
       </div>
       <div class="dept-custom-row">
@@ -1329,7 +1319,6 @@ function renderLineInfoScreen(lineNumber) {
     const lenEl  = body.querySelector('#lineEditLength');
     const nozEl  = body.querySelector('#lineEditNozId');
     const psiEl  = body.querySelector('#lineEditNozPsi');
-    const elevEl = body.querySelector('#lineEditElevation');
     const edited = { ...(state.getLineState ? (state.getLineState(lineNumber) || {}) : {}) };
 
     if (hoseEl) {
@@ -1347,10 +1336,6 @@ function renderLineInfoScreen(lineNumber) {
       const v = psiEl.value.trim();
       edited.nozzlePsi = v ? Number(v) : null;
     }
-    if (elevEl) {
-      const v = elevEl.value.trim();
-      edited.elevation = v ? Number(v) : null;
-    }
     return edited;
   }
 
@@ -1365,14 +1350,10 @@ function renderLineInfoScreen(lineNumber) {
     const lenEl  = body.querySelector('#lineEditLength');
     const nozEl  = body.querySelector('#lineEditNozId');
     const psiEl  = body.querySelector('#lineEditNozPsi');
-    const elevEl = body.querySelector('#lineEditElevation');
     if (hoseEl) hoseEl.value = latest.hoseDiameter ?? '';
     if (lenEl)  lenEl.value  = (typeof latest.lengthFt === 'number' ? latest.lengthFt : (latest.lengthFt ?? ''));
     if (nozEl)  nozEl.value  = latest.nozzleId ?? '';
     if (psiEl)  psiEl.value  = (typeof latest.nozzlePsi === 'number' ? latest.nozzlePsi : (latest.nozzlePsi ?? ''));
-    if (elevEl) elevEl.value = (typeof latest.elevation === 'number'
-      ? latest.elevation
-      : (typeof latest.elevFt === 'number' ? latest.elevFt : (latest.elevation ?? latest.elevFt ?? '')));
   });
 
   footer.querySelector('#lineApplyBtn')?.addEventListener('click', () => {
@@ -1395,14 +1376,14 @@ function renderLineInfoScreen(lineNumber) {
 
   footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
     const edited = readEditedLineState();
-    const name = prompt('Preset name', `Line ${lineNumber} preset`);
+    const defaultName = `Line ${lineNumber} preset`;
+    const name = prompt('Preset name', defaultName);
     if (!name) return;
 
     const summaryParts = [];
-    if (edited.hoseDiameter) summaryParts.push(`${edited.hoseDiameter}"`);
-    if (edited.lengthFt)     summaryParts.push(`${edited.lengthFt}'`);
-    if (edited.nozzleId)     summaryParts.push(`Nozzle: ${edited.nozzleId}`);
-    if (edited.elevation)    summaryParts.push(`Elev: ${edited.elevation} ft`);
+    if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
+    if (typeof edited.lengthFt === 'number') summaryParts.push(edited.lengthFt + ' ft');
+    if (edited.nozzleId) summaryParts.push('Nozzle: ' + edited.nozzleId);
     const summary = summaryParts.join(' • ');
 
     const preset = {
@@ -1421,6 +1402,10 @@ function renderLineInfoScreen(lineNumber) {
 
   wrap.classList.remove('hidden');
 }
+
+// === Main Presets menu ===========================================================
+
+
 function renderDeptLineDefaultsScreen(lineNumber) {
   ensureDeptPopupWrapper();
   const wrap = document.getElementById('deptPopupWrapper');
@@ -1442,18 +1427,14 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   const psiVal  = (typeof currentDefaults.nozzlePsi === 'number'
     ? currentDefaults.nozzlePsi
     : (currentDefaults.nozzlePsi ?? ''));
-  const elevVal = (typeof currentDefaults.elevation === 'number'
-    ? currentDefaults.elevation
-    : (typeof currentDefaults.elevFt === 'number'
-        ? currentDefaults.elevFt
-        : (currentDefaults.elevation ?? currentDefaults.elevFt ?? '')));
 
-  titleEl.textContent = `Line ${lineNumber} default`;
+  titleEl.textContent = `Line ${lineNumber} department default`;
 
   bodyEl.innerHTML = `
     <p class="dept-intro">
-      Set the default hose, length, elevation, and nozzle for Line ${lineNumber}.
-      These defaults are used when the app resets the lines.
+      Set the default configuration for Line ${lineNumber}. This is your rig/department
+      starting point and does <strong>not</strong> change automatically when you adjust
+      lines on the main calculator screen.
     </p>
     <div class="dept-list">
       <div class="dept-custom-row">
@@ -1462,11 +1443,6 @@ function renderDeptLineDefaultsScreen(lineNumber) {
         </label>
         <label>Length (ft)
           <input type="number" id="deptLineLength" inputmode="numeric" value="${lenVal}">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Elevation (ft)
-          <input type="number" id="deptLineElevation" inputmode="numeric" value="${elevVal}">
         </label>
       </div>
       <div class="dept-custom-row">
@@ -1486,6 +1462,7 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   `;
 
   footerEl.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
+    // Go back to main Presets menu instead of dept home
     const wrap2 = document.getElementById('deptPopupWrapper');
     if (wrap2) wrap2.classList.add('hidden');
     openPresetMainMenu();
@@ -1496,7 +1473,6 @@ function renderDeptLineDefaultsScreen(lineNumber) {
     const lenEl  = bodyEl.querySelector('#deptLineLength');
     const nozEl  = bodyEl.querySelector('#deptLineNozId');
     const psiEl  = bodyEl.querySelector('#deptLineNozPsi');
-    const elevEl = bodyEl.querySelector('#deptLineElevation');
 
     const next = { ...(state.lineDefaults && state.lineDefaults[key] ? state.lineDefaults[key] : {}) };
 
@@ -1515,10 +1491,6 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       const v = psiEl.value.trim();
       next.nozzlePsi = v ? Number(v) : null;
     }
-    if (elevEl) {
-      const v = elevEl.value.trim();
-      next.elevation = v ? Number(v) : null;
-    }
 
     if (!state.lineDefaults) state.lineDefaults = {};
     state.lineDefaults[key] = next;
@@ -1531,6 +1503,7 @@ function renderDeptLineDefaultsScreen(lineNumber) {
 
   wrap.classList.remove('hidden');
 }
+
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
@@ -1713,6 +1686,60 @@ export function getDeptNozzleIds() {
     return out;
   } catch (e) {
     console.warn('getDeptNozzleIds failed', e);
+    return [];
+  }
+}
+
+export function getDeptHoseDiameters() {
+  try {
+    const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
+    const outSet = new Set();
+
+    // Map built-in hose IDs to diameters (in inches, as strings used by COEFF)
+    const HOSE_ID_TO_DIA = {
+      'h_1':        '1',
+      'h_15':       '1.5',
+      'h_175':      '1.75',
+      'h_2':        '2.0',
+      'h_25':       '2.5',
+      'h_3':        '3',
+      'h_3_supply': '3',
+      'h_4_ldh':    '4',
+      'h_5_ldh':    '5',
+      'h_w_1':      '1',
+      'h_w_15':     '1.5',
+      'h_booster_1':'1',
+      'h_lf_175':   '1.75',
+      'h_lf_2':     '2.0',
+      'h_lf_25':    '2.5',
+      'h_lf_5':     '5',
+    };
+
+    // Built-in hose selections
+    if (Array.isArray(dept.hoses)) {
+      dept.hoses.forEach(id => {
+        if (typeof id !== 'string') return;
+        const key = id.trim();
+        const dia = HOSE_ID_TO_DIA[key];
+        if (dia) outSet.add(dia);
+      });
+    }
+
+    // Custom hoses with explicit diameters
+    if (Array.isArray(dept.customHoses)) {
+      dept.customHoses.forEach(h => {
+        if (!h) return;
+        if (typeof h.diameter === 'number' && h.diameter > 0) {
+          const dia = String(h.diameter);
+          outSet.add(dia);
+        }
+      });
+    }
+
+    return Array.from(outSet).sort((a,b) => parseFloat(a) - parseFloat(b));
+  } catch (e) {
+    console.warn('getDeptHoseDiameters failed', e);
     return [];
   }
 }
