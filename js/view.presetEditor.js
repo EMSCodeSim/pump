@@ -431,7 +431,7 @@ export function renderPresetEditor(mountEl, options) {
   }
 }
 
-// ---------- tiny style helpers (no template literals) ----------
+// ---------- tiny style helpers ----------
 
 function styleTextInput(input) {
   input.style.padding = "6px 8px";
