@@ -17,7 +17,7 @@ export function openPresetEditorPopup(options) {
 
   const state = {
     name: "",
-    selectedType: "",
+    lineType: "",
     configs: {
       standard:  null,
       master:    null,
@@ -222,7 +222,7 @@ export function openPresetEditorPopup(options) {
         alert("Enter a preset name first.");
         return;
       }
-      state.selectedType = id;
+      state.lineType = id;
       updateTypeButtons();
       updatePreview();
       openTypeBuilder(id);
@@ -258,7 +258,7 @@ export function openPresetEditorPopup(options) {
   function updateTypeButtons() {
     for (let i = 0; i < typeButtons.length; i++) {
       const tb = typeButtons[i];
-      if (tb.id === state.selectedType) {
+      if (tb.id === state.lineType) {
         tb.btn.style.borderColor = "#22c55e";
         tb.btn.style.background = "#022c22";
       } else {
@@ -271,10 +271,10 @@ export function openPresetEditorPopup(options) {
   function updatePreview() {
     if (!state.name) {
       preview.textContent = "Enter a preset name to begin.";
-    } else if (!state.selectedType) {
+    } else if (!state.lineType) {
       preview.textContent = 'Preset: "' + state.name + '" – choose a type.';
     } else {
-      preview.textContent = 'Preset: "' + state.name + '" • Type: ' + state.selectedType;
+      preview.textContent = 'Preset: "' + state.name + '" • Type: ' + state.lineType;
     }
   }
 
@@ -283,43 +283,57 @@ export function openPresetEditorPopup(options) {
       openStandardLinePopup({
         dept: dept,
         initial: state.configs.standard,
-        onSave: function (cfg) { state.configs.standard = cfg; }
+        onSave: function (cfg) {
+          state.configs.standard = cfg;
+        }
       });
     } else if (id === "master") {
       openMasterStreamPopup({
         dept: dept,
         initial: state.configs.master,
-        onSave: function (cfg) { state.configs.master = cfg; }
+        onSave: function (cfg) {
+          state.configs.master = cfg;
+        }
       });
     } else if (id === "standpipe") {
       openStandpipePopup({
         dept: dept,
         initial: state.configs.standpipe,
-        onSave: function (cfg) { state.configs.standpipe = cfg; }
+        onSave: function (cfg) {
+          state.configs.standpipe = cfg;
+        }
       });
     } else if (id === "sprinkler") {
       openSprinklerPopup({
         dept: dept,
         initial: state.configs.sprinkler,
-        onSave: function (cfg) { state.configs.sprinkler = cfg; }
+        onSave: function (cfg) {
+          state.configs.sprinkler = cfg;
+        }
       });
     } else if (id === "foam") {
       openFoamPopup({
         dept: dept,
         initial: state.configs.foam,
-        onSave: function (cfg) { state.configs.foam = cfg; }
+        onSave: function (cfg) {
+          state.configs.foam = cfg;
+        }
       });
     } else if (id === "supply") {
       openSupplyLinePopup({
         dept: dept,
         initial: state.configs.supply,
-        onSave: function (cfg) { state.configs.supply = cfg; }
+        onSave: function (cfg) {
+          state.configs.supply = cfg;
+        }
       });
     } else if (id === "custom") {
       openCustomBuilderPopup({
         dept: dept,
         initial: state.configs.custom,
-        onSave: function (cfg) { state.configs.custom = cfg; }
+        onSave: function (cfg) {
+          state.configs.custom = cfg;
+        }
       });
     }
   }
@@ -334,13 +348,13 @@ export function openPresetEditorPopup(options) {
       alert("Please enter a preset name before saving.");
       return;
     }
-    if (!state.selectedType) {
+    if (!state.lineType) {
       alert("Please choose a build type before saving.");
       return;
     }
     onSave({
       name: state.name,
-      lineType: state.selectedType,
+      lineType: state.lineType,
       configs: state.configs
     });
     close(false);
