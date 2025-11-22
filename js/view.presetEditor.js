@@ -1,8 +1,9 @@
 // view.presetEditor.js
 // Preset line editor popup (name + type selection).
-// Standpipe uses the real builder; other types are placeholders for now.
+// Standpipe and Foam use real builders; other types are placeholders for now.
 
 import { openStandpipePopup } from "./view.lineStandpipe.js";
+import { openFoamPopup }      from "./view.lineFoam.js";
 
 export function openPresetEditorPopup(options) {
   options = options || {};
@@ -13,9 +14,10 @@ export function openPresetEditorPopup(options) {
   const state = {
     name: '',
     selectedType: '',
-    // store configs we get back from specific builders (e.g. standpipe)
+    // store configs we get back from specific builders
     configs: {
-      standpipe: null
+      standpipe: null,
+      foam: null
     }
   };
 
@@ -223,7 +225,16 @@ export function openPresetEditorPopup(options) {
           initial: state.configs.standpipe,
           onSave(config) {
             state.configs.standpipe = config;
-            // optional: you could tweak the preview to show PDP/GPM here
+            updatePreview();
+          }
+        });
+      } else if (id === 'foam') {
+        // Open the real foam builder
+        openFoamPopup({
+          dept,
+          initial: state.configs.foam,
+          onSave(config) {
+            state.configs.foam = config;
             updatePreview();
           }
         });
@@ -242,7 +253,7 @@ export function openPresetEditorPopup(options) {
   }
 
   const typeHint = document.createElement('div');
-  typeHint.textContent = 'Enter a name, choose a type. Standpipe opens its own window; others are placeholders for now.';
+  typeHint.textContent = 'Enter a name, choose a type. Standpipe & Foam open their own windows; others are placeholders for now.';
   typeHint.style.fontSize = '0.75rem';
   typeHint.style.opacity = '0.8';
   typeHint.style.marginTop = '4px';
@@ -300,7 +311,8 @@ export function openPresetEditorPopup(options) {
     onSave({
       name: state.name,
       lineType: state.selectedType,
-      standpipeConfig: state.configs.standpipe || null
+      standpipeConfig: state.configs.standpipe || null,
+      foamConfig: state.configs.foam || null
     });
     close(false);
   });
