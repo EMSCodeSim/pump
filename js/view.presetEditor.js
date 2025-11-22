@@ -1,9 +1,9 @@
 // view.presetEditor.js
 // Popup Preset Line Editor for FireOpsCalc
-// - Shows type selection first (Standard, Blitz, Master, Standpipe, Sprinkler, Foam, Custom)
-// - Each type reveals its own mini-menu
-// - Global GPM / PDP preview bar
-// - Dark card style matching preset.js panel
+// - Type picker: Standard, Blitz, Master, Standpipe, Sprinkler, Foam, Custom
+// - Each type shows its own mini-menu
+// - Global GPM / PDP preview
+// - Standpipe type has real-ish math + "Explain math" popup
 
 let presetEditorStylesInjected = false;
 
@@ -308,6 +308,70 @@ function injectPresetEditorStyles() {
     min-width: 120px;
   }
 }
+
+/* Explain-math popup styling (reuse same look) */
+.pe-explain-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 7, 18, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 40px;
+  z-index: 10050;
+  overflow-y: auto;
+}
+.pe-explain-panel {
+  max-width: 480px;
+  width: 100%;
+  margin: 0 12px 24px;
+  background: #020617;
+  border-radius: 18px;
+  box-shadow:
+    0 18px 30px rgba(15, 23, 42, 0.85),
+    0 0 0 1px rgba(148, 163, 184, 0.45);
+  padding: 12px 14px 10px;
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pe-explain-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+.pe-explain-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.pe-explain-body {
+  font-size: 0.83rem;
+  line-height: 1.5;
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.pe-explain-body code {
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.pe-explain-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
   `;
   document.head.appendChild(style);
 }
@@ -404,8 +468,7 @@ export function openPresetEditorPopup({
 }
 
 /**
- * Core renderer (used by the popup, but you can also mount it directly
- * into any container if you want an embedded editor instead of popup).
+ * Core renderer (used by the popup, but you can also mount it directly).
  */
 export function renderPresetEditor(mountEl, {
   dept = {},
@@ -449,7 +512,7 @@ export function renderPresetEditor(mountEl, {
 
     foam:      { percent: 0,  eductorPsi: 200 },
     sprinkler: { areaSqFt: '', density: '', remoteHeadLossPsi: 0 },
-    standpipe: { floor: '',   outletPsi: 100 }
+    standpipe: { floor: '',   outletPsi: 100 },
   };
 
   const state = deepClone(defaults);
@@ -514,10 +577,106 @@ export function renderPresetEditor(mountEl, {
     });
   }
 
-  // === PREVIEW (placeholder – hook into real calc later) ===
+  // --- Nozzle & hose helpers for standpipe math ---
+  function parseGpmFromNozzle(nozzleId) {
+    const noz = nozzles.find(n => n.id === nozzleId);
+    if (!noz || !noz.label) return 150;
+    const m = noz.label.match(/(\d+)\s*gpm/i);
+    return m ? Number(m[1]) : 150;
+  }
+
+  function parseNpFromNozzle(nozzleId) {
+    const noz = nozzles.find(n => n.id === nozzleId);
+    if (!noz || !noz.label) return 100;
+    const m = noz.label.match(/@\s*(\d+)\s*psi/i);
+    return m ? Number(m[1]) : 100;
+  }
+
+  const SP_C_BY_DIA = {
+    '1.75': 15.5,
+    '1.5': 24,
+    '2.5': 2,
+    '3':   0.8,
+    '4':   0.2,
+    '5':   0.08,
+  };
+
+  function guessDiaFromHoseLabel(label) {
+    if (!label) return 2.5;
+    const m = label.match(/(\d(?:\.\d+)?)\s*"/);
+    if (m) return Number(m[1]);
+    if (/1 3\/4/.test(label)) return 1.75;
+    if (/1¾/.test(label))     return 1.75;
+    if (/1\s?1\/2/.test(label)) return 1.5;
+    if (/2\s?1\/2/.test(label)) return 2.5;
+    if (/3"/.test(label))     return 3;
+    if (/5"/.test(label))     return 5;
+    return 2.5;
+  }
+
+  function getHoseLabelById(id) {
+    const h = hoses.find(x => x.id === id);
+    return h ? h.label : '';
+  }
+
+  function calcFL(C, gpm, lengthFt) {
+    if (!C || !gpm || !lengthFt) return 0;
+    const per100 = C * Math.pow(gpm / 100, 2);
+    return per100 * (lengthFt / 100);
+  }
+
+  function calcElevationPsi(floorsUp) {
+    if (!floorsUp) return 0;
+    return floorsUp * 5;
+  }
+
+  function calcStandpipeNumbers(currentState) {
+    const gpm = parseGpmFromNozzle(currentState.nozzleId);
+    const np  = parseNpFromNozzle(currentState.nozzleId);
+
+    // For standpipe presets we re-use "basic" hoseSizeId/lengthFt as engine->FDC
+    const engineHoseLabel = getHoseLabelById(currentState.hoseSizeId);
+    const engineDia       = String(guessDiaFromHoseLabel(engineHoseLabel));
+    const C1              = SP_C_BY_DIA[engineDia] || 2;
+    const FL1             = calcFL(C1, gpm, currentState.lengthFt || 0);
+
+    // For standpipe -> nozzle, use standpipe sub-state if present, otherwise fall back
+    const spState = currentState.standpipe || {};
+    const atkHoseId     = spState.attackHoseId || currentState.hoseSizeId;
+    const atkLengthFt   = spState.attackLengthFt || currentState.lengthFt || 0;
+    const attackHoseLbl = getHoseLabelById(atkHoseId);
+    const attackDia     = String(guessDiaFromHoseLabel(attackHoseLbl));
+    const C2            = SP_C_BY_DIA[attackDia] || 2;
+    const FL2           = calcFL(C2, gpm, atkLengthFt);
+
+    const floorsUp      = spState.floorsUp ?? 0;
+    const elev          = calcElevationPsi(floorsUp);
+    const systemLoss    = spState.systemLossPsi ?? 25;
+
+    const PDP           = np + FL1 + FL2 + elev + systemLoss;
+
+    return {
+      gpm,
+      np,
+      FL1: Math.round(FL1),
+      FL2: Math.round(FL2),
+      elev: Math.round(elev),
+      system: Math.round(systemLoss),
+      PDP: Math.round(PDP),
+      engineHoseLabel,
+      attackHoseLabel,
+      floorsUp,
+    };
+  }
+
+  // === PREVIEW (type-aware) ===
   function calculatePPandGPM(currentState) {
-    // This is just a placeholder so the UI feels alive.
-    // Later you can plug in your actual COEFF / elevation / appliance logic.
+    if (currentState.lineType === 'standpipe') {
+      const vals = calcStandpipeNumbers(currentState);
+      return { gpm: vals.gpm, pp: vals.PDP };
+    }
+
+    // Placeholder logic for other types – can be upgraded later
     let gpm = 150;
     let pp  = 150;
 
@@ -542,10 +701,6 @@ export function renderPresetEditor(mountEl, {
         gpm = Number(currentState.sprinkler.areaSqFt || 1500) *
               Number(currentState.sprinkler.density || 0.15);
         pp  = 150;
-        break;
-      case 'standpipe':
-        gpm = 150;
-        pp  = currentState.standpipe.outletPsi || 100;
         break;
       case 'custom':
       default:
@@ -587,13 +742,11 @@ export function renderPresetEditor(mountEl, {
 
   function setLineType(type) {
     state.lineType = type;
-    // Some sensible toggles per type
     if (type === 'standard') {
       state.hasMaster = false;
     } else if (type === 'blitz' || type === 'master') {
       state.hasMaster = true;
     }
-    // Custom can mix everything
     updateTypeButtons();
     renderLayout();
     updatePreview();
@@ -625,7 +778,7 @@ export function renderPresetEditor(mountEl, {
     )
   );
 
-  // --- BASIC SECTION (used by almost all types) ---
+  // --- BASIC SECTION ---
   const basicSection = el('section', { class: 'pe-section' },
     el('h3', { text: 'Hose & basic setup' })
   );
@@ -677,10 +830,112 @@ export function renderPresetEditor(mountEl, {
   // --- SPECIAL SECTION (foam / sprinkler / standpipe / custom) ---
   const specialSection = el('section', { class: 'pe-section', id: 'pe-special' });
 
+  function openStandpipeExplainPopup() {
+    const vals = calcStandpipeNumbers(state);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'pe-explain-overlay';
+
+    const panel = document.createElement('div');
+    panel.className = 'pe-explain-panel';
+
+    const header = document.createElement('div');
+    header.className = 'pe-explain-header';
+
+    const title = document.createElement('div');
+    title.className = 'pe-explain-title';
+    title.textContent = 'Standpipe math breakdown';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'preset-line-close';
+    closeBtn.textContent = '✕';
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+
+    const body = document.createElement('div');
+    body.className = 'pe-explain-body';
+
+    const gpm = vals.gpm;
+    const np  = vals.np;
+
+    body.innerHTML = `
+      <p>We use a simple standpipe formula:</p>
+      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss</code></p>
+
+      <p><strong>Inputs:</strong></p>
+      <ul>
+        <li>Nozzle: <code>${state.nozzleId || ''}</code> → approx <code>${gpm} gpm</code> @ <code>${np} psi</code></li>
+        <li>Engine → standpipe hose: <code>${vals.engineHoseLabel || 'engine hose'}</code>,
+            length <code>${state.lengthFt || 0} ft</code></li>
+        <li>Standpipe → nozzle hose: <code>${vals.attackHoseLabel || 'attack hose'}</code>,
+            length <code>${(state.standpipe && state.standpipe.attackLengthFt) || state.lengthFt || 0} ft</code></li>
+        <li>Floors up / elevation: <code>${vals.floorsUp || 0}</code></li>
+        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>
+      </ul>
+
+      <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
+        <code>FL₁ = C₁ × (GPM/100)² × (length/100)</code><br>
+        → FL₁ ≈ <code>${vals.FL1} psi</code>
+      </p>
+
+      <p><strong>Step 2 – Friction loss (standpipe → nozzle):</strong><br>
+        <code>FL₂ = C₂ × (GPM/100)² × (length/100)</code><br>
+        → FL₂ ≈ <code>${vals.FL2} psi</code>
+      </p>
+
+      <p><strong>Step 3 – Elevation:</strong><br>
+        Approx 5 psi per floor up.<br>
+        → Elevation ≈ <code>${vals.elev} psi</code>
+      </p>
+
+      <p><strong>Step 4 – System loss:</strong><br>
+        User-estimated loss for standpipe valves, PRVs, etc.<br>
+        → System loss ≈ <code>${vals.system} psi</code>
+      </p>
+
+      <p><strong>Final pump discharge pressure (PDP):</strong></p>
+      <p>
+        <code>
+          PDP = ${np} (NP) +
+                ${vals.FL1} (FL₁) +
+                ${vals.FL2} (FL₂) +
+                ${vals.elev} (elev) +
+                ${vals.system} (system)
+          = ${vals.PDP} psi
+        </code>
+      </p>
+    `;
+
+    const footer = document.createElement('div');
+    footer.className = 'pe-explain-footer';
+
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'pe-btn-primary';
+    okBtn.textContent = 'Close';
+
+    footer.appendChild(okBtn);
+
+    panel.append(header, body, footer);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    function closeExplain() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeExplain();
+    });
+    closeBtn.addEventListener('click', closeExplain);
+    okBtn.addEventListener('click', closeExplain);
+  }
+
   function renderSpecialSection() {
     specialSection.innerHTML = '';
 
-    // For "custom" we let them see all three mini-blocks stacked
     const targets = [];
     if (state.lineType === 'foam') targets.push('foam');
     if (state.lineType === 'sprinkler') targets.push('sprinkler');
@@ -723,16 +978,72 @@ export function renderPresetEditor(mountEl, {
     }
 
     if (targets.includes('standpipe')) {
-      specialSection.append(
+      const spState = state.standpipe || {};
+
+      const section = el('div', null,
         el('h3', { text: 'Standpipe options' }),
         el('div', { class: 'pe-row' },
-          el('label', { text: 'Floor / elevation:' }),
-          textInput(state.standpipe.floor, v => { state.standpipe.floor = v; updatePreview(); }, 'e.g. 5th floor, 50 ft'),
-          el('span', { text: 'Outlet PDP:' }),
-          numberInput(state.standpipe.outletPsi, v => { state.standpipe.outletPsi = v; updatePreview(); }),
-          el('span', { text: 'psi' })
+          el('label', { text: 'Floors up:' }),
+          numberInput(spState.floorsUp ?? 0, v => {
+            if (!state.standpipe) state.standpipe = {};
+            state.standpipe.floorsUp = v || 0;
+            updatePreview();
+          }),
+          el('span', { text: '≈ 5 psi / floor' })
+        ),
+        el('div', { class: 'pe-row' },
+          el('label', { text: 'System loss:' }),
+          numberInput(spState.systemLossPsi ?? 25, v => {
+            if (!state.standpipe) state.standpipe = {};
+            state.standpipe.systemLossPsi = v || 0;
+            updatePreview();
+          }),
+          el('span', { text: 'psi (valves, PRVs, etc.)' })
+        ),
+        el('div', { class: 'pe-row' },
+          el('label', { text: 'Standpipe → nozzle hose:' }),
+          select(
+            hoses,
+            spState.attackHoseId || state.hoseSizeId,
+            v => {
+              if (!state.standpipe) state.standpipe = {};
+              state.standpipe.attackHoseId = v;
+              updatePreview();
+            }
+          ),
+          el('span', { text: 'Length:' }),
+          numberInput(spState.attackLengthFt ?? state.lengthFt ?? 150, v => {
+            if (!state.standpipe) state.standpipe = {};
+            state.standpipe.attackLengthFt = v || 0;
+            updatePreview();
+          }),
+          el('span', { text: 'ft' })
+        ),
+        el('div', { class: 'pe-row' },
+          el('label', { text: 'Nozzle:' }),
+          select(
+            nozzles,
+            state.nozzleId,
+            v => { state.nozzleId = v; updatePreview(); }
+          )
+        ),
+        el('div', { class: 'pe-row' },
+          el('span', { text: '' }),
+          (function () {
+            const btn = el('button', {
+              class: 'pe-btn-secondary',
+              text: 'Explain math',
+              onclick: (e) => {
+                e.preventDefault();
+                openStandpipeExplainPopup();
+              }
+            });
+            return btn;
+          })()
         )
       );
+
+      specialSection.append(section);
     }
   }
 
@@ -862,11 +1173,15 @@ export function renderPresetEditor(mountEl, {
   function renderMasterContent() {
     masterContent.innerHTML = '';
 
-    if (!state.hasMaster && state.lineType !== 'blitz' && state.lineType !== 'master' && state.lineType !== 'custom') {
+    if (
+      !state.hasMaster &&
+      state.lineType !== 'blitz' &&
+      state.lineType !== 'master' &&
+      state.lineType !== 'custom'
+    ) {
       return;
     }
 
-    // Blitz mode: single feed, simpler UI
     if (state.lineType === 'blitz') {
       masterSection.querySelector('h3').textContent = 'Blitz fire setup';
 
@@ -882,7 +1197,6 @@ export function renderPresetEditor(mountEl, {
       return;
     }
 
-    // Master stream mode / custom
     masterSection.querySelector('h3').textContent = 'Master stream builder';
 
     const applianceRow = el('div', { class: 'pe-row' },
@@ -911,7 +1225,7 @@ export function renderPresetEditor(mountEl, {
     previewBar.textContent = `Preview – GPM: ${gpm}   |   PDP: ${pp} psi`;
   }
 
-  // --- SAVE HANDLER (external save button) ---
+  // --- SAVE HANDLER ---
   if (saveButton) {
     saveButton.onclick = (e) => {
       e.preventDefault();
@@ -921,39 +1235,30 @@ export function renderPresetEditor(mountEl, {
 
   // --- LAYOUT RENDERING ---
   function renderLayout() {
-    // Rebuild which sections are visible based on lineType
     container.innerHTML = '';
 
-    // Type picker & name always visible
-    container.append(typeSection, nameRow);
+    container.append(typeSection, nameRow, basicSection);
 
-    // Standard, Blitz, Master, Foam, Sprinkler, Standpipe, Custom all use basicSection
-    container.append(basicSection);
-
-    // Special sections (foam / sprinkler / standpipe / custom)
     renderSpecialSection();
     if (specialSection.innerHTML.trim()) {
       container.append(specialSection);
     }
 
-    // Wye only for Standard + Custom
     if (state.lineType === 'standard' || state.lineType === 'custom') {
       wyeToggleGroup.refresh && wyeToggleGroup.refresh();
       renderWyeContent();
       container.append(wyeSection);
     }
 
-    // Master / Blitz / Custom
     if (state.lineType === 'blitz' || state.lineType === 'master' || state.lineType === 'custom') {
       renderMasterContent();
       container.append(masterSection);
     }
 
-    // Preview always last
     container.append(previewBar);
   }
 
-  // Initial setup
+  // Initial render
   updateTypeButtons();
   renderSpecialSection();
   renderWyeContent();
