@@ -1,19 +1,9 @@
 // view.presetEditor.js
-// Popup Preset Line Editor for FireOpsCalc
-//
-// This version:
-// - Removes Blitz fire button
-// - Adds Supply line button
-// - Hooks each type to its own popup file:
-//     * Standard line  -> view.lineStandard.js (openStandardLinePopup)
-//     * Master stream  -> view.lineMaster.js   (openMasterStreamPopup)
-//     * Standpipe      -> view.lineStandpipe.js(openStandpipePopup)
-//     * Sprinkler      -> view.lineSprinkler.js(openSprinklerPopup)
-//     * Foam line      -> view.lineFoam.js     (openFoamPopup)
-//     * Supply line    -> view.lineSupply.js   (openSupplyLinePopup)
-//     * Custom builder -> view.lineCustom.js   (openCustomBuilderPopup)
-// - Removes internal basic hose + wye builder
-// - Requires preset name BEFORE any type can be selected.
+// Clean preset editor popup
+// - Name required BEFORE choosing type
+// - Types: standard, master, standpipe, sprinkler, foam, supply, custom
+// - Each type opens its own builder file
+// - No internal hose / wye builder here
 
 import { openMasterStreamPopup }   from './view.lineMaster.js';
 import { openStandpipePopup }      from './view.lineStandpipe.js';
@@ -31,8 +21,6 @@ function injectPresetEditorStyles() {
 
   const style = document.createElement('style');
   style.textContent = `
-/* ==== PRESET LINE EDITOR – POPUP & DARK THEME ==== */
-
 .preset-line-overlay {
   position: fixed;
   inset: 0;
@@ -73,7 +61,6 @@ function injectPresetEditorStyles() {
   }
 }
 
-/* Header row (title + close) */
 .preset-line-header {
   display: flex;
   align-items: center;
@@ -106,7 +93,6 @@ function injectPresetEditorStyles() {
   background: #111827;
 }
 
-/* Body is scrollable form */
 .preset-line-body {
   font-size: 0.85rem;
   line-height: 1.45;
@@ -116,7 +102,6 @@ function injectPresetEditorStyles() {
   padding-bottom: 4px;
 }
 
-/* Footer: buttons */
 .preset-line-footer {
   display: flex;
   flex-direction: row;
@@ -126,7 +111,6 @@ function injectPresetEditorStyles() {
   border-top: 1px solid rgba(148, 163, 184, 0.25);
 }
 
-/* Buttons */
 .pe-btn-primary,
 .pe-btn-secondary {
   border-radius: 999px;
@@ -157,7 +141,7 @@ function injectPresetEditorStyles() {
   transform: translateY(1px);
 }
 
-/* ==== FORM LAYOUT (MOBILE FIRST) ==== */
+/* Layout */
 
 .preset-editor {
   display: flex;
@@ -165,7 +149,6 @@ function injectPresetEditorStyles() {
   gap: 10px;
 }
 
-/* Sections */
 .preset-editor section.pe-section {
   border-top: 1px solid rgba(148, 163, 184, 0.4);
   padding-top: 8px;
@@ -174,7 +157,6 @@ function injectPresetEditorStyles() {
   border-top: none;
 }
 
-/* Rows */
 .pe-row {
   display: flex;
   flex-direction: column;
@@ -187,10 +169,7 @@ function injectPresetEditorStyles() {
   font-size: 0.82rem;
 }
 
-/* Inputs & selects */
-.preset-editor input[type="text"],
-.preset-editor input[type="number"],
-.preset-editor select {
+.preset-editor input[type="text"] {
   width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
@@ -205,7 +184,8 @@ function injectPresetEditorStyles() {
   color: rgba(148, 163, 184, 0.9);
 }
 
-/* Type selection grid */
+/* Type buttons */
+
 .pe-type-section h3 {
   margin: 0 0 6px 0;
   font-size: 0.82rem;
@@ -246,7 +226,6 @@ function injectPresetEditorStyles() {
   cursor: default;
 }
 
-/* Preview bar */
 .pe-preview {
   margin-top: 8px;
   padding: 8px;
@@ -258,18 +237,15 @@ function injectPresetEditorStyles() {
   text-align: center;
 }
 
-/* Name row */
 .pe-name {
   margin-top: 0;
 }
 
-/* Hint text */
 .pe-hint {
   font-size: 0.75rem;
   opacity: 0.8;
 }
 
-/* Desktop / tablet enhancements */
 @media (min-width: 640px) {
   .pe-row {
     flex-direction: row;
@@ -281,14 +257,12 @@ function injectPresetEditorStyles() {
     min-width: 100px;
   }
 
-  .preset-editor input[type="text"],
-  .preset-editor input[type="number"],
-  .preset-editor select {
+  .preset-editor input[type="text"] {
     width: auto;
-    min-width: 160px;
+    min-width: 200px;
   }
 }
-  `;
+`;
   document.head.appendChild(style);
 }
 
@@ -298,14 +272,13 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
-/**
- * Open the preset line editor as a popup overlay.
- */
+// ---------- Public: open as popup ----------
+
 export function openPresetEditorPopup({
   dept = {},
   initialPreset = null,
   onSave = () => {},
-  onCancel = () => {}
+  onCancel = () => {},
 } = {}) {
   injectPresetEditorStyles();
 
@@ -356,51 +329,44 @@ export function openPresetEditorPopup({
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
-  function close(cancelled = true) {
+  function close(cancelled) {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     if (cancelled && typeof onCancel === 'function') onCancel();
   }
 
-  // Close on outside click
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close(true);
   });
   closeBtn.addEventListener('click', () => close(true));
   cancelBtn.addEventListener('click', () => close(true));
 
-  // Render the inner editor into body
   renderPresetEditor(body, {
     dept,
     initialPreset,
     onSave(presetConfig) {
-      if (typeof onSave === 'function') onSave(presetConfig);
+      onSave(presetConfig);
       close(false);
     },
-    saveButton: saveBtn
+    saveButton: saveBtn,
   });
 }
 
-/**
- * Core renderer (used by the popup, but you can also mount it directly).
- */
-export function renderPresetEditor(mountEl, {
-  dept = {},
-  initialPreset = null,
-  onSave = () => {},
-  saveButton = null,
-} = {}) {
+// ---------- Core renderer ----------
+
+export function renderPresetEditor(
+  mountEl,
+  { dept = {}, initialPreset = null, onSave = () => {}, saveButton = null } = {}
+) {
   injectPresetEditorStyles();
 
-  const hoses      = dept.hoses      || []; // [{id, label}]
-  const nozzles    = dept.nozzles    || []; // not used directly here but kept for future
+  const hoses      = dept.hoses      || [];
+  const nozzles    = dept.nozzles    || [];
   const appliances = dept.appliances || [];
 
-  // === initial state ===
   const defaults = {
     name: '',
-    lineType: '',         // standard | master | standpipe | sprinkler | foam | supply | custom
+    lineType: '',
 
-    // Configs from external builders:
     standardConfig:   null,
     masterConfig:     null,
     standpipeConfig:  null,
@@ -411,11 +377,10 @@ export function renderPresetEditor(mountEl, {
   };
 
   const state = deepClone(defaults);
-  if (initialPreset) {
+  if (initialPreset && typeof initialPreset === 'object') {
     Object.assign(state, initialPreset);
   }
 
-  // === helpers ===
   function el(tag, opts = {}, ...children) {
     const e = document.createElement(tag);
     if (opts.class) e.className = opts.class;
@@ -424,129 +389,68 @@ export function renderPresetEditor(mountEl, {
     if (opts.value != null) e.value = opts.value;
     if (opts.placeholder) e.placeholder = opts.placeholder;
     if (opts.for) e.htmlFor = opts.for;
-    if (opts.id) e.id = opts.id;
     if (opts.disabled != null) e.disabled = !!opts.disabled;
     if (opts.title) e.title = opts.title;
     if (opts.onchange) e.addEventListener('change', opts.onchange);
     if (opts.onclick) e.addEventListener('click', opts.onclick);
-    children.forEach(c => e.append(c));
+    children.forEach((c) => e.append(c));
     return e;
   }
 
-  // --- PREVIEW BAR ---
+  // --- preview ---
 
   const previewBar = el('div', { class: 'pe-preview' });
 
-  function extractGpmAndPdpFromLastCalc(lastCalc, fallbackGpm, fallbackPdp) {
-    if (!lastCalc || typeof lastCalc !== 'object') {
-      return { gpm: fallbackGpm, pp: fallbackPdp };
-    }
-
-    let gpm =
-      lastCalc.gpm ??
-      lastCalc.GPM ??
-      lastCalc.flowGpm ??
-      lastCalc.solutionGpm ??
-      lastCalc.waterGpm ??
-      lastCalc.requiredFlowGpm ??
-      lastCalc.targetFlowGpm ??
-      fallbackGpm;
-
-    let pp =
-      lastCalc.PDP ??
-      lastCalc.pdp ??
-      lastCalc.pp ??
-      lastCalc.pumpPsi ??
-      fallbackPdp;
-
-    return {
-      gpm: Math.round(Number(gpm || 0)),
-      pp:  Math.round(Number(pp  || 0)),
-    };
-  }
-
-  function calculatePPandGPM(currentState) {
-    const type = currentState.lineType;
-
-    if (type === 'standard' && currentState.standardConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.standardConfig.lastCalc, 150, 150);
-    }
-    if (type === 'master' && currentState.masterConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.masterConfig.lastCalc, 500, 150);
-    }
-    if (type === 'standpipe' && currentState.standpipeConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.standpipeConfig.lastCalc, 150, 150);
-    }
-    if (type === 'sprinkler' && currentState.sprinklerConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.sprinklerConfig.lastCalc, 250, 150);
-    }
-    if (type === 'foam' && currentState.foamConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.foamConfig.lastCalc, 95, 200);
-    }
-    if (type === 'supply' && currentState.supplyConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.supplyConfig.lastCalc, 500, 80);
-    }
-    if (type === 'custom' && currentState.customConfig?.lastCalc) {
-      return extractGpmAndPdpFromLastCalc(currentState.customConfig.lastCalc, 300, 150);
-    }
-
-    // Fallback if nothing configured yet
-    switch (type) {
-      case 'standard':  return { gpm: 150, pp: 150 };
-      case 'master':    return { gpm: 500, pp: 150 };
-      case 'standpipe': return { gpm: 150, pp: 175 };
-      case 'sprinkler': return { gpm: 250, pp: 150 };
-      case 'foam':      return { gpm: 95,  pp: 200 };
-      case 'supply':    return { gpm: 500, pp: 80 };
-      case 'custom':    return { gpm: 300, pp: 150 };
-      default:          return { gpm: 0,   pp: 0 };
-    }
-  }
-
   function updatePreview() {
-    if (!state.lineType) {
-      previewBar.textContent = 'Enter a preset name, then choose a build type to open its editor.';
+    if (!state.name.trim()) {
+      previewBar.textContent = 'Enter a preset name to begin.';
       return;
     }
-    const { gpm, pp } = calculatePPandGPM(state);
-    previewBar.textContent = `Preview – Type: ${state.lineType || 'none'}   •   GPM: ${gpm}   •   PDP: ${pp} psi`;
+    if (!state.lineType) {
+      previewBar.textContent = `Preset: "${state.name}" – select a build type to open its editor.`;
+      return;
+    }
+    previewBar.textContent = `Preset: "${state.name}"   •   Type: ${state.lineType} (tap type to reopen editor)`;
   }
 
-  // --- NAME FIELD (REQUIRED BEFORE TYPE SELECTION) ---
+  // --- name row ---
 
   const nameInput = el('input', {
     type: 'text',
     value: state.name || '',
-    placeholder: 'Example: 1¾\" attack 200\' 150 gpm',
-    onchange: e => {
+    placeholder: 'Example: 1¾" attack 200\' 150 gpm',
+    onchange: (e) => {
       state.name = e.target.value || '';
       updateTypeButtons();
       updatePreview();
-    }
+    },
   });
 
-  const nameRow = el('div', { class: 'pe-row pe-name' },
+  const nameRow = el(
+    'div',
+    { class: 'pe-row pe-name' },
     el('label', { text: 'Preset name:' }),
     nameInput
   );
 
-  // --- TYPE BUTTONS ---
+  // --- type grid ---
 
   const typeButtons = [];
 
   function makeTypeButton(id, label, sublabel) {
-    const btn = el('button', {
-      class: 'pe-type-btn',
-      onclick: (e) => {
-        e.preventDefault();
-        if (!state.name.trim()) {
-          // Guard in case disabled attribute isn't respected somewhere
-          alert('Enter a preset name first.');
-          return;
-        }
-        setLineType(id, true); // true => open popup
-      }
-    },
+    const btn = el(
+      'button',
+      {
+        class: 'pe-type-btn',
+        onclick: (e) => {
+          e.preventDefault();
+          if (!state.name.trim()) {
+            alert('Enter a preset name first.');
+            return;
+          }
+          setLineType(id, true);
+        },
+      },
       document.createTextNode(label),
       el('span', { text: sublabel || '' })
     );
@@ -569,7 +473,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.standardConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -580,7 +484,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.masterConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -591,7 +495,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.standpipeConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -602,7 +506,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.sprinklerConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -613,7 +517,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.foamConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -624,7 +528,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.supplyConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -635,7 +539,7 @@ export function renderPresetEditor(mountEl, {
       onSave(config) {
         state.customConfig = config;
         updatePreview();
-      }
+      },
     });
   }
 
@@ -654,42 +558,38 @@ export function renderPresetEditor(mountEl, {
     updatePreview();
   }
 
-  const typeSection = el('section', { class: 'pe-section pe-type-section' },
+  const typeSection = el(
+    'section',
+    { class: 'pe-section pe-type-section' },
     el('h3', { text: 'Choose build type' }),
     (function () {
-      const grid = el('div', { class: 'pe-type-grid' },
-        makeTypeButton('standard',  'Standard line',  'Attack line (with wye option)'),
+      const grid = el(
+        'div',
+        { class: 'pe-type-grid' },
+        makeTypeButton('standard',  'Standard line',  'Attack line (wye optional)'),
         makeTypeButton('master',    'Master stream',  'Deck gun or portable base'),
         makeTypeButton('standpipe', 'Standpipe',      'High-rise / FDC standpipe'),
         makeTypeButton('sprinkler', 'Sprinkler',      'Sprinkler / FDC supply'),
         makeTypeButton('foam',      'Foam line',      'Foam eductor / foam setup'),
         makeTypeButton('supply',    'Supply line',    'Hydrant / relay / feed line'),
-        makeTypeButton('custom',    'Custom builder', 'Mix wyes, siamese, appliances')
+        makeTypeButton('custom',    'Custom builder', 'Any layout, wyes, siamese, etc.')
       );
       return grid;
     })(),
-    el('div', { class: 'pe-hint', text: 'Enter a preset name first, then tap a type to open its builder. Tap the same type again to reopen and edit.' })
+    el('div', { class: 'pe-hint', text: 'Enter a preset name first, then tap a type to open its builder. Tap the same type later to reopen and edit.' })
   );
 
-  // --- LAYOUT CONTAINER ---
+  // --- layout container ---
 
   const container = el('div', { class: 'preset-editor' });
+  container.append(nameRow, typeSection, previewBar);
 
-  function renderLayout() {
-    container.innerHTML = '';
-    container.append(
-      nameRow,
-      typeSection,
-      previewBar
-    );
-  }
+  mountEl.innerHTML = '';
+  mountEl.appendChild(container);
 
-  // Initial setup
-  renderLayout();
   updateTypeButtons();
   updatePreview();
 
-  // Hook save button to return the whole preset structure
   if (saveButton) {
     saveButton.onclick = (e) => {
       e.preventDefault();
@@ -704,7 +604,4 @@ export function renderPresetEditor(mountEl, {
       onSave(deepClone(state));
     };
   }
-
-  mountEl.innerHTML = '';
-  mountEl.appendChild(container);
 }
