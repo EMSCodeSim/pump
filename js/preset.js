@@ -293,22 +293,25 @@ function injectAppPresetStyles() {
     }
     .preset-menu-preset-btn {
       flex: 1 1 auto;
+      width: auto;
       justify-content: space-between;
       font-size: 0.8rem;
+    }
+    .preset-menu-preset-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .preset-menu-preset-action {
+      font-size: 0.7rem;
+      padding: 4px 6px;
+      border-radius: 999px;
     }
     .preset-menu-preset-meta {
       display: block;
       font-size: 0.72rem;
       opacity: 0.75;
       margin-left: 4px;
-    }
-    .preset-menu-preset-actions {
-      display: flex;
-      gap: 4px;
-    }
-    .preset-menu-small-btn {
-      padding: 4px 6px;
-      font-size: 0.7rem;
     }
   `;
   document.head.appendChild(style);
@@ -445,77 +448,6 @@ function savePresetsToStorage() {
     console.warn('Preset save failed', e);
   }
 }
-
-function handleEditPresetById(id) {
-  if (!id) return;
-  const presets = state.presets || [];
-  const preset = presets.find(p => p.id === id);
-  if (!preset) return;
-
-  const dept = loadDeptFromStorage() || {};
-
-  // Try to build an initialPreset object that the editor understands
-  const baseConfig =
-    (preset.config && typeof preset.config === 'object' ? preset.config : null) ||
-    (preset.payload && typeof preset.payload === 'object' ? preset.payload : null) ||
-    {};
-
-  const initialPreset = { ...baseConfig };
-
-  if (!initialPreset.name && preset.name) initialPreset.name = preset.name;
-  if (!initialPreset.lineType && preset.lineType) initialPreset.lineType = preset.lineType;
-  if (!('lineNumber' in initialPreset) && typeof preset.lineNumber === 'number') {
-    initialPreset.lineNumber = preset.lineNumber;
-  }
-
-  openPresetEditorPopup({
-    dept,
-    initialPreset,
-    onSave(presetConfig) {
-      if (!presetConfig) return;
-
-      // Update existing preset in-place
-      preset.name = (presetConfig.name) || preset.name || 'Preset';
-      if ('lineType' in presetConfig) {
-        preset.lineType = presetConfig.lineType;
-      }
-      if ('lineNumber' in presetConfig) {
-        preset.lineNumber = presetConfig.lineNumber;
-      }
-      if ('summary' in presetConfig) {
-        preset.summary = presetConfig.summary;
-      }
-
-      preset.config = presetConfig;
-
-      savePresetsToStorage();
-
-      // Re-open main panel so list reflects updates
-      if (typeof openPresetPanelApp === 'function') {
-        openPresetPanelApp();
-      }
-    }
-  });
-}
-
-function handleDeletePresetById(id) {
-  if (!id) return;
-  const presets = state.presets || [];
-  const idx = presets.findIndex(p => p.id === id);
-  if (idx === -1) return;
-
-  const name = presets[idx].name || 'this preset';
-  if (!window.confirm(`Delete preset "${name}"?`)) return;
-
-  presets.splice(idx, 1);
-  state.presets = presets;
-  savePresetsToStorage();
-
-  if (typeof openPresetPanelApp === 'function') {
-    openPresetPanelApp();
-  }
-}
-
 
 function loadDeptFromStorage() {
   try {
@@ -1589,6 +1521,24 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   wrap.classList.remove('hidden');
 }
 
+
+function getPresetLineNumber(p) {
+  if (!p) return 1;
+  if (typeof p.lineNumber === 'number') return p.lineNumber;
+  if (p.config && typeof p.config.lineNumber === 'number') return p.config.lineNumber;
+  if (p.payload && typeof p.payload.lineNumber === 'number') return p.payload.lineNumber;
+  return 1;
+}
+
+function getPresetSummary(p) {
+  if (!p) return '';
+  if (p.summary) return p.summary;
+  if (p.config && (p.config.summary || p.config.shortLabel)) {
+    return p.config.summary || p.config.shortLabel;
+  }
+  return '';
+}
+
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
@@ -1600,34 +1550,40 @@ function openPresetMainMenu() {
 
   titleEl.textContent = 'Presets';
 
+
   const presets = state.presets || [];
   const savedHtml = presets.length
-    ? presets.map(p => `
-        <div class="preset-menu-preset-row">
+    ? presets.map(p => {
+        const lineNum = getPresetLineNumber(p);
+        const summary = getPresetSummary(p);
+        return `
+        <div class="preset-menu-preset-row" data-preset-id="${p.id}">
           <button type="button"
                   class="btn-secondary preset-menu-preset-btn"
                   data-preset-id="${p.id}">
             <span>${p.name}</span>
             <span class="preset-menu-preset-meta">
-              Line ${p.lineNumber || 1}${p.summary ? ' • ' + p.summary : ''}
+              Line ${lineNum}${summary ? ' • ' + summary : ''}
             </span>
           </button>
           <div class="preset-menu-preset-actions">
             <button type="button"
-                    class="btn-secondary preset-menu-small-btn preset-menu-edit-btn"
-                    data-preset-id="${p.id}">
+                    class="btn-secondary preset-menu-preset-action"
+                    data-preset-id="${p.id}"
+                    data-preset-action="edit">
               Edit
             </button>
             <button type="button"
-                    class="btn-secondary preset-menu-small-btn preset-menu-delete-btn"
-                    data-preset-id="${p.id}">
-              Delete
+                    class="btn-secondary preset-menu-preset-action"
+                    data-preset-id="${p.id}"
+                    data-preset-action="delete">
+              Del
             </button>
           </div>
         </div>
-      `).join('')
+        `;
+      }).join('')
     : `<div class="preset-list-empty">No saved presets yet.</div>`;
-
   body.innerHTML = `
     <div class="dept-menu" style="margin-bottom:8px;">
       <button type="button" class="btn-primary" id="presetDeptSetupBtn">
@@ -1683,7 +1639,8 @@ function openPresetMainMenu() {
     });
   });
 
-  // Saved preset buttons: apply directly when clicked
+  
+  // Saved preset buttons: apply directly when main area clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.getAttribute('data-preset-id');
@@ -1694,25 +1651,24 @@ function openPresetMainMenu() {
     });
   });
 
-  // Edit preset buttons
-  body.querySelectorAll('.preset-menu-edit-btn').forEach(btn => {
+  // Saved preset actions: edit / delete
+  body.querySelectorAll('.preset-menu-preset-action').forEach(btn => {
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const id = btn.getAttribute('data-preset-id');
-      handleEditPresetById(id);
+      const action = btn.getAttribute('data-preset-action');
+      const preset = (state.presets || []).find(p => p.id === id);
+      if (!preset) return;
+
+      if (action === 'edit') {
+        openPresetInEditor(preset);
+      } else if (action === 'delete') {
+        deletePresetById(id);
+      }
     });
   });
 
-  // Delete preset buttons
-  body.querySelectorAll('.preset-menu-delete-btn').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const id = btn.getAttribute('data-preset-id');
-      handleDeletePresetById(id);
-    });
-  });
-
-  // Add preset button: saves current Line 1 by default (user can rename)
+// Add preset button: saves current Line 1 by default (user can rename)
   const addBtn = footer.querySelector('#presetAddPresetBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
@@ -1760,6 +1716,68 @@ function handleAddPresetClick() {
       }
     }
   });
+}
+
+
+
+function openPresetInEditor(preset) {
+  if (!preset) return;
+
+  // New-style presets created via the Preset Line Editor
+  if (preset.config || preset.lineType) {
+    const dept = loadDeptFromStorage() || {};
+    const initialPreset = {
+      ...(preset.config || {}),
+      id: preset.id,
+      name: preset.name,
+      lineType: preset.lineType || (preset.config && preset.config.lineType),
+    };
+
+    openPresetEditorPopup({
+      dept,
+      initialPreset,
+      onSave(updatedConfig) {
+        const name = (updatedConfig && updatedConfig.name) || preset.name;
+        const lineType = (updatedConfig && updatedConfig.lineType) || preset.lineType;
+        const lineNumber = updatedConfig && updatedConfig.lineNumber;
+        const summary = updatedConfig && (updatedConfig.summary || updatedConfig.shortLabel);
+
+        const list = state.presets || [];
+        const idx = list.findIndex(p => p.id === preset.id);
+        if (idx !== -1) {
+          list[idx] = {
+            ...list[idx],
+            name,
+            lineType,
+            config: updatedConfig || {},
+          };
+          if (typeof lineNumber === 'number') {
+            list[idx].lineNumber = lineNumber;
+          }
+          if (summary != null) {
+            list[idx].summary = summary;
+          }
+        }
+        savePresetsToStorage();
+        openPresetMainMenu();
+      }
+    });
+    return;
+  }
+
+  // Legacy presets (old quick-line editor) – can't safely edit yet
+  alert('This preset was created with the older line editor and cannot be edited here. You can delete it and create a new preset with the current editor.');
+}
+
+function deletePresetById(id) {
+  if (!id) return;
+  if (!confirm('Delete this preset?')) return;
+  const list = state.presets || [];
+  const idx = list.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  list.splice(idx, 1);
+  savePresetsToStorage();
+  openPresetMainMenu();
 }
 
 // Simple info panel for web-only mode (currently forwards to main menu)
