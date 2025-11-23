@@ -1,10 +1,13 @@
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
-// - Nozzle dropdown: dept-selected nozzles; if none, show all.
-// - Hose dropdown: dept-selected hoses; if none, show all.
-// - Single line: GPM from nozzle; PDP from C, length, nozzle NP, elevation.
-// - Wye: Branch A & B each use same dropdown logic. Total GPM = sum of both.
-//        PDP recalculated using engine line + both branches.
+// Updated:
+// - Phone-friendly layout, no tiny text on inputs (min 16px to avoid zoom).
+// - Hose + nozzle dropdowns use department-selected lists (or all if none).
+// - Nozzles always include a "Closed (no flow)" option.
+// - Single-line mode: GPM from nozzle, PDP from hose C, length, NP, elevation.
+// - Wye mode: Engine line + Branch A + Branch B, each with hose/nozzle dropdowns.
+//             Total GPM = sum of branch flows. PDP recalculated using both
+//             branches, engine FL, wye loss, and elevation.
 
 export function openStandardLinePopup(options) {
   options = options || {};
@@ -14,17 +17,17 @@ export function openStandardLinePopup(options) {
 
   // ---- Defaults & helpers for hoses / nozzles ----
   const DEFAULT_NOZZLES = [
-    { id: "fog150_50", label: "Fog 150 gpm @ 50 psi", gpm: 150, np: 50 },
-    { id: "fog185_50", label: "Fog 185 gpm @ 50 psi", gpm: 185, np: 50 },
-    { id: "sb_15_16_50", label: 'Smoothbore 15/16" @ 50 psi', gpm: 185, np: 50 },
-    { id: "sb_1_1_8_50", label: 'Smoothbore 1 1/8" @ 50 psi', gpm: 265, np: 50 }
+    { id: "fog150_50",  label: "Fog 150 gpm @ 50 psi",    gpm: 150, np: 50 },
+    { id: "fog185_50",  label: "Fog 185 gpm @ 50 psi",    gpm: 185, np: 50 },
+    { id: "sb_15_16_50",label: "Smoothbore 15/16\\\" @ 50 psi", gpm: 185, np: 50 },
+    { id: "sb_1_1_8_50",label: "Smoothbore 1 1/8\\\" @ 50 psi", gpm: 265, np: 50 }
   ];
 
   const DEFAULT_HOSES = [
-    { id: "1.75", label: '1 3/4"', c: 15.5 },
-    { id: "2.5",  label: '2 1/2"', c: 2.0 },
-    { id: "3",    label: '3"',      c: 0.8 },
-    { id: "5",    label: '5"',      c: 0.08 }
+    { id: "1.75", label: "1 3/4\\\"", c: 15.5 },
+    { id: "2.5",  label: "2 1/2\\\"", c: 2.0 },
+    { id: "3",    label: "3\\\"",      c: 0.8 },
+    { id: "5",    label: "5\\\"",      c: 0.08 }
   ];
 
   const allNozzlesRaw = Array.isArray(dept.nozzlesAll)
@@ -35,9 +38,13 @@ export function openStandardLinePopup(options) {
     ? new Set(dept.nozzlesSelected)
     : null;
 
-  const nozzleList = selectedNozzleIds
+  const baseNozzleList = selectedNozzleIds
     ? allNozzlesRaw.filter(n => selectedNozzleIds.has(n.id))
     : allNozzlesRaw.slice();
+
+  // Always include a "Closed" nozzle option at the top
+  const CLOSED_NOZZLE = { id: "closed", label: "Closed (no flow)", gpm: 0, np: 0 };
+  const nozzleList = [CLOSED_NOZZLE, ...baseNozzleList];
 
   const allHosesRaw = Array.isArray(dept.hosesAll)
     ? dept.hosesAll
@@ -52,83 +59,94 @@ export function openStandardLinePopup(options) {
     : allHosesRaw.slice();
 
   function findNozzleById(id) {
+    if (id === "closed" || !id) return CLOSED_NOZZLE;
     return nozzleList.find(n => n.id === id) || null;
   }
+
   function findHoseById(id) {
     return hoseList.find(h => h.id === id) || null;
   }
+
   function defaultHoseCFromLabel(label) {
     if (!label) return 15.5;
     const text = String(label).toLowerCase();
     if (text.includes("1 3/4") || text.includes("1.75")) return 15.5;
-    if (text.includes("2 1/2") || text.includes("2.5")) return 2.0;
-    if (text.includes("3")) return 0.8;
-    if (text.includes("5")) return 0.08;
+    if (text.includes("2 1/2") || text.includes("2.5"))  return 2.0;
+    if (text.includes("3"))                             return 0.8;
+    if (text.includes("5"))                             return 0.08;
     return 15.5;
   }
 
-  // Approx psi per ft
+  // Approx psi per ft of elevation
   const PSI_PER_FT = 0.434;
   // Approx wye loss
   const WYE_LOSS_PSI = 10;
 
   // ---- Initial state ----
+  const firstHose   = hoseList[0] || DEFAULT_HOSES[0];
+  const secondHose  = hoseList[1] || hoseList[0] || DEFAULT_HOSES[1] || DEFAULT_HOSES[0];
+  const firstNozzle = nozzleList[1] || nozzleList[0]; // try first non-closed if exists
+
   const state = {
-    mode: (initial && initial.mode) || "single", // "single" or "wye"
+    mode:   (initial && initial.mode)   || "single", // "single" or "wye"
+    targetGpm: (initial && initial.targetGpm) || 150,
+    targetPdp: (initial && initial.targetPdp) || 150,
+
     single: {
-      hoseId:      (initial && initial.single && initial.single.hoseId)      || (hoseList[0]?.id || "1.75"),
-      hoseSize:    (initial && initial.single && initial.single.hoseSize)    || (hoseList[0]?.label || '1 3/4"'),
+      hoseId:      (initial && initial.single && initial.single.hoseId)      || (firstHose.id || "1.75"),
+      hoseSize:    (initial && initial.single && initial.single.hoseSize)    || (firstHose.label || "1 3/4\\\""),
       lengthFt:    (initial && initial.single && initial.single.lengthFt)    || 200,
       elevationFt: (initial && initial.single && initial.single.elevationFt) || 0,
-      nozzleId:    (initial && initial.single && initial.single.nozzleId)    || (nozzleList[0]?.id || "")
+      nozzleId:    (initial && initial.single && initial.single.nozzleId)    || (firstNozzle && firstNozzle.id) || "closed"
     },
+
     wye: {
-      // Engine section from pump to wye
-      engineHoseId:      (initial && initial.wye && initial.wye.engineHoseId)      || (hoseList[1]?.id || "2.5"),
-      engineHoseSize:    (initial && initial.wye && initial.wye.engineHoseSize)    || (hoseList[1]?.label || '2 1/2"'),
+      engineHoseId:      (initial && initial.wye && initial.wye.engineHoseId)      || (secondHose.id || "2.5"),
+      engineHoseSize:    (initial && initial.wye && initial.wye.engineHoseSize)    || (secondHose.label || "2 1/2\\\""),
       engineLengthFt:    (initial && initial.wye && initial.wye.engineLengthFt)    || 100,
       elevationFt:       (initial && initial.wye && initial.wye.elevationFt)       || 0,
-      // Branch A & B
+
       branchA: {
-        hoseId:   (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseId)   || (hoseList[0]?.id || "1.75"),
-        hoseSize: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseSize) || (hoseList[0]?.label || '1 3/4"'),
+        hoseId:   (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseId)   || (firstHose.id || "1.75"),
+        hoseSize: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseSize) || (firstHose.label || "1 3/4\\\""),
         lengthFt: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.lengthFt) || 150,
-        nozzleId: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.nozzleId) || (nozzleList[0]?.id || "")
+        nozzleId: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.nozzleId) || (firstNozzle && firstNozzle.id) || "closed"
       },
+
       branchB: {
-        hoseId:   (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseId)   || (hoseList[0]?.id || "1.75"),
-        hoseSize: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseSize) || (hoseList[0]?.label || '1 3/4"'),
+        hoseId:   (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseId)   || (firstHose.id || "1.75"),
+        hoseSize: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseSize) || (firstHose.label || "1 3/4\\\""),
         lengthFt: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.lengthFt) || 150,
-        nozzleId: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.nozzleId) || (nozzleList[0]?.id || "")
+        nozzleId: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.nozzleId) || "closed"
       }
-    },
-    targetGpm: (initial && initial.targetGpm) || 150,
-    targetPdp: (initial && initial.targetPdp) || 150
+    }
   };
 
-  // ---- Overlay & panel ----
+  // ---- Overlay & panel (phone-friendly) ----
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.inset = "0";
   overlay.style.background = "rgba(0,0,0,0.55)";
   overlay.style.display = "flex";
-  overlay.style.alignItems = "flex-start";
+  overlay.style.alignItems = "flex-end"; // bottom sheet style on phone
   overlay.style.justifyContent = "center";
-  overlay.style.paddingTop = "40px";
+  overlay.style.padding = "8px";
   overlay.style.zIndex = "9999";
 
   const panel = document.createElement("div");
   panel.style.maxWidth = "520px";
   panel.style.width = "100%";
+  panel.style.maxHeight = "90vh";
   panel.style.background = "#020617";
   panel.style.color = "#e5e7eb";
-  panel.style.borderRadius = "16px";
+  panel.style.borderRadius = "16px 16px 0 0";
   panel.style.boxShadow = "0 18px 30px rgba(15,23,42,0.75)";
   panel.style.border = "1px solid rgba(148,163,184,0.35)";
   panel.style.padding = "12px 14px 10px";
   panel.style.fontFamily =
-    'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+    'system-ui, -apple-system, BlinkMacSystemFont, \\"SF Pro Text\\", sans-serif';
   panel.style.boxSizing = "border-box";
+  panel.style.overflow = "hidden";
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -136,6 +154,7 @@ export function openStandardLinePopup(options) {
   function close() {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   }
+
   overlay.addEventListener("click", (e) => {
     if (e.target === overlay) close();
   });
@@ -151,19 +170,20 @@ export function openStandardLinePopup(options) {
 
   const title = document.createElement("div");
   title.textContent = "Standard attack line";
-  title.style.fontSize = "0.95rem";
+  title.style.fontSize = "16px";
   title.style.fontWeight = "600";
 
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.textContent = "✕";
-  closeBtn.style.width = "26px";
-  closeBtn.style.height = "26px";
+  closeBtn.style.width = "28px";
+  closeBtn.style.height = "28px";
   closeBtn.style.borderRadius = "999px";
   closeBtn.style.border = "1px solid rgba(148,163,184,0.6)";
   closeBtn.style.background = "#020617";
   closeBtn.style.color = "#e5e7eb";
   closeBtn.style.cursor = "pointer";
+  closeBtn.style.fontSize = "16px";
   closeBtn.addEventListener("click", () => close());
 
   header.appendChild(title);
@@ -171,9 +191,9 @@ export function openStandardLinePopup(options) {
 
   // ---- Body ----
   const body = document.createElement("div");
-  body.style.maxHeight = "60vh";
+  body.style.maxHeight = "65vh";
   body.style.overflowY = "auto";
-  body.style.fontSize = "0.85rem";
+  body.style.fontSize = "14px";
 
   // Mode toggle
   const modeRow = document.createElement("div");
@@ -197,7 +217,7 @@ export function openStandardLinePopup(options) {
     b.style.background = "rgba(15,23,42,0.9)";
     b.style.color = "#e5e7eb";
     b.style.cursor = "pointer";
-    b.style.fontSize = "0.82rem";
+    b.style.fontSize = "14px";
   });
 
   function updateModeButtons() {
@@ -229,7 +249,7 @@ export function openStandardLinePopup(options) {
   modeRow.appendChild(singleBtn);
   modeRow.appendChild(wyeBtn);
 
-  // Section container
+  // Sections container
   const sectionsContainer = document.createElement("div");
   sectionsContainer.style.marginTop = "8px";
   sectionsContainer.style.display = "flex";
@@ -247,19 +267,20 @@ export function openStandardLinePopup(options) {
 
     const label = document.createElement("label");
     label.textContent = labelText;
-    label.style.fontSize = "0.8rem";
+    label.style.fontSize = "14px";
     label.style.flex = "0 0 55%";
 
     const input = document.createElement("input");
     input.type = type;
     input.value = value;
     input.style.flex = "1 1 0";
-    input.style.padding = "4px 6px";
+    input.style.padding = "6px 8px";
     input.style.borderRadius = "8px";
     input.style.border = "1px solid rgba(55,65,81,0.9)";
     input.style.background = "#020617";
     input.style.color = "#e5e7eb";
-    input.style.fontSize = "0.8rem";
+    input.style.fontSize = "16px"; // avoid iOS zoom
+    input.style.minHeight = "32px";
 
     input.addEventListener("input", () => {
       onChange(input.value);
@@ -281,17 +302,18 @@ export function openStandardLinePopup(options) {
 
     const label = document.createElement("label");
     label.textContent = labelText;
-    label.style.fontSize = "0.8rem";
+    label.style.fontSize = "14px";
     label.style.flex = "0 0 55%";
 
     const sel = document.createElement("select");
     sel.style.flex = "1 1 0";
-    sel.style.padding = "4px 6px";
+    sel.style.padding = "6px 8px";
     sel.style.borderRadius = "8px";
     sel.style.border = "1px solid rgba(55,65,81,0.9)";
     sel.style.background = "#020617";
     sel.style.color = "#e5e7eb";
-    sel.style.fontSize = "0.8rem";
+    sel.style.fontSize = "16px"; // avoid iOS zoom
+    sel.style.minHeight = "32px";
 
     list.forEach(item => {
       const opt = document.createElement("option");
@@ -321,7 +343,7 @@ export function openStandardLinePopup(options) {
 
     const h = document.createElement("div");
     h.textContent = titleText;
-    h.style.fontSize = "0.78rem";
+    h.style.fontSize = "12px";
     h.style.fontWeight = "600";
     h.style.textTransform = "uppercase";
     h.style.letterSpacing = "0.06em";
@@ -338,7 +360,7 @@ export function openStandardLinePopup(options) {
     if (state.mode === "single") {
       const { box } = makeSection("Single attack line");
 
-      // Hose size (dept hoses)
+      // Hose size
       box.appendChild(
         makeSelectRow(
           "Hose size",
@@ -374,7 +396,7 @@ export function openStandardLinePopup(options) {
         )
       );
 
-      // Nozzle (dept nozzles)
+      // Nozzle
       box.appendChild(
         makeSelectRow(
           "Nozzle",
@@ -382,19 +404,13 @@ export function openStandardLinePopup(options) {
           state.single.nozzleId,
           (id) => {
             state.single.nozzleId = id;
-            const noz = findNozzleById(id);
-            if (noz && typeof noz.gpm === "number") {
-              state.targetGpm = noz.gpm;
-            }
           }
         )
       );
 
       sectionsContainer.appendChild(box);
     } else {
-      // Wye mode: engine line + branch A + branch B
-
-      // Engine box
+      // Wye: engine line + branches
       const { box: eBox } = makeSection("Engine to wye");
       eBox.appendChild(
         makeSelectRow(
@@ -509,7 +525,7 @@ export function openStandardLinePopup(options) {
   preview.style.borderRadius = "10px";
   preview.style.border = "1px solid rgba(37,99,235,0.8)";
   preview.style.background = "#020617";
-  preview.style.fontSize = "0.82rem";
+  preview.style.fontSize = "14px";
   preview.style.fontWeight = "600";
   preview.style.textAlign = "center";
 
@@ -522,8 +538,8 @@ export function openStandardLinePopup(options) {
   function calcSingleLine() {
     const noz = findNozzleById(state.single.nozzleId);
     const hose = findHoseById(state.single.hoseId);
-    const gpm = noz && typeof noz.gpm === "number" ? noz.gpm : (state.targetGpm || 0);
-    const np  = noz && typeof noz.np  === "number" ? noz.np  : (noz && noz.NP) || 50;
+    const gpm = noz && typeof noz.gpm === "number" ? noz.gpm : 0;
+    const np  = noz && typeof noz.np  === "number" ? noz.np  : (noz && noz.NP) || 0;
     const lengthFt = state.single.lengthFt || 0;
     const elevFt   = state.single.elevationFt || 0;
     const c = hose && typeof hose.c === "number"
@@ -538,34 +554,34 @@ export function openStandardLinePopup(options) {
   }
 
   function calcWyeLine() {
-    // branch A
-    const nozA = findNozzleById(state.wye.branchA.nozzleId);
+    // Branch A
+    const nozA  = findNozzleById(state.wye.branchA.nozzleId);
     const hoseA = findHoseById(state.wye.branchA.hoseId);
-    const gpmA = nozA && typeof nozA.gpm === "number" ? nozA.gpm : 0;
-    const npA  = nozA && typeof nozA.np  === "number" ? nozA.np  : (nozA && nozA.NP) || 50;
-    const lenA = state.wye.branchA.lengthFt || 0;
-    const cA   = hoseA && typeof hoseA.c === "number"
+    const gpmA  = nozA && typeof nozA.gpm === "number" ? nozA.gpm : 0;
+    const npA   = nozA && typeof nozA.np  === "number" ? nozA.np  : (nozA && nozA.NP) || 0;
+    const lenA  = state.wye.branchA.lengthFt || 0;
+    const cA    = hoseA && typeof hoseA.c === "number"
       ? hoseA.c
       : defaultHoseCFromLabel(state.wye.branchA.hoseSize);
 
-    // branch B
-    const nozB = findNozzleById(state.wye.branchB.nozzleId);
+    // Branch B
+    const nozB  = findNozzleById(state.wye.branchB.nozzleId);
     const hoseB = findHoseById(state.wye.branchB.hoseId);
-    const gpmB = nozB && typeof nozB.gpm === "number" ? nozB.gpm : 0;
-    const npB  = nozB && typeof nozB.np  === "number" ? nozB.np  : (nozB && nozB.NP) || 50;
-    const lenB = state.wye.branchB.lengthFt || 0;
-    const cB   = hoseB && typeof hoseB.c === "number"
+    const gpmB  = nozB && typeof nozB.gpm === "number" ? nozB.gpm : 0;
+    const npB   = nozB && typeof nozB.np  === "number" ? nozB.np  : (nozB && nozB.NP) || 0;
+    const lenB  = state.wye.branchB.lengthFt || 0;
+    const cB    = hoseB && typeof hoseB.c === "number"
       ? hoseB.c
       : defaultHoseCFromLabel(state.wye.branchB.hoseSize);
 
     const totalGpm = gpmA + gpmB;
 
-    // Engine line
+    // Engine line (pump to wye) uses total GPM
     const hoseE = findHoseById(state.wye.engineHoseId);
-    const cE = hoseE && typeof hoseE.c === "number"
+    const cE    = hoseE && typeof hoseE.c === "number"
       ? hoseE.c
       : defaultHoseCFromLabel(state.wye.engineHoseSize);
-    const lenE = state.wye.engineLengthFt || 0;
+    const lenE  = state.wye.engineLengthFt || 0;
 
     const flA = frictionLoss(cA, gpmA, lenA);
     const flB = frictionLoss(cB, gpmB, lenB);
@@ -576,7 +592,7 @@ export function openStandardLinePopup(options) {
     const needB = npB + flB + elevPsi;
     const branchMax = Math.max(needA, needB);
 
-    const pdp = Math.round(branchMax + flE + WYE_LOSS_PSI);
+    const pdp = Math.round(branchMax + flE + (totalGpm > 0 ? WYE_LOSS_PSI : 0));
 
     return { gpm: Math.round(totalGpm), pdp };
   }
@@ -609,7 +625,7 @@ export function openStandardLinePopup(options) {
   cancelBtn.textContent = "Cancel";
   cancelBtn.style.borderRadius = "999px";
   cancelBtn.style.padding = "6px 12px";
-  cancelBtn.style.fontSize = "0.82rem";
+  cancelBtn.style.fontSize = "14px";
   cancelBtn.style.border = "1px solid rgba(148,163,184,0.7)";
   cancelBtn.style.background = "#020617";
   cancelBtn.style.color = "#e5e7eb";
@@ -621,7 +637,7 @@ export function openStandardLinePopup(options) {
   saveBtn.textContent = "Save standard line";
   saveBtn.style.borderRadius = "999px";
   saveBtn.style.padding = "6px 12px";
-  saveBtn.style.fontSize = "0.82rem";
+  saveBtn.style.fontSize = "14px";
   saveBtn.style.border = "none";
   saveBtn.style.background = "#22c55e";
   saveBtn.style.color = "#020617";
@@ -645,7 +661,13 @@ export function openStandardLinePopup(options) {
     const payload = {
       type: "standard",
       mode: state.mode,
-      single: { ...state.single },
+      single: {
+        hoseId:      state.single.hoseId,
+        hoseSize:    state.single.hoseSize,
+        lengthFt:    state.single.lengthFt,
+        elevationFt: state.single.elevationFt,
+        nozzleId:    state.single.nozzleId
+      },
       wye: {
         engineHoseId:   state.wye.engineHoseId,
         engineHoseSize: state.wye.engineHoseSize,
@@ -676,17 +698,16 @@ export function openStandardLinePopup(options) {
   body.appendChild(sectionsContainer);
 
   const numbersNote = document.createElement("div");
-  numbersNote.style.fontSize = "0.75rem";
+  numbersNote.style.fontSize = "12px";
   numbersNote.style.marginTop = "6px";
   numbersNote.style.opacity = "0.85";
   numbersNote.textContent =
-    "GPM is set from the selected nozzle(s). PDP is calculated using hose C, length, nozzle pressure, elevation, and (for a wye) both branches plus the engine line.";
+    "GPM comes from nozzle selection (or Closed = 0 gpm). PDP uses hose C, length, nozzle pressure, elevation, and (for a wye) both branches plus the engine line and wye loss.";
 
   body.appendChild(numbersNote);
   body.appendChild(preview);
   panel.appendChild(footer);
 
-  // Init UI
   updateModeButtons();
   updatePreview();
 }
