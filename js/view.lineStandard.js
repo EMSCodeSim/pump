@@ -1,7 +1,10 @@
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
-// Updated:
-// - Phone-friendly layout, no tiny text on inputs (min 16px to avoid zoom).
+// Phone-friendly:
+// - Bottom-sheet style on mobile, no horizontal scrolling needed.
+// - Inputs/selects use >=16px font to avoid iOS zoom.
+// - Rows stack label above control so everything fits narrow screens.
+// Logic:
 // - Hose + nozzle dropdowns use department-selected lists (or all if none).
 // - Nozzles always include a "Closed (no flow)" option.
 // - Single-line mode: GPM from nozzle, PDP from hose C, length, NP, elevation.
@@ -132,6 +135,7 @@ export function openStandardLinePopup(options) {
   overlay.style.justifyContent = "center";
   overlay.style.padding = "8px";
   overlay.style.zIndex = "9999";
+  overlay.style.boxSizing = "border-box";
 
   const panel = document.createElement("div");
   panel.style.maxWidth = "520px";
@@ -144,9 +148,10 @@ export function openStandardLinePopup(options) {
   panel.style.border = "1px solid rgba(148,163,184,0.35)";
   panel.style.padding = "12px 14px 10px";
   panel.style.fontFamily =
-    'system-ui, -apple-system, BlinkMacSystemFont, \\"SF Pro Text\\", sans-serif';
+    'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
   panel.style.boxSizing = "border-box";
   panel.style.overflow = "hidden";
+  panel.style.overflowX = "hidden";
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -193,7 +198,9 @@ export function openStandardLinePopup(options) {
   const body = document.createElement("div");
   body.style.maxHeight = "65vh";
   body.style.overflowY = "auto";
+  body.style.overflowX = "hidden";
   body.style.fontSize = "14px";
+  body.style.boxSizing = "border-box";
 
   // Mode toggle
   const modeRow = document.createElement("div");
@@ -255,25 +262,26 @@ export function openStandardLinePopup(options) {
   sectionsContainer.style.display = "flex";
   sectionsContainer.style.flexDirection = "column";
   sectionsContainer.style.gap = "8px";
+  sectionsContainer.style.minWidth = "0";
 
   // Helpers
   function makeLabeledInput(labelText, type, value, onChange) {
     const row = document.createElement("div");
     row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.justifyContent = "space-between";
-    row.style.gap = "4px";
+    row.style.flexDirection = "column";
+    row.style.alignItems = "stretch";
+    row.style.justifyContent = "flex-start";
+    row.style.gap = "2px";
     row.style.marginBottom = "4px";
+    row.style.minWidth = "0";
 
     const label = document.createElement("label");
     label.textContent = labelText;
     label.style.fontSize = "14px";
-    label.style.flex = "0 0 55%";
 
     const input = document.createElement("input");
     input.type = type;
     input.value = value;
-    input.style.flex = "1 1 0";
     input.style.padding = "6px 8px";
     input.style.borderRadius = "8px";
     input.style.border = "1px solid rgba(55,65,81,0.9)";
@@ -281,6 +289,8 @@ export function openStandardLinePopup(options) {
     input.style.color = "#e5e7eb";
     input.style.fontSize = "16px"; // avoid iOS zoom
     input.style.minHeight = "32px";
+    input.style.width = "100%";
+    input.style.boxSizing = "border-box";
 
     input.addEventListener("input", () => {
       onChange(input.value);
@@ -295,18 +305,18 @@ export function openStandardLinePopup(options) {
   function makeSelectRow(labelText, list, selectedId, onChange) {
     const row = document.createElement("div");
     row.style.display = "flex";
-    row.style.alignItems = "center";
-    row.style.justifyContent = "space-between";
-    row.style.gap = "4px";
+    row.style.flexDirection = "column";
+    row.style.alignItems = "stretch";
+    row.style.justifyContent = "flex-start";
+    row.style.gap = "2px";
     row.style.marginBottom = "4px";
+    row.style.minWidth = "0";
 
     const label = document.createElement("label");
     label.textContent = labelText;
     label.style.fontSize = "14px";
-    label.style.flex = "0 0 55%";
 
     const sel = document.createElement("select");
-    sel.style.flex = "1 1 0";
     sel.style.padding = "6px 8px";
     sel.style.borderRadius = "8px";
     sel.style.border = "1px solid rgba(55,65,81,0.9)";
@@ -314,6 +324,8 @@ export function openStandardLinePopup(options) {
     sel.style.color = "#e5e7eb";
     sel.style.fontSize = "16px"; // avoid iOS zoom
     sel.style.minHeight = "32px";
+    sel.style.width = "100%";
+    sel.style.boxSizing = "border-box";
 
     list.forEach(item => {
       const opt = document.createElement("option");
@@ -340,6 +352,7 @@ export function openStandardLinePopup(options) {
     box.style.borderRadius = "12px";
     box.style.padding = "6px 8px";
     box.style.background = "rgba(15,23,42,0.85)";
+    box.style.minWidth = "0";
 
     const h = document.createElement("div");
     h.textContent = titleText;
@@ -528,6 +541,7 @@ export function openStandardLinePopup(options) {
   preview.style.fontSize = "14px";
   preview.style.fontWeight = "600";
   preview.style.textAlign = "center";
+  preview.style.boxSizing = "border-box";
 
   function frictionLoss(c, gpm, lengthFt) {
     if (!c || !gpm || !lengthFt) return 0;
