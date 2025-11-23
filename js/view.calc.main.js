@@ -1618,7 +1618,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
   //   is added on top of Lines 1–3.
-  
+
   // Apply a saved preset back into the calc.
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
@@ -1628,28 +1628,22 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
     // --- Special case: direct Line 1/2/3 edits from the Dept line editor ----
     if (preset.kind === 'lineEdit'){
-      const srcRaw = (preset && typeof preset.payload === 'object' && preset.payload)
+      const src = (preset && typeof preset.payload === 'object' && preset.payload)
         ? preset.payload
         : preset;
 
-      const key = mapLineKeyFromNumber(preset.lineNumber || srcRaw.lineNumber || 1);
+      const key = mapLineKeyFromNumber(preset.lineNumber || src.lineNumber || 1);
       const L = seedDefaultsForKey(key);
       if (!L) return;
 
-      // Normalise values
-      const hoseDiameter = srcRaw.hoseDiameter || '';
-      const lengthFt = (srcRaw.lengthFt !== undefined && srcRaw.lengthFt !== null)
-        ? Number(srcRaw.lengthFt)
-        : null;
-      const elevation = (srcRaw.elevation !== undefined && srcRaw.elevation !== null)
-        ? Number(srcRaw.elevation)
-        : 0;
-      const nozzleId = srcRaw.nozzleId || '';
-
       // Main hose segment
       const main = (L.itemsMain && L.itemsMain[0]) || {};
-      if (hoseDiameter) main.size = hoseDiameter;
-      if (lengthFt !== null) main.lengthFt = lengthFt;
+      if (src.hoseDiameter) {
+        main.size = src.hoseDiameter;
+      }
+      if (typeof src.lengthFt === 'number') {
+        main.lengthFt = src.lengthFt;
+      }
       L.itemsMain = [main];
 
       // Restore as a single straight line (no wye branches)
@@ -1658,11 +1652,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       L.itemsRight = [];
 
       // Elevation
-      L.elevFt = elevation;
+      if (typeof src.elevation === 'number') {
+        L.elevFt = src.elevation;
+      }
 
       // Nozzle
-      if (nozzleId && NOZ[nozzleId]) {
-        L.nozRight = NOZ[nozzleId];
+      if (src.nozzleId && NOZ[src.nozzleId]) {
+        L.nozRight = NOZ[src.nozzleId];
       }
 
       // Make sure line is visible & button looks active
@@ -1676,21 +1672,71 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       return;
     }
 
-    // ---- Helper for extra preset lines (Foam, Blitz, etc.) -----------------
+    // --- Helper to dig the actual hose/nozzle config out of a preset -------
+    function pickConfigFromPreset(presetObj){
+      if (!presetObj || typeof presetObj !== 'object') return null;
+
+      // Legacy payload-style presets
+      if (presetObj.payload && typeof presetObj.payload === 'object') {
+        return presetObj.payload;
+      }
+
+      // New Preset Line Editor format
+      if (presetObj.config && typeof presetObj.config === 'object') {
+        const pc  = presetObj.config;
+        const lt  = presetObj.lineType || pc.lineType;
+        const cfgs = (pc.configs && typeof pc.configs === 'object') ? pc.configs : {};
+
+        let cfg = null;
+        if (lt === 'standard' || lt === 'single' || lt === 'wye') {
+          cfg = pc.standardConfig || cfgs.standard || null;
+        } else if (lt === 'master') {
+          cfg = pc.masterConfig   || cfgs.master   || null;
+        } else if (lt === 'standpipe') {
+          cfg = pc.standpipeConfig || cfgs.standpipe || null;
+        } else if (lt === 'sprinkler') {
+          cfg = pc.sprinklerConfig || cfgs.sprinkler || null;
+        } else if (lt === 'foam') {
+          cfg = pc.foamConfig      || cfgs.foam      || null;
+        } else if (lt === 'supply') {
+          cfg = pc.supplyConfig    || cfgs.supply    || null;
+        } else if (lt === 'custom') {
+          cfg = pc.customConfig    || cfgs.custom    || null;
+        }
+
+        // If we did not find a specific sub-config, fall back to the whole config
+        return cfg || pc;
+      }
+
+      // Last-resort: treat the preset itself as the config
+      return presetObj;
+    }
+
     function normalizeConfig(raw){
       if (!raw || typeof raw !== 'object') return null;
 
-      const hoseDiameter = raw.hoseDiameter || raw.diameter || '';
-      const lengthFt = (raw.lengthFt !== undefined && raw.lengthFt !== null && raw.lengthFt !== '')
-        ? Number(raw.lengthFt)
-        : null;
-      const nozzleId = raw.nozzleId || raw.nozzle || '';
-      const elevation = (raw.elevation !== undefined && raw.elevation !== null && raw.elevation !== '')
-        ? Number(raw.elevation)
-        : 0;
-      const nozzlePsi = (raw.nozzlePsi !== undefined && raw.nozzlePsi !== null && raw.nozzlePsi !== '')
-        ? Number(raw.nozzlePsi)
-        : null;
+      const hoseDiameter = raw.hoseDiameter || raw.hoseSize || raw.diameter || '';
+      let lengthFt = null;
+      if (raw.lengthFt !== undefined && raw.lengthFt !== null && raw.lengthFt !== '') {
+        lengthFt = Number(raw.lengthFt);
+      } else if (raw.lineLength !== undefined && raw.lineLength !== null && raw.lineLength !== '') {
+        lengthFt = Number(raw.lineLength);
+      }
+
+      const nozzleId = raw.nozzleId || raw.nozzle || raw.nozId || '';
+      let elevation = 0;
+      if (raw.elevation !== undefined && raw.elevation !== null && raw.elevation !== '') {
+        elevation = Number(raw.elevation);
+      } else if (raw.elevFt !== undefined && raw.elevFt !== null && raw.elevFt !== '') {
+        elevation = Number(raw.elevFt);
+      }
+
+      let nozzlePsi = null;
+      if (raw.nozzlePsi !== undefined && raw.nozzlePsi !== null && raw.nozzlePsi !== '') {
+        nozzlePsi = Number(raw.nozzlePsi);
+      } else if (raw.np !== undefined && raw.np !== null && raw.np !== '') {
+        nozzlePsi = Number(raw.np);
+      }
 
       // If absolutely nothing is set, treat as empty
       if (!hoseDiameter && lengthFt === null && !nozzleId && elevation === 0 && nozzlePsi === null) {
@@ -1700,24 +1746,10 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       return { hoseDiameter, lengthFt, nozzleId, elevation, nozzlePsi };
     }
 
-    // New-style presets from the multi-type builders store their data in `config`
-    let src = null;
-    if (preset.config && typeof preset.config === 'object') {
-      src = normalizeConfig(preset.config);
-    }
-
-    // Legacy payload-style presets (including saved Line 1/2/3 presets)
-    if (!src && preset.payload && typeof preset.payload === 'object') {
-      src = normalizeConfig(preset.payload);
-    }
-
-    // Last-resort: treat the preset itself as the config
-    if (!src) {
-      src = normalizeConfig(preset);
-    }
+    const picked = pickConfigFromPreset(preset);
+    const src = normalizeConfig(picked);
     if (!src) return;
 
-    // ---- Store as an extra preset line so refreshTotals() can use it --------
     const id = preset.id || (`preset_${Date.now()}_${Math.floor(Math.random()*1000)}`);
     const name = preset.name || `Preset ${Object.keys(activePresetLines).length + 1}`;
 
@@ -1727,12 +1759,12 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       config: src
     };
 
-    // Update totals + buttons (this will recompute GPM and PDP)
+    // Update totals + buttons
     refreshTotals();
     renderPresetLineButtons();
     markDirty();
   }
-try {
+  try {
     setupPresets({
       // Treat PC/web as "app" so we get the full preset editor while you build it.
       isApp: true,
