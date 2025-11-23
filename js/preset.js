@@ -1,5 +1,12 @@
 
 import { openPresetEditorPopup } from './view.presetEditor.js';
+import { openStandardLinePopup }   from './view.lineStandard.js';
+import { openMasterStreamPopup }   from './view.lineMaster.js';
+import { openStandpipePopup }      from './view.lineStandpipe.js';
+import { openSprinklerPopup }      from './view.lineSprinkler.js';
+import { openFoamPopup }           from './view.lineFoam.js';
+import { openSupplyLinePopup }     from './view.lineSupply.js';
+import { openCustomBuilderPopup }  from './view.lineCustom.js';
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
@@ -1689,53 +1696,85 @@ function handleAddPresetClick() {
 }
 
 
+
 function handleEditPreset(id) {
   const presets = state.presets || [];
   const preset = presets.find(p => p.id === id);
   if (!preset) return;
 
-  // If this is an older simple preset without a config/lineType,
-  // we can't safely route it to the new multi-editor system.
-  if (!preset.config || !preset.lineType) {
-    alert('This preset was created with an older editor and cannot be edited here. You can recreate it using the new preset editor.');
+  // Older presets without a lineType / config can’t be reliably edited
+  if (!preset.lineType || !preset.config) {
+    alert('This preset was created before the new builders and cannot be auto‑edited. Please recreate it using the Add preset button.');
     return;
   }
 
-  const dept = loadDeptFromStorage() || {};
+  const dept = loadDeptFromStorage ? (loadDeptFromStorage() || {}) : {};
+  const type = preset.lineType;
+  const cfg  = preset.config || {};
 
-  const initialPreset = {
-    ...(preset.config || {}),
-    id: preset.id,
-    name: preset.name,
-    lineType: preset.lineType || (preset.config && preset.config.lineType),
+  const saveBack = (updatedCfg) => {
+    if (!updatedCfg) return;
+    // Keep same id & name; just update type/config + optional metadata
+    preset.config   = updatedCfg;
+    preset.lineType = type;
+
+    if (updatedCfg.lineNumber != null) {
+      preset.lineNumber = updatedCfg.lineNumber;
+    }
+    if (typeof updatedCfg.summary === 'string') {
+      preset.summary = updatedCfg.summary;
+    }
+
+    savePresetsToStorage();
+    openPresetMainMenu();
   };
 
-  openPresetEditorPopup({
-    dept,
-    initialPreset,
-    onSave(presetConfig) {
-      if (!presetConfig) return;
-
-      // Update this same preset instead of creating a new one
-      preset.name = (presetConfig && presetConfig.name) || preset.name;
-      preset.lineType = presetConfig.lineType || preset.lineType;
-      preset.config = presetConfig;
-
-      // Optional: update list metadata if provided
-      if (presetConfig.lineNumber != null) {
-        preset.lineNumber = presetConfig.lineNumber;
-      }
-      if (typeof presetConfig.summary === 'string') {
-        preset.summary = presetConfig.summary;
-      }
-
-      savePresetsToStorage();
-      // Re-open the main menu so the updated name/summary are visible
-      openPresetMainMenu();
-    }
-  });
+  if (type === 'standard' || type === 'single' || type === 'wye') {
+    openStandardLinePopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'master') {
+    openMasterStreamPopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'standpipe') {
+    openStandpipePopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'sprinkler') {
+    openSprinklerPopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'foam') {
+    openFoamPopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'supply') {
+    openSupplyLinePopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else if (type === 'custom') {
+    openCustomBuilderPopup({
+      dept,
+      initial: cfg,
+      onSave: saveBack,
+    });
+  } else {
+    alert('Unknown preset type: ' + type + '. Try recreating this preset.');
+  }
 }
-
 function handleDeletePreset(id) {
   const presets = state.presets || [];
   const idx = presets.findIndex(p => p.id === id);
