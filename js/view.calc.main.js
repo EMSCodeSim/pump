@@ -422,9 +422,9 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const linesTable  = container.querySelector('#linesTable');
   const presetButtonsRow = container.querySelector('#presetLineButtonsRow');
 
+
+  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1–3
   const activePresetLines = {};
-
-
   // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
   const teTitle     = container.querySelector('#teTitle');
@@ -914,8 +914,8 @@ function updateSegSwitchVisibility(){
   if (tenderListEl) mo.observe(tenderListEl, {childList:true, subtree:true, characterData:true});
   if (shuttleEl)    mo.observe(shuttleEl,    {childList:true, subtree:true, characterData:true});
 
-  /* ---------------------------- Totals & KPIs ----------------------------- */
 
+  // Preset line quick buttons (Foam, Blitz, etc.)
   function renderPresetLineButtons(){
     if (!presetButtonsRow) return;
     presetButtonsRow.innerHTML = '';
@@ -1026,6 +1026,33 @@ function updateSegSwitchVisibility(){
     document.body.appendChild(overlay);
   }
 
+  // Click handler for preset line buttons
+  container.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.preset-line-btn');
+    if (!btn) return;
+    const id = btn.dataset.presetId;
+    const pl = activePresetLines[id];
+    if (!pl) return;
+
+    openPresetLineEditor(pl, {
+      onSave(edited){
+        pl.config = Object.assign({}, pl.config || {}, edited || {});
+        refreshTotals();
+        renderPresetLineButtons();
+        markDirty();
+      },
+      onDelete(){
+        delete activePresetLines[id];
+        refreshTotals();
+        renderPresetLineButtons();
+        markDirty();
+      }
+    });
+  });
+
+  /* ---------------------------- Totals & KPIs ----------------------------- */
+
+  
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
@@ -1055,7 +1082,7 @@ function updateSegSwitchVisibility(){
       if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
     });
 
-    // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1–3.
+    // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1–3
     Object.values(activePresetLines).forEach(pl => {
       if (!pl || !pl.config) return;
       const cfg = pl.config;
@@ -1084,8 +1111,10 @@ function updateSegSwitchVisibility(){
     }else{
       PDPel.textContent = '— psi';
     }
-  }
 
+    // Keep quick preset buttons in sync
+    renderPresetLineButtons();
+  }
   /* --------------------------- Lines math panel --------------------------- */
 
   function renderLinesPanel(){
@@ -1491,28 +1520,332 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     });
   });
 
-  container.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.preset-line-btn');
-    if (!btn) return;
-    const id = btn.dataset.presetId;
-    const pl = activePresetLines[id];
-    if (!pl) return;
+  /* --------------------------- Supply buttons ----------------------------- */
 
-    openPresetLineEditor(pl, {
-      onSave(edited){
-        pl.config = Object.assign({}, pl.config || {}, edited || {});
-        refreshTotals();
-        renderPresetLineButtons();
-        markDirty();
-      },
-      onDelete(){
-        delete activePresetLines[id];
-        refreshTotals();
-        renderPresetLineButtons();
-        markDirty();
+  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
+    state.supply = 'pressurized'; drawAll(); markDirty();
+  });
+  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
+    state.supply = 'static'; drawAll(); markDirty();
+  });
+
+  // Relay Pumping mini-app toggle (lazy-loads view.relay.js into relayMount)
+  const relayBtn = container.querySelector('#relayBtn');
+  if (relayBtn && relayMount) {
+    let relayVisible = false;
+    let relayLoaded  = false;
+
+    const syncRelayFlow = () => {
+      if (!relayMount) return;
+      const mainGpmEl = container.querySelector('#GPM');
+      if (!mainGpmEl) return;
+      const txt = (mainGpmEl.textContent || '').replace(/[^0-9.]/g, '');
+      const val = parseFloat(txt);
+      const rpFlowInput = relayMount.querySelector('#rpFlow');
+      if (rpFlowInput && val > 0) {
+        rpFlowInput.value = String(Math.round(val));
+      }
+    };
+
+    relayBtn.addEventListener('click', async () => {
+      if (!relayLoaded) {
+        try {
+          const mod = await import('./view.relay.js');
+          if (mod && typeof mod.render === 'function') {
+            await mod.render(relayMount);
+          } else {
+            relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Relay module missing render(container).</div>';
+          }
+        } catch (err) {
+          console.error('Failed to load relay view', err);
+          relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Unable to load relay pumping helper.</div>';
+        }
+        relayLoaded = true;
+      }
+
+      // Sync flow every time we toggle Relay on
+      syncRelayFlow();
+
+      relayVisible = !relayVisible;
+      relayMount.style.display = relayVisible ? 'block' : 'none';
+
+      if (relayVisible) {
+        try {
+          relayMount.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (_e) {}
       }
     });
-  });
+
+    // Hook into global drawAll so flow updates whenever lines/GPM change
+    const oldDrawAll = drawAll;
+    drawAll = function(...args){
+      const result = oldDrawAll.apply(this, args);
+      if (relayVisible) syncRelayFlow();
+      return result;
+    };
+  }
+
+// Presets button: wire to full preset system even on PC/web
+  // Map line number (1/2/3) to calc state key
+  function mapLineKeyFromNumber(lineNumber){
+    return lineNumber === 1 ? 'left'
+         : lineNumber === 2 ? 'back'
+         : 'right';
+  }
+
+  // Read the current hydraulic setup for a given line so we can save as a preset
+  function getLineStateFromCalc(lineNumber){
+    const key = mapLineKeyFromNumber(lineNumber);
+    const L = seedDefaultsForKey(key);
+    if (!L) return null;
+    const main = (L.itemsMain && L.itemsMain[0]) || {};
+    const hoseDiameter = main.size || '';
+    const lengthFt = typeof main.lengthFt === 'number' ? main.lengthFt : 0;
+    const nozzle = L.nozRight || L.nozLeft || null;
+
+    return {
+      hoseDiameter,
+      cValue: null,         // C is implied from hose size in the main calc for now
+      lengthFt,
+      nozzleId: nozzle && nozzle.id || '',
+      elevation: typeof L.elevFt === 'number' ? L.elevFt : 0,
+      appliances: 0
+    };
+  }
+
+
+  // Apply a saved preset back into the calc.
+  // - kind === 'lineEdit' -> update Lines 1/2/3 directly
+  // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
+  //   is added on top of Lines 1–3.
+  function applyPresetToCalc(preset){
+    if (!preset) return;
+
+    // Special case: direct Line 1/2/3 edits from the Dept line editor
+    if (preset.kind === 'lineEdit'){
+      const src = (preset && typeof preset.payload === 'object' && preset.payload)
+        ? preset.payload
+        : preset;
+
+      const key = mapLineKeyFromNumber(preset.lineNumber || src.lineNumber || 1);
+      const L = seedDefaultsForKey(key);
+      if (!L) return;
+
+      // Main hose segment
+      const main = (L.itemsMain && L.itemsMain[0]) || {};
+      if (src.hoseDiameter) {
+        main.size = src.hoseDiameter;
+      }
+      if (typeof src.lengthFt === 'number') {
+        main.lengthFt = src.lengthFt;
+      }
+      L.itemsMain = [main];
+
+      // Restore as a single straight line (no wye branches)
+      L.hasWye = false;
+      L.itemsLeft = [];
+      L.itemsRight = [];
+
+      // Elevation
+      if (typeof src.elevation === 'number') {
+        L.elevFt = src.elevation;
+      }
+
+      // Nozzle
+      if (src.nozzleId && NOZ[src.nozzleId]) {
+        L.nozRight = NOZ[src.nozzleId];
+      }
+
+      // Make sure line is visible & button looks active
+      L.visible = true;
+      const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
+      if (btn) btn.classList.add('active');
+
+      // Re-draw + persist
+      drawAll();
+      markDirty();
+      return;
+    }
+
+    // Default: treat as an extra preset line (e.g., Foam, Blitz) in addition to Lines 1–3
+    const src = (preset && typeof preset.payload === 'object' && preset.payload)
+      ? preset.payload
+      : preset;
+
+    const id = preset.id || (`preset_${Date.now()}_${Math.floor(Math.random()*1000)}`);
+    const name = preset.name || `Preset ${Object.keys(activePresetLines).length + 1}`;
+
+    const hoseDiameter = src.hoseDiameter || '';
+    const lengthFt = (typeof src.lengthFt === 'number' ? src.lengthFt : null);
+    const nozzleId = src.nozzleId || '';
+    const elevation = (typeof src.elevation === 'number' ? src.elevation : 0);
+    const nozzlePsi = (typeof src.nozzlePsi === 'number' ? src.nozzlePsi : null);
+
+    activePresetLines[id] = {
+      id,
+      name,
+      config: {
+        hoseDiameter,
+        lengthFt,
+        nozzleId,
+        elevation,
+        nozzlePsi,
+      }
+    };
+
+    // Update totals + buttons
+    refreshTotals();
+    renderPresetLineButtons();
+    markDirty();
+  }
+
+  try {
+    setupPresets({
+      // Treat PC/web as "app" so we get the full preset editor while you build it.
+      isApp: true,
+      triggerButtonId: 'presetsBtn',
+      appStoreUrl: '',
+      playStoreUrl: '',
+      getLineState: getLineStateFromCalc,
+      applyPresetToCalc
+    });
+  } catch (e) {
+    console.warn('setupPresets failed', e);
+  }
+  function enhanceTenderListStyle() {
+    const rootEl = container.querySelector('#tenderList');
+    if (!rootEl) return;
+    rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
+      el.classList.add('tender-emph');
+    });
+  }
+
+  /* -------------------------- Ensure editor script ------------------------ */
+
+  (function ensureBottomSheet(){
+    if (window.BottomSheetEditor) return;
+    try{
+      const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
+      if (already) return;
+      const s = document.createElement('script');
+      s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
+      document.body.appendChild(s);
+    }catch(e){}
+  })();
+
+  /* -------------------------------- Draw --------------------------------- */
+
+  function drawAll(){
+    const viewH = Math.ceil(computeNeededHeightPx());
+    stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
+    stageSvg.style.height = viewH + 'px';
+    truckImg.setAttribute('y', String(truckTopY(viewH)));
+
+    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
+
+    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
+    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
+
+    ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
+      const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
+      const mainFt = sumFt(L.itemsMain);
+      const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
+
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
+      drawSegmentedPath(G_hoses, base, L.itemsMain);
+      addTip(G_tips, key,'main',geom.endX,geom.endY);
+
+      // Main label: if Wye present, show 'via Wye' (no nozzle mention)
+      const single = isSingleWye(L);
+      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
+      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
+      const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
+      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+
+      if(L.hasWye){
+        if(sumFt(L.itemsLeft)>0){
+          const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
+          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
+          // Branch A info bubble
+          const lenLeft = sumFt(L.itemsLeft||[]);
+          if(lenLeft>0 && L.nozLeft){
+            const txtL = lenLeft+'′ @ '+(L.nozLeft.gpm||0)+' gpm — Nozzle '+(L.nozLeft.NP||0)+' psi';
+            addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
+          }
+          addTip(G_tips, key,'L',gL.endX,gL.endY);
+        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
+
+        if(sumFt(L.itemsRight)>0){
+          const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          // Branch B info bubble
+          const lenRight = sumFt(L.itemsRight||[]);
+          if(lenRight>0 && L.nozRight){
+            const txtR = lenRight+'′ @ '+(L.nozRight.gpm||0)+' gpm — Nozzle '+(L.nozRight.NP||0)+' psi';
+            addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
+          }
+          addTip(G_tips, key,'R',gR.endX,gR.endY);
+        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
+      }
+      base.remove();
+    });
+
+    // Supply visuals & panels
+    waterSupply.draw(viewH);
+    if (typeof waterSupply.updatePanelsVisibility === 'function') {
+      waterSupply.updatePanelsVisibility();
+    }
+
+    // KPIs, math, summary
+    refreshTotals();
+    renderLinesPanel();
+    refreshSupplySummary();
+
+    // Button active states
+    container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
+    container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
+
+    // mark dirty after draw (belt & suspenders)
+    markDirty();
+  }
+
+  // Initial draw
+  drawAll();
+
+  // Dev helper to clear saved practice
+  window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
+
+  
+  try{ initPlusMenus(container); }catch(e){}
+  return { dispose(){
+    stopAutoSave();
+  }};
+
+    // (Fallback) Populate Branch A/B nozzle selects like main lines
+    try {
+      const nozA = root.querySelector('#teNozA');
+      const nozB = root.querySelector('#teNozB');
+      if (typeof fillNozzles === 'function') {
+        fillNozzles(nozA);
+        fillNozzles(nozB);
+      }
+      try {
+        if (L.nozLeft && L.nozLeft.id && nozA) nozA.value = L.nozLeft.id;
+        if (L.nozRight && L.nozRight.id && nozB) nozB.value = L.nozRight.id;
+      } catch(_){}
+      try {
+        const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
+        if (defId) {
+          if (nozA && !nozA.value) nozA.value = defId;
+          if (nozB && !nozB.value) nozB.value = defId;
+        }
+      } catch(_){}
+    } catch(_){}
+}
+
+export default { render };
 
 
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
