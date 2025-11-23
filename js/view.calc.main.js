@@ -252,6 +252,12 @@ export async function render(container){
           </div>
 
           <div class="controlRow">
+            <div class="lineGroup" id="presetLineButtonsRow">
+              <!-- Preset line buttons (Foam, Blitz, etc.) will be injected here -->
+            </div>
+          </div>
+
+          <div class="controlRow">
             <div class="actionGroup">
               <button class="supplybtn" id="hydrantBtn" title="Pressurized (Hydrant)">Hydrant</button>
               <button class="supplybtn" id="relayBtn"   title="Relay pumping helper">Relay</button>
@@ -414,6 +420,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const GPMel       = container.querySelector('#GPM');
   const supplySummaryEl = container.querySelector('#supplySummary');
   const linesTable  = container.querySelector('#linesTable');
+  const presetButtonsRow = container.querySelector('#presetLineButtonsRow');
+
+  const activePresetLines = {};
+
 
   // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
@@ -906,9 +916,121 @@ function updateSegSwitchVisibility(){
 
   /* ---------------------------- Totals & KPIs ----------------------------- */
 
+  function renderPresetLineButtons(){
+    if (!presetButtonsRow) return;
+    presetButtonsRow.innerHTML = '';
+    const entries = Object.values(activePresetLines);
+    if (!entries.length) return;
+    entries.forEach(pl => {
+      if (!pl) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'linebtn preset-line-btn';
+      btn.textContent = pl.name || 'Preset';
+      btn.dataset.presetId = pl.id || '';
+      presetButtonsRow.appendChild(btn);
+    });
+  }
+
+  function openPresetLineEditor(presetLine, opts = {}){
+    const onSave = typeof opts.onSave === 'function' ? opts.onSave : ()=>{};
+    const onDelete = typeof opts.onDelete === 'function' ? opts.onDelete : ()=>{};
+
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(0,0,0,0.6)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+
+    const panel = document.createElement('div');
+    panel.style.background = '#020617';
+    panel.style.color = '#e5e7eb';
+    panel.style.borderRadius = '16px';
+    panel.style.padding = '16px';
+    panel.style.width = '100%';
+    panel.style.maxWidth = '420px';
+    panel.style.boxSizing = 'border-box';
+    panel.style.boxShadow = '0 18px 30px rgba(15,23,42,0.75)';
+    overlay.appendChild(panel);
+
+    const cfg = (presetLine && presetLine.config) ? presetLine.config : {};
+
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;font-size:1rem;font-weight:600;">
+        ${presetLine.name || 'Preset line'}
+      </h3>
+      <p style="margin:0 0 12px;font-size:0.85rem;opacity:0.85;">
+        Edit hose, length, nozzle, and elevation for this preset line.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.85rem;">
+        <label>Hose diameter (inches)
+          <input id="plHose" type="number" inputmode="decimal" style="width:100%;margin-top:2px;"
+                 value="${cfg.hoseDiameter ?? ''}">
+        </label>
+        <label>Length (ft)
+          <input id="plLen" type="number" inputmode="numeric" style="width:100%;margin-top:2px;"
+                 value="${(typeof cfg.lengthFt === 'number' ? cfg.lengthFt : (cfg.lengthFt ?? ''))}">
+        </label>
+        <label>Nozzle ID
+          <input id="plNoz" type="text" style="width:100%;margin-top:2px;"
+                 value="${cfg.nozzleId ?? ''}">
+        </label>
+        <label>Elevation (+/- ft)
+          <input id="plElev" type="number" inputmode="numeric" style="width:100%;margin-top:2px;"
+                 value="${(typeof cfg.elevation === 'number' ? cfg.elevation : (cfg.elevation ?? 0))}">
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+        <button type="button" id="plDeleteBtn" class="btn" style="background:#7f1d1d;color:#fee2e2;">
+          Remove line
+        </button>
+        <button type="button" id="plCancelBtn" class="btn" style="background:#0f172a;">
+          Cancel
+        </button>
+        <button type="button" id="plSaveBtn" class="btn btn-primary">
+          Save
+        </button>
+      </div>
+    `;
+
+    function close(){
+      overlay.remove();
+    }
+
+    panel.querySelector('#plCancelBtn')?.addEventListener('click', ()=>{
+      close();
+    });
+    panel.querySelector('#plDeleteBtn')?.addEventListener('click', ()=>{
+      close();
+      onDelete();
+    });
+    panel.querySelector('#plSaveBtn')?.addEventListener('click', ()=>{
+      const hose = panel.querySelector('#plHose');
+      const len  = panel.querySelector('#plLen');
+      const noz  = panel.querySelector('#plNoz');
+      const elev = panel.querySelector('#plElev');
+
+      const edited = {
+        hoseDiameter: hose && hose.value ? hose.value.trim() : '',
+        lengthFt: len && len.value ? Number(len.value) : null,
+        nozzleId: noz && noz.value ? noz.value.trim() : '',
+        elevation: elev && elev.value ? Number(elev.value) : 0,
+      };
+      close();
+      onSave(edited);
+    });
+
+    document.body.appendChild(overlay);
+  }
+
   function refreshTotals(){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
+
+    // Department lines (Line 1/2/3)
     vis.forEach(([key, L])=>{
       const single = isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
@@ -932,10 +1054,29 @@ function updateSegSwitchVisibility(){
       totalGPM += flow;
       if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
     });
+
+    // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1–3.
+    Object.values(activePresetLines).forEach(pl => {
+      if (!pl || !pl.config) return;
+      const cfg = pl.config;
+      const noz = (cfg.nozzleId && NOZ[cfg.nozzleId]) || null;
+      if (!noz) return;
+      const flow = noz.gpm || 0;
+      const lengthFt = (typeof cfg.lengthFt === 'number' ? cfg.lengthFt : 0);
+      const size = cfg.hoseDiameter || '1.75';
+      const mainSegs = [{ size, lengthFt }];
+      const mainFL = FL_total_sections(flow, mainSegs);
+      const elevFt = (typeof cfg.elevation === 'number' ? cfg.elevation : 0);
+      const PDP = noz.NP + mainFL + (elevFt * PSI_PER_FT);
+      totalGPM += flow;
+      if (PDP > maxPDP) { maxPDP = PDP; }
+    });
+
     state.lastMaxKey = maxKey;
-    GPMel.textContent = vis.length? (Math.round(totalGPM)+' gpm') : '— gpm';
+    const anyLines = vis.length || Object.keys(activePresetLines).length;
+    GPMel.textContent = anyLines ? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.classList.remove('orange','red');
-    if(vis.length){
+    if(anyLines){
       const v = Math.round(maxPDP);
       PDPel.textContent = v+' psi';
       if(v>250) PDPel.classList.add('red');
@@ -1350,295 +1491,28 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     });
   });
 
-  /* --------------------------- Supply buttons ----------------------------- */
+  container.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.preset-line-btn');
+    if (!btn) return;
+    const id = btn.dataset.presetId;
+    const pl = activePresetLines[id];
+    if (!pl) return;
 
-  container.querySelector('#hydrantBtn').addEventListener('click', ()=>{
-    state.supply = 'pressurized'; drawAll(); markDirty();
+    openPresetLineEditor(pl, {
+      onSave(edited){
+        pl.config = Object.assign({}, pl.config || {}, edited || {});
+        refreshTotals();
+        renderPresetLineButtons();
+        markDirty();
+      },
+      onDelete(){
+        delete activePresetLines[id];
+        refreshTotals();
+        renderPresetLineButtons();
+        markDirty();
+      }
+    });
   });
-  container.querySelector('#tenderBtn').addEventListener('click', ()=>{
-    state.supply = 'static'; drawAll(); markDirty();
-  });
-
-  // Relay Pumping mini-app toggle (lazy-loads view.relay.js into relayMount)
-  const relayBtn = container.querySelector('#relayBtn');
-  if (relayBtn && relayMount) {
-    let relayVisible = false;
-    let relayLoaded  = false;
-
-    const syncRelayFlow = () => {
-      if (!relayMount) return;
-      const mainGpmEl = container.querySelector('#GPM');
-      if (!mainGpmEl) return;
-      const txt = (mainGpmEl.textContent || '').replace(/[^0-9.]/g, '');
-      const val = parseFloat(txt);
-      const rpFlowInput = relayMount.querySelector('#rpFlow');
-      if (rpFlowInput && val > 0) {
-        rpFlowInput.value = String(Math.round(val));
-      }
-    };
-
-    relayBtn.addEventListener('click', async () => {
-      if (!relayLoaded) {
-        try {
-          const mod = await import('./view.relay.js');
-          if (mod && typeof mod.render === 'function') {
-            await mod.render(relayMount);
-          } else {
-            relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Relay module missing render(container).</div>';
-          }
-        } catch (err) {
-          console.error('Failed to load relay view', err);
-          relayMount.innerHTML = '<div class="mini" style="color:#fca5a5">Unable to load relay pumping helper.</div>';
-        }
-        relayLoaded = true;
-      }
-
-      // Sync flow every time we toggle Relay on
-      syncRelayFlow();
-
-      relayVisible = !relayVisible;
-      relayMount.style.display = relayVisible ? 'block' : 'none';
-
-      if (relayVisible) {
-        try {
-          relayMount.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } catch (_e) {}
-      }
-    });
-
-    // Hook into global drawAll so flow updates whenever lines/GPM change
-    const oldDrawAll = drawAll;
-    drawAll = function(...args){
-      const result = oldDrawAll.apply(this, args);
-      if (relayVisible) syncRelayFlow();
-      return result;
-    };
-  }
-
-// Presets button: wire to full preset system even on PC/web
-  // Map line number (1/2/3) to calc state key
-  function mapLineKeyFromNumber(lineNumber){
-    return lineNumber === 1 ? 'left'
-         : lineNumber === 2 ? 'back'
-         : 'right';
-  }
-
-  // Read the current hydraulic setup for a given line so we can save as a preset
-  function getLineStateFromCalc(lineNumber){
-    const key = mapLineKeyFromNumber(lineNumber);
-    const L = seedDefaultsForKey(key);
-    if (!L) return null;
-    const main = (L.itemsMain && L.itemsMain[0]) || {};
-    const hoseDiameter = main.size || '';
-    const lengthFt = typeof main.lengthFt === 'number' ? main.lengthFt : 0;
-    const nozzle = L.nozRight || L.nozLeft || null;
-
-    return {
-      hoseDiameter,
-      cValue: null,         // C is implied from hose size in the main calc for now
-      lengthFt,
-      nozzleId: nozzle && nozzle.id || '',
-      elevation: typeof L.elevFt === 'number' ? L.elevFt : 0,
-      appliances: 0
-    };
-  }
-
-  // Apply a saved preset back into the calc for the chosen line
-  function applyPresetToCalc(preset){
-    if (!preset) return;
-
-    // Many presets are stored as { id, name, lineNumber, summary, payload: { ... } }
-    // but we also support a "flat" shape for safety.
-    const src = (preset && typeof preset.payload === 'object' && preset.payload)
-      ? preset.payload
-      : preset;
-
-    const key = mapLineKeyFromNumber(preset.lineNumber || src.lineNumber || 1);
-    const L = seedDefaultsForKey(key);
-    if (!L) return;
-
-    // Main hose segment
-    const main = (L.itemsMain && L.itemsMain[0]) || {};
-    if (src.hoseDiameter) {
-      main.size = src.hoseDiameter;
-    }
-    if (typeof src.lengthFt === 'number') {
-      main.lengthFt = src.lengthFt;
-    }
-    L.itemsMain = [main];
-
-    // For now, presets always restore as a single straight line (no wye branches)
-    L.hasWye = false;
-    L.itemsLeft = [];
-    L.itemsRight = [];
-
-    // Elevation
-    if (typeof src.elevation === 'number') {
-      L.elevFt = src.elevation;
-    }
-
-    // Nozzle
-    if (src.nozzleId && NOZ[src.nozzleId]) {
-      L.nozRight = NOZ[src.nozzleId];
-    }
-
-    // Make sure line is visible & button looks active
-    L.visible = true;
-    const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
-    if (btn) btn.classList.add('active');
-
-    // Re-draw + persist
-    drawAll();
-    markDirty();
-  }
-
-  try {
-    setupPresets({
-      // Treat PC/web as "app" so we get the full preset editor while you build it.
-      isApp: true,
-      triggerButtonId: 'presetsBtn',
-      appStoreUrl: '',
-      playStoreUrl: '',
-      getLineState: getLineStateFromCalc,
-      applyPresetToCalc
-    });
-  } catch (e) {
-    console.warn('setupPresets failed', e);
-  }
-  function enhanceTenderListStyle() {
-    const rootEl = container.querySelector('#tenderList');
-    if (!rootEl) return;
-    rootEl.querySelectorAll('b, .tenderName, .tender-id, .title, .name').forEach(el=>{
-      el.classList.add('tender-emph');
-    });
-  }
-
-  /* -------------------------- Ensure editor script ------------------------ */
-
-  (function ensureBottomSheet(){
-    if (window.BottomSheetEditor) return;
-    try{
-      const already = Array.from(document.scripts).some(s => (s.src||'').includes('bottom-sheet-editor.js'));
-      if (already) return;
-      const s = document.createElement('script');
-      s.src = new URL('./bottom-sheet-editor.js', import.meta.url).href;
-      document.body.appendChild(s);
-    }catch(e){}
-  })();
-
-  /* -------------------------------- Draw --------------------------------- */
-
-  function drawAll(){
-    const viewH = Math.ceil(computeNeededHeightPx());
-    stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
-    stageSvg.style.height = viewH + 'px';
-    truckImg.setAttribute('y', String(truckTopY(viewH)));
-
-    clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
-
-    const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
-
-    ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
-      const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
-      const mainFt = sumFt(L.itemsMain);
-      const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
-
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
-      drawSegmentedPath(G_hoses, base, L.itemsMain);
-      addTip(G_tips, key,'main',geom.endX,geom.endY);
-
-      // Main label: if Wye present, show 'via Wye' (no nozzle mention)
-      const single = isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-      const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
-
-      if(L.hasWye){
-        if(sumFt(L.itemsLeft)>0){
-          const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
-          drawSegmentedPath(G_branches, pathL, L.itemsLeft);
-          // Branch A info bubble
-          const lenLeft = sumFt(L.itemsLeft||[]);
-          if(lenLeft>0 && L.nozLeft){
-            const txtL = lenLeft+'′ @ '+(L.nozLeft.gpm||0)+' gpm — Nozzle '+(L.nozLeft.NP||0)+' psi';
-            addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
-          }
-          addTip(G_tips, key,'L',gL.endX,gL.endY);
-        } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
-
-        if(sumFt(L.itemsRight)>0){
-          const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
-          drawSegmentedPath(G_branches, pathR, L.itemsRight);
-          // Branch B info bubble
-          const lenRight = sumFt(L.itemsRight||[]);
-          if(lenRight>0 && L.nozRight){
-            const txtR = lenRight+'′ @ '+(L.nozRight.gpm||0)+' gpm — Nozzle '+(L.nozRight.NP||0)+' psi';
-            addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
-          }
-          addTip(G_tips, key,'R',gR.endX,gR.endY);
-        } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
-      }
-      base.remove();
-    });
-
-    // Supply visuals & panels
-    waterSupply.draw(viewH);
-    if (typeof waterSupply.updatePanelsVisibility === 'function') {
-      waterSupply.updatePanelsVisibility();
-    }
-
-    // KPIs, math, summary
-    refreshTotals();
-    renderLinesPanel();
-    refreshSupplySummary();
-
-    // Button active states
-    container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
-    container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
-
-    // mark dirty after draw (belt & suspenders)
-    markDirty();
-  }
-
-  // Initial draw
-  drawAll();
-
-  // Dev helper to clear saved practice
-  window.__resetPractice = function(){ try { sessionStorage.removeItem(PRACTICE_SAVE_KEY); } catch(_) {} };
-
-  
-  try{ initPlusMenus(container); }catch(e){}
-  return { dispose(){
-    stopAutoSave();
-  }};
-
-    // (Fallback) Populate Branch A/B nozzle selects like main lines
-    try {
-      const nozA = root.querySelector('#teNozA');
-      const nozB = root.querySelector('#teNozB');
-      if (typeof fillNozzles === 'function') {
-        fillNozzles(nozA);
-        fillNozzles(nozB);
-      }
-      try {
-        if (L.nozLeft && L.nozLeft.id && nozA) nozA.value = L.nozLeft.id;
-        if (L.nozRight && L.nozRight.id && nozB) nozB.value = L.nozRight.id;
-      } catch(_){}
-      try {
-        const defId = (typeof defaultNozzleIdForSize==='function') ? defaultNozzleIdForSize('1.75') : null;
-        if (defId) {
-          if (nozA && !nozA.value) nozA.value = defId;
-          if (nozB && !nozB.value) nozB.value = defId;
-        }
-      } catch(_){}
-    } catch(_){}
-}
-
-export default { render };
 
 
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
