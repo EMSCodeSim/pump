@@ -1,9 +1,10 @@
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
-// Phone-friendly:
-// - Bottom-sheet style on mobile, no horizontal scrolling needed.
-// - Inputs/selects use >=16px font to avoid iOS zoom.
-// - Rows stack label above control so everything fits narrow screens.
+// Phone-friendly, no horizontal scroll:
+// - Bottom-sheet style on mobile.
+// - Inputs/selects >=16px font to avoid iOS zoom.
+// - All rows are stacked label → control.
+// - Top mode buttons use short labels: "Single" and "Wye" to reduce width.
 // Logic:
 // - Hose + nozzle dropdowns use department-selected lists (or all if none).
 // - Nozzles always include a "Closed (no flow)" option.
@@ -138,7 +139,7 @@ export function openStandardLinePopup(options) {
   overlay.style.boxSizing = "border-box";
 
   const panel = document.createElement("div");
-  panel.style.maxWidth = "520px";
+  panel.style.maxWidth = "100vw";
   panel.style.width = "100%";
   panel.style.maxHeight = "90vh";
   panel.style.background = "#020617";
@@ -210,11 +211,11 @@ export function openStandardLinePopup(options) {
 
   const singleBtn = document.createElement("button");
   singleBtn.type = "button";
-  singleBtn.textContent = "Single line";
+  singleBtn.textContent = "Single";
 
   const wyeBtn = document.createElement("button");
   wyeBtn.type = "button";
-  wyeBtn.textContent = "Line with wye";
+  wyeBtn.textContent = "Wye";
 
   [singleBtn, wyeBtn].forEach((b) => {
     b.style.flex = "1 1 0";
@@ -621,7 +622,7 @@ export function openStandardLinePopup(options) {
       const { gpm, pdp } = calcWyeLine();
       state.targetGpm = gpm;
       state.targetPdp = pdp;
-      preview.textContent = `Line with wye • Total flow: ${gpm} gpm • Estimated PDP: ${pdp} psi`;
+      preview.textContent = `Wye line • Total flow: ${gpm} gpm • Estimated PDP: ${pdp} psi`;
     }
   }
 
