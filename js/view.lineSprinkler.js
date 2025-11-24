@@ -1,22 +1,30 @@
 // view.lineSprinkler.js
-// Simple Sprinkler / FDC preset popup
+// Simplified Sprinkler / FDC preset popup.
 //
-// This version intentionally keeps things very simple:
-// - We assume a typical rule-of-thumb PDP of 150 psi for sprinklers.
-// - User can change that PDP to any value they want.
-// - Flow (GPM) is intentionally UNKNOWN and not calculated here.
+// Design goals:
+// - Keep sprinklers simple: user mainly chooses a pump discharge pressure to FDC.
+// - Default PDP = 150 psi (common rule-of-thumb).
+// - Flow (GPM) is essentially unknown, but we store a nominal GPM so that
+//   presets integrate with the main screen (which expects a non-zero GPM).
 //
-// Usage example:
-//   openSprinklerPopup({
-//     initial: { targetPdp: 150, note: 'Default sprinkler FDC' },
-//     onSave(config) { ... }
-//   });
+// The preset payload we save looks like:
+//   {
+//     targetPdp: number,
+//     requiredFlowGpm: number,   // nominal, for UI only
+//     note: string,
+//     lastCalc: {
+//       requiredFlowGpm: number,
+//       PDP: number
+//     }
+//   }
+//
+// This shape matches what view.calc.main.js expects for lineType 'sprinkler'.
 
-let sprinklerStylesInjected = false;
+let sprStylesInjected = false;
 
-function injectSprinklerStyles() {
-  if (sprinklerStylesInjected) return;
-  sprinklerStylesInjected = true;
+function injectSprStyles() {
+  if (sprStylesInjected) return;
+  sprStylesInjected = true;
 
   const style = document.createElement('style');
   style.textContent = `
@@ -272,25 +280,39 @@ function sprNumberInput(value, onChange, extra = {}) {
 }
 
 /**
- * Simpler sprinkler popup:
- * - targetPdp: number (default 150)
- * - note: optional string
+ * Simple sprinkler popup.
+ *
+ * @param {Object} opts
+ *   - dept: (unused, for API compatibility)
+ *   - initial: { targetPdp?: number, nominalGpm?: number, note?: string }
+ *   - onSave: function(config) -> void
  */
 export function openSprinklerPopup({
+  dept = {},       // not used, but kept for signature compatibility
   initial = null,
   onSave = () => {},
 } = {}) {
-  injectSprinklerStyles();
+  injectSprStyles();
 
+  // We keep a nominal GPM so the preset system has something non-zero.
   const state = {
     targetPdp: 150,
-    estimatedGpm: 0,
+    nominalGpm: 150,
     note: '',
   };
 
   if (initial && typeof initial === 'object') {
-    if (initial.targetPdp != null) state.targetPdp = Number(initial.targetPdp) || 150;
-    if (initial.estimatedGpm != null) state.estimatedGpm = Number(initial.estimatedGpm) || 0;
+    if (initial.targetPdp != null) {
+      const v = Number(initial.targetPdp);
+      if (!Number.isNaN(v) && v > 0) state.targetPdp = v;
+    }
+    if (initial.nominalGpm != null) {
+      const g = Number(initial.nominalGpm);
+      if (!Number.isNaN(g) && g > 0) state.nominalGpm = g;
+    } else if (initial.requiredFlowGpm != null) {
+      const g = Number(initial.requiredFlowGpm);
+      if (!Number.isNaN(g) && g > 0) state.nominalGpm = g;
+    }
     if (typeof initial.note === 'string') state.note = initial.note;
   }
 
@@ -352,10 +374,11 @@ export function openSprinklerPopup({
   preview.className = 'spr-preview';
 
   function updatePreview() {
-    const gpmPart = state.estimatedGpm && state.estimatedGpm > 0
-      ? `${state.estimatedGpm} gpm`
+    const gpmText = state.nominalGpm && state.nominalGpm > 0
+      ? `${state.nominalGpm} gpm (nominal)`
       : 'flow: unknown';
-    preview.textContent = `Sprinkler FDC – Target PDP: ${state.targetPdp} psi (${gpmPart})`;
+    preview.textContent =
+      `Sprinkler FDC – Pump ${state.targetPdp} psi | ${gpmText}`;
   }
 
   const pdpRow = sprEl('div', { class: 'spr-row' },
@@ -368,12 +391,12 @@ export function openSprinklerPopup({
   );
 
   const gpmRow = sprEl('div', { class: 'spr-row' },
-    sprEl('label', { text: 'Estimated system flow (optional):' }),
-    sprNumberInput(state.estimatedGpm, v => {
-      state.estimatedGpm = v === '' ? 0 : v;
+    sprEl('label', { text: 'Nominal system flow (for UI only):' }),
+    sprNumberInput(state.nominalGpm, v => {
+      state.nominalGpm = v === '' ? 0 : v;
       updatePreview();
     }),
-    sprEl('span', { text: 'gpm (use preplan value if known, otherwise leave blank)' })
+    sprEl('span', { text: 'gpm – optional; used only so presets show a GPM on the main screen.' })
   );
 
   const noteRow = sprEl('div', { class: 'spr-row' },
@@ -381,13 +404,13 @@ export function openSprinklerPopup({
     sprEl('input', {
       type: 'text',
       value: state.note,
-      placeholder: 'Example: Light hazard – 2 FDCs on A/B corners',
+      placeholder: 'Example: Light hazard – pump 150 psi to FDC',
       onchange: (e) => { state.note = e.target.value || ''; }
     })
   );
 
   body.append(
-    sprEl('p', { text: 'This tool treats sprinklers very simply: you choose a target PDP to pump to the FDC. The actual system flow (GPM) is optional.' }),
+    sprEl('p', { text: 'This preset treats sprinklers very simply. You choose a pump pressure to the FDC and (optionally) a nominal flow for display on the main screen.' }),
     pdpRow,
     gpmRow,
     noteRow,
@@ -429,53 +452,60 @@ export function openSprinklerPopup({
         <li>Start at <code>150 psi</code> as the default pump discharge pressure.</li>
         <li>Optionally change that number if your preplan or SOP calls for a
             different pressure (for example, 175 psi or 200 psi).</li>
-        <li>Save a short note describing the system or scenario.</li>
+        <li>Optionally set a nominal flow (GPM) so the preset can display a GPM
+            on the main pump screen. This does not change how the system actually
+            flows in real life.</li>
       </ul>
-      <p>No internal flow (GPM) math is done here. You can store an
-      <strong>estimated GPM</strong> from your preplan if you know it, but it
-      is optional. This preset is simply a quick reminder of what
-      <strong>PDP</strong> to use when supplying the sprinkler system
-      through the FDC.</p>
+      <p>No internal sprinkler hydraulics are calculated here. This preset is
+      simply a quick reminder of what <strong>PDP</strong> to use when supplying
+      the system through the FDC.</p>
     `;
 
-    const footer2 = document.createElement('div');
-    footer2.className = 'spr-explain-footer';
+  const footer2 = document.createElement('div');
+  footer2.className = 'spr-explain-footer';
 
-    const ok2 = document.createElement('button');
-    ok2.type = 'button';
-    ok2.className = 'spr-btn-primary';
-    ok2.textContent = 'Close';
+  const ok2 = document.createElement('button');
+  ok2.type = 'button';
+  ok2.className = 'spr-btn-primary';
+  ok2.textContent = 'Close';
 
-    footer2.appendChild(ok2);
+  footer2.appendChild(ok2);
 
-    panel2.append(header2, body2, footer2);
-    overlay2.appendChild(panel2);
-    document.body.appendChild(overlay2);
+  panel2.append(header2, body2, footer2);
+  overlay2.appendChild(panel2);
+  document.body.appendChild(overlay2);
 
-    function closeExplain() {
-      if (overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
-    }
-    overlay2.addEventListener('click', (e) => {
-      if (e.target === overlay2) closeExplain();
-    });
-    close2.addEventListener('click', closeExplain);
-    ok2.addEventListener('click', closeExplain);
+  function closeExplain() {
+    if (overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
+  }
+  overlay2.addEventListener('click', (e) => {
+    if (e.target === overlay2) closeExplain();
+  });
+  close2.addEventListener('click', closeExplain);
+  ok2.addEventListener('click', closeExplain);
   }
 
   explainBtn.addEventListener('click', openExplainPopup);
 
   saveBtn.addEventListener('click', () => {
-    const payload = {
-      targetPdp: state.targetPdp || 0,
-      estimatedGpm: state.estimatedGpm || 0,
-      note: state.note || '',
-      // For backwards compatibility with older preset consumers
-      requiredFlowGpm: state.estimatedGpm || 0,
-      lastCalc: {
-        targetPdp: state.targetPdp || 0,
-        requiredFlowGpm: state.estimatedGpm || 0,
-      },
+    // Ensure we always save a non-zero nominal GPM so the preset system
+    // has something to display on the main screen.
+    const gpm = state.nominalGpm && state.nominalGpm > 0 ? state.nominalGpm : 150;
+    const pdp = state.targetPdp && state.targetPdp > 0 ? state.targetPdp : 150;
+
+    const lastCalc = {
+      requiredFlowGpm: gpm,
+      PDP: pdp,
     };
+
+    const payload = {
+      targetPdp: pdp,
+      requiredFlowGpm: gpm,
+      nominalGpm: gpm,
+      note: state.note || '',
+      lastCalc,
+    };
+
     onSave(payload);
     close();
   });
