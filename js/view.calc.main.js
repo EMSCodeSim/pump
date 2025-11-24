@@ -2413,8 +2413,12 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if (teNoz) {
-    fillNozzles(teNoz);
+  if(teNoz && Array.isArray(NOZ_LIST)){
+    teNoz.innerHTML = NOZ_LIST.map(n => {
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
   }
 
   if(!root.__plusMenuStyles){
@@ -2455,42 +2459,12 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-    try {
-      if (!sel || !Array.isArray(NOZ_LIST)) return;
-    } catch (e) {
-      return;
-    }
-    if (!sel) return;
-
-    // Start from full nozzle list
-    let list = NOZ_LIST;
-
-    // If Department Setup has selected nozzles, filter to those IDs
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const rawIds = getDeptNozzleIds() || [];
-        if (Array.isArray(rawIds) && rawIds.length) {
-          const ids = rawIds
-            .map(id => (typeof id === 'string' ? id.trim() : ''))
-            .filter(id => id.length > 0);
-          if (ids.length) {
-            const idSet = new Set(ids);
-            const filtered = NOZ_LIST.filter(
-              n => n && typeof n.id === 'string' && idSet.has(n.id)
-            );
-            if (filtered.length) {
-              list = filtered;
-            }
-          }
-        }
-      }
-    } catch (_e) {
-      // If anything goes wrong, just fall back to full list
-      list = NOZ_LIST;
-    }
-
-    sel.innerHTML = list.map(n => {
-      const label = n.name || n.desc || n.label || n.id || 'Nozzle';
+    try{
+      if(!sel || !Array.isArray(NOZ_LIST)) return;
+    }catch(e){}
+    if(!sel) return;
+    sel.innerHTML = NOZ_LIST.map(n=>{
+      const label = n.name || n.desc || n.id || 'Nozzle';
       const val = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
