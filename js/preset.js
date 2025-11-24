@@ -486,6 +486,85 @@ function saveDeptToStorage() {
 }
 
 
+
+// === Department equipment helpers (normalized views) ===============================
+
+// Normalize a single hose/nozzle/accessory item (string or object) so everything
+// looks like { id, label, ...rest }. Not exported.
+function normalizeDeptItem(item, fallbackPrefix, index) {
+  if (item && typeof item === 'object') {
+    const id = item.id != null
+      ? String(item.id)
+      : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
+    const label = item.label || item.name || String(id);
+    return { id, label, ...item };
+  }
+  const id = String(item);
+  return { id, label: id, raw: item };
+}
+
+/**
+ * Returns a normalized department equipment object:
+ * {
+ *   nozzles:     [{ id, label, gpm?, ... }, ...],
+ *   hoses:       [{ id, label, ... }, ...],
+ *   accessories: [{ id, label, ... }, ...],
+ *   ...all original fields
+ * }
+ */
+export function getDeptEquipment() {
+  let raw = null;
+  try {
+    raw = loadDeptFromStorage();
+  } catch (e) {
+    console.warn('getDeptEquipment load failed', e);
+  }
+  if (!raw || typeof raw !== 'object') raw = {};
+
+  const {
+    nozzles = [],
+    hoses = [],
+    accessories = [],
+  } = raw;
+
+  const normNozzles = Array.isArray(nozzles)
+    ? nozzles.map((n, i) => normalizeDeptItem(n, 'noz', i))
+    : [];
+
+  const normHoses = Array.isArray(hoses)
+    ? hoses.map((h, i) => normalizeDeptItem(h, 'hose', i))
+    : [];
+
+  const normAccessories = Array.isArray(accessories)
+    ? accessories.map((a, i) => normalizeDeptItem(a, 'acc', i))
+    : [];
+
+  return {
+    ...raw,
+    nozzles: normNozzles,
+    hoses: normHoses,
+    accessories: normAccessories,
+  };
+}
+
+/**
+ * Convenience: nozzle list for dropdowns.
+ * Returns [{ id, label, gpm?, ... }, ...]
+ */
+export function getDeptNozzleOptions() {
+  const dept = getDeptEquipment();
+  return Array.isArray(dept.nozzles) ? dept.nozzles : [];
+}
+
+/**
+ * Convenience: hose list for dropdowns.
+ * Returns [{ id, label, ... }, ...]
+ */
+export function getDeptHoseOptions() {
+  const dept = getDeptEquipment();
+  return Array.isArray(dept.hoses) ? dept.hoses : [];
+}
+
 function loadLineDefaultsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
