@@ -284,11 +284,13 @@ export function openSprinklerPopup({
 
   const state = {
     targetPdp: 150,
+    estimatedGpm: 0,
     note: '',
   };
 
   if (initial && typeof initial === 'object') {
     if (initial.targetPdp != null) state.targetPdp = Number(initial.targetPdp) || 150;
+    if (initial.estimatedGpm != null) state.estimatedGpm = Number(initial.estimatedGpm) || 0;
     if (typeof initial.note === 'string') state.note = initial.note;
   }
 
@@ -350,7 +352,10 @@ export function openSprinklerPopup({
   preview.className = 'spr-preview';
 
   function updatePreview() {
-    preview.textContent = `Sprinkler FDC – Target PDP: ${state.targetPdp} psi (flow: unknown)`;
+    const gpmPart = state.estimatedGpm && state.estimatedGpm > 0
+      ? `${state.estimatedGpm} gpm`
+      : 'flow: unknown';
+    preview.textContent = `Sprinkler FDC – Target PDP: ${state.targetPdp} psi (${gpmPart})`;
   }
 
   const pdpRow = sprEl('div', { class: 'spr-row' },
@@ -360,6 +365,15 @@ export function openSprinklerPopup({
       updatePreview();
     }),
     sprEl('span', { text: 'psi (150 psi is a common sprinkler rule-of-thumb)' })
+  );
+
+  const gpmRow = sprEl('div', { class: 'spr-row' },
+    sprEl('label', { text: 'Estimated system flow (optional):' }),
+    sprNumberInput(state.estimatedGpm, v => {
+      state.estimatedGpm = v === '' ? 0 : v;
+      updatePreview();
+    }),
+    sprEl('span', { text: 'gpm (use preplan value if known, otherwise leave blank)' })
   );
 
   const noteRow = sprEl('div', { class: 'spr-row' },
@@ -373,8 +387,9 @@ export function openSprinklerPopup({
   );
 
   body.append(
-    sprEl('p', { text: 'This tool treats sprinklers very simply: you choose a target PDP to pump to the FDC. The actual system flow (GPM) is not calculated here.' }),
+    sprEl('p', { text: 'This tool treats sprinklers very simply: you choose a target PDP to pump to the FDC. The actual system flow (GPM) is optional.' }),
     pdpRow,
+    gpmRow,
     noteRow,
     preview
   );
@@ -416,9 +431,11 @@ export function openSprinklerPopup({
             different pressure (for example, 175 psi or 200 psi).</li>
         <li>Save a short note describing the system or scenario.</li>
       </ul>
-      <p>No internal flow (GPM) math is done here. This preset is simply a
-      quick reminder of what <strong>PDP</strong> to use when supplying the
-      sprinkler system through the FDC.</p>
+      <p>No internal flow (GPM) math is done here. You can store an
+      <strong>estimated GPM</strong> from your preplan if you know it, but it
+      is optional. This preset is simply a quick reminder of what
+      <strong>PDP</strong> to use when supplying the sprinkler system
+      through the FDC.</p>
     `;
 
     const footer2 = document.createElement('div');
@@ -450,7 +467,14 @@ export function openSprinklerPopup({
   saveBtn.addEventListener('click', () => {
     const payload = {
       targetPdp: state.targetPdp || 0,
+      estimatedGpm: state.estimatedGpm || 0,
       note: state.note || '',
+      // For backwards compatibility with older preset consumers
+      requiredFlowGpm: state.estimatedGpm || 0,
+      lastCalc: {
+        targetPdp: state.targetPdp || 0,
+        requiredFlowGpm: state.estimatedGpm || 0,
+      },
     };
     onSave(payload);
     close();
