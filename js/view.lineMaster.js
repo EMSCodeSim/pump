@@ -1,331 +1,331 @@
 // view.lineMaster.js
-// Master stream / Blitz popup for a single line.
+// Master stream / blitz line editor.
 //
-// - Deck gun vs Portable master
-// - Deck gun: user only picks nozzle, GPM is known from nozzle
-// - Portable: user can pick 1 or 2 lines, hose size (dept setup),
-//   nozzle (dept setup) and elevation.
-// - Live GPM / PDP preview
-// - "Explain math" popup
+// Behavior (per your notes):
+// - Deck gun mode:
+//    * User ONLY chooses the nozzle (from department setup).
+//    * GPM is taken from that nozzle.
+//    * NP for master is locked at 80 psi.
+//    * No hose / lines / elevation UI needed for pump calc.
+//    * PDP = 80 (NP) + 25 (appliance) + 0 (elev) = 105 by default.
+// - Portable mode:
+//    * User chooses 1 or 2 lines.
+//    * ONE shared hose size (from dept setup hoses).
+//    * ONE shared line length (ft).
+//    * No intake PSI.
+//    * Elevation in feet.
+//    * NP locked at 80 psi.
+//    * PDP uses hose C (based on hose size), length, elevation, and appliance loss.
+// - At the bottom, a large, high-visibility bar shows:
+//      "Master stream – Flow: X gpm | PDP: Y psi"
 //
-// Usage example (from preset editor or view.calc):
-//   openMasterStreamPopup({
-//     dept: { hoses, appliances, nozzles },
-//     initial: existingMasterConfigOrNull,
-//     onSave(config) {
-//       // store config.master for this preset or this line
-//     }
-//   });
+// Expected usage:
+//   openMasterStreamPopup({ dept, initial, onSave });
 
-let masterStylesInjected = false;
+let msStylesInjected = false;
 
-function injectMasterStyles() {
-  if (masterStylesInjected) return;
-  masterStylesInjected = true;
+function injectMsStyles() {
+  if (msStylesInjected) return;
+  msStylesInjected = true;
 
   const style = document.createElement('style');
   style.textContent = `
-  .ms-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(3, 7, 18, 0.55);
-    backdrop-filter: blur(6px);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 40px;
-    z-index: 10060;
-    overflow-y: auto;
-  }
+    .ms-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.55);
+      backdrop-filter: blur(6px);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 32px;
+      z-index: 10060;
+      overflow-y: auto;
+    }
 
-  .ms-panel {
-    position: relative;
-    max-width: 480px;
-    width: 100%;
-    margin: 0 12px 24px;
-    background: #020617;
-    border-radius: 18px;
-    box-shadow:
-      0 18px 30px rgba(15, 23, 42, 0.85),
-      0 0 0 1px rgba(148, 163, 184, 0.45);
-    padding: 12px 14px 10px;
-    color: #e5e7eb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  @media (min-width: 640px) {
     .ms-panel {
-      margin-top: 12px;
-      border-radius: 20px;
+      position: relative;
+      max-width: 520px;
+      width: 100%;
+      margin: 0 12px 24px;
+      background: #020617;
+      border-radius: 18px;
+      box-shadow:
+        0 20px 35px rgba(15, 23, 42, 0.9),
+        0 0 0 1px rgba(148, 163, 184, 0.45);
       padding: 14px 16px 12px;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      font-size: 15px; /* good default on all devices */
     }
-  }
 
-  .ms-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-  }
+    @media (min-width: 768px) {
+      .ms-panel {
+        max-width: 560px;
+        padding: 16px 18px 14px;
+        font-size: 16px; /* bump font on desktop */
+      }
+    }
 
-  .ms-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-
-  .ms-close {
-    width: 26px;
-    height: 26px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.6);
-    background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
-    color: #e5e7eb;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
-  }
-  .ms-close:hover {
-    background: #111827;
-  }
-
-  .ms-body {
-    font-size: 0.85rem;
-    line-height: 1.45;
-    max-height: min(60vh, 420px);
-    overflow-y: auto;
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
-
-  .ms-footer {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.25);
-  }
-
-  .ms-btn-primary,
-  .ms-btn-secondary {
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.82rem;
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .ms-btn-primary {
-    background: linear-gradient(135deg, #38bdf8, #22c55e);
-    color: #020617;
-    font-weight: 600;
-  }
-
-  .ms-btn-secondary {
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-  }
-
-  .ms-btn-primary:active,
-  .ms-btn-secondary:active {
-    transform: translateY(1px);
-  }
-
-  .ms-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 6px;
-  }
-
-  .ms-row label {
-    font-weight: 500;
-    font-size: 0.82rem;
-  }
-
-  .ms-row span {
-    font-size: 0.8rem;
-  }
-
-  .ms-panel input[type="text"],
-  .ms-panel input[type="number"],
-  .ms-panel select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 6px 8px;
-    border-radius: 8px;
-    border: 1px solid rgba(55, 65, 81, 0.9);
-    background: #020617;
-    color: #e5e7eb;
-    font-size: 0.8rem;
-  }
-
-  .ms-panel input::placeholder {
-    color: rgba(148, 163, 184, 0.9);
-  }
-
-  .ms-section {
-    border-top: 1px solid rgba(148, 163, 184, 0.4);
-    padding-top: 8px;
-    margin-top: 6px;
-  }
-  .ms-section:first-of-type {
-    border-top: none;
-  }
-
-  .ms-section h3 {
-    margin: 0 0 4px 0;
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #bfdbfe;
-  }
-
-  .ms-subsection {
-    border: 1px solid rgba(30, 64, 175, 0.5);
-    background: rgba(15, 23, 42, 0.85);
-    padding: 6px;
-    border-radius: 10px;
-    margin-top: 6px;
-  }
-
-  .ms-subsection h4 {
-    margin: 0 0 4px 0;
-    font-size: 0.8rem;
-    color: #bfdbfe;
-  }
-
-  .ms-toggle-group {
-    display: inline-flex;
-    gap: 4px;
-  }
-  .ms-toggle-group button {
-    padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(75, 85, 99, 0.9);
-    background: rgba(15, 23, 42, 0.9);
-    font-size: 0.78rem;
-    color: #e5e7eb;
-    cursor: pointer;
-  }
-  .ms-toggle-on {
-    background: #0ea5e9;
-    border-color: #0ea5e9;
-    color: #020617;
-  }
-
-  .ms-preview {
-    margin-top: 8px;
-    padding: 8px;
-    border-radius: 10px;
-    background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
-    border: 1px solid rgba(37, 99, 235, 0.8);
-    font-weight: 600;
-    font-size: 0.82rem;
-    text-align: center;
-  }
-
-  @media (min-width: 640px) {
-    .ms-row {
-      flex-direction: row;
-      flex-wrap: wrap;
+    .ms-header {
+      display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
     }
-    .ms-row > label {
-      min-width: 130px;
+
+    .ms-title {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .ms-row input,
-    .ms-row select {
-      width: auto;
-      min-width: 120px;
+
+    .ms-close {
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
+      color: #e5e7eb;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
     }
-    .ms-two-cols {
+    .ms-close:hover {
+      background: #111827;
+    }
+
+    .ms-body {
+      font-size: 0.95rem;
+      line-height: 1.45;
+      max-height: min(60vh, 430px);
+      overflow-y: auto;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+
+    .ms-footer {
       display: flex;
       flex-direction: row;
       gap: 8px;
+      justify-content: flex-end;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.25);
     }
-    .ms-subsection {
-      flex: 1 1 48%;
-    }
-  }
 
-  /* Explain math popup */
-  .ms-explain-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(3, 7, 18, 0.75);
-    backdrop-filter: blur(6px);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 40px;
-    z-index: 10070;
-    overflow-y: auto;
-  }
-  .ms-explain-panel {
-    max-width: 480px;
-    width: 100%;
-    margin: 0 12px 24px;
-    background: #020617;
-    border-radius: 18px;
-    box-shadow:
-      0 18px 30px rgba(15, 23, 42, 0.85),
-      0 0 0 1px rgba(148, 163, 184, 0.45);
-    padding: 12px 14px 10px;
-    color: #e5e7eb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .ms-explain-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-  }
-  .ms-explain-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-  .ms-explain-body {
-    font-size: 0.83rem;
-    line-height: 1.5;
-    max-height: min(60vh, 420px);
-    overflow-y: auto;
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
-  .ms-explain-body code {
-    font-size: 0.8rem;
-    background: rgba(15, 23, 42, 0.9);
-    border-radius: 4px;
-    padding: 1px 4px;
-  }
-  .ms-explain-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 6px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.25);
-  }
+    .ms-btn-primary,
+    .ms-btn-secondary {
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 0.9rem;
+      border: none;
+      cursor: pointer;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ms-btn-primary {
+      background: linear-gradient(135deg, #38bdf8, #22c55e);
+      color: #020617;
+      font-weight: 600;
+    }
+
+    .ms-btn-secondary {
+      background: rgba(15, 23, 42, 0.95);
+      color: #e5e7eb;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+    }
+
+    .ms-btn-primary:active,
+    .ms-btn-secondary:active {
+      transform: translateY(1px);
+    }
+
+    .ms-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .ms-row label {
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    .ms-row span {
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+
+    .ms-panel input[type="text"],
+    .ms-panel input[type="number"],
+    .ms-panel select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid rgba(55, 65, 81, 0.95);
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 16px; /* >=16px so iOS doesn’t zoom, also very readable on desktop */
+      min-height: 34px;
+    }
+
+    .ms-panel select {
+      max-width: 100%;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .ms-panel input::placeholder {
+      color: rgba(148, 163, 184, 0.9);
+    }
+
+    .ms-section {
+      border-top: 1px solid rgba(148, 163, 184, 0.4);
+      padding-top: 8px;
+      margin-top: 8px;
+    }
+    .ms-section:first-of-type {
+      border-top: none;
+    }
+
+    .ms-section h3 {
+      margin: 0 0 4px 0;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #bfdbfe;
+    }
+
+    .ms-toggle-group {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .ms-toggle-group button {
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(75, 85, 99, 0.9);
+      background: rgba(15, 23, 42, 0.95);
+      font-size: 0.85rem;
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+    .ms-toggle-on {
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #020617;
+      font-weight: 600;
+    }
+
+    .ms-preview {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
+      border: 1px solid rgba(37, 99, 235, 0.95);
+      font-weight: 700;
+      font-size: 1rem;
+      text-align: center;
+      letter-spacing: 0.02em;
+    }
+
+    @media (min-width: 768px) {
+      .ms-row {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .ms-row > label {
+        min-width: 140px;
+      }
+      .ms-row input,
+      .ms-row select {
+        width: auto;
+        min-width: 130px;
+      }
+    }
+
+    /* Explain math popup */
+    .ms-explain-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 18, 0.75);
+      backdrop-filter: blur(6px);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 40px;
+      z-index: 10070;
+      overflow-y: auto;
+    }
+    .ms-explain-panel {
+      max-width: 520px;
+      width: 100%;
+      margin: 0 12px 24px;
+      background: #020617;
+      border-radius: 18px;
+      box-shadow:
+        0 18px 30px rgba(15, 23, 42, 0.85),
+        0 0 0 1px rgba(148, 163, 184, 0.45);
+      padding: 14px 16px 12px;
+      color: #e5e7eb;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ms-explain-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+    }
+    .ms-explain-title {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .ms-explain-body {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      max-height: min(60vh, 430px);
+      overflow-y: auto;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .ms-explain-body code {
+      font-size: 0.85rem;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+    .ms-explain-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(148, 163, 184, 0.25);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -359,28 +359,92 @@ function msNumberInput(value, onChange, extra = {}) {
   });
 }
 
-function msSelect(options, current, onChange) {
+function msSelect(options, currentId, onChange) {
   const s = msEl('select', { onchange: e => onChange(e.target.value) });
   options.forEach(opt => {
     const o = document.createElement('option');
     o.value = opt.id;
     o.textContent = opt.label;
-    if (opt.id === current) o.selected = true;
+    if (opt.id === currentId) o.selected = true;
     s.appendChild(o);
   });
   return s;
 }
 
-// --- Hose / FL helpers ---
+/* --- Defaults & helpers --- */
 
+const DEFAULT_MS_NOZZLES = [
+  { id: 'ms_500',  label: '500 gpm master',  gpm: 500 },
+  { id: 'ms_750',  label: '750 gpm master',  gpm: 750 },
+  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000 },
+  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250 },
+];
+
+const DEFAULT_MS_HOSES = [
+  { id: '2.5', label: '2 1/2"' },
+  { id: '3',   label: '3"'     },
+  { id: '4',   label: '4"'     },
+  { id: '5',   label: '5"'     },
+];
+
+// C by diameter for portable master supply lines
 const MS_C_BY_DIA = {
   '1.75': 15.5,
-  '1.5': 24,
-  '2.5': 2,
-  '3':   0.8,
-  '4':   0.2,
-  '5':   0.08,
+  '1.5':  24,
+  '2.5':  2,
+  '3':    0.8,
+  '4':    0.2,
+  '5':    0.08,
 };
+
+// NP for master stream should be 80 psi (per your note)
+const MASTER_NP = 80;
+// Appliance loss for deck gun / portable base
+const MASTER_APPLIANCE_LOSS = 25;
+// psi per foot elevation
+const PSI_PER_FT = 0.434;
+
+function msGetNozzleListFromDept(dept) {
+  const raw = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+  if (!raw.length) return DEFAULT_MS_NOZZLES;
+  return raw.map(n => ({
+    id: n.id,
+    label: n.label || n.name || `${n.gpm || '?'} gpm`,
+    gpm: n.gpm || 0,
+  }));
+}
+
+function msGetHoseListFromDept(dept) {
+  // Prefer the same pattern used in your Standard line:
+  //   dept.hosesAll + dept.hosesSelected
+  let all = [];
+  if (Array.isArray(dept.hosesAll) && dept.hosesAll.length) {
+    all = dept.hosesAll.map(h => ({
+      id: h.id,
+      label: h.label || h.name || String(h.id)
+    }));
+    const selectedIds = Array.isArray(dept.hosesSelected)
+      ? dept.hosesSelected.map(x => String(x))
+      : [];
+    if (selectedIds.length) {
+      const set = new Set(selectedIds);
+      const filtered = all.filter(h => set.has(String(h.id)));
+      if (filtered.length) return filtered;
+    }
+    return all;
+  }
+
+  // Fallback: dept.hoses array with id+label
+  if (Array.isArray(dept.hoses) && dept.hoses.length) {
+    return dept.hoses.map(h => ({
+      id: h.id,
+      label: h.label || h.name || String(h.id)
+    }));
+  }
+
+  // Final fallback
+  return DEFAULT_MS_HOSES;
+}
 
 function msGuessDiaFromHoseLabel(label) {
   if (!label) return 2.5;
@@ -406,152 +470,106 @@ function msCalcFL(C, gpm, lengthFt) {
   return per100 * (lengthFt / 100);
 }
 
-// --- Nozzle helpers ---
-
-const DEFAULT_MS_NOZZLES = [
-  { id: 'ms_500_80',   label: '500 gpm @ 80 psi',   gpm: 500,  np: 80 },
-  { id: 'ms_750_80',   label: '750 gpm @ 80 psi',   gpm: 750,  np: 80 },
-  { id: 'ms_1000_80',  label: '1000 gpm @ 80 psi',  gpm: 1000, np: 80 },
-  { id: 'ms_1250_80',  label: '1250 gpm @ 80 psi',  gpm: 1250, np: 80 },
-];
-
-function msGetNozzleById(nozzles, id) {
-  if (!Array.isArray(nozzles) || !nozzles.length) return null;
-  if (!id) return nozzles[0];
-  return nozzles.find(n => n.id === id) || nozzles[0];
+function msGetNozzleById(list, id) {
+  if (!Array.isArray(list) || !list.length) return null;
+  if (!id) return list[0];
+  return list.find(n => n.id === id) || list[0];
 }
 
-// Main math for master stream
-// - Deck gun: PDP = NP(from nozzle) + applianceLoss + elevation (no supply line FL).
-// - Portable: PDP includes worst supply-line FL using hose C values.
+/* --- Core math: calcMasterNumbers --- */
+
 function calcMasterNumbers(state, hoses, nozzles) {
-  const m = state.master || {};
+  const m = state.master;
   const noz = msGetNozzleById(nozzles, m.nozzleId) || {};
   const totalGpm = Number(noz.gpm || m.desiredGpm || 800);
-  const NP       = Number(noz.np || noz.NP || 80);
-  const applianceLoss = typeof m.applianceLossPsi === 'number'
-    ? m.applianceLossPsi
-    : 25;
-  const elevPsi = (m.elevationFt || 0) * 0.434;
 
-  // Deck gun: user only picks nozzle; we treat internal piping as fixed.
+  const NP = MASTER_NP; // fixed at 80 psi
+  const applianceLoss = MASTER_APPLIANCE_LOSS;
+  const elevPsi = (m.elevationFt || 0) * PSI_PER_FT;
+
   if (m.mountType === 'deck') {
+    // No supply line FL used in calc, just nozzle + appliance + elev.
     const PDP = NP + applianceLoss + elevPsi;
     return {
+      mountType: 'deck',
       gpm: Math.round(totalGpm),
       NP,
       FL: 0,
       applianceLoss: Math.round(applianceLoss),
       elevPsi: Math.round(elevPsi),
-      PDP: Math.round(PDP),
       lines: 0,
-      mountType: 'deck',
+      PDP: Math.round(PDP),
     };
   }
 
-  // Portable master / blitz
+  // Portable: one or two identical lines
   const lines = m.feedLines === 2 ? 2 : 1;
-  let feeds = [];
-
-  if (lines === 1) {
-    feeds = [m.blitzFeed];
-  } else {
-    feeds = [m.leftFeed, m.rightFeed];
-  }
-
   const gpmPerLine = totalGpm / (lines || 1);
-  let worstFL = 0;
 
-  feeds.forEach(feed => {
-    if (!feed) return;
-    const label = msGetHoseLabelById(hoses, feed.hoseSizeId);
-    const dia   = String(msGuessDiaFromHoseLabel(label));
-    const C     = MS_C_BY_DIA[dia] || 2;
-    const len   = feed.lengthFt || 0;
-    const fl    = msCalcFL(C, gpmPerLine, len);
-    if (fl > worstFL) worstFL = fl;
-  });
+  const hoseLabel = msGetHoseLabelById(hoses, m.supplyHoseId);
+  const dia = String(msGuessDiaFromHoseLabel(hoseLabel));
+  const C = MS_C_BY_DIA[dia] || 2;
+  const len = m.supplyLengthFt || 0;
+
+  const flPerLine = msCalcFL(C, gpmPerLine, len);
+  // Both lines are identical, so "worst" is just this.
+  const worstFL = flPerLine;
 
   const PDP = NP + worstFL + applianceLoss + elevPsi;
 
   return {
+    mountType: 'portable',
+    lines,
     gpm: Math.round(totalGpm),
     NP,
     FL: Math.round(worstFL),
     applianceLoss: Math.round(applianceLoss),
     elevPsi: Math.round(elevPsi),
     PDP: Math.round(PDP),
-    lines,
-    mountType: 'portable',
   };
 }
 
-/**
- * Master stream popup entry point
- *
- * @param {Object} opts
- *   - dept: { hoses: [{id,label}], appliances: [{id,label}], nozzles: [{id,label,gpm,np}] }
- *   - initial: optional existing master config
- *   - onSave: function(config) -> void
- */
+/* --- Public entry point --- */
+
 export function openMasterStreamPopup({
   dept = {},
   initial = null,
   onSave = () => {},
 } = {}) {
-  injectMasterStyles();
+  injectMsStyles();
 
-  const hoses      = dept.hoses      || [];
-  const appliances = dept.appliances || [];
-  const nozzles    = (Array.isArray(dept.nozzles) && dept.nozzles.length)
-    ? dept.nozzles
-    : DEFAULT_MS_NOZZLES;
+  const hoses = msGetHoseListFromDept(dept);
+  const nozzles = msGetNozzleListFromDept(dept);
 
-  // We need references for toggling visibility based on mount type
-  let feedsSection;   // supply lines section (portable only)
-  let feedRow;        // "Feed lines" row (portable only)
-  let elevRow;        // "Elevation" row (portable only)
+  const firstHose = hoses[0] || DEFAULT_MS_HOSES[0];
+  const firstNozzle = nozzles[0] || DEFAULT_MS_NOZZLES[0];
 
   const state = {
     master: {
-      mountType: 'deck',          // 'deck' | 'portable'
-      feedLines: 1,               // 1 or 2
-      applianceId: appliances[0]?.id || '',
-      nozzleId: nozzles[0]?.id || '',
-      desiredGpm: nozzles[0]?.gpm || 800, // kept for legacy, but driven by nozzle
-      applianceLossPsi: 25,
-      elevationFt: 0,
-      leftFeed:  {
-        hoseSizeId: hoses[0]?.id || '',
-        lengthFt: 150,
-        intakePsi: '',
-      },
-      rightFeed: {
-        hoseSizeId: hoses[0]?.id || '',
-        lengthFt: 150,
-        intakePsi: '',
-      },
-      blitzFeed: {
-        hoseSizeId: hoses[0]?.id || '',
-        lengthFt: 150,
-        intakePsi: '',
-      },
+      mountType: 'deck',        // 'deck' | 'portable'
+      feedLines: 1,             // 1 or 2
+      nozzleId: firstNozzle.id,
+      desiredGpm: firstNozzle.gpm || 800,
+      elevationFt: 0,           // used only in portable
+      supplyHoseId: firstHose.id,
+      supplyLengthFt: 150,
     }
   };
 
+  // Basic backward-friendly initial load (if you had older saved configs)
   if (initial && typeof initial === 'object') {
-    if (initial.master) {
-      Object.assign(state.master, initial.master);
-    } else {
-      Object.assign(state.master, initial);
-    }
-    // If existing config had no nozzleId but did have a desiredGpm, leave it.
-    if (!state.master.nozzleId && nozzles[0]) {
-      state.master.nozzleId = nozzles[0].id;
-    }
+    const src = initial.master || initial;
+    if (src.mountType) state.master.mountType = src.mountType;
+    if (src.feedLines != null) state.master.feedLines = src.feedLines;
+    if (src.nozzleId) state.master.nozzleId = src.nozzleId;
+    if (src.desiredGpm != null) state.master.desiredGpm = src.desiredGpm;
+    if (src.elevationFt != null) state.master.elevationFt = src.elevationFt;
+    if (src.supplyHoseId) state.master.supplyHoseId = src.supplyHoseId;
+    if (src.supplyLengthFt != null) state.master.supplyLengthFt = src.supplyLengthFt;
   }
 
-  // --- Popup skeleton ---
+  /* --- Popup skeleton --- */
+
   const overlay = document.createElement('div');
   overlay.className = 'ms-overlay';
 
@@ -561,17 +579,16 @@ export function openMasterStreamPopup({
   const header = document.createElement('div');
   header.className = 'ms-header';
 
-  const title = document.createElement('div');
-  title.className = 'ms-title';
-  title.textContent = 'Master stream setup';
+  const title = msEl('div', { class: 'ms-title', text: 'Master stream setup' });
 
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'ms-close';
-  closeBtn.textContent = '✕';
+  const closeBtn = msEl('button', {
+    class: 'ms-close',
+    type: 'button',
+    text: '✕',
+    onclick: () => close(),
+  });
 
-  header.appendChild(title);
-  header.appendChild(closeBtn);
+  header.append(title, closeBtn);
 
   const body = document.createElement('div');
   body.className = 'ms-body';
@@ -579,23 +596,26 @@ export function openMasterStreamPopup({
   const footer = document.createElement('div');
   footer.className = 'ms-footer';
 
-  const explainBtn = document.createElement('button');
-  explainBtn.type = 'button';
-  explainBtn.className = 'ms-btn-secondary';
-  explainBtn.textContent = 'Explain math';
+  const explainBtn = msEl('button', {
+    type: 'button',
+    class: 'ms-btn-secondary',
+    text: 'Explain math',
+  });
 
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.className = 'ms-btn-secondary';
-  cancelBtn.textContent = 'Cancel';
+  const cancelBtn = msEl('button', {
+    type: 'button',
+    class: 'ms-btn-secondary',
+    text: 'Cancel',
+    onclick: () => close(),
+  });
 
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'ms-btn-primary';
-  saveBtn.textContent = 'Save';
+  const saveBtn = msEl('button', {
+    type: 'button',
+    class: 'ms-btn-primary',
+    text: 'Save',
+  });
 
   footer.append(explainBtn, cancelBtn, saveBtn);
-
   panel.append(header, body, footer);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -607,24 +627,22 @@ export function openMasterStreamPopup({
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });
-  closeBtn.addEventListener('click', () => close());
-  cancelBtn.addEventListener('click', () => close());
 
-  // --- Preview bar ---
+  /* --- Preview bar --- */
+
   const previewBar = msEl('div', { class: 'ms-preview' });
 
   function updatePreview() {
     const vals = calcMasterNumbers(state, hoses, nozzles);
     previewBar.textContent =
-      `Master stream – GPM: ${vals.gpm}   |   PDP: ${vals.PDP} psi`;
+      `Master stream – Flow: ${vals.gpm} gpm   |   PDP: ${vals.PDP} psi`;
   }
 
-  // --- Explain math popup ---
+  /* --- Explain math popup --- */
+
   function openExplainPopup() {
     const vals = calcMasterNumbers(state, hoses, nozzles);
     const m = state.master;
-    const mode = m.mountType === 'portable' ? 'Portable master / blitz' : 'Deck gun';
-    const lines = vals.lines;
     const noz = msGetNozzleById(nozzles, m.nozzleId);
 
     const overlay2 = document.createElement('div');
@@ -636,26 +654,26 @@ export function openMasterStreamPopup({
     const header2 = document.createElement('div');
     header2.className = 'ms-explain-header';
 
-    const title2 = document.createElement('div');
-    title2.className = 'ms-explain-title';
-    title2.textContent = 'Master stream math breakdown';
+    const title2 = msEl('div', {
+      class: 'ms-explain-title',
+      text: 'Master stream math breakdown',
+    });
 
-    const close2 = document.createElement('button');
-    close2.type = 'button';
-    close2.className = 'ms-close';
-    close2.textContent = '✕';
+    const close2 = msEl('button', {
+      class: 'ms-close',
+      type: 'button',
+      text: '✕',
+    });
 
     header2.append(title2, close2);
 
     const body2 = document.createElement('div');
     body2.className = 'ms-explain-body';
 
+    const modeLabel = m.mountType === 'deck' ? 'Deck gun' : 'Portable master';
     const gpm = vals.gpm;
-    const NP  = vals.NP;
-
-    const linesLabel = (m.mountType === 'deck')
-      ? 'n/a (deck-mounted, internal piping)'
-      : String(lines);
+    const NP = vals.NP;
+    const lines = m.mountType === 'portable' ? vals.lines : 'n/a';
 
     body2.innerHTML = `
       <p>We use a master stream formula:</p>
@@ -663,32 +681,26 @@ export function openMasterStreamPopup({
 
       <p><strong>Inputs:</strong></p>
       <ul>
-        <li>Mode: <code>${mode}</code></li>
+        <li>Mode: <code>${modeLabel}</code></li>
         <li>Nozzle: <code>${noz ? noz.label : '—'}</code></li>
-        <li>Target flow (from nozzle): <code>${gpm} gpm</code></li>
-        <li>Number of supply lines: <code>${linesLabel}</code></li>
-        <li>Nozzle pressure (NP): <code>${NP} psi</code></li>
+        <li>Flow from nozzle: <code>${gpm} gpm</code></li>
+        <li>Nozzle pressure (NP) for master: <code>${NP} psi</code></li>
+        <li>Number of supply lines (portable only): <code>${lines}</code></li>
         <li>Appliance loss: <code>${vals.applianceLoss} psi</code></li>
         <li>Elevation: <code>${m.elevationFt || 0} ft → ${vals.elevPsi} psi</code></li>
       </ul>
 
-      <p><strong>Step 1 – Split flow between lines (portable only):</strong><br>
-        <code>GPM_per_line = total_GPM / lines</code>
+      <p><strong>Portable supply line friction loss:</strong></p>
+      <p>For portable mode, we assume 1 or 2 identical supply lines.</p>
+      <p>
+        We split flow per line:
+        <br><code>GPM_per_line = total_GPM / lines</code>
       </p>
-
-      <p><strong>Step 2 – Friction loss in the worst supply line (portable only):</strong><br>
-        We use <code>FL = C × (GPM_per_line/100)² × (length/100)</code> and take the highest value as the controlling line.<br>
-        → FL ≈ <code>${vals.FL} psi</code>
-      </p>
-
-      <p><strong>Step 3 – Appliance loss:</strong><br>
-        Deck gun piping or portable base, default 25 psi unless configured.<br>
-        → Appliance loss ≈ <code>${vals.applianceLoss} psi</code>
-      </p>
-
-      <p><strong>Step 4 – Elevation:</strong><br>
-        Approx <code>0.434 psi / ft</code> of vertical gain.<br>
-        → Elevation ≈ <code>${vals.elevPsi} psi</code>
+      <p>
+        Then use
+        <br><code>FL = C × (GPM_per_line/100)² × (length/100)</code>
+        <br>and treat that as the controlling friction loss.
+        <br>→ FL ≈ <code>${vals.FL} psi</code>
       </p>
 
       <p><strong>Final pump discharge pressure (PDP):</strong></p>
@@ -696,7 +708,7 @@ export function openMasterStreamPopup({
         <code>
           PDP = ${NP} (NP) +
                 ${vals.FL} (FL) +
-                ${vals.applianceLoss} (appl) +
+                ${vals.applianceLoss} (appliance) +
                 ${vals.elevPsi} (elev)
           = ${vals.PDP} psi
         </code>
@@ -706,10 +718,11 @@ export function openMasterStreamPopup({
     const footer2 = document.createElement('div');
     footer2.className = 'ms-explain-footer';
 
-    const ok2 = document.createElement('button');
-    ok2.type = 'button';
-    ok2.className = 'ms-btn-primary';
-    ok2.textContent = 'Close';
+    const ok2 = msEl('button', {
+      type: 'button',
+      class: 'ms-btn-primary',
+      text: 'Close',
+    });
 
     footer2.appendChild(ok2);
 
@@ -730,9 +743,9 @@ export function openMasterStreamPopup({
 
   explainBtn.addEventListener('click', openExplainPopup);
 
-  // --- UI building ---
+  /* --- UI: mount + nozzle + portable-only fields --- */
 
-  // Mount type toggle
+  // Mount toggle: Deck vs Portable
   const mountToggle = (() => {
     const deckBtn = msEl('button', {
       text: 'Deck gun',
@@ -740,35 +753,36 @@ export function openMasterStreamPopup({
         e.preventDefault();
         state.master.mountType = 'deck';
         refresh();
-        renderFeeds();
         updatePreview();
-      }
+      },
     });
+
     const portableBtn = msEl('button', {
       text: 'Portable',
       onclick: (e) => {
         e.preventDefault();
         state.master.mountType = 'portable';
         refresh();
-        renderFeeds();
         updatePreview();
-      }
+      },
     });
-    function refresh() {
-      deckBtn.classList.toggle('ms-toggle-on', state.master.mountType === 'deck');
-      portableBtn.classList.toggle('ms-toggle-on', state.master.mountType === 'portable');
 
-      // Show/hide portable-only UI
+    function refresh() {
       const isDeck = state.master.mountType === 'deck';
-      if (feedRow)   feedRow.style.display   = isDeck ? 'none' : '';
-      if (elevRow)   elevRow.style.display   = isDeck ? 'none' : '';
-      if (feedsSection) feedsSection.style.display = isDeck ? 'none' : '';
+      deckBtn.classList.toggle('ms-toggle-on', isDeck);
+      portableBtn.classList.toggle('ms-toggle-on', !isDeck);
+
+      // Show/hide portable-only rows
+      const displayPortable = isDeck ? 'none' : '';
+      feedLinesRow.style.display = displayPortable;
+      portableRow.style.display = displayPortable;
     }
-    refresh();
-    return { root: msEl('span', { class: 'ms-toggle-group' }, deckBtn, portableBtn), refresh };
+
+    const root = msEl('span', { class: 'ms-toggle-group' }, deckBtn, portableBtn);
+    return { root, refresh };
   })();
 
-  // Feed lines toggle (portable only, but we hide/show via mountToggle)
+  // Feed lines toggle (portable only)
   const feedToggle = (() => {
     const oneBtn = msEl('button', {
       text: '1 line',
@@ -776,9 +790,8 @@ export function openMasterStreamPopup({
         e.preventDefault();
         state.master.feedLines = 1;
         refresh();
-        renderFeeds();
         updatePreview();
-      }
+      },
     });
     const twoBtn = msEl('button', {
       text: '2 lines',
@@ -786,19 +799,20 @@ export function openMasterStreamPopup({
         e.preventDefault();
         state.master.feedLines = 2;
         refresh();
-        renderFeeds();
         updatePreview();
-      }
+      },
     });
+
     function refresh() {
-      oneBtn.classList.toggle('ms-toggle-on', state.master.feedLines !== 2);
-      twoBtn.classList.toggle('ms-toggle-on', state.master.feedLines === 2);
+      const lines = state.master.feedLines === 2 ? 2 : 1;
+      oneBtn.classList.toggle('ms-toggle-on', lines === 1);
+      twoBtn.classList.toggle('ms-toggle-on', lines === 2);
     }
-    refresh();
-    return { root: msEl('span', { class: 'ms-toggle-group' }, oneBtn, twoBtn), refresh };
+
+    const root = msEl('span', { class: 'ms-toggle-group' }, oneBtn, twoBtn);
+    return { root, refresh };
   })();
 
-  // Top section – master type + nozzle + (portable-only) feed lines + elevation
   const topSection = msEl('div', { class: 'ms-section' });
 
   const mountRow = msEl('div', { class: 'ms-row' },
@@ -808,7 +822,7 @@ export function openMasterStreamPopup({
 
   const nozzleRow = msEl('div', { class: 'ms-row' },
     msEl('label', { text: 'Nozzle:' }),
-    msSelect(nozzles, state.master.nozzleId, v => {
+    msSelect(nozzles, state.master.nozzleId, (v) => {
       state.master.nozzleId = v;
       const noz = msGetNozzleById(nozzles, v);
       if (noz && typeof noz.gpm === 'number') {
@@ -818,101 +832,57 @@ export function openMasterStreamPopup({
     })
   );
 
-  feedRow = msEl('div', { class: 'ms-row' },
+  // Portable-only: feed lines + hose + length + elevation
+  const feedLinesRow = msEl('div', { class: 'ms-row' },
     msEl('label', { text: 'Feed lines:' }),
     feedToggle.root
   );
 
-  elevRow = msEl('div', { class: 'ms-row' },
-    msEl('label', { text: 'Elevation (portable):' }),
-    msNumberInput(state.master.elevationFt, v => {
-      state.master.elevationFt = v;
+  const portableRow = msEl('div', { class: 'ms-row' },
+    msEl('label', { text: 'Portable supply:' }),
+    msSelect(hoses, state.master.supplyHoseId, (v) => {
+      state.master.supplyHoseId = v;
       updatePreview();
     }),
-    msEl('span', { text: 'ft (0 if same level)' })
+    msNumberInput(state.master.supplyLengthFt, (v) => {
+      state.master.supplyLengthFt = v === '' ? 0 : v;
+      updatePreview();
+    }),
+    msEl('span', { text: 'ft (same for both lines if using 2)' }),
+    msEl('span', { text: 'Elevation (ft):' }),
+    msNumberInput(state.master.elevationFt, (v) => {
+      state.master.elevationFt = v === '' ? 0 : v;
+      updatePreview();
+    })
   );
 
   topSection.append(
     msEl('h3', { text: 'Master stream type' }),
     mountRow,
     nozzleRow,
-    feedRow,
-    elevRow
+    feedLinesRow,
+    portableRow
   );
 
-  // Feeds section container – portable only
-  feedsSection = msEl('div', { class: 'ms-section' },
-    msEl('h3', { text: 'Supply lines (portable only)' })
-  );
-  const feedsContainer = msEl('div');
-  feedsSection.appendChild(feedsContainer);
+  body.append(topSection, previewBar);
 
-  function feedBlock(label, feedState) {
-    return msEl('div', { class: 'ms-subsection' },
-      msEl('h4', { text: label }),
-      msEl('div', { class: 'ms-row' },
-        msEl('label', { text: 'Hose size:' }),
-        msSelect(hoses, feedState.hoseSizeId, v => { feedState.hoseSizeId = v; updatePreview(); }),
-        msEl('span', { text: 'Length:' }),
-        msNumberInput(feedState.lengthFt, v => { feedState.lengthFt = v === '' ? 0 : v; updatePreview(); }),
-        msEl('span', { text: 'ft' })
-      ),
-      msEl('div', { class: 'ms-row' },
-        msEl('label', { text: 'Intake PSI (optional):' }),
-        msNumberInput(feedState.intakePsi, v => { feedState.intakePsi = v; updatePreview(); })
-      )
-    );
-  }
-
-  function renderFeeds() {
-    feedsContainer.innerHTML = '';
-
-    // No visible feeds if deck gun
-    if (state.master.mountType === 'deck') {
-      return;
-    }
-
-    const lines = state.master.feedLines === 2 ? 2 : 1;
-
-    if (lines === 1) {
-      const feed = state.master.blitzFeed;
-      feedsContainer.append(
-        msEl('div', { class: 'ms-row' },
-          feedBlock('Supply line', feed)
-        )
-      );
-    } else {
-      feedsContainer.append(
-        msEl('div', { class: 'ms-row ms-two-cols' },
-          feedBlock('Left supply', state.master.leftFeed),
-          feedBlock('Right supply', state.master.rightFeed)
-        )
-      );
-    }
-  }
-
-  renderFeeds();
-
-  body.append(topSection, feedsSection, previewBar);
-
-  // Initial visibility for mount-dependent UI
+  // Initial visibility
   mountToggle.refresh();
+  feedToggle.refresh();
   updatePreview();
 
-  // Save handler – returns a compact config for this master stream setup
+  // Save handler
   saveBtn.addEventListener('click', () => {
+    const lastCalc = calcMasterNumbers(state, hoses, nozzles);
     const payload = {
       mountType: state.master.mountType,
       feedLines: state.master.feedLines,
-      applianceId: state.master.applianceId,
       nozzleId: state.master.nozzleId,
       desiredGpm: state.master.desiredGpm,
-      applianceLossPsi: state.master.applianceLossPsi,
       elevationFt: state.master.elevationFt,
-      leftFeed:  { ...state.master.leftFeed },
-      rightFeed: { ...state.master.rightFeed },
-      blitzFeed: { ...state.master.blitzFeed },
-      lastCalc:  calcMasterNumbers(state, hoses, nozzles),
+      supplyHoseId: state.master.supplyHoseId,
+      supplyLengthFt: state.master.supplyLengthFt,
+      lastCalc,
     };
     onSave(payload);
     close();
