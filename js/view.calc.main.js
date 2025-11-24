@@ -436,39 +436,35 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
   function loadDeptForBuilders(){
-    // Read raw dept config (for future use), then layer in hose/nozzle libraries
+    // Load raw department config from storage and enrich it with
+    // hose/nozzle libraries that the line builder popups expect.
     let base = {};
     try {
       if (typeof localStorage !== 'undefined') {
         const raw = localStorage.getItem(STORAGE_DEPT_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            base = parsed;
-          }
+          if (parsed && typeof parsed === 'object') base = parsed;
         }
       }
     } catch (e) {
       console.warn('Failed to load dept for builders', e);
     }
 
-    // Start with a shallow copy so we don't accidentally mutate stored config
     const dept = Object.assign({}, base || {});
 
-    // ----- Nozzles -----
+    // ---- Nozzles (library + selected ids) ----
     let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
-    // Normalize nozzle objects for the popup: id, label, gpm, np
     allNozzles = allNozzles.map(n => ({
       id:    n.id,
-      label: n.name || n.label || n.id,
-      gpm:   typeof n.gpm === 'number' ? n.gpm : (typeof n.GPM === 'number' ? n.GPM : 0),
-      np:    typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : 0),
+      label: n.name || n.label || n.desc || n.id,
+      gpm:   typeof n.gpm === 'number' ? n.gpm
+            : (typeof n.GPM === 'number' ? n.GPM : 0),
+      np:    typeof n.np === 'number' ? n.np
+            : (typeof n.NP === 'number' ? n.NP : 0),
     }));
-
-    // Full library for popups (Fog, SB, etc.)
     dept.nozzlesAll = allNozzles;
 
-    // Limit to department-selected nozzle IDs (e.g. only 15/16)
     let selectedNozzleIds = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
@@ -479,85 +475,71 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         }
       }
     } catch (e) {
-      console.warn('getDeptNozzleIds failed', e);
+      console.warn('getDeptNozzleIds failed in loadDeptForBuilders', e);
     }
-    
-    if (!selectedNozzleIds.length && Array.isArray(base.nozzles)) {
-      selectedNozzleIds = base.nozzles
-        .map(id => typeof id === 'string' ? id.trim() : String(id || '').trim())
-        .filter(id => id.length && allNozzles.some(n => n.id === id));
-    }
-if (selectedNozzleIds.length) {
+    if (selectedNozzleIds.length) {
       dept.nozzlesSelected = selectedNozzleIds;
     }
 
-    // ----- Hoses -----
+    // ---- Hoses (library + selected diameters) ----
     const DEFAULT_HOSES = [
-      { id: "1.75", label: "1 3/4\"", c: 15.5 },
-      { id: "2.5",  label: "2 1/2\"", c: 2.0 },
-      { id: "3",    label: "3\"",      c: 0.8 },
-      { id: "5",    label: "5\"",      c: 0.08 }
+      { id: "1.75", label: "1 3/4",  c: 15.5 },
+      { id: "2.5",  label: "2 1/2",  c: 2.0 },
+      { id: "3",    label: "3",      c: 0.8 },
+      { id: "5",    label: "5",      c: 0.08 },
     ];
 
     let hoseIds = [];
     try {
       if (typeof getDeptHoseDiameters === 'function') {
-        const ids = getDeptHoseDiameters() || [];
-        if (Array.isArray(ids)) {
-          hoseIds = ids.map(x => String(x));
+        const ds = getDeptHoseDiameters() || [];
+        if (Array.isArray(ds) && ds.length) {
+          hoseIds = ds.map(d => String(d).trim()).filter(Boolean);
         }
       }
     } catch (e) {
-      console.warn('getDeptHoseDiameters failed', e);
+      console.warn('getDeptHoseDiameters failed in loadDeptForBuilders', e);
     }
 
-    // Try to pull custom hose labels / C values from stored dept config, if present.
-    const hoseMetaById = {};
+    const hosesAll = [];
+    const byId = {};
+    DEFAULT_HOSES.forEach(h => { byId[h.id] = h; });
+
     if (base && base.hoses && typeof base.hoses === 'object') {
-      // Support either object map or array of hose configs.
+      // Support array or object
       if (Array.isArray(base.hoses)) {
         base.hoses.forEach(h => {
           if (!h) return;
-          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : null);
+          const id = h.diameter != null ? String(h.diameter) : (h.id != null ? String(h.id) : null);
           if (!id) return;
-          if (!hoseMetaById[id]) {
-            hoseMetaById[id] = {
-              id,
-              label: h.label || h.name || `${id}"`,
-              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
-            };
-          }
+          byId[id] = {
+            id,
+            label: h.label || h.name || `${id}"`,
+            c: typeof h.c === 'number' ? h.c
+               : (typeof h.flC === 'number' ? h.flC : undefined),
+          };
         });
       } else {
-        Object.keys(base.hoses).forEach(key => {
-          const h = base.hoses[key];
+        Object.keys(base.hoses).forEach(k => {
+          const h = base.hoses[k];
           if (!h) return;
-          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : String(key));
+          const id = h.diameter != null ? String(h.diameter)
+                   : (h.id != null ? String(h.id) : String(k));
           if (!id) return;
-          if (!hoseMetaById[id]) {
-            hoseMetaById[id] = {
-              id,
-              label: h.label || h.name || `${id}"`,
-              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
-            };
-          }
+          byId[id] = {
+            id,
+            label: h.label || h.name || `${id}"`,
+            c: typeof h.c === 'number' ? h.c
+               : (typeof h.flC === 'number' ? h.flC : undefined),
+          };
         });
       }
     }
 
-    const hosesAll = [];
-    const addHoseIfNeeded = (id) => {
-      if (!id) return;
-      const key = String(id);
-      if (hosesAll.some(h => h.id === key)) return;
-      const meta = hoseMetaById[key]
-        || DEFAULT_HOSES.find(h => h.id === key)
-        || { id: key, label: `${key}"`, c: 15.5 };
-      hosesAll.push(Object.assign({}, meta));
-    };
-
     if (hoseIds.length) {
-      hoseIds.forEach(addHoseIfNeeded);
+      hoseIds.forEach(id => {
+        if (byId[id]) hosesAll.push(Object.assign({}, byId[id]));
+      });
     } else {
       DEFAULT_HOSES.forEach(h => hosesAll.push(Object.assign({}, h)));
     }
@@ -871,56 +853,7 @@ function updateSegSwitchVisibility(){
       .join('');
   }
 
-  
-  // Override: build nozzle options directly from department storage so main
-  // Line 1/2/3 editor only shows department-selected nozzles.
-  function buildNozzleOptionsHTML() {
-    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-
-    // Load raw dept config directly from localStorage
-    let dept = null;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem('fireops_dept_equipment_v1');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            dept = parsed;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('buildNozzleOptionsHTML: dept load failed', e);
-      dept = null;
-    }
-
-    let ids = [];
-    if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
-      ids = dept.nozzles
-        .map(id => typeof id === 'string' ? id.trim() : '')
-        .filter(id => id.length);
-    }
-
-    // If no dept selection saved, fall back to full list.
-    if (!ids.length) {
-      return fullList
-        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-        .join('');
-    }
-
-    const set = new Set(ids);
-    const filtered = fullList.filter(n => n && typeof n.id === 'string' && set.has(n.id));
-
-    // If none of the selected ids matched known nozzles (e.g. config drift),
-    // still fall back to the full list so the UI is never empty.
-    const base = filtered.length ? filtered : fullList;
-
-    return base
-      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-      .join('');
-  }
-
-const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  const nozzleOptionsHTML = buildNozzleOptionsHTML();
   [teNoz, teNozA, teNozB].forEach(sel => {
     if (!sel) return;
     sel.innerHTML = nozzleOptionsHTML;
@@ -2413,7 +2346,10 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if (teNoz) fillNozzles(teNoz);
+  if (teNoz) {
+    // Use department-selected nozzle list when available
+    fillNozzles(teNoz);
+  }
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
@@ -2453,25 +2389,30 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-    if (!sel || !Array.isArray(NOZ_LIST)) return;
+    if (!sel) return;
+    if (!Array.isArray(NOZ_LIST)) return;
 
-    // Start from full list, then narrow to department-selected if defined
+    // Start with full list
     let list = NOZ_LIST;
-    try{
+
+    // If Department Setup has selected nozzles, filter to only those IDs.
+    try {
       if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids) && ids.length) {
-          const set = new Set(ids);
-          const filtered = NOZ_LIST.filter(n => n && set.has(n.id));
+        const deptIds = getDeptNozzleIds() || [];
+        if (Array.isArray(deptIds) && deptIds.length) {
+          const idSet = new Set(deptIds.map(id => String(id).trim()));
+          const filtered = NOZ_LIST.filter(n => n && n.id && idSet.has(String(n.id)));
           if (filtered.length) {
             list = filtered;
           }
         }
       }
-    }catch(e){}
+    } catch (e) {
+      console.warn('fillNozzles dept filter failed', e);
+    }
 
     sel.innerHTML = list.map(n => {
-      const label = n.name || n.desc || n.id || 'Nozzle';
+      const label = n.name || n.desc || n.label || n.id || 'Nozzle';
       const val   = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
