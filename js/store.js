@@ -164,9 +164,20 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export function seedDefaultsForKey(key){
+export 
+function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
   if(state.lines[key]) return state.lines[key];
+
+  // Prefer department-saved defaults for the three front-panel attack lines
+  if (key === 'left' || key === 'back' || key === 'right') {
+    const deptLine = getDeptLineDefault(key);
+    if (deptLine && typeof deptLine === 'object') {
+      // Clone so we don't mutate the stored template directly
+      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+      return state.lines[key];
+    }
+  }
 
   const L1N = NOZ.chief185_50;
   const L3N = NOZ.chiefXD265;
@@ -213,12 +224,12 @@ export function seedDefaultsForKey(key){
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: NOZ_LIST[0] || null,
+      nozRight: null,
     };
   }
+
   return state.lines[key];
 }
-
 /* =========================
  * Wye helpers
  * ========================= */
