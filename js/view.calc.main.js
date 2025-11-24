@@ -1084,28 +1084,131 @@ function updateSegSwitchVisibility(){
     });
   }
 
-// Click handler for preset line buttons
+
+  function openPresetLineActions(id){
+    const pl = activePresetLines[id];
+    if (!pl) return;
+
+    // Simple bottom-sheet style overlay
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.background = 'rgba(15,23,42,0.55)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'flex-end';
+    overlay.style.justifyContent = 'center';
+    overlay.style.zIndex = '10150';
+
+    const panel = document.createElement('div');
+    panel.style.width = '100%';
+    panel.style.maxWidth = '480px';
+    panel.style.margin = '0 12px 18px';
+    panel.style.borderRadius = '18px';
+    panel.style.background = '#020617';
+    panel.style.boxShadow = '0 18px 30px rgba(15,23,42,0.9)';
+    panel.style.padding = '10px 14px 12px';
+    panel.style.color = '#e5e7eb';
+    panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+
+    const title = document.createElement('div');
+    title.textContent = pl.name || 'Preset line';
+    title.style.fontWeight = '600';
+    title.style.marginBottom = '4px';
+
+    const subt = document.createElement('div');
+    subt.textContent = 'What would you like to do with this line?';
+    subt.style.fontSize = '13px';
+    subt.style.opacity = '0.8';
+    subt.style.marginBottom = '8px';
+
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'flex';
+    btnRow.style.gap = '8px';
+    btnRow.style.marginTop = '6px';
+    btnRow.style.flexWrap = 'wrap';
+
+    function makeBtn(label, variant){
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.style.flex = '1 1 0';
+      b.style.borderRadius = '999px';
+      b.style.padding = '7px 10px';
+      b.style.fontSize = '14px';
+      b.style.border = 'none';
+      b.style.cursor = 'pointer';
+      if (variant === 'primary'){
+        b.style.background = '#22c55e';
+        b.style.color = '#020617';
+        b.style.fontWeight = '600';
+      } else if (variant === 'danger'){
+        b.style.background = 'rgba(248,113,113,0.16)';
+        b.style.color = '#fecaca';
+        b.style.border = '1px solid rgba(248,113,113,0.5)';
+      } else {
+        b.style.background = 'rgba(148,163,184,0.12)';
+        b.style.color = '#e5e7eb';
+      }
+      return b;
+    }
+
+    const editBtn = makeBtn('Edit line', 'primary');
+    const removeBtn = makeBtn('Remove line', 'danger');
+    const cancelBtn = makeBtn('Cancel', 'secondary');
+
+    function closeOverlay(){
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }
+
+    editBtn.addEventListener('click', () => {
+      closeOverlay();
+      const plRef = activePresetLines[id];
+      if (!plRef) return;
+      openPresetLineEditor(plRef, {
+        onSave(edited){
+          plRef.config = Object.assign({}, plRef.config || {}, edited || {});
+          refreshTotals();
+          renderPresetLineButtons();
+          markDirty();
+        }
+      });
+    });
+
+    removeBtn.addEventListener('click', () => {
+      delete activePresetLines[id];
+      closeOverlay();
+      refreshTotals();
+      renderPresetLineButtons();
+      markDirty();
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      closeOverlay();
+    });
+
+    btnRow.appendChild(editBtn);
+    btnRow.appendChild(removeBtn);
+    btnRow.appendChild(cancelBtn);
+
+    panel.appendChild(title);
+    panel.appendChild(subt);
+    panel.appendChild(btnRow);
+    overlay.appendChild(panel);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeOverlay();
+    });
+
+    document.body.appendChild(overlay);
+  }
+
+  // Click handler for preset line buttons
   container.addEventListener('click', (e)=>{
     const btn = e.target.closest('.preset-line-btn');
     if (!btn) return;
     const id = btn.dataset.presetId;
-    const pl = activePresetLines[id];
-    if (!pl) return;
-
-    openPresetLineEditor(pl, {
-      onSave(edited){
-        pl.config = Object.assign({}, pl.config || {}, edited || {});
-        refreshTotals();
-        renderPresetLineButtons();
-        markDirty();
-      },
-      onDelete(){
-        delete activePresetLines[id];
-        refreshTotals();
-        renderPresetLineButtons();
-        markDirty();
-      }
-    });
+    if (!id || !activePresetLines[id]) return;
+    openPresetLineActions(id);
   });
 
   /* ---------------------------- Totals & KPIs ----------------------------- */
