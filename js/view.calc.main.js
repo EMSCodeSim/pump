@@ -832,90 +832,55 @@ function updateSegSwitchVisibility(){
 
 
   // Populate nozzle selects, prioritizing Department Setup choices if available
+  function 
+  // Build nozzle <option> list for the main Line 1/2/3 editor.
+  // If the department has selected specific nozzles in Department Setup,
+  // only those will be shown. If nothing is configured, fall back to the
+  // full built‑in nozzle catalog so the UI is never empty.
   function buildNozzleOptionsHTML() {
     const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-    let deptIds = [];
+    if (!fullList.length) return '';
+
+    let selectedIds = [];
 
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids)) {
-          deptIds = ids.filter(x => typeof x === 'string' && x.trim().length > 0);
-        }
-      }
-    } catch (_e) {
-      deptIds = [];
-    }
-
-    // If department has selected nozzles, show ONLY those.
-    if (deptIds.length) {
-      const deptSet = new Set(deptIds);
-      const deptOpts = fullList
-        .filter(n => n && n.id && deptSet.has(n.id))
-        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-        .join('');
-
-      // If none of the ids matched the known nozzle list, fall back to plain full list
-      if (!deptOpts) {
-        return fullList
-          .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-          .join('');
-      }
-
-      return deptOpts;
-    }
-
-    // Default: full list only (no department config yet)
-    return fullList
-      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-      .join('');
-  }
-
-  
-  // Override: build nozzle options directly from department storage so main
-  // Line 1/2/3 editor only shows department-selected nozzles.
-  function buildNozzleOptionsHTML() {
-    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-
-    // Load raw dept config directly from localStorage
-    let dept = null;
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem('fireops_dept_equipment_v1');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && typeof parsed === 'object') {
-            dept = parsed;
-          }
+          selectedIds = ids
+            .map(id => (typeof id === 'string' ? id.trim() : String(id || '').trim()))
+            .filter(id => id.length);
         }
       }
     } catch (e) {
-      console.warn('buildNozzleOptionsHTML: dept load failed', e);
-      dept = null;
+      console.warn('buildNozzleOptionsHTML: getDeptNozzleIds failed', e);
+      selectedIds = [];
     }
 
-    let ids = [];
-    if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
-      ids = dept.nozzles
-        .map(id => typeof id === 'string' ? id.trim() : '')
-        .filter(id => id.length);
+    // Map all known nozzles by id for fast lookup.
+    const byId = new Map(fullList.map(n => [n.id, n]));
+
+    // If the department has a non‑empty set of valid nozzle ids, build the
+    // list in that order. If none of them match (config drift, etc.), we
+    // silently fall back to the full catalog.
+    let baseList = fullList;
+    if (selectedIds.length) {
+      const filtered = [];
+      const used = new Set();
+      for (const id of selectedIds) {
+        if (used.has(id)) continue;
+        const noz = byId.get(id);
+        if (noz) {
+          filtered.push(noz);
+          used.add(id);
+        }
+      }
+      if (filtered.length) {
+        baseList = filtered;
+      }
     }
 
-    // If no dept selection saved, fall back to full list.
-    if (!ids.length) {
-      return fullList
-        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
-        .join('');
-    }
-
-    const set = new Set(ids);
-    const filtered = fullList.filter(n => n && typeof n.id === 'string' && set.has(n.id));
-
-    // If none of the selected ids matched known nozzles (e.g. config drift),
-    // still fall back to the full list so the UI is never empty.
-    const base = filtered.length ? filtered : fullList;
-
-    return base
+    return baseList
       .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
       .join('');
   }
