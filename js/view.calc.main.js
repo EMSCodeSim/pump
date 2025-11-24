@@ -44,7 +44,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters } from './preset.js';
+import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults } from './preset.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
