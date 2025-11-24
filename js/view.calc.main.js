@@ -1618,7 +1618,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
   //   is added on top of Lines 1–3.
-
+  
   // Apply a saved preset back into the calc.
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
@@ -1683,15 +1683,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
       // New Preset Line Editor format
       if (presetObj.config && typeof presetObj.config === 'object') {
-        const pc  = presetObj.config;
-        const lt  = presetObj.lineType || pc.lineType;
+        const pc   = presetObj.config;
+        const lt   = presetObj.lineType || pc.lineType;
         const cfgs = (pc.configs && typeof pc.configs === 'object') ? pc.configs : {};
 
         let cfg = null;
         if (lt === 'standard' || lt === 'single' || lt === 'wye') {
-          cfg = pc.standardConfig || cfgs.standard || null;
+          cfg = pc.standardConfig  || cfgs.standard  || null;
         } else if (lt === 'master') {
-          cfg = pc.masterConfig   || cfgs.master   || null;
+          cfg = pc.masterConfig    || cfgs.master    || null;
         } else if (lt === 'standpipe') {
           cfg = pc.standpipeConfig || cfgs.standpipe || null;
         } else if (lt === 'sprinkler') {
