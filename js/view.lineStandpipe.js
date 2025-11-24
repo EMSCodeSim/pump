@@ -294,6 +294,54 @@ const SP_C_BY_DIA = {
   '4':   0.2,
   '5':   0.08,
 };
+const SP_DEPT_STORAGE_KEY = 'fireops_dept_equipment_v1';
+
+// Normalize a single dept item (string or object) into { id, label, ...rest }
+function spNormalizeDeptItem(item, fallbackPrefix, index) {
+  if (item && typeof item === 'object') {
+    const id = item.id != null
+      ? String(item.id)
+      : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
+    const label = item.label || item.name || String(id);
+    return { id, label, ...item };
+  }
+  const id = String(item);
+  return { id, label: id, raw: item };
+}
+
+// Get normalized hoses/nozzles for standpipe editor.
+// Preference order:
+//   1) deptParam.hoses / deptParam.nozzles if present
+//   2) localStorage["fireops_dept_equipment_v1"]
+function spGetDeptEquipment(deptParam = {}) {
+  let rawHoses = [];
+  let rawNozzles = [];
+
+  if (deptParam && (Array.isArray(deptParam.hoses) || Array.isArray(deptParam.nozzles))) {
+    rawHoses = Array.isArray(deptParam.hoses) ? deptParam.hoses : [];
+    rawNozzles = Array.isArray(deptParam.nozzles) ? deptParam.nozzles : [];
+  } else {
+    try {
+      const json = localStorage.getItem(SP_DEPT_STORAGE_KEY);
+      if (json) {
+        const parsed = JSON.parse(json);
+        if (parsed && typeof parsed === 'object') {
+          rawHoses = Array.isArray(parsed.hoses) ? parsed.hoses : [];
+          rawNozzles = Array.isArray(parsed.nozzles) ? parsed.nozzles : [];
+        }
+      }
+    } catch (e) {
+      console.warn('Standpipe dept load failed', e);
+    }
+  }
+
+  const hoses = rawHoses.map((h, i) => spNormalizeDeptItem(h, 'hose', i));
+  const nozzles = rawNozzles.map((n, i) => spNormalizeDeptItem(n, 'noz', i));
+
+  return { hoses, nozzles };
+}
+
+
 
 // If you store diameters in the dept.hoses objects, you can use that instead.
 // Here we'll try to guess from label.
@@ -343,8 +391,7 @@ export function openStandpipePopup({
 } = {}) {
   injectStandpipeStyles();
 
-  const hoses   = dept.hoses   || [];
-  const nozzles = dept.nozzles || [];
+  const { hoses, nozzles } = spGetDeptEquipment(dept);
 
   const state = {
     engineHoseId: hoses[0]?.id || '',
