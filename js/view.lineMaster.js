@@ -2,15 +2,15 @@
 // Master stream / Blitz popup for a single line.
 //
 // - Deck gun vs Portable master
-// - Feed by 1 or 2 lines
-// - Each supply line: hose size + length + optional intake PSI
-// - Appliance loss + elevation
+// - Deck gun: user only picks nozzle, GPM is known from nozzle
+// - Portable: user can pick 1 or 2 lines, hose size (dept setup),
+//   nozzle (dept setup) and elevation.
 // - Live GPM / PDP preview
 // - "Explain math" popup
 //
 // Usage example (from preset editor or view.calc):
 //   openMasterStreamPopup({
-//     dept: { hoses, appliances },
+//     dept: { hoses, appliances, nozzles },
 //     initial: existingMasterConfigOrNull,
 //     onSave(config) {
 //       // store config.master for this preset or this line
@@ -372,7 +372,6 @@ function msSelect(options, current, onChange) {
 }
 
 // --- Hose / FL helpers ---
-// These are the same style as we used in the preset editor.
 
 const MS_C_BY_DIA = {
   '1.75': 15.5,
@@ -401,32 +400,66 @@ function msGetHoseLabelById(hoses, id) {
   return h ? h.label : '';
 }
 
-// FL = C × (GPM/100)² × (length/100)
 function msCalcFL(C, gpm, lengthFt) {
   if (!C || !gpm || !lengthFt) return 0;
   const per100 = C * Math.pow(gpm / 100, 2);
   return per100 * (lengthFt / 100);
 }
 
-// Main math for master stream
-function calcMasterNumbers(state, hoses) {
-  const m = state.master || {};
-  const totalGpm = Number(m.desiredGpm || 800);
-  const NP       = 80; // master stream NP assumption
-  const lines    = m.feedLines === 2 ? 2 : 1;
+// --- Nozzle helpers ---
 
+const DEFAULT_MS_NOZZLES = [
+  { id: 'ms_500_80',   label: '500 gpm @ 80 psi',   gpm: 500,  np: 80 },
+  { id: 'ms_750_80',   label: '750 gpm @ 80 psi',   gpm: 750,  np: 80 },
+  { id: 'ms_1000_80',  label: '1000 gpm @ 80 psi',  gpm: 1000, np: 80 },
+  { id: 'ms_1250_80',  label: '1250 gpm @ 80 psi',  gpm: 1250, np: 80 },
+];
+
+function msGetNozzleById(nozzles, id) {
+  if (!Array.isArray(nozzles) || !nozzles.length) return null;
+  if (!id) return nozzles[0];
+  return nozzles.find(n => n.id === id) || nozzles[0];
+}
+
+// Main math for master stream
+// - Deck gun: PDP = NP(from nozzle) + applianceLoss + elevation (no supply line FL).
+// - Portable: PDP includes worst supply-line FL using hose C values.
+function calcMasterNumbers(state, hoses, nozzles) {
+  const m = state.master || {};
+  const noz = msGetNozzleById(nozzles, m.nozzleId) || {};
+  const totalGpm = Number(noz.gpm || m.desiredGpm || 800);
+  const NP       = Number(noz.np || noz.NP || 80);
+  const applianceLoss = typeof m.applianceLossPsi === 'number'
+    ? m.applianceLossPsi
+    : 25;
+  const elevPsi = (m.elevationFt || 0) * 0.434;
+
+  // Deck gun: user only picks nozzle; we treat internal piping as fixed.
+  if (m.mountType === 'deck') {
+    const PDP = NP + applianceLoss + elevPsi;
+    return {
+      gpm: Math.round(totalGpm),
+      NP,
+      FL: 0,
+      applianceLoss: Math.round(applianceLoss),
+      elevPsi: Math.round(elevPsi),
+      PDP: Math.round(PDP),
+      lines: 0,
+      mountType: 'deck',
+    };
+  }
+
+  // Portable master / blitz
+  const lines = m.feedLines === 2 ? 2 : 1;
   let feeds = [];
+
   if (lines === 1) {
-    if (m.mountType === 'portable') {
-      feeds = [m.blitzFeed];
-    } else {
-      feeds = [m.leftFeed];
-    }
+    feeds = [m.blitzFeed];
   } else {
     feeds = [m.leftFeed, m.rightFeed];
   }
 
-  const gpmPerLine = totalGpm / lines;
+  const gpmPerLine = totalGpm / (lines || 1);
   let worstFL = 0;
 
   feeds.forEach(feed => {
@@ -439,9 +472,7 @@ function calcMasterNumbers(state, hoses) {
     if (fl > worstFL) worstFL = fl;
   });
 
-  const applianceLoss = m.applianceLossPsi || 25;
-  const elevPsi       = (m.elevationFt || 0) * 0.434;
-  const PDP           = NP + worstFL + applianceLoss + elevPsi;
+  const PDP = NP + worstFL + applianceLoss + elevPsi;
 
   return {
     gpm: Math.round(totalGpm),
@@ -451,7 +482,7 @@ function calcMasterNumbers(state, hoses) {
     elevPsi: Math.round(elevPsi),
     PDP: Math.round(PDP),
     lines,
-    mountType: m.mountType,
+    mountType: 'portable',
   };
 }
 
@@ -459,7 +490,7 @@ function calcMasterNumbers(state, hoses) {
  * Master stream popup entry point
  *
  * @param {Object} opts
- *   - dept: { hoses: [{id,label}], appliances: [{id,label}] }
+ *   - dept: { hoses: [{id,label}], appliances: [{id,label}], nozzles: [{id,label,gpm,np}] }
  *   - initial: optional existing master config
  *   - onSave: function(config) -> void
  */
@@ -472,13 +503,22 @@ export function openMasterStreamPopup({
 
   const hoses      = dept.hoses      || [];
   const appliances = dept.appliances || [];
+  const nozzles    = (Array.isArray(dept.nozzles) && dept.nozzles.length)
+    ? dept.nozzles
+    : DEFAULT_MS_NOZZLES;
+
+  // We need references for toggling visibility based on mount type
+  let feedsSection;   // supply lines section (portable only)
+  let feedRow;        // "Feed lines" row (portable only)
+  let elevRow;        // "Elevation" row (portable only)
 
   const state = {
     master: {
       mountType: 'deck',          // 'deck' | 'portable'
       feedLines: 1,               // 1 or 2
       applianceId: appliances[0]?.id || '',
-      desiredGpm: 800,
+      nozzleId: nozzles[0]?.id || '',
+      desiredGpm: nozzles[0]?.gpm || 800, // kept for legacy, but driven by nozzle
       applianceLossPsi: 25,
       elevationFt: 0,
       leftFeed:  {
@@ -500,11 +540,14 @@ export function openMasterStreamPopup({
   };
 
   if (initial && typeof initial === 'object') {
-    // shallow merge, with nested master merging
     if (initial.master) {
       Object.assign(state.master, initial.master);
     } else {
       Object.assign(state.master, initial);
+    }
+    // If existing config had no nozzleId but did have a desiredGpm, leave it.
+    if (!state.master.nozzleId && nozzles[0]) {
+      state.master.nozzleId = nozzles[0].id;
     }
   }
 
@@ -571,17 +614,18 @@ export function openMasterStreamPopup({
   const previewBar = msEl('div', { class: 'ms-preview' });
 
   function updatePreview() {
-    const vals = calcMasterNumbers(state, hoses);
+    const vals = calcMasterNumbers(state, hoses, nozzles);
     previewBar.textContent =
       `Master stream – GPM: ${vals.gpm}   |   PDP: ${vals.PDP} psi`;
   }
 
   // --- Explain math popup ---
   function openExplainPopup() {
-    const vals = calcMasterNumbers(state, hoses);
+    const vals = calcMasterNumbers(state, hoses, nozzles);
     const m = state.master;
     const mode = m.mountType === 'portable' ? 'Portable master / blitz' : 'Deck gun';
     const lines = vals.lines;
+    const noz = msGetNozzleById(nozzles, m.nozzleId);
 
     const overlay2 = document.createElement('div');
     overlay2.className = 'ms-explain-overlay';
@@ -609,32 +653,36 @@ export function openMasterStreamPopup({
     const gpm = vals.gpm;
     const NP  = vals.NP;
 
+    const linesLabel = (m.mountType === 'deck')
+      ? 'n/a (deck-mounted, internal piping)'
+      : String(lines);
+
     body2.innerHTML = `
-      <p>We use a simple master stream formula:</p>
+      <p>We use a master stream formula:</p>
       <p><code>PDP = NP + FL + Appliance&nbsp;Loss + Elevation</code></p>
 
       <p><strong>Inputs:</strong></p>
       <ul>
         <li>Mode: <code>${mode}</code></li>
-        <li>Target flow: <code>${gpm} gpm</code></li>
-        <li>Number of supply lines: <code>${lines}</code></li>
+        <li>Nozzle: <code>${noz ? noz.label : '—'}</code></li>
+        <li>Target flow (from nozzle): <code>${gpm} gpm</code></li>
+        <li>Number of supply lines: <code>${linesLabel}</code></li>
         <li>Nozzle pressure (NP): <code>${NP} psi</code></li>
-        <li>Appliance loss: <code>${m.applianceLossPsi || 25} psi</code></li>
-        <li>Elevation: <code>${m.elevationFt || 0} ft</code></li>
+        <li>Appliance loss: <code>${vals.applianceLoss} psi</code></li>
+        <li>Elevation: <code>${m.elevationFt || 0} ft → ${vals.elevPsi} psi</code></li>
       </ul>
 
-      <p><strong>Step 1 – Split flow between lines:</strong><br>
-        <code>GPM_per_line = total_GPM / lines = ${gpm} / ${lines}</code>
+      <p><strong>Step 1 – Split flow between lines (portable only):</strong><br>
+        <code>GPM_per_line = total_GPM / lines</code>
       </p>
 
-      <p><strong>Step 2 – Friction loss in the worst supply line:</strong><br>
-        We use <code>FL = C × (GPM_per_line/100)² × (length/100)</code> for each line,
-        and take the highest value as the controlling line.<br>
+      <p><strong>Step 2 – Friction loss in the worst supply line (portable only):</strong><br>
+        We use <code>FL = C × (GPM_per_line/100)² × (length/100)</code> and take the highest value as the controlling line.<br>
         → FL ≈ <code>${vals.FL} psi</code>
       </p>
 
       <p><strong>Step 3 – Appliance loss:</strong><br>
-        Deck gun piping or portable base, user-entered.<br>
+        Deck gun piping or portable base, default 25 psi unless configured.<br>
         → Appliance loss ≈ <code>${vals.applianceLoss} psi</code>
       </p>
 
@@ -709,12 +757,18 @@ export function openMasterStreamPopup({
     function refresh() {
       deckBtn.classList.toggle('ms-toggle-on', state.master.mountType === 'deck');
       portableBtn.classList.toggle('ms-toggle-on', state.master.mountType === 'portable');
+
+      // Show/hide portable-only UI
+      const isDeck = state.master.mountType === 'deck';
+      if (feedRow)   feedRow.style.display   = isDeck ? 'none' : '';
+      if (elevRow)   elevRow.style.display   = isDeck ? 'none' : '';
+      if (feedsSection) feedsSection.style.display = isDeck ? 'none' : '';
     }
     refresh();
     return { root: msEl('span', { class: 'ms-toggle-group' }, deckBtn, portableBtn), refresh };
   })();
 
-  // Feed lines toggle
+  // Feed lines toggle (portable only, but we hide/show via mountToggle)
   const feedToggle = (() => {
     const oneBtn = msEl('button', {
       text: '1 line',
@@ -744,35 +798,51 @@ export function openMasterStreamPopup({
     return { root: msEl('span', { class: 'ms-toggle-group' }, oneBtn, twoBtn), refresh };
   })();
 
-  const topSection = msEl('div', { class: 'ms-section' },
-    msEl('h3', { text: 'Master stream type' }),
-    msEl('div', { class: 'ms-row' },
-      msEl('label', { text: 'Mount:' }),
-      mountToggle.root
-    ),
-    msEl('div', { class: 'ms-row' },
-      msEl('label', { text: 'Feed lines:' }),
-      feedToggle.root
-    ),
-    msEl('div', { class: 'ms-row' },
-      msEl('label', { text: 'Appliance:' }),
-      msSelect(appliances, state.master.applianceId, v => { state.master.applianceId = v; updatePreview(); }),
-      msEl('span', { text: 'Target GPM:' }),
-      msNumberInput(state.master.desiredGpm, v => { state.master.desiredGpm = v; updatePreview(); }),
-      msEl('span', { text: 'Appliance loss:' }),
-      msNumberInput(state.master.applianceLossPsi, v => { state.master.applianceLossPsi = v; updatePreview(); }),
-      msEl('span', { text: 'psi' })
-    ),
-    msEl('div', { class: 'ms-row' },
-      msEl('label', { text: 'Elevation (rise):' }),
-      msNumberInput(state.master.elevationFt, v => { state.master.elevationFt = v; updatePreview(); }),
-      msEl('span', { text: 'ft (0 if same level)' })
-    )
+  // Top section – master type + nozzle + (portable-only) feed lines + elevation
+  const topSection = msEl('div', { class: 'ms-section' });
+
+  const mountRow = msEl('div', { class: 'ms-row' },
+    msEl('label', { text: 'Mount:' }),
+    mountToggle.root
   );
 
-  // Feeds section container
-  const feedsSection = msEl('div', { class: 'ms-section' },
-    msEl('h3', { text: 'Supply lines' })
+  const nozzleRow = msEl('div', { class: 'ms-row' },
+    msEl('label', { text: 'Nozzle:' }),
+    msSelect(nozzles, state.master.nozzleId, v => {
+      state.master.nozzleId = v;
+      const noz = msGetNozzleById(nozzles, v);
+      if (noz && typeof noz.gpm === 'number') {
+        state.master.desiredGpm = noz.gpm;
+      }
+      updatePreview();
+    })
+  );
+
+  feedRow = msEl('div', { class: 'ms-row' },
+    msEl('label', { text: 'Feed lines:' }),
+    feedToggle.root
+  );
+
+  elevRow = msEl('div', { class: 'ms-row' },
+    msEl('label', { text: 'Elevation (portable):' }),
+    msNumberInput(state.master.elevationFt, v => {
+      state.master.elevationFt = v;
+      updatePreview();
+    }),
+    msEl('span', { text: 'ft (0 if same level)' })
+  );
+
+  topSection.append(
+    msEl('h3', { text: 'Master stream type' }),
+    mountRow,
+    nozzleRow,
+    feedRow,
+    elevRow
+  );
+
+  // Feeds section container – portable only
+  feedsSection = msEl('div', { class: 'ms-section' },
+    msEl('h3', { text: 'Supply lines (portable only)' })
   );
   const feedsContainer = msEl('div');
   feedsSection.appendChild(feedsContainer);
@@ -797,13 +867,15 @@ export function openMasterStreamPopup({
   function renderFeeds() {
     feedsContainer.innerHTML = '';
 
+    // No visible feeds if deck gun
+    if (state.master.mountType === 'deck') {
+      return;
+    }
+
     const lines = state.master.feedLines === 2 ? 2 : 1;
 
     if (lines === 1) {
-      const feed = state.master.mountType === 'portable'
-        ? state.master.blitzFeed
-        : state.master.leftFeed;
-
+      const feed = state.master.blitzFeed;
       feedsContainer.append(
         msEl('div', { class: 'ms-row' },
           feedBlock('Supply line', feed)
@@ -822,6 +894,9 @@ export function openMasterStreamPopup({
   renderFeeds();
 
   body.append(topSection, feedsSection, previewBar);
+
+  // Initial visibility for mount-dependent UI
+  mountToggle.refresh();
   updatePreview();
 
   // Save handler – returns a compact config for this master stream setup
@@ -830,13 +905,14 @@ export function openMasterStreamPopup({
       mountType: state.master.mountType,
       feedLines: state.master.feedLines,
       applianceId: state.master.applianceId,
+      nozzleId: state.master.nozzleId,
       desiredGpm: state.master.desiredGpm,
       applianceLossPsi: state.master.applianceLossPsi,
       elevationFt: state.master.elevationFt,
       leftFeed:  { ...state.master.leftFeed },
       rightFeed: { ...state.master.rightFeed },
       blitzFeed: { ...state.master.blitzFeed },
-      lastCalc:  calcMasterNumbers(state, hoses),
+      lastCalc:  calcMasterNumbers(state, hoses, nozzles),
     };
     onSave(payload);
     close();
