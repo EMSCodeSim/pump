@@ -1,16 +1,16 @@
 // view.lineMaster.js
-// Master stream / blitz line editor.
+// Master stream / Blitz line editor.
 //
-// Behavior (per your notes):
+// Behavior:
 // - Deck gun mode:
 //    * User ONLY chooses the nozzle (from department setup).
-//    * GPM is taken from that nozzle.
+//    * GPM is taken from that nozzle (if gpm/flow is defined).
 //    * NP for master is locked at 80 psi.
 //    * No hose / lines / elevation UI needed for pump calc.
-//    * PDP = 80 (NP) + 25 (appliance) + 0 (elev) = 105 by default.
+//    * PDP = 80 (NP) + 25 (appliance) + elevation psi.
 // - Portable mode:
 //    * User chooses 1 or 2 lines.
-//    * ONE shared hose size (from dept setup hoses).
+//    * ONE shared hose size (from dept.hoses).
 //    * ONE shared line length (ft).
 //    * No intake PSI.
 //    * Elevation in feet.
@@ -397,53 +397,36 @@ const MS_C_BY_DIA = {
   '5':    0.08,
 };
 
-// NP for master stream should be 80 psi (per your note)
+// NP for master stream should be 80 psi
 const MASTER_NP = 80;
 // Appliance loss for deck gun / portable base
 const MASTER_APPLIANCE_LOSS = 25;
 // psi per foot elevation
 const PSI_PER_FT = 0.434;
 
+// Use department nozzles exactly as defined, with optional gpm if present
 function msGetNozzleListFromDept(dept) {
   const raw = Array.isArray(dept.nozzles) ? dept.nozzles : [];
   if (!raw.length) return DEFAULT_MS_NOZZLES;
   return raw.map(n => ({
     id: n.id,
-    label: n.label || n.name || `${n.gpm || '?'} gpm`,
-    gpm: n.gpm || 0,
+    // keep your label/name exactly; no "? gpm" stuff
+    label: n.label || n.name || String(n.id),
+    // use gpm/flow if defined, else 0 (you can add gpm later in dept setup)
+    gpm: (typeof n.gpm === 'number' && n.gpm > 0)
+      ? n.gpm
+      : (typeof n.flow === 'number' && n.flow > 0 ? n.flow : 0),
   }));
 }
 
+// Use dept.hoses as-is (like your original file), no hosesAll/hosesSelected magic
 function msGetHoseListFromDept(dept) {
-  // Prefer the same pattern used in your Standard line:
-  //   dept.hosesAll + dept.hosesSelected
-  let all = [];
-  if (Array.isArray(dept.hosesAll) && dept.hosesAll.length) {
-    all = dept.hosesAll.map(h => ({
-      id: h.id,
-      label: h.label || h.name || String(h.id)
-    }));
-    const selectedIds = Array.isArray(dept.hosesSelected)
-      ? dept.hosesSelected.map(x => String(x))
-      : [];
-    if (selectedIds.length) {
-      const set = new Set(selectedIds);
-      const filtered = all.filter(h => set.has(String(h.id)));
-      if (filtered.length) return filtered;
-    }
-    return all;
-  }
-
-  // Fallback: dept.hoses array with id+label
-  if (Array.isArray(dept.hoses) && dept.hoses.length) {
-    return dept.hoses.map(h => ({
-      id: h.id,
-      label: h.label || h.name || String(h.id)
-    }));
-  }
-
-  // Final fallback
-  return DEFAULT_MS_HOSES;
+  const raw = Array.isArray(dept.hoses) ? dept.hoses : [];
+  if (!raw.length) return DEFAULT_MS_HOSES;
+  return raw.map(h => ({
+    id: h.id,
+    label: h.label || h.name || String(h.id),
+  }));
 }
 
 function msGuessDiaFromHoseLabel(label) {
@@ -481,7 +464,11 @@ function msGetNozzleById(list, id) {
 function calcMasterNumbers(state, hoses, nozzles) {
   const m = state.master;
   const noz = msGetNozzleById(nozzles, m.nozzleId) || {};
-  const totalGpm = Number(noz.gpm || m.desiredGpm || 800);
+  const totalGpm = Number(
+    (typeof noz.gpm === 'number' && noz.gpm > 0)
+      ? noz.gpm
+      : (m.desiredGpm || 800)
+  );
 
   const NP = MASTER_NP; // fixed at 80 psi
   const applianceLoss = MASTER_APPLIANCE_LOSS;
@@ -512,7 +499,6 @@ function calcMasterNumbers(state, hoses, nozzles) {
   const len = m.supplyLengthFt || 0;
 
   const flPerLine = msCalcFL(C, gpmPerLine, len);
-  // Both lines are identical, so "worst" is just this.
   const worstFL = flPerLine;
 
   const PDP = NP + worstFL + applianceLoss + elevPsi;
@@ -556,7 +542,7 @@ export function openMasterStreamPopup({
     }
   };
 
-  // Basic backward-friendly initial load (if you had older saved configs)
+  // Shallow merge from any existing config
   if (initial && typeof initial === 'object') {
     const src = initial.master || initial;
     if (src.mountType) state.master.mountType = src.mountType;
@@ -772,7 +758,6 @@ export function openMasterStreamPopup({
       deckBtn.classList.toggle('ms-toggle-on', isDeck);
       portableBtn.classList.toggle('ms-toggle-on', !isDeck);
 
-      // Show/hide portable-only rows
       const displayPortable = isDeck ? 'none' : '';
       feedLinesRow.style.display = displayPortable;
       portableRow.style.display = displayPortable;
@@ -825,7 +810,7 @@ export function openMasterStreamPopup({
     msSelect(nozzles, state.master.nozzleId, (v) => {
       state.master.nozzleId = v;
       const noz = msGetNozzleById(nozzles, v);
-      if (noz && typeof noz.gpm === 'number') {
+      if (noz && typeof noz.gpm === 'number' && noz.gpm > 0) {
         state.master.desiredGpm = noz.gpm;
       }
       updatePreview();
