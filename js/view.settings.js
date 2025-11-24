@@ -1,4 +1,5 @@
 import { state, NOZ_LIST, savePresets, loadPresets } from './store.js';
+import { getDeptNozzleIds } from './preset.js';
 
 export async function render(container){
   container.innerHTML = `
@@ -35,16 +36,56 @@ export async function render(container){
     </section>
   `;
 
-  const $ = s=>container.querySelector(s);
-  function fillNoz(sel){ sel.innerHTML = NOZ_LIST.map(n=>`<option value="${n.id}">${n.name}</option>`).join(''); }
+  const $ = s => container.querySelector(s);
 
-  fillNoz($('#s_noz1')); fillNoz($('#s_noz2')); fillNoz($('#s_noz3'));
+  // Fill nozzle selects, preferring Department Setup nozzle list if available
+  function fillNoz(sel){
+    if (!sel) return;
+    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    let deptIds = [];
+
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids)) {
+          deptIds = ids.filter(x => typeof x === 'string' && x.trim().length > 0);
+        }
+      }
+    } catch (_e) {
+      deptIds = [];
+    }
+
+    let list = fullList;
+    if (deptIds.length) {
+      const set = new Set(deptIds);
+      const filtered = fullList.filter(n => n && n.id && set.has(n.id));
+      if (filtered.length) {
+        list = filtered;
+      }
+    }
+
+    sel.innerHTML = list
+      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+      .join('');
+  }
+
+  fillNoz($('#s_noz1'));
+  fillNoz($('#s_noz2'));
+  fillNoz($('#s_noz3'));
 
   function loadIntoForm(){
     const p = state.presets || loadPresets();
-    $('#s_len1').value = p.left.len; $('#s_sz1').value = p.left.size; $('#s_noz1').value = p.left.noz;
-    $('#s_len2').value = p.back.len; $('#s_sz2').value = p.back.size; $('#s_noz2').value = p.back.noz;
-    $('#s_len3').value = p.right.len; $('#s_sz3').value = p.right.size; $('#s_noz3').value = p.right.noz;
+    $('#s_len1').value = p.left.len;
+    $('#s_sz1').value  = p.left.size;
+    $('#s_noz1').value = p.left.noz;
+
+    $('#s_len2').value = p.back.len;
+    $('#s_sz2').value  = p.back.size;
+    $('#s_noz2').value = p.back.noz;
+
+    $('#s_len3').value = p.right.len;
+    $('#s_sz3').value  = p.right.size;
+    $('#s_noz3').value = p.right.noz;
   }
   loadIntoForm();
 
@@ -57,9 +98,9 @@ export async function render(container){
 
   $('#settingsSave').addEventListener('click', ()=>{
     state.presets = {
-      left:  {len:+$('#s_len1').value||200, size:$('#s_sz1').value, noz:$('#s_noz1').value},
-      back:  {len:+$('#s_len2').value||200, size:$('#s_sz2').value, noz:$('#s_noz2').value},
-      right: {len:+$('#s_len3').value||250, size:$('#s_sz3').value, noz:$('#s_noz3').value}
+      left:  { len:+$('#s_len1').value||200, size:$('#s_sz1').value, noz:$('#s_noz1').value },
+      back:  { len:+$('#s_len2').value||200, size:$('#s_sz2').value, noz:$('#s_noz2').value },
+      right: { len:+$('#s_len3').value||250, size:$('#s_sz3').value, noz:$('#s_noz3').value }
     };
     savePresets(state.presets);
     $('#settingsMsg').textContent = 'Saved! New presets apply when you deploy/edit lines.';
