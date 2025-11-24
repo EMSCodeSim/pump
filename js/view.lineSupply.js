@@ -403,13 +403,29 @@ export function openSupplyLinePopup({
 } = {}) {
   injectSupplyStyles();
 
-  const hoses = dept.hoses || [];
+  let hoses = dept.hoses || [];
+
+  // Ensure hose list is usable in the dropdown. If it's empty or contains
+  // simple strings, normalize to objects with id/label. If there are no
+  // department hoses at all, fall back to common supply sizes.
+  if (!Array.isArray(hoses) || hoses.length === 0) {
+    hoses = [
+      { id: 'h_3_supply', label: '3\" supply line' },
+      { id: 'h_4_ldh', label: '4\" LDH supply' },
+      { id: 'h_5_ldh', label: '5\" LDH supply' },
+    ];
+  } else if (typeof hoses[0] === 'string') {
+    hoses = hoses.map((h, idx) => ({
+      id: String(h),
+      label: String(h),
+    }));
+  }
 
   // Decide starting GPM:
   // - If a live GPM is passed from the main calc and > 0, use that.
   // - Else if the initial preset has a GPM > 0, use that.
-  // - Else fall back to 50 gpm so the math still works.
-  let startingGpm = 50;
+  // - Else fall back to 1 gpm so the math still works.
+  let startingGpm = 1;
   if (typeof liveGpm === 'number' && liveGpm > 0) {
     startingGpm = Math.round(liveGpm);
   } else if (initial && typeof initial === 'object' && typeof initial.flowGpm === 'number' && initial.flowGpm > 0) {
