@@ -7,6 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
+import { setDeptLineDefault, NOZ } from './store.js';
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
@@ -1422,102 +1423,112 @@ function renderLineInfoScreen(lineNumber) {
 // === Main Presets menu ===========================================================
 
 
+
+
 function renderDeptLineDefaultsScreen(lineNumber) {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
+  // When editing department line defaults, use the full Standard Line builder.
+  // These become the saved defaults for Line 1 / 2 / 3 on the main screen.
   const key = 'line' + String(lineNumber);
+
+  // Keep the department popup wrapper around so the user returns there when done.
+  ensureDeptPopupWrapper();
+
+  // Pull any existing "simple" defaults from this module's storage
   const currentDefaults = (state.lineDefaults && state.lineDefaults[key]) || {};
 
-  const hoseVal = currentDefaults.hoseDiameter ?? '';
-  const lenVal  = (typeof currentDefaults.lengthFt === 'number'
-    ? currentDefaults.lengthFt
-    : (currentDefaults.lengthFt ?? ''));
-  const nozVal  = currentDefaults.nozzleId ?? '';
-  const psiVal  = (typeof currentDefaults.nozzlePsi === 'number'
-    ? currentDefaults.nozzlePsi
-    : (currentDefaults.nozzlePsi ?? ''));
+  const hoseVal = currentDefaults.hoseDiameter;
+  const lenVal  = currentDefaults.lengthFt;
+  const nozVal  = currentDefaults.nozzleId;
 
-  titleEl.textContent = `Line ${lineNumber} department default`;
+  let elevVal;
+  if (typeof currentDefaults.elevationFt === 'number') {
+    elevVal = currentDefaults.elevationFt;
+  } else if (typeof currentDefaults.elevation === 'number') {
+    elevVal = currentDefaults.elevation;
+  } else {
+    elevVal = 0;
+  }
 
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Set the default configuration for Line ${lineNumber}. This is your rig/department
-      starting point and does <strong>not</strong> change automatically when you adjust
-      lines on the main calculator screen.
-    </p>
-    <div class="dept-list">
-      <div class="dept-custom-row">
-        <label>Hose diameter (inches)
-          <input type="number" id="deptLineHoseDia" inputmode="decimal" value="${hoseVal}">
-        </label>
-        <label>Length (ft)
-          <input type="number" id="deptLineLength" inputmode="numeric" value="${lenVal}">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Nozzle ID / label
-          <input type="text" id="deptLineNozId" value="${nozVal}">
-        </label>
-        <label>Nozzle PSI
-          <input type="number" id="deptLineNozPsi" inputmode="numeric" value="${psiVal}">
-        </label>
-      </div>
-    </div>
-  `;
+  const hoseId = hoseVal != null ? String(hoseVal) : '1.75';
+  const lengthFt = lenVal != null ? Number(lenVal) : 200;
+  const nozzleId = nozVal || 'closed';
+  const elevationFt = elevVal != null ? Number(elevVal) : 0;
 
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" id="deptLineBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptLineSaveBtn">Save default</button>
-  `;
+  const dept = typeof loadDeptFromStorage === 'function'
+    ? (loadDeptFromStorage() || {})
+    : {};
 
-  footerEl.querySelector('#deptLineBackBtn')?.addEventListener('click', () => {
-    // Go back to main Presets menu instead of dept home
-    const wrap2 = document.getElementById('deptPopupWrapper');
-    if (wrap2) wrap2.classList.add('hidden');
-    openPresetMainMenu();
+  const initialPayload = {
+    type: 'standard',
+    mode: 'single',
+    single: {
+      hoseId,
+      hoseSize: hoseId,
+      lengthFt,
+      elevationFt,
+      nozzleId
+    }
+    // Wye config will fall back to defaults inside the builder if needed
+  };
+
+  openStandardLinePopup({
+    dept,
+    initial: initialPayload,
+    onSave(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const single = payload.single || {};
+
+      const next = {
+        hoseDiameter: single.hoseId ? Number(single.hoseId) : null,
+        lengthFt: single.lengthFt != null ? Number(single.lengthFt) : null,
+        nozzleId: single.nozzleId || '',
+        nozzlePsi: null,
+        elevationFt: single.elevationFt != null ? Number(single.elevationFt) : 0
+      };
+
+      // Save in this module's simpler lineDefaults object
+      if (!state.lineDefaults) state.lineDefaults = {};
+      state.lineDefaults[key] = next;
+      saveLineDefaultsToStorage();
+
+      // Also save into the central dept defaults in store.js
+      try {
+        const storeKey =
+          lineNumber === 1 ? 'left' :
+          lineNumber === 2 ? 'back' :
+          lineNumber === 3 ? 'right' :
+          null;
+
+        if (storeKey) {
+          const L = {
+            label: 'Line ' + String(lineNumber),
+            visible: false,
+            itemsMain: [],
+            itemsLeft: [],
+            itemsRight: [],
+            hasWye: false,
+            elevFt: next.elevationFt || 0,
+            nozRight: null
+          };
+
+          if (single.hoseId) {
+            L.itemsMain.push({
+              size: String(single.hoseId),
+              lengthFt: next.lengthFt || 0
+            });
+          }
+
+          if (single.nozzleId && NOZ[single.nozzleId]) {
+            L.nozRight = NOZ[single.nozzleId];
+          }
+
+          setDeptLineDefault(storeKey, L);
+        }
+      } catch (e) {
+        console.warn('Failed to sync dept line default to store', e);
+      }
+    }
   });
-
-  footerEl.querySelector('#deptLineSaveBtn')?.addEventListener('click', () => {
-    const hoseEl = bodyEl.querySelector('#deptLineHoseDia');
-    const lenEl  = bodyEl.querySelector('#deptLineLength');
-    const nozEl  = bodyEl.querySelector('#deptLineNozId');
-    const psiEl  = bodyEl.querySelector('#deptLineNozPsi');
-
-    const next = { ...(state.lineDefaults && state.lineDefaults[key] ? state.lineDefaults[key] : {}) };
-
-    if (hoseEl) {
-      const v = hoseEl.value.trim();
-      next.hoseDiameter = v ? Number(v) : null;
-    }
-    if (lenEl) {
-      const v = lenEl.value.trim();
-      next.lengthFt = v ? Number(v) : null;
-    }
-    if (nozEl) {
-      next.nozzleId = nozEl.value.trim();
-    }
-    if (psiEl) {
-      const v = psiEl.value.trim();
-      next.nozzlePsi = v ? Number(v) : null;
-    }
-
-    if (!state.lineDefaults) state.lineDefaults = {};
-    state.lineDefaults[key] = next;
-    saveLineDefaultsToStorage();
-
-    const wrap2 = document.getElementById('deptPopupWrapper');
-    if (wrap2) wrap2.classList.add('hidden');
-    openPresetMainMenu();
-  });
-
-  wrap.classList.remove('hidden');
 }
 
 function openPresetMainMenu() {
