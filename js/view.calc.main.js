@@ -1082,10 +1082,22 @@ function updateSegSwitchVisibility(){
       if(PDP > maxPDP){ maxPDP = PDP; maxKey = key; }
     });
 
+    
     // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1–3
     Object.values(activePresetLines).forEach(pl => {
       if (!pl || !pl.config) return;
       const cfg = pl.config;
+
+      // If the config carries direct GPM/PDP from a builder popup, use that.
+      if (typeof cfg.directGpm === 'number' && cfg.directGpm > 0) {
+        totalGPM += cfg.directGpm;
+        if (typeof cfg.directPdp === 'number' && cfg.directPdp > 0) {
+          if (cfg.directPdp > maxPDP) maxPDP = cfg.directPdp;
+        }
+        return;
+      }
+
+      // Legacy/simple hose + nozzle presets (fallback path)
       const noz = (cfg.nozzleId && NOZ[cfg.nozzleId]) || null;
       if (!noz) return;
       const flow = noz.gpm || 0;
@@ -1098,7 +1110,6 @@ function updateSegSwitchVisibility(){
       totalGPM += flow;
       if (PDP > maxPDP) { maxPDP = PDP; }
     });
-
     state.lastMaxKey = maxKey;
     const anyLines = vis.length || Object.keys(activePresetLines).length;
     GPMel.textContent = anyLines ? (Math.round(totalGPM)+' gpm') : '— gpm';
@@ -1623,6 +1634,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
   //   is added on top of Lines 1–3.
+  
   function applyPresetToCalc(preset){
     if (!preset) return;
 
@@ -1672,83 +1684,113 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       return;
     }
 
-    // --- Helper to dig the actual hose/nozzle config out of a preset -------
-    function pickConfigFromPreset(presetObj){
+    // --- Helper to dig the builder config out of a preset -------------------
+    function pickBuilderConfig(presetObj){
       if (!presetObj || typeof presetObj !== 'object') return null;
 
-      // Legacy payload-style presets
+      // Legacy payload-only presets
       if (presetObj.payload && typeof presetObj.payload === 'object') {
-        return presetObj.payload;
+        return { lineType: presetObj.lineType || null, raw: presetObj.payload };
       }
 
       // New Preset Line Editor format
       if (presetObj.config && typeof presetObj.config === 'object') {
         const pc   = presetObj.config;
-        const lt   = presetObj.lineType || pc.lineType;
+        const lt   = presetObj.lineType || pc.lineType || null;
         const cfgs = (pc.configs && typeof pc.configs === 'object') ? pc.configs : {};
 
-        let cfg = null;
+        let raw = null;
         if (lt === 'standard' || lt === 'single' || lt === 'wye') {
-          cfg = pc.standardConfig  || cfgs.standard  || null;
+          raw = pc.standardConfig  || cfgs.standard  || null;
         } else if (lt === 'master') {
-          cfg = pc.masterConfig    || cfgs.master    || null;
+          raw = pc.masterConfig    || cfgs.master    || null;
         } else if (lt === 'standpipe') {
-          cfg = pc.standpipeConfig || cfgs.standpipe || null;
+          raw = pc.standpipeConfig || cfgs.standpipe || null;
         } else if (lt === 'sprinkler') {
-          cfg = pc.sprinklerConfig || cfgs.sprinkler || null;
+          raw = pc.sprinklerConfig || cfgs.sprinkler || null;
         } else if (lt === 'foam') {
-          cfg = pc.foamConfig      || cfgs.foam      || null;
+          raw = pc.foamConfig      || cfgs.foam      || null;
         } else if (lt === 'supply') {
-          cfg = pc.supplyConfig    || cfgs.supply    || null;
+          raw = pc.supplyConfig    || cfgs.supply    || null;
         } else if (lt === 'custom') {
-          cfg = pc.customConfig    || cfgs.custom    || null;
+          raw = pc.customConfig    || cfgs.custom    || null;
         }
 
-        // If we did not find a specific sub-config, fall back to the whole config
-        return cfg || pc;
+        if (!raw) raw = pc;
+        return { lineType: lt, raw };
       }
 
-      // Last-resort: treat the preset itself as the config
-      return presetObj;
+      // Fallback: treat whole object as a generic builder payload
+      return { lineType: presetObj.lineType || null, raw: presetObj };
     }
 
-    function normalizeConfig(raw){
-      if (!raw || typeof raw !== 'object') return null;
+    // Map a builder payload to direct GPM/PDP numbers if possible
+    function toDirectFlow(builder){
+      if (!builder || typeof builder.raw !== 'object') return null;
+      const lt  = builder.lineType;
+      const raw = builder.raw || {};
 
-      const hoseDiameter = raw.hoseDiameter || raw.hoseSize || raw.diameter || '';
-      let lengthFt = null;
-      if (raw.lengthFt !== undefined && raw.lengthFt !== null && raw.lengthFt !== '') {
-        lengthFt = Number(raw.lengthFt);
-      } else if (raw.lineLength !== undefined && raw.lineLength !== null && raw.lineLength !== '') {
-        lengthFt = Number(raw.lineLength);
+      const lc = raw.lastCalc || {};
+
+      // Standard attack line (from view.lineStandard.js)
+      if (lt === 'standard' || lt === 'single' || lt === 'wye') {
+        const gpm = typeof lc.targetGpm === 'number' ? lc.targetGpm : null;
+        const pdp = typeof lc.targetPdp === 'number' ? lc.targetPdp : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
       }
 
-      const nozzleId = raw.nozzleId || raw.nozzle || raw.nozId || '';
-      let elevation = 0;
-      if (raw.elevation !== undefined && raw.elevation !== null && raw.elevation !== '') {
-        elevation = Number(raw.elevation);
-      } else if (raw.elevFt !== undefined && raw.elevFt !== null && raw.elevFt !== '') {
-        elevation = Number(raw.elevFt);
+      // Master stream (from view.lineMaster.js)
+      if (lt === 'master') {
+        const gpm = typeof lc.gpm === 'number' ? lc.gpm : null;
+        const pdp = typeof lc.PDP === 'number' ? lc.PDP : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
       }
 
-      let nozzlePsi = null;
-      if (raw.nozzlePsi !== undefined && raw.nozzlePsi !== null && raw.nozzlePsi !== '') {
-        nozzlePsi = Number(raw.nozzlePsi);
-      } else if (raw.np !== undefined && raw.np !== null && raw.np !== '') {
-        nozzlePsi = Number(raw.np);
+      // Standpipe (from view.lineStandpipe.js)
+      if (lt === 'standpipe') {
+        const gpm = typeof lc.gpm === 'number' ? lc.gpm : null;
+        const pdp = typeof lc.PDP === 'number' ? lc.PDP : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
       }
 
-      // If absolutely nothing is set, treat as empty
-      if (!hoseDiameter && lengthFt === null && !nozzleId && elevation === 0 && nozzlePsi === null) {
-        return null;
+      // Sprinkler (from view.lineSprinkler.js)
+      if (lt === 'sprinkler') {
+        const gpm = typeof lc.requiredFlowGpm === 'number' ? lc.requiredFlowGpm : null;
+        const pdp = typeof lc.PDP === 'number' ? lc.PDP : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
       }
 
-      return { hoseDiameter, lengthFt, nozzleId, elevation, nozzlePsi };
+      // Foam (from view.lineFoam.js) – use water GPM + PDP
+      if (lt === 'foam') {
+        const gpm = typeof lc.waterGpm === 'number' ? lc.waterGpm : null;
+        const pdp = typeof lc.pdp === 'number' ? lc.pdp : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
+      }
+
+      // Supply line (from view.lineSupply.js)
+      if (lt === 'supply') {
+        const gpm = typeof lc.gpm === 'number' ? lc.gpm : null;
+        const pdp = typeof lc.PDP === 'number' ? lc.PDP : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
+      }
+
+      // Custom builder (from view.lineCustom.js)
+      if (lt === 'custom') {
+        const gpm = typeof lc.targetFlowGpm === 'number' ? lc.targetFlowGpm : null;
+        const pdp = typeof lc.PDP === 'number' ? lc.PDP : null;
+        if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
+      }
+
+      return null;
     }
 
-    const picked = pickConfigFromPreset(preset);
-    const src = normalizeConfig(picked);
-    if (!src) return;
+    const builder = pickBuilderConfig(preset);
+    const direct  = toDirectFlow(builder);
+
+    if (!direct) {
+      // If we cannot extract direct GPM/PDP, bail for now.
+      return;
+    }
 
     const id = preset.id || (`preset_${Date.now()}_${Math.floor(Math.random()*1000)}`);
     const name = preset.name || `Preset ${Object.keys(activePresetLines).length + 1}`;
@@ -1756,7 +1798,12 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     activePresetLines[id] = {
       id,
       name,
-      config: src
+      config: {
+        lineType: builder.lineType || preset.lineType || null,
+        raw: builder.raw || null,
+        directGpm: direct.directGpm,
+        directPdp: direct.directPdp,
+      }
     };
 
     // Update totals + buttons
