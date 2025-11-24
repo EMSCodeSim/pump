@@ -44,7 +44,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults } from './preset.js';
+import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters } from './preset.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
@@ -1684,57 +1684,55 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* ---------------------------- Line toggles ------------------------------ */
 
-  container.querySelectorAll('.linebtn').forEach(b => {
-    b.addEventListener('click', () => {
+  container.querySelectorAll('.linebtn').forEach(b=>{
+    b.addEventListener('click', ()=>{
       const key = b.dataset.line;
       const L   = seedDefaultsForKey(key);
-      if (!L) return;
-
       const wasVisible = !!L.visible;
 
-      // When a line is turned ON for the first time this session,
-      // seed it from Department → Line defaults (hose, length, nozzle, elevation).
-      if (!wasVisible && !L._initializedFromDept && typeof getDeptLineDefaults === 'function') {
-        try {
-          const map = { left: 'line1', back: 'line2', right: 'line3' };   // Line 1 / 2 / 3
-          const all = getDeptLineDefaults() || {};
-          const keyName = map[key];
-          const def = keyName ? all[keyName] : null;
+      // Toggle visibility
+      L.visible = !L.visible;
+      b.classList.toggle('active', L.visible);
 
-          if (def && (def.hoseDiameter || def.lengthFt || def.nozzleId)) {
-            const main = {};
+      // If the line has just been turned ON, seed from Department line defaults
+      if (!wasVisible && typeof getDeptLineDefaults === 'function') {
+        const all = getDeptLineDefaults();
+        const src =
+          key === 'left'  ? all.line1 :
+          key === 'back'  ? all.line2 :
+          key === 'right' ? all.line3 :
+          null;
 
-            if (def.hoseDiameter) {
-              // stored as number, we use string for hose size
-              main.size = String(def.hoseDiameter);
-            }
-            if (typeof def.lengthFt === 'number') {
-              main.lengthFt = def.lengthFt;
-            }
+        if (src && typeof src === 'object') {
+          // Main hose
+          const main = (L.itemsMain && L.itemsMain[0]) || {};
+          if (src.hoseDiameter != null) {
+            main.size = String(src.hoseDiameter);
+          }
+          if (typeof src.lengthFt === 'number') {
+            main.lengthFt = src.lengthFt;
+          }
+          L.itemsMain = [main];
 
-            // apply to main line
-            L.itemsMain = [main];
+          // Straight line, no wye branches
+          L.hasWye    = false;
+          L.itemsLeft = [];
+          L.itemsRight= [];
 
-            // optional elevation if present
-            if (typeof def.elevation === 'number') {
-              L.elevFt = def.elevation;
-            }
-
-            // nozzle: map saved nozzleId → NOZ table
-            if (def.nozzleId && NOZ[def.nozzleId]) {
-              L.nozRight = NOZ[def.nozzleId];
-            }
+          // Elevation
+          if (typeof src.elevationFt === 'number') {
+            L.elevFt = src.elevationFt;
+          } else if (typeof src.elevation === 'number') {
+            L.elevFt = src.elevation;
           }
 
-          // mark so we don’t re-apply defaults on every toggle
-          L._initializedFromDept = true;
-        } catch (e) {
-          console.warn('Failed to apply department line defaults', e);
+          // Nozzle
+          if (src.nozzleId && NOZ[src.nozzleId]) {
+            L.nozRight = NOZ[src.nozzleId];
+          }
         }
       }
 
-      L.visible = !wasVisible;
-      b.classList.toggle('active', L.visible);
       drawAll();
       markDirty();
     });
