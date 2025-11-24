@@ -1697,6 +1697,7 @@ function handleAddPresetClick() {
 
 
 
+
 function handleEditPreset(id) {
   const presets = state.presets || [];
   const preset = presets.find(p => p.id === id);
@@ -1704,7 +1705,7 @@ function handleEditPreset(id) {
 
   // Older presets without a lineType / config can’t be reliably edited
   if (!preset.lineType || !preset.config) {
-    alert('This preset was created before the new builders and cannot be auto‑edited. Please recreate it using the Add preset button.');
+    alert('This preset was created before the new builders and can\'t be auto‑edited. Please recreate it using the Add preset button.');
     return;
   }
 
@@ -1712,17 +1713,52 @@ function handleEditPreset(id) {
   const type = preset.lineType;
   const cfg  = preset.config || {};
 
-  const saveBack = (updatedCfg) => {
-    if (!updatedCfg) return;
-    // Keep same id & name; just update type/config + optional metadata
-    preset.config   = updatedCfg;
+  // Figure out the correct builder payload for this type
+  const configs = (cfg.configs && typeof cfg.configs === 'object') ? cfg.configs : {};
+  let initialPayload = null;
+
+  // Prefer the configs map from the Preset Line Editor
+  if (configs[type]) {
+    initialPayload = configs[type];
+  } else {
+    // Fall back to type-specific top-level fields like standardConfig, masterConfig, etc.
+    const key = type + 'Config';
+    if (cfg[key]) {
+      initialPayload = cfg[key];
+    } else if (cfg.raw && typeof cfg.raw === 'object') {
+      // For presets that were saved directly from a builder
+      initialPayload = cfg.raw;
+    } else {
+      // Last resort: treat the whole config as the payload
+      initialPayload = cfg;
+    }
+  }
+
+  const saveBack = (updatedPayload) => {
+    if (!updatedPayload) return;
+
+    const oldCfg = preset.config || {};
+    const oldConfigs = (oldCfg.configs && typeof oldCfg.configs === 'object') ? oldCfg.configs : {};
+
+    const newConfigs = { ...oldConfigs, [type]: updatedPayload };
+
+    const newCfg = {
+      ...oldCfg,
+      lineType: type,
+      configs: newConfigs,
+    };
+
+    // Also keep a direct *Config field for this type for compatibility
+    newCfg[type + 'Config'] = updatedPayload;
+
+    preset.config   = newCfg;
     preset.lineType = type;
 
-    if (updatedCfg.lineNumber != null) {
-      preset.lineNumber = updatedCfg.lineNumber;
+    if (updatedPayload.lineNumber != null) {
+      preset.lineNumber = updatedPayload.lineNumber;
     }
-    if (typeof updatedCfg.summary === 'string') {
-      preset.summary = updatedCfg.summary;
+    if (typeof updatedPayload.summary === 'string') {
+      preset.summary = updatedPayload.summary;
     }
 
     savePresetsToStorage();
@@ -1732,43 +1768,43 @@ function handleEditPreset(id) {
   if (type === 'standard' || type === 'single' || type === 'wye') {
     openStandardLinePopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'master') {
     openMasterStreamPopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'standpipe') {
     openStandpipePopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'sprinkler') {
     openSprinklerPopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'foam') {
     openFoamPopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'supply') {
     openSupplyLinePopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else if (type === 'custom') {
     openCustomBuilderPopup({
       dept,
-      initial: cfg,
+      initial: initialPayload,
       onSave: saveBack,
     });
   } else {
