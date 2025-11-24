@@ -294,53 +294,125 @@ const SP_C_BY_DIA = {
   '4':   0.2,
   '5':   0.08,
 };
-const SP_DEPT_STORAGE_KEY = 'fireops_dept_equipment_v1';
+// --- Department hose/nozzle normalization for Standpipe editor ------------------
 
-// Normalize a single dept item (string or object) into { id, label, ...rest }
-function spNormalizeDeptItem(item, fallbackPrefix, index) {
-  if (item && typeof item === 'object') {
-    const id = item.id != null
-      ? String(item.id)
-      : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
-    const label = item.label || item.name || String(id);
-    return { id, label, ...item };
-  }
-  const id = String(item);
-  return { id, label: id, raw: item };
+// Try to convert internal IDs like "h_175" or "fog_xd_175_75_185" into
+// user-friendly labels that still contain diameter / gpm / psi for the math.
+
+function spPrettyHoseLabelFromId(id) {
+  if (!id) return '';
+  // Attack line codes
+  if (id === 'h_1') return '1" attack hose';
+  if (id === 'h_15') return '1 1/2" attack hose';
+  if (id === 'h_175') return '1 3/4" attack hose';
+  if (id === 'h_2') return '2" attack hose';
+  if (id === 'h_25') return '2 1/2" attack hose';
+  if (id === 'h_3') return '3" attack hose';
+
+  // Supply / LDH
+  if (id === 'h_3_supply') return '3" supply line';
+  if (id === 'h_4_ldh') return '4" LDH supply';
+  if (id === 'h_5_ldh') return '5" LDH supply';
+
+  // Wildland / booster
+  if (id === 'h_w_1') return '1" wildland hose';
+  if (id === 'h_w_15') return '1 1/2" wildland hose';
+  if (id === 'h_booster_1') return '1" booster reel';
+
+  // Low-friction variants
+  if (id === 'h_lf_175') return '1 3/4" low-friction attack';
+
+  // Fallback – just show the raw id
+  return id;
 }
 
-// Get normalized hoses/nozzles for standpipe editor.
-// Preference order:
-//   1) deptParam.hoses / deptParam.nozzles if present
-//   2) localStorage["fireops_dept_equipment_v1"]
-function spGetDeptEquipment(deptParam = {}) {
-  let rawHoses = [];
-  let rawNozzles = [];
+function spPrettyDiaFromCode(code) {
+  if (!code) return '';
+  if (code === '1') return '1"';
+  if (code === '15') return '1 1/2"';
+  if (code === '175') return '1 3/4"';
+  if (code === '2') return '2"';
+  if (code === '25') return '2 1/2"';
+  if (code === '3') return '3"';
+  if (code === '4') return '4"';
+  if (code === '5') return '5"';
+  return code + '"';
+}
 
-  if (deptParam && (Array.isArray(deptParam.hoses) || Array.isArray(deptParam.nozzles))) {
-    rawHoses = Array.isArray(deptParam.hoses) ? deptParam.hoses : [];
-    rawNozzles = Array.isArray(deptParam.nozzles) ? deptParam.nozzles : [];
-  } else {
-    try {
-      const json = localStorage.getItem(SP_DEPT_STORAGE_KEY);
-      if (json) {
-        const parsed = JSON.parse(json);
-        if (parsed && typeof parsed === 'object') {
-          rawHoses = Array.isArray(parsed.hoses) ? parsed.hoses : [];
-          rawNozzles = Array.isArray(parsed.nozzles) ? parsed.nozzles : [];
+function spPrettySbTipFromCode(code) {
+  if (!code) return '';
+  if (code === '78') return '7/8"';
+  if (code === '1516') return '15/16"';
+  if (code === '1') return '1"';
+  if (code === '118') return '1 1/8"';
+  return code + '" tip';
+}
+
+function spPrettyNozzleLabelFromId(id) {
+  if (!id) return '';
+
+  // Pattern: fog_xd_175_75_185 → type_model_diaCode_NP_GPM
+  const fogParts = id.split('_');
+  if (fogParts.length === 5 && fogParts[0] === 'fog') {
+    const [, model, diaCode, npRaw, gpmRaw] = fogParts;
+    const dia = spPrettyDiaFromCode(diaCode);
+    const np  = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    const modelLabel = model.toUpperCase();
+    return dia + ' ' + modelLabel + ' fog ' + gpm + ' gpm @ ' + np + ' psi';
+  }
+
+  // Smooth bore pattern: sb_78_50_160 → tipCode_NP_GPM
+  const sbMatch = id.match(/^sb_([^_]+)_([^_]+)_([^_]+)/);
+  if (sbMatch) {
+    const tipCode = sbMatch[1];
+    const npRaw   = sbMatch[2];
+    const gpmRaw  = sbMatch[3];
+    const tip = spPrettySbTipFromCode(tipCode);
+    const np  = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    return tip + ' smooth bore ' + gpm + ' gpm @ ' + np + ' psi';
+  }
+
+  // Generic fallback
+  return id;
+}
+
+// Normalize a dept list (hoses or nozzles) into [{id, label, ...}, ...].
+// If label is missing or just the id, we generate a prettier one.
+function spNormalizeDeptList(list, kind) {
+  if (!Array.isArray(list)) return [];
+
+  return list.map((item, idx) => {
+    if (item && typeof item === 'object') {
+      const id = item.id != null
+        ? String(item.id)
+        : String(item.value ?? item.name ?? idx);
+      let label = item.label || item.name || '';
+
+      if (!label || label === id) {
+        if (kind === 'hose') {
+          label = spPrettyHoseLabelFromId(id);
+        } else if (kind === 'nozzle') {
+          label = spPrettyNozzleLabelFromId(id);
+        } else {
+          label = id;
         }
       }
-    } catch (e) {
-      console.warn('Standpipe dept load failed', e);
+
+      return { ...item, id, label };
     }
-  }
 
-  const hoses = rawHoses.map((h, i) => spNormalizeDeptItem(h, 'hose', i));
-  const nozzles = rawNozzles.map((n, i) => spNormalizeDeptItem(n, 'noz', i));
-
-  return { hoses, nozzles };
+    const id = String(item);
+    let label = id;
+    if (kind === 'hose') {
+      label = spPrettyHoseLabelFromId(id);
+    } else if (kind === 'nozzle') {
+      label = spPrettyNozzleLabelFromId(id);
+    }
+    return { id, label, raw: item };
+  });
 }
-
 
 
 // If you store diameters in the dept.hoses objects, you can use that instead.
@@ -391,7 +463,8 @@ export function openStandpipePopup({
 } = {}) {
   injectStandpipeStyles();
 
-  const { hoses, nozzles } = spGetDeptEquipment(dept);
+  const hoses   = spNormalizeDeptList(dept.hoses   || [], 'hose');
+  const nozzles = spNormalizeDeptList(dept.nozzles || [], 'nozzle');
 
   const state = {
     engineHoseId: hoses[0]?.id || '',
@@ -399,6 +472,7 @@ export function openStandpipePopup({
 
     floorsUp: 3,        // or vertical distance
     systemLossPsi: 25,  // standpipe system loss (valves, PRVs, etc.)
+    addRule25: false,
 
     attackHoseId: hoses[0]?.id || '',
     attackLengthFt: 150,
@@ -489,8 +563,9 @@ export function openStandpipePopup({
 
     const elev     = calcElevationPsi(state.floorsUp || 0);
     const system   = state.systemLossPsi || 0;
+    const rule25   = state.addRule25 ? 25 : 0;
 
-    const PDP      = np + FL1 + FL2 + elev + system;
+    const PDP      = np + FL1 + FL2 + elev + system + rule25;
 
     return {
       gpm,
@@ -499,6 +574,7 @@ export function openStandpipePopup({
       FL2: Math.round(FL2),
       elev: Math.round(elev),
       system: Math.round(system),
+      rule25: Math.round(rule25),
       PDP: Math.round(PDP),
     };
   }
@@ -543,7 +619,7 @@ export function openStandpipePopup({
 
     b.innerHTML = `
       <p>We are using a simple standpipe formula:</p>
-      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss</code></p>
+      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss + Rule‑of‑thumb</code></p>
 
       <p><strong>Inputs:</strong></p>
       <ul>
@@ -553,7 +629,7 @@ export function openStandpipePopup({
         <li>Standpipe → nozzle hose: <code>${atkLabel || state.attackHoseId || 'unknown'}</code>,
             length <code>${state.attackLengthFt || 0} ft</code></li>
         <li>Floors up / elevation: <code>${state.floorsUp || 0}</code></li>
-        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>
+        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>\n        <li>Rule‑of‑thumb (+25 psi): <code>${vals.rule25} psi</code></li>
       </ul>
 
       <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
@@ -583,7 +659,8 @@ export function openStandpipePopup({
                 ${vals.FL1} (FL₁) +
                 ${vals.FL2} (FL₂) +
                 ${vals.elev} (elev) +
-                ${vals.system} (system)
+                ${vals.system} (system) +
+                ${vals.rule25} (rule‑of‑thumb)
           = ${vals.PDP} psi
         </code>
       </p>
@@ -641,6 +718,22 @@ export function openStandpipePopup({
       spEl('label', { text: 'System loss:' }),
       spNumberInput(state.systemLossPsi, v => { state.systemLossPsi = v || 0; updatePreview(); }),
       spEl('span', { text: 'psi (valves, PRVs, etc.)' })
+    ),
+    spEl('div', { class: 'sp-row' },
+      spEl('label', { text: '' }),
+      (function() {
+        const btn = spEl('button', {
+          class: 'sp-btn-secondary',
+          text: state.addRule25 ? 'Rule of thumb +25 psi (on)' : 'Apply +25 psi rule of thumb',
+        });
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          state.addRule25 = !state.addRule25;
+          btn.textContent = state.addRule25 ? 'Rule of thumb +25 psi (on)' : 'Apply +25 psi rule of thumb';
+          updatePreview();
+        });
+        return btn;
+      })()
     )
   );
 
