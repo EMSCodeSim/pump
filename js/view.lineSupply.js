@@ -399,21 +399,37 @@ export function openSupplyLinePopup({
   dept = {},
   initial = null,
   onSave = () => {},
+  liveGpm = null,
 } = {}) {
   injectSupplyStyles();
 
   const hoses = dept.hoses || [];
 
+  // Decide starting GPM:
+  // - If a live GPM is passed from the main calc and > 0, use that.
+  // - Else if the initial preset has a GPM > 0, use that.
+  // - Else fall back to 50 gpm so the math still works.
+  let startingGpm = 50;
+  if (typeof liveGpm === 'number' && liveGpm > 0) {
+    startingGpm = Math.round(liveGpm);
+  } else if (initial && typeof initial === 'object' && typeof initial.flowGpm === 'number' && initial.flowGpm > 0) {
+    startingGpm = initial.flowGpm;
+  }
+
   const state = {
     hoseSizeId: hoses[0]?.id || '',
     lengthFt: 300,
-    flowGpm: 500,
+    flowGpm: startingGpm,
     desiredEndPsi: 50,  // intake or discharge needed at far end
     elevationFt: 0,
   };
 
   if (initial && typeof initial === 'object') {
     Object.assign(state, initial);
+    // If the stored preset has 0 gpm, still respect the startingGpm rule.
+    if (!(typeof state.flowGpm === 'number' && state.flowGpm > 0)) {
+      state.flowGpm = startingGpm;
+    }
   }
 
   // --- Popup skeleton ---
