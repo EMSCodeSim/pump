@@ -2413,13 +2413,7 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if(teNoz && Array.isArray(NOZ_LIST)){
-    teNoz.innerHTML = NOZ_LIST.map(n => {
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-  }
+  if (teNoz) fillNozzles(teNoz);
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
@@ -2459,13 +2453,26 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
+    if (!sel || !Array.isArray(NOZ_LIST)) return;
+
+    // Start from full list, then narrow to department-selected if defined
+    let list = NOZ_LIST;
     try{
-      if(!sel || !Array.isArray(NOZ_LIST)) return;
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const set = new Set(ids);
+          const filtered = NOZ_LIST.filter(n => n && set.has(n.id));
+          if (filtered.length) {
+            list = filtered;
+          }
+        }
+      }
     }catch(e){}
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>{
+
+    sel.innerHTML = list.map(n => {
       const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
+      const val   = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
   }
