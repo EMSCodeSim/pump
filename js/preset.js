@@ -1557,21 +1557,12 @@ function openPresetMainMenu() {
       `).join('')
     : `<div class="preset-list-empty">No saved presets yet.</div>`;
 
+  
   body.innerHTML = `
     <div class="dept-menu" style="margin-bottom:8px;">
       <button type="button" class="btn-primary" id="presetDeptSetupBtn">
         Department setup
       </button>
-    </div>
-
-
-    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      Quick line setup
-    </p>
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-line-btn" data-line="1">Line 1 (scene)</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="2">Line 2 (scene)</button>
-      <button type="button" class="btn-secondary preset-line-btn" data-line="3">Line 3 (scene)</button>
     </div>
 
     <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
@@ -1581,7 +1572,6 @@ function openPresetMainMenu() {
       ${savedHtml}
     </div>
   `;
-
   footer.innerHTML = `
     <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
     <button type="button" class="btn-primary" id="presetAddPresetBtn">Add preset</button>
