@@ -481,7 +481,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     } catch (e) {
       console.warn('getDeptNozzleIds failed', e);
     }
-    if (selectedNozzleIds.length) {
+    
+    if (!selectedNozzleIds.length && Array.isArray(base.nozzles)) {
+      selectedNozzleIds = base.nozzles
+        .map(id => typeof id === 'string' ? id.trim() : String(id || '').trim())
+        .filter(id => id.length && allNozzles.some(n => n.id === id));
+    }
+if (selectedNozzleIds.length) {
       dept.nozzlesSelected = selectedNozzleIds;
     }
 
@@ -865,7 +871,56 @@ function updateSegSwitchVisibility(){
       .join('');
   }
 
-  const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  
+  // Override: build nozzle options directly from department storage so main
+  // Line 1/2/3 editor only shows department-selected nozzles.
+  function buildNozzleOptionsHTML() {
+    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+
+    // Load raw dept config directly from localStorage
+    let dept = null;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('fireops_dept_equipment_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            dept = parsed;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('buildNozzleOptionsHTML: dept load failed', e);
+      dept = null;
+    }
+
+    let ids = [];
+    if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
+      ids = dept.nozzles
+        .map(id => typeof id === 'string' ? id.trim() : '')
+        .filter(id => id.length);
+    }
+
+    // If no dept selection saved, fall back to full list.
+    if (!ids.length) {
+      return fullList
+        .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+        .join('');
+    }
+
+    const set = new Set(ids);
+    const filtered = fullList.filter(n => n && typeof n.id === 'string' && set.has(n.id));
+
+    // If none of the selected ids matched known nozzles (e.g. config drift),
+    // still fall back to the full list so the UI is never empty.
+    const base = filtered.length ? filtered : fullList;
+
+    return base
+      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+      .join('');
+  }
+
+const nozzleOptionsHTML = buildNozzleOptionsHTML();
   [teNoz, teNozA, teNozB].forEach(sel => {
     if (!sel) return;
     sel.innerHTML = nozzleOptionsHTML;
