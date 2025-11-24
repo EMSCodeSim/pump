@@ -22,46 +22,80 @@ export function openStandardLinePopup(options) {
 
   // ---- Defaults & helpers for hoses / nozzles ----
   const DEFAULT_NOZZLES = [
-    { id: "fog150_50",  label: "Fog 150@50",          gpm: 150, np: 50 },
-    { id: "fog185_50",  label: "Fog 185@50",          gpm: 185, np: 50 },
-    { id: "sb_15_16_50",label: "SB 15/16\"@50",       gpm: 185, np: 50 },
-    { id: "sb_1_1_8_50",label: "SB 1 1/8\"@50",       gpm: 265, np: 50 }
+    { id: "fog150_50",   label: "Fog 150@50",     gpm: 150, np: 50 },
+    { id: "fog185_50",   label: "Fog 185@50",     gpm: 185, np: 50 },
+    { id: "sb_15_16_50", label: "SB 15/16\"@50",  gpm: 185, np: 50 },
+    { id: "sb_1_1_8_50", label: "SB 1 1/8\"@50",  gpm: 265, np: 50 }
   ];
 
   const DEFAULT_HOSES = [
     { id: "1.75", label: "1 3/4\"", c: 15.5 },
     { id: "2.5",  label: "2 1/2\"", c: 2.0 },
-    { id: "3",    label: "3\"",      c: 0.8 },
-    { id: "5",    label: "5\"",      c: 0.08 }
+    { id: "3",    label: "3\"",     c: 0.8 },
+    { id: "5",    label: "5\"",     c: 0.08 }
   ];
 
-  const allNozzlesRaw = Array.isArray(dept.nozzlesAll)
+  // ---- Build nozzle list (department-aware, robust) ----
+  let allNozzlesRaw = Array.isArray(dept.nozzlesAll)
     ? dept.nozzlesAll
     : (Array.isArray(options.nozzleChoices) ? options.nozzleChoices : DEFAULT_NOZZLES);
 
-  const selectedNozzleIds = Array.isArray(dept.nozzlesSelected) && dept.nozzlesSelected.length
-    ? new Set(dept.nozzlesSelected)
-    : null;
+  if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
+    allNozzlesRaw = DEFAULT_NOZZLES.slice();
+  }
 
-  const baseNozzleList = selectedNozzleIds
-    ? allNozzlesRaw.filter(n => selectedNozzleIds.has(n.id))
-    : allNozzlesRaw.slice();
+  const selectedNozzleIdsRaw = Array.isArray(dept.nozzlesSelected)
+    ? dept.nozzlesSelected
+    : [];
+
+  const selectedNozzleSet =
+    selectedNozzleIdsRaw.length > 0
+      ? new Set(selectedNozzleIdsRaw.map(id => String(id)))
+      : null;
+
+  let baseNozzleList;
+  if (selectedNozzleSet) {
+    // Filter by selected IDs (string-compare), but if that yields nothing,
+    // fall back to the full list so the popup never ends up "no options".
+    const filtered = allNozzlesRaw.filter(
+      n => n && selectedNozzleSet.has(String(n.id))
+    );
+    baseNozzleList = filtered.length ? filtered : allNozzlesRaw.slice();
+  } else {
+    baseNozzleList = allNozzlesRaw.slice();
+  }
 
   // Always include a "Closed" nozzle option at the top
   const CLOSED_NOZZLE = { id: "closed", label: "Closed (no flow)", gpm: 0, np: 0 };
   const nozzleList = [CLOSED_NOZZLE, ...baseNozzleList];
 
-  const allHosesRaw = Array.isArray(dept.hosesAll)
+  // ---- Build hose list (department-aware, robust) ----
+  let allHosesRaw = Array.isArray(dept.hosesAll)
     ? dept.hosesAll
     : (Array.isArray(options.hoseChoices) ? options.hoseChoices : DEFAULT_HOSES);
 
-  const selectedHoseIds = Array.isArray(dept.hosesSelected) && dept.hosesSelected.length
-    ? new Set(dept.hosesSelected)
-    : null;
+  if (!Array.isArray(allHosesRaw) || !allHosesRaw.length) {
+    allHosesRaw = DEFAULT_HOSES.slice();
+  }
 
-  const hoseList = selectedHoseIds
-    ? allHosesRaw.filter(h => selectedHoseIds.has(h.id))
-    : allHosesRaw.slice();
+  const selectedHoseIdsRaw = Array.isArray(dept.hosesSelected)
+    ? dept.hosesSelected
+    : [];
+
+  const selectedHoseSet =
+    selectedHoseIdsRaw.length > 0
+      ? new Set(selectedHoseIdsRaw.map(id => String(id)))
+      : null;
+
+  let hoseList;
+  if (selectedHoseSet) {
+    const filtered = allHosesRaw.filter(
+      h => h && selectedHoseSet.has(String(h.id))
+    );
+    hoseList = filtered.length ? filtered : allHosesRaw.slice();
+  } else {
+    hoseList = allHosesRaw.slice();
+  }
 
   function findNozzleById(id) {
     if (id === "closed" || !id) return CLOSED_NOZZLE;
