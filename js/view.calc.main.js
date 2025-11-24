@@ -1696,10 +1696,10 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       // seed it from Department → Line defaults (hose, length, nozzle, elevation).
       if (!wasVisible && !L._initializedFromDept && typeof getDeptLineDefaults === 'function') {
         try {
-          const map = { left: '1', back: '2', right: '3' };   // Line 1 / 2 / 3
+          const map = { left: 'line1', back: 'line2', right: 'line3' };   // Line 1 / 2 / 3
           const all = getDeptLineDefaults() || {};
-          const keyNum = map[key];
-          const def = keyNum ? all[keyNum] : null;
+          const keyName = map[key];
+          const def = keyName ? all[keyName] : null;
 
           if (def && (def.hoseDiameter || def.lengthFt || def.nozzleId)) {
             const main = {};
