@@ -436,17 +436,132 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
   function loadDeptForBuilders(){
+    // Read raw dept config (for future use), then layer in hose/nozzle libraries
+    let base = {};
     try {
-      if (typeof localStorage === 'undefined') return {};
-      const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return {};
-      return parsed;
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            base = parsed;
+          }
+        }
+      }
     } catch (e) {
       console.warn('Failed to load dept for builders', e);
-      return {};
     }
+
+    // Start with a shallow copy so we don't accidentally mutate stored config
+    const dept = Object.assign({}, base || {});
+
+    // ----- Nozzles -----
+    let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
+    // Normalize nozzle objects for the popup: id, label, gpm, np
+    allNozzles = allNozzles.map(n => ({
+      id:    n.id,
+      label: n.name || n.label || n.id,
+      gpm:   typeof n.gpm === 'number' ? n.gpm : (typeof n.GPM === 'number' ? n.GPM : 0),
+      np:    typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : 0),
+    }));
+
+    // Full library for popups (Fog, SB, etc.)
+    dept.nozzlesAll = allNozzles;
+
+    // Limit to department-selected nozzle IDs (e.g. only 15/16)
+    let selectedNozzleIds = [];
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const valid = new Set(allNozzles.map(n => n.id));
+          selectedNozzleIds = ids.filter(id => valid.has(id));
+        }
+      }
+    } catch (e) {
+      console.warn('getDeptNozzleIds failed', e);
+    }
+    if (selectedNozzleIds.length) {
+      dept.nozzlesSelected = selectedNozzleIds;
+    }
+
+    // ----- Hoses -----
+    const DEFAULT_HOSES = [
+      { id: "1.75", label: "1 3/4\"", c: 15.5 },
+      { id: "2.5",  label: "2 1/2\"", c: 2.0 },
+      { id: "3",    label: "3\"",      c: 0.8 },
+      { id: "5",    label: "5\"",      c: 0.08 }
+    ];
+
+    let hoseIds = [];
+    try {
+      if (typeof getDeptHoseDiameters === 'function') {
+        const ids = getDeptHoseDiameters() || [];
+        if (Array.isArray(ids)) {
+          hoseIds = ids.map(x => String(x));
+        }
+      }
+    } catch (e) {
+      console.warn('getDeptHoseDiameters failed', e);
+    }
+
+    // Try to pull custom hose labels / C values from stored dept config, if present.
+    const hoseMetaById = {};
+    if (base && base.hoses && typeof base.hoses === 'object') {
+      // Support either object map or array of hose configs.
+      if (Array.isArray(base.hoses)) {
+        base.hoses.forEach(h => {
+          if (!h) return;
+          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : null);
+          if (!id) return;
+          if (!hoseMetaById[id]) {
+            hoseMetaById[id] = {
+              id,
+              label: h.label || h.name || `${id}"`,
+              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
+            };
+          }
+        });
+      } else {
+        Object.keys(base.hoses).forEach(key => {
+          const h = base.hoses[key];
+          if (!h) return;
+          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : String(key));
+          if (!id) return;
+          if (!hoseMetaById[id]) {
+            hoseMetaById[id] = {
+              id,
+              label: h.label || h.name || `${id}"`,
+              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
+            };
+          }
+        });
+      }
+    }
+
+    const hosesAll = [];
+    const addHoseIfNeeded = (id) => {
+      if (!id) return;
+      const key = String(id);
+      if (hosesAll.some(h => h.id === key)) return;
+      const meta = hoseMetaById[key]
+        || DEFAULT_HOSES.find(h => h.id === key)
+        || { id: key, label: `${key}"`, c: 15.5 };
+      hosesAll.push(Object.assign({}, meta));
+    };
+
+    if (hoseIds.length) {
+      hoseIds.forEach(addHoseIfNeeded);
+    } else {
+      DEFAULT_HOSES.forEach(h => hosesAll.push(Object.assign({}, h)));
+    }
+
+    dept.hosesAll = hosesAll;
+    if (hoseIds.length) {
+      dept.hosesSelected = hoseIds;
+    }
+
+    return dept;
   }
 const activePresetLines = {};
   // Editor fields
