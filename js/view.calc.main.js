@@ -831,65 +831,50 @@ function updateSegSwitchVisibility(){
   const rowNoz      = container.querySelector('#rowNoz');
 
 
-  // Populate nozzle selects, prioritizing Department Setup choices if available
-  function 
-  // Build nozzle <option> list for the main Line 1/2/3 editor.
-  // If the department has selected specific nozzles in Department Setup,
-  // only those will be shown. If nothing is configured, fall back to the
-  // full built‑in nozzle catalog so the UI is never empty.
+  
+  // Populate nozzle selects, honoring Department Setup choices if available.
   function buildNozzleOptionsHTML() {
     const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
     if (!fullList.length) return '';
 
-    let selectedIds = [];
-
+    let ids = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids)) {
-          selectedIds = ids
-            .map(id => (typeof id === 'string' ? id.trim() : String(id || '').trim()))
-            .filter(id => id.length);
+        const fromPreset = getDeptNozzleIds() || [];
+        if (Array.isArray(fromPreset)) {
+          ids = fromPreset
+            .map(id => (id == null ? '' : String(id).trim()))
+            .filter(id => id.length > 0);
         }
       }
-    } catch (e) {
-      console.warn('buildNozzleOptionsHTML: getDeptNozzleIds failed', e);
-      selectedIds = [];
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: getDeptNozzleIds failed', err);
+      ids = [];
     }
 
-    // Map all known nozzles by id for fast lookup.
-    const byId = new Map(fullList.map(n => [n.id, n]));
+    // By default we show the entire nozzle catalog so the UI is never empty.
+    let base = fullList;
 
-    // If the department has a non‑empty set of valid nozzle ids, build the
-    // list in that order. If none of them match (config drift, etc.), we
-    // silently fall back to the full catalog.
-    let baseList = fullList;
-    if (selectedIds.length) {
-      const filtered = [];
-      const used = new Set();
-      for (const id of selectedIds) {
-        if (used.has(id)) continue;
-        const noz = byId.get(id);
-        if (noz) {
-          filtered.push(noz);
-          used.add(id);
-        }
-      }
+    // If Department Setup has selected any valid nozzle ids, filter to those.
+    if (ids.length) {
+      const idSet = new Set(ids);
+      const filtered = fullList.filter(n => n && typeof n.id === 'string' && idSet.has(n.id));
       if (filtered.length) {
-        baseList = filtered;
+        base = filtered;
       }
     }
 
-    return baseList
+    return base
       .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
       .join('');
   }
 
-const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  const nozzleOptionsHTML = buildNozzleOptionsHTML();
   [teNoz, teNozA, teNozB].forEach(sel => {
     if (!sel) return;
     sel.innerHTML = nozzleOptionsHTML;
   });
+
 
 
   // Panels controlled by waterSupply.js
