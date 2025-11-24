@@ -7,7 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ, state } from './store.js';
+import { setDeptLineDefault, NOZ } from './store.js';
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
@@ -1523,10 +1523,6 @@ function renderDeptLineDefaultsScreen(lineNumber) {
           }
 
           setDeptLineDefault(storeKey, L);
-          // Also update live engine lines if present so the main calc view sees new defaults
-          if (state.lines && state.lines[storeKey]) {
-            state.lines[storeKey] = JSON.parse(JSON.stringify(L));
-          }
         }
       } catch (e) {
         console.warn('Failed to sync dept line default to store', e);
