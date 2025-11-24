@@ -44,7 +44,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters } from './preset.js';
+import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults } from './preset.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
@@ -1684,11 +1684,59 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* ---------------------------- Line toggles ------------------------------ */
 
-  container.querySelectorAll('.linebtn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const key=b.dataset.line; const L=seedDefaultsForKey(key);
-      L.visible = !L.visible; b.classList.toggle('active', L.visible);
-      drawAll(); markDirty();
+  container.querySelectorAll('.linebtn').forEach(b => {
+    b.addEventListener('click', () => {
+      const key = b.dataset.line;
+      const L   = seedDefaultsForKey(key);
+      if (!L) return;
+
+      const wasVisible = !!L.visible;
+
+      // When a line is turned ON for the first time this session,
+      // seed it from Department → Line defaults (hose, length, nozzle, elevation).
+      if (!wasVisible && !L._initializedFromDept && typeof getDeptLineDefaults === 'function') {
+        try {
+          const map = { left: '1', back: '2', right: '3' };   // Line 1 / 2 / 3
+          const all = getDeptLineDefaults() || {};
+          const keyNum = map[key];
+          const def = keyNum ? all[keyNum] : null;
+
+          if (def && (def.hoseDiameter || def.lengthFt || def.nozzleId)) {
+            const main = {};
+
+            if (def.hoseDiameter) {
+              // stored as number, we use string for hose size
+              main.size = String(def.hoseDiameter);
+            }
+            if (typeof def.lengthFt === 'number') {
+              main.lengthFt = def.lengthFt;
+            }
+
+            // apply to main line
+            L.itemsMain = [main];
+
+            // optional elevation if present
+            if (typeof def.elevation === 'number') {
+              L.elevFt = def.elevation;
+            }
+
+            // nozzle: map saved nozzleId → NOZ table
+            if (def.nozzleId && NOZ[def.nozzleId]) {
+              L.nozRight = NOZ[def.nozzleId];
+            }
+          }
+
+          // mark so we don’t re-apply defaults on every toggle
+          L._initializedFromDept = true;
+        } catch (e) {
+          console.warn('Failed to apply department line defaults', e);
+        }
+      }
+
+      L.visible = !wasVisible;
+      b.classList.toggle('active', L.visible);
+      drawAll();
+      markDirty();
     });
   });
 
