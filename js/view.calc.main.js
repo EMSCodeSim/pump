@@ -29,6 +29,14 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
+import { openStandardLinePopup }   from './view.lineStandard.js';
+import { openMasterStreamPopup }   from './view.lineMaster.js';
+import { openStandpipePopup }      from './view.lineStandpipe.js';
+import { openSprinklerPopup }      from './view.lineSprinkler.js';
+import { openFoamPopup }           from './view.lineFoam.js';
+import { openSupplyLinePopup }     from './view.lineSupply.js';
+import { openCustomBuilderPopup }  from './view.lineCustom.js';
+;
 // Expose shared state for legacy helpers (reset scripts, etc.)
 if (typeof window !== 'undefined') {
   window.state = state;
@@ -424,7 +432,23 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
 
   // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1–3
-  const activePresetLines = {};
+  
+  const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+
+  function loadDeptForBuilders(){
+    try {
+      if (typeof localStorage === 'undefined') return {};
+      const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return {};
+      return parsed;
+    } catch (e) {
+      console.warn('Failed to load dept for builders', e);
+      return {};
+    }
+  }
+const activePresetLines = {};
   // Editor fields
   const tipEditor   = container.querySelector('#tipEditor');
   const teTitle     = container.querySelector('#teTitle');
@@ -932,101 +956,135 @@ function updateSegSwitchVisibility(){
     });
   }
 
+  
   function openPresetLineEditor(presetLine, opts = {}){
+    if (!presetLine || !presetLine.config) return;
+
     const onSave = typeof opts.onSave === 'function' ? opts.onSave : ()=>{};
     const onDelete = typeof opts.onDelete === 'function' ? opts.onDelete : ()=>{};
 
-    const overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
-    overlay.style.inset = '0';
-    overlay.style.background = 'rgba(0,0,0,0.6)';
-    overlay.style.zIndex = '9999';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
+    const cfg = presetLine.config;
+    const lt  = cfg.lineType || (cfg.raw && cfg.raw.lineType) || (cfg.raw && cfg.raw.type) || presetLine.lineType || null;
+    const raw = cfg.raw || {};
 
-    const panel = document.createElement('div');
-    panel.style.background = '#020617';
-    panel.style.color = '#e5e7eb';
-    panel.style.borderRadius = '16px';
-    panel.style.padding = '16px';
-    panel.style.width = '100%';
-    panel.style.maxWidth = '420px';
-    panel.style.boxSizing = 'border-box';
-    panel.style.boxShadow = '0 18px 30px rgba(15,23,42,0.75)';
-    overlay.appendChild(panel);
+    const dept = loadDeptForBuilders();
 
-    const cfg = (presetLine && presetLine.config) ? presetLine.config : {};
+    function recomputeDirectFromPayload(lineType, payload){
+      if (!payload || typeof payload !== 'object') return { directGpm: cfg.directGpm, directPdp: cfg.directPdp };
+      const lc = payload.lastCalc || {};
+      let gpm = null;
+      let pdp = null;
 
-    panel.innerHTML = `
-      <h3 style="margin:0 0 8px;font-size:1rem;font-weight:600;">
-        ${presetLine.name || 'Preset line'}
-      </h3>
-      <p style="margin:0 0 12px;font-size:0.85rem;opacity:0.85;">
-        Edit hose, length, nozzle, and elevation for this preset line.
-      </p>
-      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.85rem;">
-        <label>Hose diameter (inches)
-          <input id="plHose" type="number" inputmode="decimal" style="width:100%;margin-top:2px;"
-                 value="${cfg.hoseDiameter ?? ''}">
-        </label>
-        <label>Length (ft)
-          <input id="plLen" type="number" inputmode="numeric" style="width:100%;margin-top:2px;"
-                 value="${(typeof cfg.lengthFt === 'number' ? cfg.lengthFt : (cfg.lengthFt ?? ''))}">
-        </label>
-        <label>Nozzle ID
-          <input id="plNoz" type="text" style="width:100%;margin-top:2px;"
-                 value="${cfg.nozzleId ?? ''}">
-        </label>
-        <label>Elevation (+/- ft)
-          <input id="plElev" type="number" inputmode="numeric" style="width:100%;margin-top:2px;"
-                 value="${(typeof cfg.elevation === 'number' ? cfg.elevation : (cfg.elevation ?? 0))}">
-        </label>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
-        <button type="button" id="plDeleteBtn" class="btn" style="background:#7f1d1d;color:#fee2e2;">
-          Remove line
-        </button>
-        <button type="button" id="plCancelBtn" class="btn" style="background:#0f172a;">
-          Cancel
-        </button>
-        <button type="button" id="plSaveBtn" class="btn btn-primary">
-          Save
-        </button>
-      </div>
-    `;
+      if (lineType === 'standard' || lineType === 'single' || lineType === 'wye' || !lineType) {
+        if (typeof lc.targetGpm === 'number') gpm = lc.targetGpm;
+        if (typeof lc.targetPdp === 'number') pdp = lc.targetPdp;
+      } else if (lineType === 'master') {
+        if (typeof lc.gpm === 'number') gpm = lc.gpm;
+        if (typeof lc.PDP === 'number') pdp = lc.PDP;
+      } else if (lineType === 'standpipe') {
+        if (typeof lc.gpm === 'number') gpm = lc.gpm;
+        if (typeof lc.PDP === 'number') pdp = lc.PDP;
+      } else if (lineType === 'sprinkler') {
+        if (typeof lc.requiredFlowGpm === 'number') gpm = lc.requiredFlowGpm;
+        if (typeof lc.PDP === 'number') pdp = lc.PDP;
+      } else if (lineType === 'foam') {
+        if (typeof lc.waterGpm === 'number') gpm = lc.waterGpm;
+        if (typeof lc.pdp === 'number') pdp = lc.pdp;
+      } else if (lineType === 'supply') {
+        if (typeof lc.gpm === 'number') gpm = lc.gpm;
+        if (typeof lc.PDP === 'number') pdp = lc.PDP;
+      } else if (lineType === 'custom') {
+        if (typeof lc.targetFlowGpm === 'number') gpm = lc.targetFlowGpm;
+        if (typeof lc.PDP === 'number') pdp = lc.PDP;
+      }
 
-    function close(){
-      overlay.remove();
+      return {
+        directGpm: (gpm != null ? gpm : cfg.directGpm),
+        directPdp: (pdp != null ? pdp : cfg.directPdp),
+      };
     }
 
-    panel.querySelector('#plCancelBtn')?.addEventListener('click', ()=>{
-      close();
-    });
-    panel.querySelector('#plDeleteBtn')?.addEventListener('click', ()=>{
-      close();
-      onDelete();
-    });
-    panel.querySelector('#plSaveBtn')?.addEventListener('click', ()=>{
-      const hose = panel.querySelector('#plHose');
-      const len  = panel.querySelector('#plLen');
-      const noz  = panel.querySelector('#plNoz');
-      const elev = panel.querySelector('#plElev');
+    function handleSaveFromBuilder(newPayload){
+      const payload = newPayload || raw || {};
+      const direct  = recomputeDirectFromPayload(lt, payload);
 
-      const edited = {
-        hoseDiameter: hose && hose.value ? hose.value.trim() : '',
-        lengthFt: len && len.value ? Number(len.value) : null,
-        nozzleId: noz && noz.value ? noz.value.trim() : '',
-        elevation: elev && elev.value ? Number(elev.value) : 0,
+      presetLine.config = {
+        lineType: lt,
+        raw: payload,
+        directGpm: direct.directGpm,
+        directPdp: direct.directPdp,
       };
-      close();
-      onSave(edited);
-    });
 
-    document.body.appendChild(overlay);
+      onSave(presetLine.config);
+      refreshTotals();
+      renderPresetLineButtons();
+      markDirty();
+    }
+
+    // Route to the correct builder popup based on line type
+    if (lt === 'master') {
+      openMasterStreamPopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    if (lt === 'standpipe') {
+      openStandpipePopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    if (lt === 'sprinkler') {
+      openSprinklerPopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    if (lt === 'foam') {
+      openFoamPopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    if (lt === 'supply') {
+      openSupplyLinePopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    if (lt === 'custom') {
+      openCustomBuilderPopup({
+        dept,
+        initial: raw,
+        onSave: handleSaveFromBuilder,
+      });
+      return;
+    }
+
+    // Default / unknown -> treat as standard attack line
+    openStandardLinePopup({
+      dept,
+      initial: raw,
+      onSave: handleSaveFromBuilder,
+    });
   }
 
-  // Click handler for preset line buttons
+// Click handler for preset line buttons
   container.addEventListener('click', (e)=>{
     const btn = e.target.closest('.preset-line-btn');
     if (!btn) return;
