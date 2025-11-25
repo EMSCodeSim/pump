@@ -395,6 +395,34 @@ function calcSupplyNumbers(state, hoses) {
  *   - initial: optional existing supply config
  *   - onSave: function(config) -> void
  */
+
+// Pretty label for internal hose IDs so the dropdown is easier to read.
+function supplyPrettyHoseLabelFromId(id) {
+  if (!id) return '';
+  // Common attack line sizes
+  if (id === 'h_1') return '1\" attack hose';
+  if (id === 'h_15') return '1 1/2\" attack hose';
+  if (id === 'h_175') return '1 3/4\" attack hose';
+  if (id === 'h_2') return '2\" attack hose';
+  if (id === 'h_25') return '2 1/2\" attack hose';
+  if (id === 'h_3') return '3\" attack hose';
+
+  // Supply / LDH
+  if (id === 'h_3_supply') return '3\" supply line';
+  if (id === 'h_4_ldh') return '4\" LDH supply';
+  if (id === 'h_5_ldh') return '5\" LDH supply';
+
+  // Wildland / booster
+  if (id === 'h_w_1') return '1\" wildland hose';
+  if (id === 'h_w_15') return '1 1/2\" wildland hose';
+  if (id === 'h_booster_1') return '1\" booster reel';
+
+  // Low-friction / special
+  if (id === 'h_lf_175') return '1 3/4\" low-friction attack';
+
+  // Fallback – show raw id
+  return id;
+}
 export function openSupplyLinePopup({
   dept = {},
   initial = null,
@@ -415,10 +443,22 @@ export function openSupplyLinePopup({
       { id: 'h_5_ldh', label: '5\" LDH supply' },
     ];
   } else if (typeof hoses[0] === 'string') {
-    hoses = hoses.map((h, idx) => ({
-      id: String(h),
-      label: String(h),
-    }));
+    hoses = hoses.map((h, idx) => {
+      const id = String(h);
+      return {
+        id,
+        label: supplyPrettyHoseLabelFromId(id),
+      };
+    });
+  } else if (hoses[0] && typeof hoses[0] === 'object') {
+    hoses = hoses.map((h, idx) => {
+      const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
+      let label = h.label || h.name || '';
+      if (!label || label === id) {
+        label = supplyPrettyHoseLabelFromId(id);
+      }
+      return { ...h, id, label };
+    });
   }
 
   // Decide starting GPM:
