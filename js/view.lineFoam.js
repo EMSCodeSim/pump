@@ -424,6 +424,121 @@ function calcFoamNumbers(state) {
  *   - initial: optional existing foam config
  *   - onSave: function(config) -> void
  */
+
+// Pretty labels for hose & nozzle IDs so dropdowns are readable.
+function fmPrettyHoseLabelFromId(id) {
+  if (!id) return '';
+  // Common attack line sizes
+  if (id === 'h_1')   return '1\" attack hose';
+  if (id === 'h_15')  return '1 1/2\" attack hose';
+  if (id === 'h_175') return '1 3/4\" attack hose';
+  if (id === 'h_2')   return '2\" attack hose';
+  if (id === 'h_25')  return '2 1/2\" attack hose';
+  if (id === 'h_3')   return '3\" attack hose';
+
+  // Supply / LDH
+  if (id === 'h_3_supply') return '3\" supply line';
+  if (id === 'h_4_ldh')    return '4\" LDH supply';
+  if (id === 'h_5_ldh')    return '5\" LDH supply';
+
+  // Wildland / booster
+  if (id === 'h_w_1')      return '1\" wildland hose';
+  if (id === 'h_w_15')     return '1 1/2\" wildland hose';
+  if (id === 'h_booster_1') return '1\" booster reel';
+
+  // Low-friction / special
+  if (id === 'h_lf_175')   return '1 3/4\" low-friction attack';
+
+  // Fallback – show raw id
+  return id;
+}
+
+function fmPrettyDiaFromCode(code) {
+  if (!code) return '';
+  if (code === '1')   return '1"';
+  if (code === '15')  return '1 1/2"';
+  if (code === '175') return '1 3/4"';
+  if (code === '2')   return '2"';
+  if (code === '25')  return '2 1/2"';
+  if (code === '3')   return '3"';
+  if (code === '4')   return '4"';
+  if (code === '5')   return '5"';
+  return code + '"';
+}
+
+function fmPrettySbTipFromCode(code) {
+  if (!code) return '';
+  if (code === '78')   return '7/8"';
+  if (code === '1516') return '15/16"';
+  if (code === '1')    return '1"';
+  if (code === '118')  return '1 1/8"';
+  return code + '" tip';
+}
+
+function fmPrettyNozzleLabelFromId(id) {
+  if (!id) return '';
+
+  // Pattern: fog_xd_175_75_185 → type_model_diaCode_NP_GPM
+  const fogParts = id.split('_');
+  if (fogParts.length === 5 && fogParts[0] === 'fog') {
+    const [, model, diaCode, npRaw, gpmRaw] = fogParts;
+    const dia = fmPrettyDiaFromCode(diaCode);
+    const np  = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    const modelLabel = model.toUpperCase();
+    return dia + ' ' + modelLabel + ' fog ' + gpm + ' gpm @ ' + np + ' psi';
+  }
+
+  // Smooth bore pattern: sb_78_50_160 → tipCode_NP_GPM
+  const sbMatch = id.match(/^sb_([^_]+)_([^_]+)_([^_]+)/);
+  if (sbMatch) {
+    const tipCode = sbMatch[1];
+    const npRaw   = sbMatch[2];
+    const gpmRaw  = sbMatch[3];
+    const tip = fmPrettySbTipFromCode(tipCode);
+    const np  = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    return tip + ' smooth bore ' + gpm + ' gpm @ ' + np + ' psi';
+  }
+
+  // Generic fallback
+  return id;
+}
+
+// Normalize dept hoses/nozzles into [{id,label,...}, ...]
+function fmNormalizeDeptList(list, kind) {
+  if (!Array.isArray(list)) return [];
+
+  return list.map((item, idx) => {
+    if (item && typeof item === 'object') {
+      const id = item.id != null
+        ? String(item.id)
+        : String(item.value ?? item.name ?? idx);
+      let label = item.label || item.name || '';
+
+      if (!label || label === id) {
+        if (kind === 'hose') {
+          label = fmPrettyHoseLabelFromId(id);
+        } else if (kind === 'nozzle') {
+          label = fmPrettyNozzleLabelFromId(id);
+        } else {
+          label = id;
+        }
+      }
+
+      return { ...item, id, label };
+    }
+
+    const id = String(item);
+    let label = id;
+    if (kind === 'hose') {
+      label = fmPrettyHoseLabelFromId(id);
+    } else if (kind === 'nozzle') {
+      label = fmPrettyNozzleLabelFromId(id);
+    }
+    return { id, label, raw: item };
+  });
+}
 export function openFoamPopup({
   dept = {},
   initial = null,
@@ -431,7 +546,8 @@ export function openFoamPopup({
 } = {}) {
   injectFoamStyles();
 
-  const nozzles = dept.nozzles || [];
+  const nozzles = fmNormalizeDeptList(dept.nozzles || [], 'nozzle');
+  const hoses   = fmNormalizeDeptList(dept.hoses   || [], 'hose');
 
   const state = {
     foamType: 'classA',        // 'classA' | 'classB'
@@ -825,6 +941,20 @@ export function openFoamPopup({
       modeToggle,
       fmEl('span', { text: 'Nozzle:' }),
       nozzleSelect,
+      fmEl('span', { text: 'GPM:' }),
+      fmNumberInput(state.waterGpm, v => { state.waterGpm = v; updatePreview(); })
+    );
+  } else if (hoses.length) {
+    // If we have hoses but no specific foam nozzles, still show a hose dropdown
+    // so the user can document which line they are foaming.
+    const hoseSelect = fmSelect(hoses, state.hoseId || hoses[0]?.id || '', v => {
+      state.hoseId = v;
+      updatePreview();
+    });
+    flowRow.append(
+      fmEl('label', { text: 'Water flow:' }),
+      fmEl('span', { text: 'Hose:' }),
+      hoseSelect,
       fmEl('span', { text: 'GPM:' }),
       fmNumberInput(state.waterGpm, v => { state.waterGpm = v; updatePreview(); })
     );
