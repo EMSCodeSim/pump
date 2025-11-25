@@ -1340,7 +1340,7 @@ function updateSegSwitchVisibility(){
 
     // Department lines (Line 1/2/3)
     vis.forEach(([key, L])=>{
-      const single = isSingleWye(L);
+      const single = L.hasWye && isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
                  : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
                             : (L.nozRight?.gpm||0);
@@ -1418,7 +1418,7 @@ function updateSegSwitchVisibility(){
       const L = state.lines[key];
       const row = document.createElement('div'); row.className='lineRow';
       const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
-      const single = isSingleWye(L);
+      const single = L.hasWye && isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
 
@@ -2195,7 +2195,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
       // Main label: if Wye present, show 'via Wye' (no nozzle mention)
-      const single = isSingleWye(L);
+      const single = L.hasWye && isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
       const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
