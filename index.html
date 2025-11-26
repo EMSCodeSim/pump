@@ -100,6 +100,21 @@
       box-shadow:0 0 0 1px rgba(70,176,255,.3);
     }
 
+    /* Generic buttons inside cards (Practice header etc.) */
+    .card button{
+      background:#050a14;
+      color:#e9f1ff;
+      border-radius:999px;
+      border:1px solid #2a4066;
+      padding:7px 12px;
+      font-size:13px;
+      cursor:pointer;
+    }
+    .card button:disabled{
+      opacity:.6;
+      cursor:default;
+    }
+
     /* KPI & helper styles used in calc view */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{
@@ -148,7 +163,7 @@
       color:#cfe4ff;
     }
 
-    /* Generic buttons (calc + practice) */
+    /* Generic .btn style (used for Check button etc.) */
     .btn{
       padding:7px 12px;
       border-radius:999px;
@@ -174,7 +189,7 @@
       box-shadow:none;
     }
 
-    /* Hide Equations button in practice mode (but keep it in DOM for JS) */
+    /* Hide Equations button in practice mode (but keep DOM for JS) */
     #eqToggleBtn{
       display:none !important;
     }
@@ -387,7 +402,7 @@
     </div>
   </div>
 
-  <!-- App JS (router + view.calc.js, etc.) -->
+  <!-- App JS (router + views) -->
   <script type="module" src="/js/app.js"></script>
 
   <!-- About overlay wiring + Department setup shortcut -->
@@ -432,6 +447,28 @@
           navSettings.click();
         });
       }
+    })();
+  </script>
+
+  <!-- Hide any "Reveal" button that practice view renders -->
+  <script>
+    (function(){
+      const app = document.getElementById('app');
+      if (!app) return;
+
+      const hideRevealButtons = () => {
+        const buttons = app.querySelectorAll('button');
+        buttons.forEach(btn => {
+          if (btn.textContent && btn.textContent.trim().toLowerCase() === 'reveal') {
+            btn.style.display = 'none';
+          }
+        });
+      };
+
+      hideRevealButtons();
+
+      const observer = new MutationObserver(hideRevealButtons);
+      observer.observe(app, { childList: true, subtree: true });
     })();
   </script>
 
