@@ -266,9 +266,9 @@ export function computeApplianceLoss(totalGpm){
 }
 
 /* =========================
- * Presets
+ * Line presets for Settings (Line 1/2/3 defaults)
  * ========================= */
-const PRESET_STORAGE_KEY = 'pump_presets_v1';
+const PRESET_STORAGE_KEY = 'fireops_line_presets_v1';
 
 function hasStorage(){
   try {
@@ -293,65 +293,48 @@ function writeStorage(obj){
   } catch { return false; }
 }
 
+// Default presets used by the Settings → Customize Presets panel.
+// These mirror the initial calc layout: Line 1/2 = 200' of 1¾″ @ 185 GPM,
+// Line 3 = 250' of 2½″ @ 265 GPM.
 function defaultPresets(){
   return {
-    standpipe: {
-      name: 'Standpipe',
-      main: [{ size:'2.5', lengthFt:0 }],
-      elevFt: 60,
-      hasWye: false,
-      nozzle: NOZ.fog150_75,
-      supply: 'pressurized',
-    },
-    sprinkler: {
-      name: 'Sprinkler',
-      main: [{ size:'2.5', lengthFt:50 }],
-      elevFt: 0,
-      hasWye: false,
-      nozzle: NOZ.fog150_75,
-      supply: 'pressurized',
-    },
-    foam: {
-      name: 'Foam',
-      main: [{ size:'1.75', lengthFt:200 }],
-      elevFt: 0,
-      hasWye: false,
-      nozzle: NOZ.chief185_50,
-      supply: 'off',
-    },
-    monitor: {
-      name: 'Monitor',
-      main: [{ size:'2.5', lengthFt:200 }],
-      elevFt: 0,
-      hasWye: false,
-      nozzle: NOZ.sb1_1_8,
-      supply: 'off',
-    },
-    aerial: {
-      name: 'Aerial',
-      main: [{ size:'2.5', lengthFt:150 }],
-      elevFt: 80,
-      hasWye: false,
-      nozzle: NOZ.sb1_1_8,
-      supply: 'pressurized',
-    },
+    left:  { len: 200, size: '1.75', noz: 'chief185_50' },
+    back:  { len: 200, size: '1.75', noz: 'chief185_50' },
+    right: { len: 250, size: '2.5',  noz: 'chiefXD265'  },
   };
+}
+
+// Make sure whatever we load looks like the structure Settings expects
+function normalizePresets(obj){
+  if (!obj || typeof obj !== 'object') return defaultPresets();
+  const hasShape =
+    obj.left  && typeof obj.left.len  === 'number' && obj.left.size  && obj.left.noz &&
+    obj.back  && typeof obj.back.len  === 'number' && obj.back.size  && obj.back.noz &&
+    obj.right && typeof obj.right.len === 'number' && obj.right.size && obj.right.noz;
+
+  if (hasShape) return obj;
+
+  // If the stored value is from an older version (standpipe/foam/etc), ignore it.
+  const def = defaultPresets();
+  try { writeStorage(def); } catch {}
+  return def;
 }
 
 export function loadPresets(){
   const fromStore = readStorage();
-  if(fromStore) return fromStore;
-  if(state._presetsMem) return state._presetsMem;
-  return defaultPresets();
+  if(fromStore) return normalizePresets(fromStore);
+  if(state._presetsMem) return normalizePresets(state._presetsMem);
+  const def = defaultPresets();
+  state._presetsMem = def;
+  return def;
 }
 
 export function savePresets(presetsObj){
   if(!presetsObj || typeof presetsObj !== 'object') return false;
-  state._presetsMem = presetsObj;
-  return writeStorage(presetsObj);
-}
-
-/* =========================
+  const norm = normalizePresets(presetsObj);
+  state._presetsMem = norm;
+  return writeStorage(norm);
+}/* =========================
  * Small utils
  * ========================= */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
