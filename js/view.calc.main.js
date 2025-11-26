@@ -30,23 +30,12 @@ import {
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
 
-// Adjusted FL_total_sections to use C = 15.5 for 1 3/4" standard hose.
-// The underlying calcShared FL may still be using C = 15, so we scale the
-// computed friction loss whenever all segments are 1.75" standard hose.
+// Use shared FL_total_sections helper directly.
+// C-values (including 1 3/4" standard hose at 15.5) are now handled in calcShared.js
+// so we don't re-scale here. This keeps the main Max PP and the "Why" breakdown
+// perfectly in sync.
 function FL_total_sections_175(flow, segments) {
-  const base = FL_total_sections(flow, segments);
-  if (!Array.isArray(segments) || !segments.length) return base;
-
-  // If every segment is size 1.75 (standard 1 3/4" attack), scale by 15.5/15.
-  const all175 = segments.every(seg => {
-    const sz = seg && (seg.size != null ? String(seg.size) : String(seg.diameter || ''));
-    return sz === '1.75' || sz === '1 3/4"' || sz === '1.75"';
-  });
-
-  if (!all175) return base;
-
-  const factor = 15.5 / 15.0;
-  return base * factor;
+  return FL_total_sections(flow, segments);
 }
 import { openStandardLinePopup }   from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
