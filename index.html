@@ -303,12 +303,14 @@
       color:var(--muted);
       padding:4px 2px 4px 2px;
     }
+
+    /* Styled About menu list */
     .about-list{
       list-style:none;
       padding:0;
-      margin:8px 0 0;
+      margin:10px 0 0;
       display:grid;
-      gap:6px;
+      gap:8px;
     }
     .about-list li a,
     .about-list li button{
@@ -316,14 +318,22 @@
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:6px;
-      padding:8px 10px;
-      border-radius:10px;
-      border:1px solid #0f2238;
-      background:#050913;
-      color:#var(--fg);
+      gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(21,37,59,0.9);
+      background:
+        radial-gradient(circle at 0 0, rgba(70,176,255,0.15), transparent 55%),
+        #050913;
+      color:var(--fg);
       text-decoration:none;
       font-size:14px;
+      box-shadow:0 6px 14px rgba(0,0,0,0.8);
+    }
+    .about-list li a:hover,
+    .about-list li button:hover{
+      border-color:var(--accent);
+      box-shadow:0 8px 18px rgba(0,0,0,0.9);
     }
     .about-list li button{
       cursor:pointer;
@@ -437,33 +447,33 @@
         <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
         <ul class="about-list">
           <li>
-            <button id="aboutDeptBtn" type="button">
-              <span>Department setup</span>
-              <small>Edit hose, nozzles &amp; line presets</small>
-            </button>
-          </li>
-          <li>
             <a href="/about.html">
-              <span>About FireOps Calc</span>
+              <span>ℹ️ About FireOps Calc</span>
               <small>Overview &amp; features</small>
             </a>
           </li>
           <li>
-            <a href="mailto:your-email@example.com">
-              <span>Contact</span>
-              <small>Questions, feedback, or bugs</small>
-            </a>
-          </li>
-          <li>
             <a href="/how-to.html">
-              <span>How-to &amp; quick start</span>
+              <span>📘 How-to &amp; quick start</span>
               <small>Step-by-step guide</small>
             </a>
           </li>
           <li>
+            <button id="aboutDeptBtn" type="button">
+              <span>⚙️ Department setup</span>
+              <small>Edit hose, nozzles &amp; line presets</small>
+            </button>
+          </li>
+          <li>
             <a href="/privacy-policy.html">
-              <span>Privacy policy</span>
+              <span>🛡️ Privacy policy</span>
               <small>Data &amp; tracking details</small>
+            </a>
+          </li>
+          <li>
+            <a href="/contact.html">
+              <span>✉️ Contact</span>
+              <small>Questions, feedback, or bugs</small>
             </a>
           </li>
         </ul>
