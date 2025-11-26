@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
-  <meta name="description" content="Phone-friendly fire pump calculator for hydrants, tender shuttles, and quick line math. Run hydrant % drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
+  <meta name="description" content="Phone-friendly fire pump calculator built by a firefighter for firefighters. Quickly estimate hydrant % drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
   <link rel="canonical" href="https://fireopscalc.com/"/>
   <link rel="manifest" href="/manifest.json">
 
@@ -24,218 +24,258 @@
   <!-- Icons / PWA -->
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-6W3WSFVFGW"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){ dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-6W3WSFVFGW');
-  </script>
+  <meta name="theme-color" content="#020712"/>
 
   <style>
     :root{
-      --bg:#060d17; --panel:#0b1320; --edge:#15253b; --fg:#e9f1ff;
-      --muted:#cfe4ff; --accent:#46b0ff; --warn:#ffa74d; --alert:#ff6b6b;
+      --bg:#020712;
+      --bg2:#050b18;
+      --bg3:#0a1422;
+      --fg:#f5f7ff;
+      --muted:#9aa4c0;
+      --accent:#4dd2ff;
+      --accent2:#2af598;
+      --danger:#ff5c7a;
+      --edge:#172338;
+      --pill:#0d1422;
+      --shadow:0 18px 40px rgba(0,0,0,.8);
     }
-    *{box-sizing:border-box}
+    *{box-sizing:border-box;}
     html,body{
       margin:0;
       padding:0;
-      background:var(--bg);
+      height:100%;
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+      background:radial-gradient(circle at top,#061432,#020712 58%);
       color:var(--fg);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-      font-size:16px;
+      -webkit-font-smoothing:antialiased;
     }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{text-decoration:underline}
-    .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
-    .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
-    .grid{display:grid;gap:8px}
-    #app{min-height:50vh}
-
-    /* Top header bar – styled for more pop */
-    .topbar{
+    body{
+      display:flex;
+      justify-content:center;
+      align-items:stretch;
+    }
+    #page{
+      width:100%;
+      max-width:980px;
+      min-height:100vh;
+      background:radial-gradient(circle at top,#08152b,#020712 55%);
+      box-shadow:0 0 50px rgba(0,0,0,.8);
+      display:flex;
+      flex-direction:column;
+    }
+    header.topbar{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:8px;
-      margin-bottom:10px;
-      padding:8px 10px;
-      border-radius:16px;
-      border:1px solid rgba(70,176,255,0.35);
-      background:
-        radial-gradient(circle at 0% 0%, rgba(70,176,255,0.35), transparent 55%),
-        radial-gradient(circle at 100% 0%, rgba(255,255,255,0.06), transparent 60%),
-        linear-gradient(135deg, #050a14, #0b1525);
-      box-shadow:
-        0 0 0 1px rgba(0,0,0,0.35),
-        0 14px 28px rgba(0,0,0,0.75);
+      padding:12px 16px 8px;
+      border-bottom:1px solid rgba(255,255,255,.03);
+      background:linear-gradient(to bottom,rgba(4,11,25,.95),rgba(2,7,18,.9));
+      backdrop-filter:saturate(140%) blur(10px);
+      position:sticky;
+      top:0;
+      z-index:30;
     }
     .brand{
       display:flex;
       align-items:center;
       gap:10px;
-      min-width:0;
     }
     .brand-logo{
-      width:36px;
-      height:36px;
-      border-radius:10px;
-      border:1px solid rgba(180,210,255,0.7);
-      background:#02050b;
-      box-shadow:
-        0 0 0 1px rgba(0,0,0,0.6),
-        0 8px 18px rgba(0,0,0,0.8);
-      flex-shrink:0;
+      width:32px;
+      height:32px;
+      border-radius:11px;
+      box-shadow:0 0 0 1px rgba(77,210,255,.75),0 10px 22px rgba(0,0,0,.85);
     }
     .brand-title{
-      font-size:22px;
-      font-weight:700;
+      font-weight:600;
       letter-spacing:.03em;
-      white-space:nowrap;
-      background:linear-gradient(120deg,#ffffff,#cfe4ff,#6fb7ff);
-      -webkit-background-clip:text;
-      background-clip:text;
-      color:transparent;
-      text-shadow:0 0 18px rgba(73,160,255,0.4);
+      font-size:16px;
     }
     .about-btn{
+      appearance:none;
+      border:1px solid rgba(132,162,255,.4);
+      padding:5px 10px;
       border-radius:999px;
-      border:1px solid rgba(120,162,220,0.9);
-      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.4), transparent 60%), #050a14;
-      color:#e3efff;
-      padding:4px 12px;
       font-size:12px;
+      color:var(--fg);
+      background:radial-gradient(circle at 0 0,#1d3b72,#091021);
+      cursor:pointer;
       display:inline-flex;
       align-items:center;
-      gap:6px;
-      cursor:pointer;
-      box-shadow:0 4px 10px rgba(0,0,0,0.8);
+      gap:4px;
+      box-shadow:0 3px 10px rgba(0,0,0,.6);
     }
     .about-btn:hover{
-      border-color:#7fd0ff;
-      color:#ffffff;
-      box-shadow:0 0 0 1px rgba(127,208,255,0.4),0 8px 18px rgba(0,0,0,0.9);
+      border-color:var(--accent);
     }
 
-    /* Practice header buttons and other plain buttons inside cards */
-    .card button{
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#050a14;
-      color:#e9f1ff;
-      font-size:13px;
-      cursor:pointer;
+    main.grid{
+      flex:1;
+      display:grid;
+      grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+      gap:12px;
+      padding:10px 12px 16px;
     }
-    .card button:disabled{
+
+    @media (max-width:800px){
+      main.grid{
+        grid-template-columns:1fr;
+        grid-auto-rows:auto;
+      }
+    }
+
+    section.card{
+      background:radial-gradient(circle at top,#0c1631,#050b18 55%);
+      border-radius:18px;
+      border:1px solid rgba(123,154,255,.22);
+      box-shadow:var(--shadow);
+      padding:12px 12px 10px;
+      position:relative;
+      overflow:hidden;
+    }
+    section.card::before{
+      content:"";
+      position:absolute;
+      inset:-20%;
+      background:radial-gradient(circle at 0 -10%,rgba(45,180,255,.25),transparent 55%);
       opacity:.6;
-      cursor:default;
+      pointer-events:none;
     }
+    section.card > *{position:relative;z-index:1;}
 
-    /* KPI & helper styles used in calc view */
-    .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{
-      background:#050a14;
-      border:1px solid var(--edge);
-      border-radius:12px;
-      padding:8px 10px;
+    .card-header{
       display:flex;
-      align-items:center;
+      align-items:flex-start;
       justify-content:space-between;
       gap:8px;
+      margin-bottom:8px;
     }
-    .kpi b{font-size:18px}
-    .whyBtn{
-      margin-left:auto;
-      background:#0b1a29;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:5px 10px;
-      font-size:11px;
-      color:var(--muted);
-      cursor:pointer;
+    .card-header h2{
+      font-size:15px;
+      margin:0;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      color:#e9efff;
     }
-    .whyBtn:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-    }
-    .status{
-      font-size:13px;
+    .card-header p{
+      margin:0;
+      font-size:12px;
       color:var(--muted);
     }
-    .status .alert{color:#ff8585}
-    .status .ok{color:#6be38a}
-    .math{
-      background:#050913;
-      border-radius:10px;
-      border:1px solid #1c2940;
-      padding:8px 10px;
-      font-size:13px;
-    }
-    .pill{
-      border-radius:999px;
-      border:1px solid var(--edge);
-      padding:3px 7px;
-      font-size:11px;
-      color:#cfe4ff;
-    }
-
-    /* Generic .btn style (used for Check button etc.) */
-    .btn{
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#050a14;
-      color:#e9f1ff;
-      cursor:pointer;
-      font-size:13px;
+    .mode-toggle{
       display:inline-flex;
+      padding:3px;
+      border-radius:999px;
+      background:linear-gradient(to right,#020712,#061224);
+      border:1px solid rgba(140,175,255,.4);
+      box-shadow:0 4px 18px rgba(0,0,0,.75);
+    }
+    .mode-toggle button{
+      appearance:none;
+      border:0;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:11px;
+      color:var(--muted);
+      background:transparent;
+      min-width:70px;
+      cursor:pointer;
+      display:flex;
       align-items:center;
       justify-content:center;
       gap:4px;
+      white-space:nowrap;
     }
-    .btn.primary{
-      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
-      border-color:#58b4ff;
-      color:#ffffff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
+    .mode-toggle button span.icon{
+      font-size:13px;
     }
-    .btn:disabled{
-      opacity:.5;
-      cursor:default;
-      box-shadow:none;
-    }
-
-    /* Hide Equations button in practice mode (but keep DOM for JS) */
-    #eqToggleBtn{
-      display:none !important;
+    .mode-toggle button.active{
+      background:radial-gradient(circle at 0 0,#2af598,#009efd);
+      color:#020712;
+      font-weight:600;
+      box-shadow:0 0 0 1px rgba(255,255,255,.04),0 8px 20px rgba(0,0,0,.9);
     }
 
-    /* Bottom nav – modern pill look */
-    .bottom-nav{
-      position:fixed;
-      left:0;
-      right:0;
-      bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
+    .pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-bottom:10px;
+    }
+    .pill-row button{
+      appearance:none;
+      border:1px solid var(--edge);
+      background:linear-gradient(to bottom,#0c1629,#050915);
+      color:var(--muted);
+      border-radius:999px;
+      font-size:11px;
+      padding:6px 10px;
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      cursor:pointer;
+      box-shadow:0 4px 12px rgba(0,0,0,.7);
+      white-space:nowrap;
+    }
+    .pill-row button span.icon{
+      font-size:13px;
+    }
+    .pill-row button.primary{
+      background:radial-gradient(circle at 0 0,#2af598,#009efd);
+      color:#020712;
+      border-color:rgba(140,175,255,.6);
+      font-weight:600;
+    }
+    .pill-row button.primary span.icon{
+      filter:drop-shadow(0 0 6px rgba(255,255,255,.7));
+    }
+
+    .panel{
+      border-radius:14px;
+      border:1px solid var(--edge);
+      background:radial-gradient(circle at top,#060f23,#030713 58%);
+      padding:8px 9px 8px;
+      margin-bottom:6px;
+      box-shadow:0 10px 26px rgba(0,0,0,.9);
+    }
+    .panel-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:6px;
+      margin-bottom:4px;
+    }
+    .panel-title{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      color:#9fb3ff;
+    }
+    .panel-sub{
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    nav.tabs{
       display:flex;
       gap:6px;
-      padding:10px 10px calc(10px + env(safe-area-inset-bottom,0));
-      z-index:2000;
+      margin-bottom:6px;
+      flex-wrap:wrap;
     }
     .navbtn{
       flex:1 1 0;
-      border-radius:999px;
-      border:1px solid #192842;
-      background:#050a14;
-      color:#dbe8ff;
-      font-size:12px;
-      padding:7px 8px;
-      display:flex;
+      min-width:0;
+      text-align:center;
+      appearance:none;
+      border-radius:30px;
+      border:1px solid var(--edge);
+      padding:6px 8px;
+      font-size:11px;
+      background:radial-gradient(circle at 0 0,#08101f,#050814);
+      color:var(--muted);
+      cursor:pointer;
+      display:inline-flex;
       align-items:center;
       justify-content:center;
       gap:4px;
@@ -270,31 +310,33 @@
       border-radius:16px 16px 0 0;
       max-height:85vh;
       overflow:auto;
-      padding:10px 12px 14px;
+      box-shadow:0 -16px 40px rgba(0,0,0,.9);
+      padding:12px 14px 14px;
     }
     #aboutHeader{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
+      gap:6px;
+      margin-bottom:8px;
     }
-    #aboutHeader h3{margin:0;font-size:16px}
-    #closeAbout{
-      background:transparent;
-      border:1px solid var(--edge);
+    #aboutHeader h3{
+      margin:0;
+      font-size:15px;
+      letter-spacing:.07em;
+      text-transform:uppercase;
+    }
+    #aboutHeader button{
+      appearance:none;
       border-radius:999px;
+      border:1px solid var(--edge);
+      background:radial-gradient(circle at 0 0,#0c1628,#050a16);
       padding:4px 10px;
-      font-size:12px;
+      font-size:11px;
       color:var(--muted);
       cursor:pointer;
     }
-    #closeAbout:hover{
+    #aboutHeader button:hover{
       border-color:var(--accent);
       color:var(--fg);
     }
@@ -312,96 +354,135 @@
       display:grid;
       gap:8px;
     }
-    .about-list li a,
-    .about-list li button{
+    .about-list li{
+      margin:0;
+    }
+    .about-list a,
+    .about-list button{
       width:100%;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(21,37,59,0.9);
-      background:
-        radial-gradient(circle at 0 0, rgba(70,176,255,0.15), transparent 55%),
-        #050913;
-      color:var(--fg);
-      text-decoration:none;
-      font-size:14px;
-      box-shadow:0 6px 14px rgba(0,0,0,0.8);
-    }
-    .about-list li a:hover,
-    .about-list li button:hover{
-      border-color:var(--accent);
-      box-shadow:0 8px 18px rgba(0,0,0,0.9);
-    }
-    .about-list li button{
-      cursor:pointer;
       text-align:left;
+      text-decoration:none;
+      appearance:none;
+      border-radius:12px;
+      border:1px solid rgba(73,101,160,.7);
+      padding:8px 10px;
+      background:radial-gradient(circle at 0 0,#07152a,#050915);
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      cursor:pointer;
+      color:inherit;
+      box-shadow:0 12px 26px rgba(0,0,0,.85);
     }
-    .about-list li a small,
-    .about-list li button small{
+    .about-list a span,
+    .about-list button span{
+      font-size:14px;
+    }
+    .about-list small{
       font-size:11px;
       color:var(--muted);
     }
+    .about-list a:hover,
+    .about-list button:hover{
+      border-color:var(--accent);
+      box-shadow:0 0 0 1px rgba(60,190,255,.4),0 16px 32px rgba(0,0,0,.95);
+    }
 
-    /* Charts overlay (for Tables button) */
+    /* Charts overlay */
     #chartsOverlay{
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,.5);
-      backdrop-filter:saturate(120%) blur(2px);
+      background:rgba(0,0,0,.55);
+      backdrop-filter:saturate(120%) blur(3px);
       display:none;
       z-index:9999;
     }
     #chartsSheet{
       position:absolute;
       left:0;right:0;bottom:0;
-      background:#08111e;
+      background:#050b18;
       border-top:1px solid var(--edge);
       border-radius:16px 16px 0 0;
-      max-height:85vh;
+      max-height:88vh;
       overflow:auto;
-      padding:10px 12px 14px;
+      box-shadow:0 -20px 50px rgba(0,0,0,.9);
+      padding:10px 12px 12px;
     }
     #chartsHeader{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
+      margin-bottom:8px;
     }
-    #chartsHeader h3{margin:0;font-size:16px}
-    #closeCharts{
-      background:transparent;
-      border:1px solid var(--edge);
+    #chartsHeader h3{
+      margin:0;
+      font-size:15px;
+      letter-spacing:.07em;
+      text-transform:uppercase;
+    }
+    #chartsHeader button{
+      appearance:none;
       border-radius:999px;
+      border:1px solid var(--edge);
+      background:radial-gradient(circle at 0 0,#0c1628,#050a16);
       padding:4px 10px;
-      font-size:12px;
-      color:#cfe4ff;
+      font-size:11px;
+      color:var(--muted);
       cursor:pointer;
     }
-    #closeCharts:hover{
+    #chartsHeader button:hover{
       border-color:var(--accent);
-      color:#fff;
-    }
-    #chartsMount > *{
-      margin-bottom:12px;
+      color:var(--fg);
     }
 
-    @media (min-width:768px){
-      .shell{padding:16px 16px 90px}
-      .navbtn{font-size:13px;padding:8px 10px}
+    #chartsMount{
+      min-height:200px;
     }
+
+    footer{
+      padding:6px 10px 10px;
+      font-size:11px;
+      color:#7d87a8;
+      text-align:center;
+    }
+    footer a{
+      color:#a4c6ff;
+      text-decoration:none;
+    }
+    footer a:hover{
+      text-decoration:underline;
+    }
+
+    .hose-key{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:2px;
+    }
+    .hose-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      padding:2px 6px;
+      border-radius:999px;
+      border:1px solid rgba(156,176,255,.4);
+      font-size:10px;
+      background:radial-gradient(circle at 0 0,#0a162b,#040813);
+      color:var(--muted);
+    }
+    .hose-dot{
+      width:8px;
+      height:8px;
+      border-radius:999px;
+      box-shadow:0 0 0 1px rgba(0,0,0,.7);
+    }
+    .hose-dot.red{background:#ff3b58;}
+    .hose-dot.blue{background:#3b82ff;}
+    .hose-dot.yellow{background:#ffd447;}
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div id="page">
     <header class="topbar">
       <div class="brand">
         <img src="/fireopscalc2.png" alt="FireOps Calc" class="brand-logo"/>
@@ -412,88 +493,328 @@
       </button>
     </header>
 
-    <main id="app" class="grid" aria-live="polite" aria-busy="false">
-      <div class="card">Loading…</div>
-    </main>
-  </div>
-
-  <nav class="bottom-nav">
-    <button class="navbtn active" data-view="calc">
-      <span class="icon">⚙️</span>
-      <span>Calculations</span>
-    </button>
-    <button class="navbtn" data-view="practice">
-      <span class="icon">🎯</span>
-      <span>Practice</span>
-    </button>
-    <button class="navbtn" data-view="charts">
-      <span class="icon">📊</span>
-      <span>Tables</span>
-    </button>
-    <!-- Hidden nav button for Department Setup (used by About menu) -->
-    <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
-      Department Setup
-    </button>
-  </nav>
-
-  <!-- About / Help overlay -->
-  <div id="aboutOverlay" role="dialog" aria-modal="true" aria-label="About and help">
-    <div id="aboutSheet">
-      <div id="aboutHeader">
-        <h3>About &amp; Help</h3>
-        <button id="closeAbout" type="button">Close</button>
-      </div>
-      <div id="aboutBody">
-        <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
-        <ul class="about-list">
-          <li>
-            <a href="/about.html">
-              <span>ℹ️ About FireOps Calc</span>
-              <small>Overview &amp; features</small>
-            </a>
-          </li>
-          <li>
-            <a href="/how-to.html">
-              <span>📘 How-to &amp; quick start</span>
-              <small>Step-by-step guide</small>
-            </a>
-          </li>
-          <li>
-            <button id="aboutDeptBtn" type="button">
-              <span>⚙️ Department setup</span>
-              <small>Edit hose, nozzles &amp; line presets</small>
+    <main id="app" class="grid" aria-live="polite" aria-busy="true">
+      <section class="card" aria-label="Pump calculator">
+        <div class="card-header">
+          <div>
+            <h2>Quick pump calculations</h2>
+            <p>Attack lines, relay pumping, &amp; water supply.</p>
+          </div>
+          <div class="mode-toggle" role="tablist" aria-label="Calculation mode">
+            <button id="modeCalc" class="active" role="tab" aria-selected="true">
+              <span class="icon">⚙️</span>
+              Quick calc
             </button>
-          </li>
-          <li>
-            <a href="/privacy-policy.html">
-              <span>🛡️ Privacy policy</span>
-              <small>Data &amp; tracking details</small>
-            </a>
-          </li>
-          <li>
-            <a href="/contact.html">
-              <span>✉️ Contact</span>
-              <small>Questions, feedback, or bugs</small>
-            </a>
-          </li>
-        </ul>
+            <button id="modePractice" role="tab" aria-selected="false">
+              <span class="icon">🎯</span>
+              Practice
+            </button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Hose lines</div>
+              <div class="panel-sub">Three preconnects plus boosters or special lines.</div>
+            </div>
+            <div class="hose-key" aria-hidden="true">
+              <div class="hose-chip">
+                <span class="hose-dot red"></span> 1¾″
+              </div>
+              <div class="hose-chip">
+                <span class="hose-dot blue"></span> 2½″
+              </div>
+              <div class="hose-chip">
+                <span class="hose-dot yellow"></span> 4″ supply
+              </div>
+            </div>
+          </div>
+
+          <nav class="tabs" aria-label="Hose line presets">
+            <button class="navbtn active" data-view="calc-lines" id="navLines">
+              <span class="icon">🚒</span>
+              Lines
+            </button>
+            <button class="navbtn" data-view="calc-supply" id="navSupply">
+              <span class="icon">💧</span>
+              Water supply
+            </button>
+            <button class="navbtn" data-view="relay" id="navRelay">
+              <span class="icon">📡</span>
+              Relay
+            </button>
+            <button class="navbtn" data-view="calc-notes" id="navNotes">
+              <span class="icon">🧠</span>
+              Rules of thumb
+            </button>
+
+            <!-- Hidden nav button for Department Setup (used by About menu) -->
+            <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
+              Department Setup
+            </button>
+          </nav>
+
+          <div id="calcView" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Practice and reference">
+        <div class="card-header">
+          <div>
+            <h2>Practice &amp; reference</h2>
+            <p>Drill pump pressures or look up friction loss tables.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Training</div>
+              <div class="panel-sub">Practice pump problems with instant feedback.</div>
+            </div>
+          </div>
+
+          <div class="pill-row">
+            <button id="openPractice" class="primary">
+              <span class="icon">🎯</span>
+              Practice mode
+            </button>
+            <button id="openPresets">
+              <span class="icon">📋</span>
+              Preset lines
+            </button>
+            <button id="openTables">
+              <span class="icon">📊</span>
+              Tables &amp; charts
+            </button>
+          </div>
+
+          <div id="practiceMount"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Hydrant &amp; shuttle</div>
+              <div class="panel-sub">Hydrant % drop &amp; tender shuttle GPM estimator.</div>
+            </div>
+          </div>
+
+          <div class="pill-row">
+            <button id="openHydrant">
+              <span class="icon">🚰</span>
+              Hydrant % drop
+            </button>
+            <button id="openShuttle">
+              <span class="icon">🚛</span>
+              Tender shuttle
+            </button>
+          </div>
+
+          <div id="supplyMount"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- About / Help overlay -->
+    <div id="aboutOverlay" role="dialog" aria-modal="true" aria-label="About and help">
+      <div id="aboutSheet">
+        <div id="aboutHeader">
+          <h3>About &amp; Help</h3>
+          <button id="closeAbout" type="button">Close</button>
+        </div>
+        <div id="aboutBody">
+          <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
+          <ul class="about-list">
+            <li>
+              <a href="/about.html">
+                <span>ℹ️ About FireOps Calc</span>
+                <small>Overview &amp; features</small>
+              </a>
+            </li>
+            <li>
+              <a href="/how-to.html">
+                <span>📘 How-to &amp; quick start</span>
+                <small>Step-by-step guide</small>
+              </a>
+            </li>
+            <li>
+              <button id="aboutDeptBtn" type="button">
+                <span>⚙️ Department setup</span>
+                <small>Edit hose, nozzles &amp; line presets</small>
+              </button>
+            </li>
+            <li>
+              <a href="/privacy-policy.html">
+                <span>🛡️ Privacy policy</span>
+                <small>Data &amp; tracking details</small>
+              </a>
+            </li>
+            <li>
+              <a href="/contact.html">
+                <span>✉️ Contact</span>
+                <small>Questions, feedback, or bugs</small>
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Charts overlay (for Tables button / charts view) -->
-  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference tables">
-    <div id="chartsSheet">
-      <div id="chartsHeader">
-        <h3>Tables &amp; charts</h3>
-        <button id="closeCharts" type="button">Close</button>
+    <!-- Charts overlay (for Tables button / charts view) -->
+    <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference tables">
+      <div id="chartsSheet">
+        <div id="chartsHeader">
+          <h3>Tables &amp; charts</h3>
+          <button id="closeCharts" type="button">Close</button>
+        </div>
+        <div id="chartsMount"></div>
       </div>
-      <div id="chartsMount"></div>
     </div>
+
+    <footer>
+      &copy; <span id="year"></span> FireOps Calc. Built by a firefighter for firefighters.
+      &nbsp;|&nbsp;
+      <a href="/privacy-policy.html">Privacy</a>
+      &nbsp;|&nbsp;
+      <a href="/contact.html">Contact</a>
+    </footer>
   </div>
 
-  <!-- App JS (router + view.calc.js, etc.) -->
-  <script type="module" src="/js/app.js"></script>
+  <script type="module">
+    import { render } from './js/view.calc.main.js';
+    import { setupPracticeView } from './js/view.practice.js';
+    import { setupHydrantView } from './js/view.hydrant.js';
+    import { setupShuttleView } from './js/view.shuttle.js';
+    import { setupPresets } from './js/preset.js';
+    import { setupChartsView } from './js/view.charts.js';
+
+    const app = document.getElementById('calcView');
+    const practiceMount = document.getElementById('practiceMount');
+    const supplyMount = document.getElementById('supplyMount');
+    const chartsMount = document.getElementById('chartsMount');
+
+    const modeCalcBtn = document.getElementById('modeCalc');
+    const modePracticeBtn = document.getElementById('modePractice');
+
+    const navLines = document.getElementById('navLines');
+    const navSupply = document.getElementById('navSupply');
+    const navRelay = document.getElementById('navRelay');
+    const navNotes = document.getElementById('navNotes');
+
+    const openPractice = document.getElementById('openPractice');
+    const openPresets = document.getElementById('openPresets');
+    const openTables = document.getElementById('openTables');
+    const openHydrant = document.getElementById('openHydrant');
+    const openShuttle = document.getElementById('openShuttle');
+
+    const yearSpan = document.getElementById('year');
+    if(yearSpan){
+      yearSpan.textContent = String(new Date().getFullYear());
+    }
+
+    let currentMode = 'calc';
+    let currentView = 'calc-lines';
+
+    function setMode(mode){
+      currentMode = mode;
+      if(mode === 'calc'){
+        modeCalcBtn.classList.add('active');
+        modePracticeBtn.classList.remove('active');
+      }else{
+        modePracticeBtn.classList.add('active');
+        modeCalcBtn.classList.remove('active');
+      }
+      updateMainView();
+    }
+
+    function setView(view){
+      currentView = view;
+      [navLines, navSupply, navRelay, navNotes].forEach(btn => {
+        if(!btn) return;
+        if(btn.dataset.view === view){
+          btn.classList.add('active');
+        }else{
+          btn.classList.remove('active');
+        }
+      });
+      updateMainView();
+    }
+
+    function updateMainView(){
+      if(!app) return;
+      app.setAttribute('aria-busy','true');
+      render(app, { mode: currentMode, view: currentView });
+      app.setAttribute('aria-busy','false');
+    }
+
+    if(navLines){ navLines.addEventListener('click', () => setView('calc-lines')); }
+    if(navSupply){ navSupply.addEventListener('click', () => setView('calc-supply')); }
+    if(navRelay){ navRelay.addEventListener('click', () => setView('relay')); }
+    if(navNotes){ navNotes.addEventListener('click', () => setView('calc-notes')); }
+
+    if(modeCalcBtn){ modeCalcBtn.addEventListener('click', () => setMode('calc')); }
+    if(modePracticeBtn){ modePracticeBtn.addEventListener('click', () => setMode('practice')); }
+
+    setMode('calc');
+    setView('calc-lines');
+
+    if(practiceMount){
+      setupPracticeView(practiceMount);
+    }
+    if(supplyMount){
+      setupHydrantView(supplyMount, { mode:'hydrant' });
+      setupShuttleView(supplyMount, { mode:'shuttle' });
+    }
+    if(openHydrant && supplyMount){
+      openHydrant.addEventListener('click', () => {
+        setupHydrantView(supplyMount, { mode:'hydrant', focus:true });
+      });
+    }
+    if(openShuttle && supplyMount){
+      openShuttle.addEventListener('click', () => {
+        setupShuttleView(supplyMount, { mode:'shuttle', focus:true });
+      });
+    }
+
+    if(practiceMount && openPractice){
+      openPractice.addEventListener('click', () => {
+        setMode('practice');
+        practiceMount.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      });
+    }
+
+    if(openPresets){
+      openPresets.addEventListener('click', () => {
+        setupPresets();
+      });
+    }
+
+    if(chartsMount){
+      setupChartsView(chartsMount);
+    }
+
+    if(openTables){
+      const chartsOverlay = document.getElementById('chartsOverlay');
+      const closeCharts = document.getElementById('closeCharts');
+      if(chartsOverlay && closeCharts){
+        openTables.addEventListener('click', () => {
+          chartsOverlay.style.display = 'block';
+        });
+        closeCharts.addEventListener('click', () => {
+          chartsOverlay.style.display = 'none';
+        });
+        chartsOverlay.addEventListener('click', (evt) => {
+          if(evt.target === chartsOverlay){
+            chartsOverlay.style.display = 'none';
+          }
+        });
+      }
+    }
+
+    setupPresets();
+  </script>
 
   <!-- About overlay wiring + Department setup shortcut -->
   <script>
@@ -520,21 +841,31 @@
         closeAbout.addEventListener('click', close);
       }
       if(aboutOverlay){
-        aboutOverlay.addEventListener('click', function(evt){
-          if(evt.target === aboutOverlay){ close(); }
+        aboutOverlay.addEventListener('click', function(ev){
+          if(ev.target === aboutOverlay){ close(); }
         });
       }
-      document.addEventListener('keydown', function(evt){
-        if(evt.key === 'Escape' && aboutOverlay && aboutOverlay.style.display === 'block'){
+      document.addEventListener('keydown', function(ev){
+        if(ev.key === 'Escape' && aboutOverlay && aboutOverlay.style.display === 'block'){
           close();
         }
       });
 
-      // Department setup: trigger hidden nav button for "settings" view
-      if(deptBtn && navSettings){
+      // Department setup: open the Department setup wizard (Nozzles / Hoses / Accessories)
+      if(deptBtn){
         deptBtn.addEventListener('click', function(){
           close();
-          navSettings.click();
+          if (window && typeof window.fireopsOpenDeptSetup === 'function') {
+            try {
+              window.fireopsOpenDeptSetup();
+            } catch (e) {
+              console.warn('Dept setup from About failed, falling back to settings view', e);
+              if (navSettings) navSettings.click();
+            }
+          } else if (navSettings){
+            // Fallback to old Settings view if the wizard hook isn't available
+            navSettings.click();
+          }
         });
       }
     })();
@@ -546,19 +877,18 @@
       const app = document.getElementById('app');
       if (!app) return;
 
-      const hideRevealButtons = () => {
-        const buttons = app.querySelectorAll('button');
-        buttons.forEach(btn => {
-          if (btn.textContent && btn.textContent.trim().toLowerCase() === 'reveal') {
+      function hideRevealButtons(){
+        const btns = app.querySelectorAll('button');
+        btns.forEach(btn => {
+          if (/reveal/i.test(btn.textContent || '')){
             btn.style.display = 'none';
           }
         });
-      };
+      }
 
       hideRevealButtons();
-
       const observer = new MutationObserver(hideRevealButtons);
-      observer.observe(app, { childList: true, subtree: true });
+      observer.observe(app, { childList:true, subtree:true });
     })();
   </script>
 
@@ -570,13 +900,13 @@
         ...document.querySelectorAll('[href*="presets"]'),
         ...document.querySelectorAll('#openPresets')
       ];
-      presetButtons.forEach(pbtn => {
-        pbtn.addEventListener('click', (e) => {
-          if (!IS_APP) {
+      presetButtons.forEach(btn => {
+        if(!IS_APP && btn.tagName === 'A' && btn.href.includes('presets')){
+          btn.addEventListener('click', function(e){
             e.preventDefault();
-            window.location.href = '/app-only-presets.html';
-          }
-        }, { capture: true });
+            alert('Custom presets are available in the FireOps Calc app.');
+          });
+        }
       });
     })();
   </script>
