@@ -29,6 +29,25 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
+
+// Adjusted FL_total_sections to use C = 15.5 for 1 3/4" standard hose.
+// The underlying calcShared FL may still be using C = 15, so we scale the
+// computed friction loss whenever all segments are 1.75" standard hose.
+function FL_total_sections_175(flow, segments) {
+  const base = FL_total_sections(flow, segments);
+  if (!Array.isArray(segments) || !segments.length) return base;
+
+  // If every segment is size 1.75 (standard 1 3/4" attack), scale by 15.5/15.
+  const all175 = segments.every(seg => {
+    const sz = seg && (seg.size != null ? String(seg.size) : String(seg.diameter || ''));
+    return sz === '1.75' || sz === '1 3/4"' || sz === '1.75"';
+  });
+
+  if (!all175) return base;
+
+  const factor = 15.5 / 15.0;
+  return base * factor;
+}
 import { openStandardLinePopup }   from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
 import { openStandpipePopup }      from './view.lineStandpipe.js';
@@ -1344,17 +1363,17 @@ function updateSegSwitchVisibility(){
       const flow = single ? (activeNozzle(L)?.gpm||0)
                  : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
                             : (L.nozRight?.gpm||0);
-      const mainFL = FL_total_sections(flow, L.itemsMain);
+      const mainFL = FL_total_sections_175(flow, L.itemsMain);
       let PDP=0;
       if(single){
         const side = activeSide(L);
         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
-        const branchFL = FL_total_sections(bnNoz.gpm, bnSegs);
+        const branchFL = FL_total_sections_175(bnNoz.gpm, bnSegs);
         PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
-        const lNeed = FL_total_sections(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
-        const rNeed = FL_total_sections(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
+        const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
+        const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
         PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
       }else{
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
@@ -1385,7 +1404,7 @@ function updateSegSwitchVisibility(){
       const lengthFt = (typeof cfg.lengthFt === 'number' ? cfg.lengthFt : 0);
       const size = cfg.hoseDiameter || '1.75';
       const mainSegs = [{ size, lengthFt }];
-      const mainFL = FL_total_sections(flow, mainSegs);
+      const mainFL = FL_total_sections_175(flow, mainSegs);
       const elevFt = (typeof cfg.elevation === 'number' ? cfg.elevation : 0);
       const PDP = noz.NP + mainFL + (elevFt * PSI_PER_FT);
       totalGPM += flow;
