@@ -228,55 +228,6 @@
       color:var(--muted);
     }
 
-    /* Charts overlay panel */
-    #chartsOverlay{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.5);
-      backdrop-filter:saturate(120%) blur(2px);
-      display:none;
-      z-index:9999;
-    }
-    #chartsSheet{
-      position:absolute;
-      left:0;right:0;bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      border-radius:16px 16px 0 0;
-      max-height:85vh;
-      overflow:auto;
-      padding:10px;
-    }
-    #chartsHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
-    }
-    #chartsHeader h3{margin:0;font-size:16px}
-    #closeCharts{
-      background:transparent;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:12px;
-      color:var(--muted);
-      cursor:pointer;
-    }
-    #closeCharts:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-    }
-    #chartsMount{
-      padding:4px 2px 4px 2px;
-    }
-
     @media (min-width:768px){
       .shell{padding:16px 16px 90px}
       .navbtn{font-size:13px;padding:8px 10px}
@@ -309,7 +260,7 @@
       <span class="icon">🎯</span>
       <span>Practice</span>
     </button>
-    <button class="navbtn secondary" id="openCharts">
+    <button class="navbtn secondary" data-view="charts">
       <span class="icon">📊</span>
       <span>Charts</span>
     </button>
@@ -338,7 +289,7 @@
             </a>
           </li>
           <li>
-            <a href="/help.html">
+            <a href="/how-to.html">
               <span>Help &amp; quick start</span>
               <small>How to use the calculator</small>
             </a>
@@ -351,17 +302,6 @@
           </li>
         </ul>
       </div>
-    </div>
-  </div>
-
-  <!-- Charts overlay -->
-  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference charts">
-    <div id="chartsSheet">
-      <div id="chartsHeader">
-        <h3>Reference Charts</h3>
-        <button id="closeCharts" type="button">Close</button>
-      </div>
-      <div id="chartsMount"></div>
     </div>
   </div>
 
