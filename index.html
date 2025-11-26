@@ -321,7 +321,7 @@
       border-radius:10px;
       border:1px solid #0f2238;
       background:#050913;
-      color:var(--fg);
+      color:#var(--fg);
       text-decoration:none;
       font-size:14px;
     }
@@ -333,6 +333,55 @@
     .about-list li button small{
       font-size:11px;
       color:var(--muted);
+    }
+
+    /* Charts overlay (for Tables button) */
+    #chartsOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.5);
+      backdrop-filter:saturate(120%) blur(2px);
+      display:none;
+      z-index:9999;
+    }
+    #chartsSheet{
+      position:absolute;
+      left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      border-radius:16px 16px 0 0;
+      max-height:85vh;
+      overflow:auto;
+      padding:10px 12px 14px;
+    }
+    #chartsHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      padding:6px 4px 10px 4px;
+      position:sticky;
+      top:0;
+      background:linear-gradient(#08111e,#08111e);
+      z-index:1;
+      border-bottom:1px solid #0d1b2b;
+    }
+    #chartsHeader h3{margin:0;font-size:16px}
+    #closeCharts{
+      background:transparent;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:4px 10px;
+      font-size:12px;
+      color:#cfe4ff;
+      cursor:pointer;
+    }
+    #closeCharts:hover{
+      border-color:var(--accent);
+      color:#fff;
+    }
+    #chartsMount > *{
+      margin-bottom:12px;
     }
 
     @media (min-width:768px){
@@ -419,6 +468,17 @@
           </li>
         </ul>
       </div>
+    </div>
+  </div>
+
+  <!-- Charts overlay (for Tables button / charts view) -->
+  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference tables">
+    <div id="chartsSheet">
+      <div id="chartsHeader">
+        <h3>Tables &amp; charts</h3>
+        <button id="closeCharts" type="button">Close</button>
+      </div>
+      <div id="chartsMount"></div>
     </div>
   </div>
 
