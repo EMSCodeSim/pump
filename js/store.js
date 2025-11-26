@@ -71,7 +71,7 @@ export const NOZ_LIST = Object.values(NOZ);
  * ========================= */
 export const COEFF = {
   '1.5':  24,
-  '1.75': 15,
+  '1.75': 15.5,
   '2.0':  8,
   '2.5':  2,
   '3':    0.8,
