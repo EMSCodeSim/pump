@@ -4,14 +4,14 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
-  <meta name="description" content="Phone-friendly fire pump cal...uttle GPM with round-trip timers, and fast line math presets."/>
+  <meta name="description" content="Phone-friendly fire pump calculator for hydrants, tender shuttles, and quick line math. Run hydrant % drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
   <link rel="canonical" href="https://fireopscalc.com/"/>
   <link rel="manifest" href="/manifest.json">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website"/>
   <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta property="og:description" content="Hydrant % drop to est...ound trip, and quick line math — built for phones on the rig."/>
+  <meta property="og:description" content="Hydrant % drop to estimate flow, tender shuttle GPM with round trip, and quick line math — built for phones on the rig."/>
   <meta property="og:url" content="https://fireopscalc.com/"/>
   <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
@@ -49,31 +49,12 @@
       font-size:16px;
     }
     a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
     .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
     .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
     .grid{display:grid;gap:8px}
-    .bottom-nav{
-      position:fixed;left:0;right:0;bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      display:flex;gap:6px;
-      padding:10px 10px 12px 10px;
-      z-index:2000;
-    }
-    .navbtn{
-      flex:1 1 auto;
-      background:#0b1a29;
-      border-radius:999px;
-      border:1px solid #192842;
-      color:#cfe4ff;
-      font-size:13px;
-      padding:8px 10px;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .navbtn:hover{border-color:#2f4f7b}
-    .navbtn.active{outline:2px solid var(--accent);color:#fff}
-    
+    #app{min-height:50vh}
+
     /* Top header bar */
     .topbar{
       display:flex;
@@ -104,9 +85,9 @@
     .about-btn{
       border-radius:999px;
       border:1px solid var(--edge);
-      background:rgba(8,17,30,.9);
+      background:rgba(8,17,30,.95);
       color:var(--muted);
-      padding:4px 10px;
+      padding:4px 12px;
       font-size:12px;
       display:inline-flex;
       align-items:center;
@@ -116,17 +97,16 @@
     .about-btn:hover{
       border-color:var(--accent);
       color:var(--fg);
+      box-shadow:0 0 0 1px rgba(70,176,255,.3);
     }
 
-    #app{min-height:50vh}
-
-    /* KPIs + math */
+    /* KPI & helper styles used in calc view */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{
-      background:#0b1320;
+      background:#050a14;
       border:1px solid var(--edge);
       border-radius:12px;
-      padding:8px;
+      padding:8px 10px;
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -138,13 +118,28 @@
       background:#0b1a29;
       border:1px solid var(--edge);
       border-radius:999px;
-      padding:6px 9px;
-      font-size:12px;
+      padding:5px 10px;
+      font-size:11px;
+      color:var(--muted);
       cursor:pointer;
     }
-    .whyBtn:active{transform:translateY(1px)}
-
-    /* helper tag chips */
+    .whyBtn:hover{
+      border-color:var(--accent);
+      color:var(--fg);
+    }
+    .status{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .status .alert{color:#ff8585}
+    .status .ok{color:#6be38a}
+    .math{
+      background:#050913;
+      border-radius:10px;
+      border:1px solid #1c2940;
+      padding:8px 10px;
+      font-size:13px;
+    }
     .pill{
       border-radius:999px;
       border:1px solid var(--edge);
@@ -153,73 +148,76 @@
       color:#cfe4ff;
     }
 
-    /* helper panels / summary blocks */
-    .helperPanel{
-      background:#050b15;
-      border-radius:10px;
-      border:1px dashed #20324d;
-      padding:8px 10px;
-      font-size:13px;
-    }
-    .helperPanel h4{
-      margin:0 0 4px;
-      font-size:13px;
-      font-weight:600;
-    }
-
-    /* line row styling (main calc view) */
-    .stack{display:grid;gap:8px}
-    .row{display:flex;flex-wrap:wrap;gap:8px}
-    .field{flex:1 1 140px;min-width:0}
-    .field label{display:block;font-size:12px;margin-bottom:2px;color:#cfe4ff}
-    .field input,.field select{
-      width:100%;
-      padding:6px 8px;
-      border-radius:8px;
-      border:1px solid #1f2a3f;
-      background:#050913;
-      color:#e2eeff;
-    }
-    .field input:focus,.field select:focus{
-      outline:none;
-      border-color:#3a82ff;
-      box-shadow:0 0 0 1px rgba(58,130,255,.4);
-    }
-
+    /* Generic buttons (calc + practice) */
     .btn{
       padding:7px 12px;
       border-radius:999px;
-      border:1px solid #1f2a3f;
-      background:#050913;
-      color:#e2eeff;
+      border:1px solid #2a4066;
+      background:#050a14;
+      color:#e9f1ff;
       cursor:pointer;
       font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:4px;
     }
     .btn.primary{
       background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
       border-color:#58b4ff;
-      color:#fff;
+      color:#ffffff;
+      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
     }
     .btn:disabled{
       opacity:.5;
       cursor:default;
+      box-shadow:none;
     }
 
-    .status{
-      font-size:13px;
-      color:#cfe4ff;
+    /* Hide Equations button in practice mode (but keep it in DOM for JS) */
+    #eqToggleBtn{
+      display:none !important;
     }
-    .status .alert{color:#ff8585}
-    .status .ok{color:#6be38a}
 
-    .te-actions{
+    /* Bottom nav – modern pill look */
+    .bottom-nav{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
       display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-      margin-top:8px;
+      gap:6px;
+      padding:10px 10px calc(10px + env(safe-area-inset-bottom,0));
+      z-index:2000;
+    }
+    .navbtn{
+      flex:1 1 0;
+      border-radius:999px;
+      border:1px solid #192842;
+      background:#050a14;
+      color:#dbe8ff;
+      font-size:12px;
+      padding:7px 8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:4px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .navbtn span.icon{
+      font-size:14px;
+      line-height:1;
+    }
+    .navbtn.active{
+      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
+      border-color:#58b4ff;
+      color:#f4f8ff;
+      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
     }
 
-    /* Charts overlay panel */
     /* About / Help overlay */
     #aboutOverlay{
       position:fixed;
@@ -302,54 +300,14 @@
       color:var(--muted);
     }
 
-    /* Charts overlay panel */
-    #chartsOverlay{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.5);
-      backdrop-filter:saturate(120%) blur(2px);
-      display:none;
-      z-index:9999;
+    @media (min-width:768px){
+      .shell{padding:16px 16px 90px}
+      .navbtn{font-size:13px;padding:8px 10px}
     }
-    #chartsSheet{
-      position:absolute;
-      left:0;right:0;bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      border-radius:16px 16px 0 0;
-      max-height:85vh;
-      overflow:auto;
-      padding:10px 12px 14px;
-    }
-    #chartsHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
-    }
-    #chartsHeader h3{margin:0;font-size:16px}
-    #closeCharts{
-      background:transparent;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:12px;
-      color:#cfe4ff;
-      cursor:pointer;
-    }
-    #closeCharts:hover{border-color:var(--accent);color:#fff}
-    #chartsMount > * { margin-bottom: 12px; }
   </style>
 </head>
 <body>
   <div class="shell">
-    
     <header class="topbar">
       <div class="brand">
         <img src="/fireopscalc2.png" alt="FireOps Calc" class="brand-logo"/>
@@ -360,17 +318,28 @@
       </button>
     </header>
 
-
     <main id="app" class="grid" aria-live="polite" aria-busy="false">
       <div class="card">Loading…</div>
     </main>
   </div>
 
   <nav class="bottom-nav">
-    <button class="navbtn active" data-view="calc">Calculations</button>
-    <button class="navbtn" data-view="practice">Practice</button>
-    <button class="navbtn" data-view="charts">Tables</button>
-    <button class="navbtn" data-view="settings" id="navSettings" style="display:none">Department Setup</button>
+    <button class="navbtn active" data-view="calc">
+      <span class="icon">⚙️</span>
+      <span>Calculations</span>
+    </button>
+    <button class="navbtn" data-view="practice">
+      <span class="icon">🎯</span>
+      <span>Practice</span>
+    </button>
+    <button class="navbtn" data-view="charts">
+      <span class="icon">📊</span>
+      <span>Tables</span>
+    </button>
+    <!-- Hidden nav button for Department Setup (used by About menu) -->
+    <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
+      Department Setup
+    </button>
   </nav>
 
   <!-- About / Help overlay -->
@@ -418,19 +387,9 @@
     </div>
   </div>
 
-  <!-- Charts overlay -->
-  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference charts">
-    <div id="chartsSheet">
-      <div id="chartsHeader">
-        <h3>Reference Charts</h3>
-        <button id="closeCharts" type="button">Close</button>
-      </div>
-      <div id="chartsMount"></div>
-    </div>
-  </div>
-
   <!-- App JS (router + view.calc.js, etc.) -->
   <script type="module" src="/js/app.js"></script>
+
   <!-- About overlay wiring + Department setup shortcut -->
   <script>
     (function(){
