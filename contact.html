@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Contact — FireOps Calc</title>
+  <meta name="description" content="Contact FireOps Calc with feedback, bug reports, or feature requests."/>
+  <link rel="canonical" href="https://fireopscalc.com/contact.html"/>
+
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json"/>
+
+  <style>
+    :root{
+      --bg:#060d17; --panel:#0b1320; --edge:#15253b; --fg:#e9f1ff;
+      --muted:#cfe4ff; --accent:#46b0ff;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+      font-size:16px;
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .shell{
+      max-width:800px;
+      margin:0 auto;
+      padding:16px 12px 40px;
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      margin-bottom:16px;
+      padding:8px 10px;
+      border-radius:16px;
+      border:1px solid rgba(70,176,255,0.35);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(70,176,255,0.35), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(255,255,255,0.06), transparent 60%),
+        linear-gradient(135deg, #050a14, #0b1525);
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.35),
+        0 14px 28px rgba(0,0,0,0.75);
+    }
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+    .brand-logo{
+      width:32px;
+      height:32px;
+      border-radius:10px;
+      border:1px solid rgba(180,210,255,0.7);
+      background:#02050b;
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.6),
+        0 6px 14px rgba(0,0,0,0.8);
+      flex-shrink:0;
+    }
+    .brand-title{
+      font-size:20px;
+      font-weight:700;
+      letter-spacing:.03em;
+      white-space:nowrap;
+      background:linear-gradient(120deg,#ffffff,#cfe4ff,#6fb7ff);
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+      text-shadow:0 0 14px rgba(73,160,255,0.4);
+    }
+    .back-link{
+      font-size:13px;
+      color:var(--muted);
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(120,162,220,0.7);
+      background:#050a14;
+    }
+    .back-link:hover{
+      border-color:var(--accent);
+      color:#ffffff;
+    }
+    .card{
+      margin-top:12px;
+      background:var(--panel);
+      border-radius:14px;
+      border:1px solid var(--edge);
+      padding:16px 14px 18px;
+      box-shadow:0 10px 24px rgba(0,0,0,0.7);
+    }
+    h1{
+      margin:0 0 8px;
+      font-size:20px;
+    }
+    p{
+      margin:6px 0;
+      font-size:14px;
+      color:var(--muted);
+    }
+    .email-box{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(70,176,255,0.6);
+      background:#050913;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .email-label{
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:var(--muted);
+    }
+    .email-link{
+      font-size:15px;
+      font-weight:500;
+      word-break:break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/fireopscalc2.png" alt="FireOps Calc" class="brand-logo">
+        <span class="brand-title">FireOps Calc</span>
+      </div>
+      <a href="/" class="back-link">← Back to app</a>
+    </header>
+
+    <main>
+      <div class="card">
+        <h1>Contact</h1>
+        <p>
+          FireOps Calc is built by a firefighter, and we’d love to hear from you.
+          If you have feedback, find a bug, or want to request a new feature,
+          please reach out any time.
+        </p>
+
+        <div class="email-box">
+          <span class="email-label">Email</span>
+          <a class="email-link" href="mailto:emscodesim@gmail.com">
+            emscodesim@gmail.com
+          </a>
+        </div>
+
+        <p style="margin-top:12px;">
+          When you email, it helps if you include:
+        </p>
+        <ul style="margin:4px 0 0 18px;padding:0;font-size:13px;color:var(--muted);">
+          <li>Your department or area</li>
+          <li>Device you’re using (phone/tablet/computer)</li>
+          <li>A quick description of what you’d like to see added or improved</li>
+        </ul>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
