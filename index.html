@@ -100,6 +100,21 @@
       box-shadow:0 0 0 1px rgba(70,176,255,.3);
     }
 
+    /* Practice header buttons and other plain buttons inside cards */
+    .card button{
+      padding:7px 12px;
+      border-radius:999px;
+      border:1px solid #2a4066;
+      background:#050a14;
+      color:#e9f1ff;
+      font-size:13px;
+      cursor:pointer;
+    }
+    .card button:disabled{
+      opacity:.6;
+      cursor:default;
+    }
+
     /* KPI & helper styles used in calc view */
     .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{
@@ -432,6 +447,28 @@
           navSettings.click();
         });
       }
+    })();
+  </script>
+
+  <!-- Hide any "Reveal" button that practice view renders -->
+  <script>
+    (function(){
+      const app = document.getElementById('app');
+      if (!app) return;
+
+      const hideRevealButtons = () => {
+        const buttons = app.querySelectorAll('button');
+        buttons.forEach(btn => {
+          if (btn.textContent && btn.textContent.trim().toLowerCase() === 'reveal') {
+            btn.style.display = 'none';
+          }
+        });
+      };
+
+      hideRevealButtons();
+
+      const observer = new MutationObserver(hideRevealButtons);
+      observer.observe(app, { childList: true, subtree: true });
     })();
   </script>
 
