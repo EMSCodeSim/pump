@@ -201,7 +201,7 @@
       background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
       border-color:#58b4ff;
       color:#ffffff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,0.6);
+      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
     }
     .btn:disabled{
       opacity:.5;
@@ -250,7 +250,7 @@
       background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
       border-color:#58b4ff;
       color:#f4f8ff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,0.6);
+      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
     }
 
     /* About / Help overlay */
@@ -430,7 +430,7 @@
       <span class="icon">📊</span>
       <span>Tables</span>
     </button>
-    <!-- Hidden nav button for Department Setup (used by About menu) -->
+    <!-- Hidden nav button for Department Setup (used as a fallback) -->
     <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
       Department Setup
     </button>
@@ -530,20 +530,20 @@
         }
       });
 
-      // Department setup: open the Department setup wizard (Nozzles / Hoses / Accessories)
-      if(deptBtn){
+      // Department setup: prefer new Dept wizard in presets, fall back to old settings view
+      if (deptBtn) {
         deptBtn.addEventListener('click', function(){
           close();
-          if (window && typeof window.fireopsOpenDeptSetup === 'function') {
-            try {
-              window.fireopsOpenDeptSetup();
-            } catch (e) {
-              console.warn('Dept setup from About failed, falling back to settings view', e);
-              if (navSettings) navSettings.click();
+          try {
+            if (window && typeof window.fireopsOpenDeptSetup === 'function') {
+              window.fireopsOpenDeptSetup();   // new Dept wizard in preset.js
+              return;
             }
-          } else if (navSettings){
-            // Fallback: trigger hidden nav button for the older settings view
-            navSettings.click();
+          } catch (err) {
+            console.warn('fireopsOpenDeptSetup failed, falling back to navSettings', err);
+          }
+          if (navSettings) {
+            navSettings.click();               // old view.settings.js fallback
           }
         });
       }
