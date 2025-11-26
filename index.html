@@ -4,14 +4,14 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
-  <meta name="description" content="Phone-friendly fire pump calculator for hydrants, tender shuttles, and quick line math. Run hydrant % drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
+  <meta name="description" content="Phone-friendly fire pump cal...uttle GPM with round-trip timers, and fast line math presets."/>
   <link rel="canonical" href="https://fireopscalc.com/"/>
   <link rel="manifest" href="/manifest.json">
 
   <!-- Open Graph -->
   <meta property="og:type" content="website"/>
   <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta property="og:description" content="Hydrant % drop to estimate flow, tender shuttle GPM with round trip, and quick line math — built for phones on the rig."/>
+  <meta property="og:description" content="Hydrant % drop to est...ound trip, and quick line math — built for phones on the rig."/>
   <meta property="og:url" content="https://fireopscalc.com/"/>
   <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
@@ -50,8 +50,31 @@
     }
     a{color:var(--accent);text-decoration:none}
     .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
-
-    /* Top header */
+    .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
+    .grid{display:grid;gap:8px}
+    .bottom-nav{
+      position:fixed;left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      display:flex;gap:6px;
+      padding:10px 10px 12px 10px;
+      z-index:2000;
+    }
+    .navbtn{
+      flex:1 1 auto;
+      background:#0b1a29;
+      border-radius:999px;
+      border:1px solid #192842;
+      color:#cfe4ff;
+      font-size:13px;
+      padding:8px 10px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .navbtn:hover{border-color:#2f4f7b}
+    .navbtn.active{outline:2px solid var(--accent);color:#fff}
+    
+    /* Top header bar */
     .topbar{
       display:flex;
       align-items:center;
@@ -95,108 +118,108 @@
       color:var(--fg);
     }
 
-    .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
-    .grid{display:grid;gap:8px}
+    #app{min-height:50vh}
 
-    /* KPI row – keeps GPM and PSI lined up */
-    .kpis{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-    }
+    /* KPIs + math */
+    .kpis{display:flex;gap:8px;flex-wrap:wrap}
     .kpi{
-      flex:1 1 140px;
-      background:#050a14;
+      background:#0b1320;
       border:1px solid var(--edge);
       border-radius:12px;
-      padding:8px 10px;
-      display:flex;
-      flex-direction:column;
-      gap:4px;
-    }
-    .kpi > div{
-      font-size:13px;
-      color:var(--muted);
-    }
-    .kpi b{
-      font-size:20px;
-      display:block;
-    }
-    .whyBtn{
-      align-self:flex-start;
-      margin-top:4px;
-      padding:2px 8px;
-      border-radius:999px;
-      border:1px solid var(--edge);
-      background:#0b1a29;
-      color:var(--muted);
-      font-size:11px;
-      cursor:pointer;
-    }
-    .whyBtn:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-    }
-
-    /* Bottom nav – three equal buttons */
-    .bottom-nav{
-      position:fixed;
-      left:0;
-      right:0;
-      bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      padding:10px 10px calc(10px + env(safe-area-inset-bottom,0));
-      z-index:999;
-      display:flex;
-      gap:6px;
-    }
-    .navbtn{
-      flex:1 1 0;
-      border-radius:999px;
-      border:1px solid #192842;
-      background:#050a14;
-      color:#dbe8ff;
-      font-size:12px;
-      padding:6px 8px;
+      padding:8px;
       display:flex;
       align-items:center;
-      justify-content:center;
-      gap:4px;
-      cursor:pointer;
-      white-space:nowrap;
+      justify-content:space-between;
+      gap:8px;
     }
-    .navbtn span.icon{
-      font-size:14px;
-      line-height:1;
-    }
-    .navbtn.active{
-      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
-      border-color:#58b4ff;
-      color:#f4f8ff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
-    }
-
-    /* Tag pills used in headers */
-    .pill{
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:3px 7px;
-      margin:2px 2px;
-      font-size:11px;
-    }
-    details.math{
+    .kpi b{font-size:18px}
+    .whyBtn{
+      margin-left:auto;
       background:#0b1a29;
       border:1px solid var(--edge);
-      border-radius:8px;
-      padding:6px 8px;
-    }
-    details.math summary{
+      border-radius:999px;
+      padding:6px 9px;
+      font-size:12px;
       cursor:pointer;
-      font-weight:600;
-      color:#eaf2ff;
+    }
+    .whyBtn:active{transform:translateY(1px)}
+
+    /* helper tag chips */
+    .pill{
+      border-radius:999px;
+      border:1px solid var(--edge);
+      padding:3px 7px;
+      font-size:11px;
+      color:#cfe4ff;
     }
 
+    /* helper panels / summary blocks */
+    .helperPanel{
+      background:#050b15;
+      border-radius:10px;
+      border:1px dashed #20324d;
+      padding:8px 10px;
+      font-size:13px;
+    }
+    .helperPanel h4{
+      margin:0 0 4px;
+      font-size:13px;
+      font-weight:600;
+    }
+
+    /* line row styling (main calc view) */
+    .stack{display:grid;gap:8px}
+    .row{display:flex;flex-wrap:wrap;gap:8px}
+    .field{flex:1 1 140px;min-width:0}
+    .field label{display:block;font-size:12px;margin-bottom:2px;color:#cfe4ff}
+    .field input,.field select{
+      width:100%;
+      padding:6px 8px;
+      border-radius:8px;
+      border:1px solid #1f2a3f;
+      background:#050913;
+      color:#e2eeff;
+    }
+    .field input:focus,.field select:focus{
+      outline:none;
+      border-color:#3a82ff;
+      box-shadow:0 0 0 1px rgba(58,130,255,.4);
+    }
+
+    .btn{
+      padding:7px 12px;
+      border-radius:999px;
+      border:1px solid #1f2a3f;
+      background:#050913;
+      color:#e2eeff;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn.primary{
+      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
+      border-color:#58b4ff;
+      color:#fff;
+    }
+    .btn:disabled{
+      opacity:.5;
+      cursor:default;
+    }
+
+    .status{
+      font-size:13px;
+      color:#cfe4ff;
+    }
+    .status .alert{color:#ff8585}
+    .status .ok{color:#6be38a}
+
+    .te-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-top:8px;
+    }
+
+    /* Charts overlay panel */
     /* About / Help overlay */
     #aboutOverlay{
       position:fixed;
@@ -254,7 +277,9 @@
       display:grid;
       gap:6px;
     }
-    .about-list li a{
+    .about-list li a,
+    .about-list li button{
+      width:100%;
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -267,19 +292,64 @@
       text-decoration:none;
       font-size:14px;
     }
-    .about-list li a small{
+    .about-list li button{
+      cursor:pointer;
+      text-align:left;
+    }
+    .about-list li a small,
+    .about-list li button small{
       font-size:11px;
       color:var(--muted);
     }
 
-    @media (min-width:768px){
-      .shell{padding:16px 16px 90px}
-      .navbtn{font-size:13px;padding:8px 10px}
+    /* Charts overlay panel */
+    #chartsOverlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.5);
+      backdrop-filter:saturate(120%) blur(2px);
+      display:none;
+      z-index:9999;
     }
+    #chartsSheet{
+      position:absolute;
+      left:0;right:0;bottom:0;
+      background:#08111e;
+      border-top:1px solid var(--edge);
+      border-radius:16px 16px 0 0;
+      max-height:85vh;
+      overflow:auto;
+      padding:10px 12px 14px;
+    }
+    #chartsHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      padding:6px 4px 10px 4px;
+      position:sticky;
+      top:0;
+      background:linear-gradient(#08111e,#08111e);
+      z-index:1;
+      border-bottom:1px solid #0d1b2b;
+    }
+    #chartsHeader h3{margin:0;font-size:16px}
+    #closeCharts{
+      background:transparent;
+      border:1px solid var(--edge);
+      border-radius:999px;
+      padding:4px 10px;
+      font-size:12px;
+      color:#cfe4ff;
+      cursor:pointer;
+    }
+    #closeCharts:hover{border-color:var(--accent);color:#fff}
+    #chartsMount > * { margin-bottom: 12px; }
   </style>
 </head>
 <body>
   <div class="shell">
+    
     <header class="topbar">
       <div class="brand">
         <img src="/fireopscalc2.png" alt="FireOps Calc" class="brand-logo"/>
@@ -290,24 +360,17 @@
       </button>
     </header>
 
+
     <main id="app" class="grid" aria-live="polite" aria-busy="false">
       <div class="card">Loading…</div>
     </main>
   </div>
 
   <nav class="bottom-nav">
-    <button class="navbtn active" data-view="calc">
-      <span class="icon">⚙️</span>
-      <span>Calculations</span>
-    </button>
-    <button class="navbtn" data-view="practice">
-      <span class="icon">🎯</span>
-      <span>Practice</span>
-    </button>
-    <button class="navbtn" data-view="charts">
-      <span class="icon">📊</span>
-      <span>Tables</span>
-    </button>
+    <button class="navbtn active" data-view="calc">Calculations</button>
+    <button class="navbtn" data-view="practice">Practice</button>
+    <button class="navbtn" data-view="charts">Tables</button>
+    <button class="navbtn" data-view="settings" id="navSettings" style="display:none">Department Setup</button>
   </nav>
 
   <!-- About / Help overlay -->
@@ -318,8 +381,14 @@
         <button id="closeAbout" type="button">Close</button>
       </div>
       <div id="aboutBody">
-        <p>FireOps Calc is a phone-friendly fire pump calculator built for engineers on the rig.</p>
+        <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
         <ul class="about-list">
+          <li>
+            <button id="aboutDeptBtn" type="button">
+              <span>Department setup</span>
+              <small>Edit hose, nozzles &amp; line presets</small>
+            </button>
+          </li>
           <li>
             <a href="/about.html">
               <span>About FireOps Calc</span>
@@ -334,8 +403,8 @@
           </li>
           <li>
             <a href="/how-to.html">
-              <span>Help &amp; quick start</span>
-              <small>How to use the calculator</small>
+              <span>How-to &amp; quick start</span>
+              <small>Step-by-step guide</small>
             </a>
           </li>
           <li>
@@ -349,35 +418,59 @@
     </div>
   </div>
 
+  <!-- Charts overlay -->
+  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference charts">
+    <div id="chartsSheet">
+      <div id="chartsHeader">
+        <h3>Reference Charts</h3>
+        <button id="closeCharts" type="button">Close</button>
+      </div>
+      <div id="chartsMount"></div>
+    </div>
+  </div>
+
   <!-- App JS (router + view.calc.js, etc.) -->
   <script type="module" src="/js/app.js"></script>
-
-  <!-- About overlay wiring -->
+  <!-- About overlay wiring + Department setup shortcut -->
   <script>
     (function(){
       const aboutOverlay = document.getElementById('aboutOverlay');
       const openAbout = document.getElementById('openAbout');
       const closeAbout = document.getElementById('closeAbout');
+      const deptBtn = document.getElementById('aboutDeptBtn');
+      const navSettings = document.getElementById('navSettings');
 
-      if (aboutOverlay && openAbout && closeAbout) {
-        const open = () => {
-          aboutOverlay.style.display = 'block';
-        };
-        const close = () => {
-          aboutOverlay.style.display = 'none';
-        };
+      function open(){
+        if(!aboutOverlay) return;
+        aboutOverlay.style.display = 'block';
+      }
+      function close(){
+        if(!aboutOverlay) return;
+        aboutOverlay.style.display = 'none';
+      }
 
+      if(openAbout && aboutOverlay){
         openAbout.addEventListener('click', open);
+      }
+      if(closeAbout && aboutOverlay){
         closeAbout.addEventListener('click', close);
-        aboutOverlay.addEventListener('click', (evt) => {
-          if (evt.target === aboutOverlay) {
-            close();
-          }
+      }
+      if(aboutOverlay){
+        aboutOverlay.addEventListener('click', function(evt){
+          if(evt.target === aboutOverlay){ close(); }
         });
-        document.addEventListener('keydown', (evt) => {
-          if (evt.key === 'Escape' && aboutOverlay.style.display === 'block') {
-            close();
-          }
+      }
+      document.addEventListener('keydown', function(evt){
+        if(evt.key === 'Escape' && aboutOverlay && aboutOverlay.style.display === 'block'){
+          close();
+        }
+      });
+
+      // Department setup: trigger hidden nav button for "settings" view
+      if(deptBtn && navSettings){
+        deptBtn.addEventListener('click', function(){
+          close();
+          navSettings.click();
         });
       }
     })();
