@@ -55,49 +55,69 @@
     .grid{display:grid;gap:8px}
     #app{min-height:50vh}
 
-    /* Top header bar */
+    /* Top header bar – styled for more pop */
     .topbar{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:8px;
-      margin-bottom:8px;
+      margin-bottom:10px;
+      padding:8px 10px;
+      border-radius:16px;
+      border:1px solid rgba(70,176,255,0.35);
+      background:
+        radial-gradient(circle at 0% 0%, rgba(70,176,255,0.35), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(255,255,255,0.06), transparent 60%),
+        linear-gradient(135deg, #050a14, #0b1525);
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.35),
+        0 14px 28px rgba(0,0,0,0.75);
     }
     .brand{
       display:flex;
       align-items:center;
-      gap:8px;
+      gap:10px;
       min-width:0;
     }
     .brand-logo{
-      width:32px;
-      height:32px;
-      border-radius:8px;
-      border:1px solid var(--edge);
+      width:36px;
+      height:36px;
+      border-radius:10px;
+      border:1px solid rgba(180,210,255,0.7);
+      background:#02050b;
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,0.6),
+        0 8px 18px rgba(0,0,0,0.8);
       flex-shrink:0;
     }
     .brand-title{
       font-size:22px;
-      font-weight:650;
-      letter-spacing:.02em;
+      font-weight:700;
+      letter-spacing:.03em;
       white-space:nowrap;
+      background:linear-gradient(120deg,#ffffff,#cfe4ff,#6fb7ff);
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+      text-shadow:0 0 18px rgba(73,160,255,0.4);
     }
     .about-btn{
       border-radius:999px;
-      border:1px solid var(--edge);
-      background:rgba(8,17,30,.95);
-      color:var(--muted);
+      border:1px solid rgba(120,162,220,0.9);
+      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.4), transparent 60%), #050a14;
+      color:#e3efff;
       padding:4px 12px;
       font-size:12px;
       display:inline-flex;
       align-items:center;
       gap:6px;
       cursor:pointer;
+      box-shadow:0 4px 10px rgba(0,0,0,0.8);
     }
     .about-btn:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-      box-shadow:0 0 0 1px rgba(70,176,255,.3);
+      border-color:#7fd0ff;
+      color:#ffffff;
+      box-shadow:0 0 0 1px rgba(127,208,255,0.4),0 8px 18px rgba(0,0,0,0.9);
     }
 
     /* Practice header buttons and other plain buttons inside cards */
@@ -163,7 +183,7 @@
       color:#cfe4ff;
     }
 
-    /* Generic buttons (calc + practice) */
+    /* Generic .btn style (used for Check button etc.) */
     .btn{
       padding:7px 12px;
       border-radius:999px;
@@ -189,7 +209,7 @@
       box-shadow:none;
     }
 
-    /* Hide Equations button in practice mode (but keep it in DOM for JS) */
+    /* Hide Equations button in practice mode (but keep DOM for JS) */
     #eqToggleBtn{
       display:none !important;
     }
