@@ -50,6 +50,8 @@
     }
     a{color:var(--accent);text-decoration:none}
     .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
+
+    /* Top header */
     .topbar{
       display:flex;
       align-items:center;
@@ -92,19 +94,65 @@
       border-color:var(--accent);
       color:var(--fg);
     }
+
     .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
     .grid{display:grid;gap:8px}
+
+    /* KPI row – keeps GPM and PSI lined up */
+    .kpis{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .kpi{
+      flex:1 1 140px;
+      background:#050a14;
+      border:1px solid var(--edge);
+      border-radius:12px;
+      padding:8px 10px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .kpi > div{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .kpi b{
+      font-size:20px;
+      display:block;
+    }
+    .whyBtn{
+      align-self:flex-start;
+      margin-top:4px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid var(--edge);
+      background:#0b1a29;
+      color:var(--muted);
+      font-size:11px;
+      cursor:pointer;
+    }
+    .whyBtn:hover{
+      border-color:var(--accent);
+      color:var(--fg);
+    }
+
+    /* Bottom nav – three equal buttons */
     .bottom-nav{
-      position:fixed;left:0;right:0;bottom:0;
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
       background:#08111e;
       border-top:1px solid var(--edge);
-      display:flex;gap:6px;
       padding:10px 10px calc(10px + env(safe-area-inset-bottom,0));
-      justify-content:space-between;
       z-index:999;
+      display:flex;
+      gap:6px;
     }
     .navbtn{
-      flex:1;
+      flex:1 1 0;
       border-radius:999px;
       border:1px solid #192842;
       background:#050a14;
@@ -127,10 +175,6 @@
       border-color:#58b4ff;
       color:#f4f8ff;
       box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
-    }
-    .navbtn.secondary{
-      max-width:140px;
-      flex:0 0 auto;
     }
 
     /* Tag pills used in headers */
@@ -260,7 +304,7 @@
       <span class="icon">🎯</span>
       <span>Practice</span>
     </button>
-    <button class="navbtn secondary" data-view="charts">
+    <button class="navbtn" data-view="charts">
       <span class="icon">📊</span>
       <span>Tables</span>
     </button>
