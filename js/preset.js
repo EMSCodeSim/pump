@@ -378,7 +378,7 @@ const NOZZLES_SPECIAL = [
 const HOSES_ATTACK = [
   { id: 'h_1',    label: '1" attack line (C ~ 12)' },
   { id: 'h_15',   label: '1½" attack line (C ~ 24)' },
-  { id: 'h_175',  label: '1¾" attack line (C ~ 15)' },
+  { id: 'h_175',  label: '1¾" attack line (C ~ 15.5)' },
   { id: 'h_2',    label: '2" attack line (C ~ 8)' },
   { id: 'h_25',   label: '2½" attack line (C ~ 2)' },
   { id: 'h_3',    label: '3" large line (C ~ 0.8)' },
