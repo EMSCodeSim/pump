@@ -378,7 +378,7 @@ const NOZZLES_SPECIAL = [
 const HOSES_ATTACK = [
   { id: 'h_1',    label: '1" attack line (C ~ 12)' },
   { id: 'h_15',   label: '1½" attack line (C ~ 24)' },
-  { id: 'h_175',  label: '1¾" attack line (C ~ 15.5)' },
+  { id: 'h_175',  label: '1¾" attack line (C ~ 15)' },
   { id: 'h_2',    label: '2" attack line (C ~ 8)' },
   { id: 'h_25',   label: '2½" attack line (C ~ 2)' },
   { id: 'h_3',    label: '3" large line (C ~ 0.8)' },
@@ -2026,4 +2026,20 @@ export function setupPresets(opts = {}) {
     // Always show full menu
     openPresetPanelApp();
   });
+}
+
+
+// Global hook so About → Department setup opens the Department wizard overlay
+if (typeof window !== 'undefined') {
+  window.fireopsOpenDeptSetup = function () {
+    try {
+      if (typeof openDeptWizard === 'function') {
+        openDeptWizard();
+      } else {
+        console.warn('openDeptWizard() is not defined; cannot open Department setup wizard.');
+      }
+    } catch (e) {
+      console.warn('Failed to open Department setup wizard:', e);
+    }
+  };
 }
