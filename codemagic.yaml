@@ -7,9 +7,17 @@ workflows:
     environment:
       java: 21
       node: 20
+
+      # Group where you'll store GCLOUD_SERVICE_ACCOUNT_CREDENTIALS, etc.
+      # Create this group in Codemagic (Settings → Environment variables → Variable groups)
+      groups:
+        - google-play-credentials
+
+      # App-specific variables
       vars:
         ANDROID_APP_ID: "com.fireopscalc.app"
         ANDROID_APP_NAME: "FireOps Calc"
+
       # This must match the name shown under Code signing → Android keystores
       android_signing:
         - FireOpsCalcReleaseKey
@@ -49,3 +57,15 @@ workflows:
         notify:
           success: true
           failure: true
+
+      # Optional: automatic upload to Google Play
+      google_play:
+        # This is a JSON service account key stored as an env var
+        # Add it to the "google-play-credentials" group as GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+
+        # Use "internal" while testing, switch to "production" when ready
+        track: internal
+
+        # If true, keeps release as draft; set to false for full rollout
+        submit_as_draft: true
