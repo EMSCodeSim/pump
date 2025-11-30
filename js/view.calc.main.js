@@ -2448,12 +2448,7 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-  try {
-    if (!sel || !Array.isArray(NOZ_LIST)) return;
-  } catch (e) {
-    return;
-  }
-  if (!sel) return;
+  if (!sel || !Array.isArray(NOZ_LIST)) return;
 
   // Start from full nozzle library
   let nozList = NOZ_LIST.slice();
@@ -2479,14 +2474,7 @@ function initBranchPlusMenus(root){
     const val = n.id ?? label;
     return `<option value="${val}">${label}</option>`;
   }).join('');
-}catch(e){}
-    if(!sel) return;
-    sel.innerHTML = NOZ_LIST.map(n=>{
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-  }
+}
 
   // Branch A
   makeLen(
