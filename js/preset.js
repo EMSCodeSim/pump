@@ -565,6 +565,40 @@ export function getDeptHoseOptions() {
   return Array.isArray(dept.hoses) ? dept.hoses : [];
 }
 
+
+function clearDepartmentSetup() {
+  // Clear department equipment (nozzles/hoses/accessories) + line defaults
+  try {
+    localStorage.removeItem(STORAGE_DEPT_KEY);
+  } catch (e) {
+    console.warn('Dept equipment reset failed', e);
+  }
+  try {
+    localStorage.removeItem(STORAGE_LINE_DEFAULTS_KEY);
+  } catch (e) {
+    console.warn('Dept line defaults reset failed', e);
+  }
+  // Also clear the store.js-backed department line defaults
+  try {
+    localStorage.removeItem('pump_dept_defaults_v1');
+  } catch (e) {
+    console.warn('Store.js dept defaults reset failed', e);
+  }
+
+  // Clear in-memory state so subsequent opens use fresh defaults
+  state.deptNozzles = [];
+  state.customNozzles = [];
+  state.deptHoses = [];
+  state.customHoses = [];
+  state.deptAccessories = [];
+  state.customAccessories = [];
+  state.lineDefaults = {
+    line1: null,
+    line2: null,
+    line3: null,
+  };
+}
+
 function loadLineDefaultsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
@@ -654,9 +688,26 @@ function renderDeptHomeScreen() {
     </div>
   `;
 
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
-  `;
+  
+footerEl.innerHTML = `
+  <button type="button" class="btn-tertiary" id="deptResetBtn">Reset to defaults</button>
+  <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
+`;
+
+const resetBtn = footerEl.querySelector('#deptResetBtn');
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    const ok = window.confirm('Reset department nozzles, hoses, accessories, and line defaults back to factory values?');
+    if (!ok) return;
+    try {
+      clearDepartmentSetup();
+    } catch (e) {
+      console.warn('Dept reset failed', e);
+    }
+    // Re-render the Department home screen with fresh defaults
+    renderDeptHomeScreen();
+  });
+}
 
   const nozBtn = bodyEl.querySelector('#deptNozzlesBtn');
   if (nozBtn) nozBtn.addEventListener('click', () => renderNozzleSelectionScreen());
