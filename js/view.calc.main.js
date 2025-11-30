@@ -2402,8 +2402,28 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if(teNoz && Array.isArray(NOZ_LIST)){
-    teNoz.innerHTML = NOZ_LIST.map(n => {
+  if (teNoz && Array.isArray(NOZ_LIST)) {
+    // Start from full nozzle library
+    let nozList = NOZ_LIST.slice();
+
+    // Try to filter by department-selected nozzles, if available
+    try {
+      if (typeof loadDeptForBuilders === 'function') {
+        const deptCfg = loadDeptForBuilders() || {};
+        const sel = Array.isArray(deptCfg.nozzlesSelected) ? deptCfg.nozzlesSelected : [];
+        if (sel.length) {
+          const allowed = new Set(sel.map(id => String(id)));
+          const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
+          if (filtered.length) {
+            nozList = filtered;
+          }
+        }
+      }
+    } catch (_e) {
+      // Non-fatal: if anything goes wrong, we just fall back to the full list
+    }
+
+    teNoz.innerHTML = nozList.map(n => {
       const label = n.name || n.desc || n.id || 'Nozzle';
       const val = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
