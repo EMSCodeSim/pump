@@ -396,6 +396,43 @@ const PSI_PER_FT = 0.434;
 
 // Dept.nozzles can be array of strings OR array of objects.
 function msGetNozzleListFromDept(dept) {
+  if (!dept || typeof dept !== 'object') {
+    return DEFAULT_MS_NOZZLES;
+  }
+
+  // Prefer the normalized lists coming from view.calc.main.js
+  const allRaw = Array.isArray(dept.nozzlesAll) ? dept.nozzlesAll : [];
+  const selectedIds = Array.isArray(dept.nozzlesSelected) ? dept.nozzlesSelected : [];
+
+  if (allRaw.length) {
+    let list = allRaw.map((n, idx) => {
+      if (!n) return null;
+      const id = n.id != null
+        ? String(n.id)
+        : String(n.value ?? n.name ?? idx);
+      const label = n.label || n.name || String(id);
+      const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
+        ? n.gpm
+        : (typeof n.flow === 'number' && n.flow > 0
+            ? n.flow
+            : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+      return { id, label, gpm };
+    }).filter(Boolean);
+
+    if (selectedIds.length) {
+      const allowed = new Set(selectedIds.map(id => String(id)));
+      const filtered = list.filter(n => allowed.has(String(n.id)));
+      if (filtered.length) {
+        list = filtered;
+      }
+    }
+
+    if (list.length) {
+      return list;
+    }
+  }
+
+  // Fallback for older dept shape: dept.nozzles as strings/objects
   const raw = Array.isArray(dept.nozzles) ? dept.nozzles : [];
   if (!raw.length) return DEFAULT_MS_NOZZLES;
 
@@ -418,6 +455,38 @@ function msGetNozzleListFromDept(dept) {
 
 // Dept.hoses can be array of strings OR array of objects.
 function msGetHoseListFromDept(dept) {
+  if (!dept || typeof dept !== 'object') {
+    return DEFAULT_MS_HOSES;
+  }
+
+  // Prefer normalized hosesAll / hosesSelected from view.calc.main.js
+  const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+  const selectedIds = Array.isArray(dept.hosesSelected) ? dept.hosesSelected : [];
+
+  if (allRaw.length) {
+    let list = allRaw.map((h, idx) => {
+      if (!h) return null;
+      const id = h.id != null
+        ? String(h.id)
+        : String(h.value ?? h.name ?? idx);
+      const label = h.label || h.name || String(id);
+      return { id, label };
+    }).filter(Boolean);
+
+    if (selectedIds.length) {
+      const allowed = new Set(selectedIds.map(id => String(id)));
+      const filtered = list.filter(h => allowed.has(String(h.id)));
+      if (filtered.length) {
+        list = filtered;
+      }
+    }
+
+    if (list.length) {
+      return list;
+    }
+  }
+
+  // Fallback: older dept.hoses as strings/objects
   const raw = Array.isArray(dept.hoses) ? dept.hoses : [];
   if (!raw.length) return DEFAULT_MS_HOSES;
 
