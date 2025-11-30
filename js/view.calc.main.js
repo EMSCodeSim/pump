@@ -2402,28 +2402,8 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if (teNoz && Array.isArray(NOZ_LIST)) {
-    // Start from full nozzle library
-    let nozList = NOZ_LIST.slice();
-
-    // Try to filter by department-selected nozzles, if available
-    try {
-      if (typeof loadDeptForBuilders === 'function') {
-        const deptCfg = loadDeptForBuilders() || {};
-        const sel = Array.isArray(deptCfg.nozzlesSelected) ? deptCfg.nozzlesSelected : [];
-        if (sel.length) {
-          const allowed = new Set(sel.map(id => String(id)));
-          const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
-          if (filtered.length) {
-            nozList = filtered;
-          }
-        }
-      }
-    } catch (_e) {
-      // Non-fatal: if anything goes wrong, we just fall back to the full list
-    }
-
-    teNoz.innerHTML = nozList.map(n => {
+  if(teNoz && Array.isArray(NOZ_LIST)){
+    teNoz.innerHTML = NOZ_LIST.map(n => {
       const label = n.name || n.desc || n.id || 'Nozzle';
       const val = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
@@ -2468,9 +2448,38 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-    try{
-      if(!sel || !Array.isArray(NOZ_LIST)) return;
-    }catch(e){}
+  try {
+    if (!sel || !Array.isArray(NOZ_LIST)) return;
+  } catch (e) {
+    return;
+  }
+  if (!sel) return;
+
+  // Start from full nozzle library
+  let nozList = NOZ_LIST.slice();
+
+  // Try to filter by department-selected nozzles, if available
+  try {
+    if (typeof getDeptNozzleIds === 'function') {
+      const ids = getDeptNozzleIds() || [];
+      if (Array.isArray(ids) && ids.length) {
+        const allowed = new Set(ids.map(id => String(id)));
+        const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
+        if (filtered.length) {
+          nozList = filtered;
+        }
+      }
+    }
+  } catch (_e) {
+    // Non-fatal: if anything goes wrong, just fall back to the full list
+  }
+
+  sel.innerHTML = nozList.map(n => {
+    const label = n.name || n.desc || n.id || 'Nozzle';
+    const val = n.id ?? label;
+    return `<option value="${val}">${label}</option>`;
+  }).join('');
+}catch(e){}
     if(!sel) return;
     sel.innerHTML = NOZ_LIST.map(n=>{
       const label = n.name || n.desc || n.id || 'Nozzle';
