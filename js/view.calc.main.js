@@ -2430,40 +2430,31 @@ function initPlusMenus(root){
   const teNozB = root.querySelector('#teNozB');
 
   if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
-    // Start with built-in catalog
-    let list = [...NOZ_LIST];
+    // Start with built-in nozzles
+    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
 
-    // Merge in department custom nozzles (if any)
+    // Merge in department custom nozzles if available
     try {
       if (typeof getDeptCustomNozzlesForCalc === 'function') {
         const customs = getDeptCustomNozzlesForCalc() || [];
         if (Array.isArray(customs) && customs.length) {
-          const seen = new Set(list.map(n => n.id));
-          customs.forEach(c => {
-            if (!c || !c.id) return;
-            const id = String(c.id);
-            if (seen.has(id)) return;
-            seen.add(id);
-            list.push(c);
-          });
+          list = list.concat(customs);
         }
       }
     } catch (e) {
-      console.warn('Could not load custom nozzles for calc', e);
+      console.warn('Dept custom nozzles load failed', e);
     }
 
-    // Apply department selection filter to built-ins only
+    // If department selected specific nozzles, filter to that set
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids) && ids.length) {
           const allowed = new Set(ids);
-          const isCustomId = (id) => {
-            // Custom IDs are from dept.customNozzles; we treat them as always allowed.
-            // To keep things simple, any ID *not* in allowed set is assumed custom.
-            return !allowed.has(id);
-          };
-          list = list.filter(n => allowed.has(n.id) || isCustomId(n.id));
+          const filtered = list.filter(n => n && allowed.has(n.id));
+          if (filtered.length) {
+            list = filtered;
+          }
         }
       }
     } catch (e) {
@@ -2471,8 +2462,9 @@ function initPlusMenus(root){
     }
 
     const optionsHtml = list.map(n => {
+      if (!n) return '';
       const label = n.label || n.name || n.desc || n.id || 'Nozzle';
-      const val   = n.id ?? label;
+      const val   = n.id || label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
 
