@@ -1,3 +1,5 @@
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, setDeptUiNozzles, setDeptUiHoses } from './store.js';
+
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
 // Phone-friendly, no horizontal scroll:
@@ -20,6 +22,15 @@ export function openStandardLinePopup(options) {
   const onSave  = typeof options.onSave === "function" ? options.onSave : () => {};
   const initial = options.initial || null;
 
+  // Sync department hose/nozzle lists into global store lists for reuse
+  if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    setDeptUiNozzles(dept.nozzlesAll);
+  }
+  if (Array.isArray(dept.hosesAll) && dept.hosesAll.length) {
+    setDeptUiHoses(dept.hosesAll);
+  }
+
+
   // ---- Defaults & helpers for hoses / nozzles ----
   const DEFAULT_NOZZLES = [
     { id: "fog150_50",   label: "Fog 150@50",     gpm: 150, np: 50 },
@@ -38,7 +49,8 @@ export function openStandardLinePopup(options) {
   // ---- Build nozzle list (department-aware, robust) ----
   let allNozzlesRaw = Array.isArray(dept.nozzlesAll)
     ? dept.nozzlesAll
-    : (Array.isArray(options.nozzleChoices) ? options.nozzleChoices : DEFAULT_NOZZLES);
+    : (Array.isArray(options.nozzleChoices) ? options.nozzleChoices
+      : (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length ? DEPT_UI_NOZZLES : DEFAULT_NOZZLES));
 
   if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
     allNozzlesRaw = DEFAULT_NOZZLES.slice();
@@ -72,7 +84,8 @@ export function openStandardLinePopup(options) {
   // ---- Build hose list (department-aware, robust) ----
   let allHosesRaw = Array.isArray(dept.hosesAll)
     ? dept.hosesAll
-    : (Array.isArray(options.hoseChoices) ? options.hoseChoices : DEFAULT_HOSES);
+    : (Array.isArray(options.hoseChoices) ? options.hoseChoices
+      : (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length ? DEPT_UI_HOSES : DEFAULT_HOSES));
 
   if (!Array.isArray(allHosesRaw) || !allHosesRaw.length) {
     allHosesRaw = DEFAULT_HOSES.slice();
