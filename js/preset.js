@@ -1917,29 +1917,57 @@ export function getDeptLineDefaults() {
 }
 
 
+const DEPT_NOZ_TO_CALC_NOZ = {
+  "sb_78_50_160": "sb7_8",
+  "sb_1516_50_185": "sb15_16",
+  "sb_1_50_210": "sb1",
+  "sb_1118_50_265": "sb1_1_8",
+  "sb_114_50_325": "sb1_1_4",
+  "fog_175_75_150": "fog150_75",
+  "fog_175_100_150": "fog150_100",
+  "fog_xd_175_75_150": "fog150_75",
+  "fog_xd_25_50_265": "sb1_1_8",
+  "ms_tip_138_500": "ms1_3_8_80",
+  "ms_tip_112_600": "ms1_1_2_80",
+  "ms_tip_134_800": "ms1_3_4_80",
+  "ms_tip_2_1000": "ms2_80",
+  "ms_fog_500": "ms1_3_8_80",
+  "ms_fog_750": "ms1_1_2_80",
+  "ms_fog_1000": "ms2_80",
+  "ms_fog_1250": "ms2_80"
+};
+
+
 export function getDeptNozzleIds() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
-    const out = [];
+
+    const result = [];
+    const seen = new Set();
+
     if (Array.isArray(dept.nozzles)) {
-      dept.nozzles.forEach(id => {
-        if (typeof id === 'string' && id.trim().length) out.push(id.trim());
-      });
-    }
-    if (Array.isArray(dept.customNozzles)) {
-      dept.customNozzles.forEach(n => {
-        if (!n) return;
-        if (typeof n === 'string') {
-          const v = n.trim();
-          if (v.length) out.push(v);
-        } else if (typeof n.id === 'string') {
-          const v = n.id.trim();
-          if (v.length) out.push(v);
+      dept.nozzles.forEach(raw => {
+        if (typeof raw !== 'string') return;
+        const trimmed = raw.trim();
+        if (!trimmed) return;
+        const mapped = DEPT_NOZ_TO_CALC_NOZ[trimmed];
+        if (typeof mapped === 'string') {
+          if (!seen.has(mapped)) {
+            seen.add(mapped);
+            result.push(mapped);
+          }
         }
+        // if no mapping, we skip it so it doesn't break filtering
       });
     }
-    return out;
+
+    // We intentionally ignore customNozzles here for filtering,
+    // so adding a custom nozzle does not cause the app to fall
+    // back to the full list. Custom nozzles can be wired later
+    // with explicit mappings as needed.
+
+    return result;
   } catch (e) {
     console.warn('getDeptNozzleIds failed', e);
     return [];
