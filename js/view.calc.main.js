@@ -52,7 +52,7 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults } from './preset.js';
+import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults, getDeptCustomNozzlesForCalc } from './preset.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
@@ -2430,18 +2430,40 @@ function initPlusMenus(root){
   const teNozB = root.querySelector('#teNozB');
 
   if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
-    let list = NOZ_LIST;
+    // Start with built-in catalog
+    let list = [...NOZ_LIST];
 
-    // If department has selected specific nozzles, filter to those.
+    // Merge in department custom nozzles (if any)
+    try {
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        const customs = getDeptCustomNozzlesForCalc() || [];
+        if (Array.isArray(customs) && customs.length) {
+          const seen = new Set(list.map(n => n.id));
+          customs.forEach(c => {
+            if (!c || !c.id) return;
+            const id = String(c.id);
+            if (seen.has(id)) return;
+            seen.add(id);
+            list.push(c);
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load custom nozzles for calc', e);
+    }
+
+    // Apply department selection filter to built-ins only
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids) && ids.length) {
           const allowed = new Set(ids);
-          const filtered = NOZ_LIST.filter(n => allowed.has(n.id));
-          if (filtered.length) {
-            list = filtered;
-          }
+          const isCustomId = (id) => {
+            // Custom IDs are from dept.customNozzles; we treat them as always allowed.
+            // To keep things simple, any ID *not* in allowed set is assumed custom.
+            return !allowed.has(id);
+          };
+          list = list.filter(n => allowed.has(n.id) || isCustomId(n.id));
         }
       }
     } catch (e) {
@@ -2449,8 +2471,8 @@ function initPlusMenus(root){
     }
 
     const optionsHtml = list.map(n => {
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
+      const label = n.label || n.name || n.desc || n.id || 'Nozzle';
+      const val   = n.id ?? label;
       return `<option value="${val}">${label}</option>`;
     }).join('');
 
