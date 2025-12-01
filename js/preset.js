@@ -347,6 +347,7 @@ const NOZZLES_FOG = [
   { id: 'fog_xd_175_75_150',   label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
   { id: 'fog_xd_175_75_185',   label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
   { id: 'fog_xd_175_50_165',   label: 'Chief XD 1¾" 165 gpm @ 50 psi' },
+  { id: 'fog_xd_175_50_185',   label: 'Chief XD 1¾" 185 gpm @ 50 psi' },
   { id: 'fog_xd_25_50_265',    label: 'Chief XD 2½" 265 gpm @ 50 psi' },
 
   { id: 'fog_25_100_250',      label: '2½" fog 250 gpm @ 100 psi' },
@@ -1473,7 +1474,8 @@ function renderLineInfoScreen(lineNumber) {
   footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
     const edited = readEditedLineState();
     const defaultName = `Line ${lineNumber} preset`;
-    const name = defaultName;
+    const name = prompt('Preset name', defaultName);
+    if (!name) return;
 
     const summaryParts = [];
     if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
@@ -1609,114 +1611,87 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   });
 }
 
-
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
-  const wrap   = document.getElementById('appPresetWrapper');
+  const wrap = document.getElementById('appPresetWrapper');
   if (!wrap) return;
   const body   = wrap.querySelector('#appPresetBody');
   const footer = wrap.querySelector('#appPresetFooter');
   const titleEl= wrap.querySelector('.preset-panel-title');
   if (!body || !footer || !titleEl) return;
 
-  titleEl.textContent = 'Presets & Department';
+  titleEl.textContent = 'Presets';
 
   const presets = state.presets || [];
   const savedHtml = presets.length
     ? presets.map(p => `
         <div class="preset-row">
           <button type="button"
-            class="preset-menu-preset-btn"
-            data-preset-id="${p.id}">
-            <div class="preset-menu-preset-name">${p.name || 'Preset'}</div>
-            <div class="preset-menu-preset-meta">
-              ${p.notes ? p.notes : ''}
-            </div>
+                  class="btn-secondary preset-menu-preset-btn"
+                  data-preset-id="${p.id}">
+            <span>${p.name}</span>
+            <span class="preset-menu-preset-meta">
+              Line ${p.lineNumber || (p.config && p.config.lineNumber) || 1}${p.summary ? ' • ' + p.summary : ''}
+            </span>
           </button>
           <button type="button"
-            class="btn-tertiary preset-edit-btn"
-            data-preset-id="${p.id}">
+                  class="btn-tertiary preset-edit-btn"
+                  data-preset-id="${p.id}">
             Edit
           </button>
           <button type="button"
-            class="btn-tertiary preset-del-btn"
-            data-preset-id="${p.id}">
+                  class="btn-tertiary preset-del-btn"
+                  data-preset-id="${p.id}">
             Del
           </button>
         </div>
       `).join('')
     : `<div class="preset-list-empty">No saved presets yet.</div>`;
 
+  
   body.innerHTML = `
-    <div class="dept-menu" style="margin-bottom:10px;">
-      <p class="dept-intro" style="margin-top:2px;margin-bottom:4px;">
-        <strong>Department setup</strong>
-      </p>
-      <p class="dept-help" style="margin:0 0 6px 0;font-size:0.9rem;line-height:1.3;">
-        Choose your default hoses, nozzles, appliances, and line setups for your department.
-        These choices control what appears in the main calculator, line defaults, and presets.
-      </p>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
-        <button type="button" class="btn-primary" id="presetDeptSetupBtn">
-          Open Department setup
-        </button>
-      </div>
+    <div class="dept-menu" style="margin-bottom:8px;">
+      <button type="button" class="btn-primary" id="presetDeptSetupBtn">
+        Department setup
+      </button>
     </div>
 
-    <p class="dept-intro" style="margin-top:8px;margin-bottom:4px;">
-      <strong>Saved presets</strong>
+    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
+      Saved presets
     </p>
     <div class="preset-menu-presets" id="presetSavedList">
       ${savedHtml}
     </div>
   `;
-
   footer.innerHTML = `
     <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
     <button type="button" class="btn-primary" id="presetAddPresetBtn">Add preset</button>
   `;
 
-  // Department setup button → open Department wizard
+  // Department setup button
   const deptBtn = body.querySelector('#presetDeptSetupBtn');
   if (deptBtn) {
     deptBtn.addEventListener('click', () => {
-      try {
-        if (typeof openDeptWizard === 'function') {
-          openDeptWizard();
-        } else if (typeof window !== 'undefined' && typeof window.fireopsOpenDeptSetup === 'function') {
-          window.fireopsOpenDeptSetup();
-        } else {
-          console.warn('Department setup wizard is not available.');
-        }
-      } catch (e) {
-        console.warn('Failed to open Department setup wizard:', e);
-      }
+      wrap.classList.add('hidden');
+      openDeptWizard();
     });
   }
 
-  // Line setup buttons → open line editor screen
+  // Line buttons (scene-only quick editors)
   body.querySelectorAll('.preset-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const lineStr = btn.getAttribute('data-line');
-      const lineNum = Number(lineStr || '1') || 1;
-      try {
-        renderLineInfoScreen(lineNum);
-      } catch (e) {
-        console.warn('Failed to open line setup screen:', e);
-      }
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderLineInfoScreen(line);
     });
   });
 
-  // "Add preset" button → open Preset Line Editor
-  const addBtn = footer.querySelector('#presetAddPresetBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const name = prompt('Preset name', 'New preset');
-      if (!name) return;
-      handleAddPresetClick(name);
-      openPresetMainMenu(); // refresh list after new preset saved
+  // Department line default buttons (open separate defaults editor)
+  body.querySelectorAll('.preset-line-default-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const line = Number(btn.getAttribute('data-line') || '1');
+      renderDeptLineDefaultsScreen(line);
     });
-  }
+  });
 
   // Saved preset buttons: apply directly when clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
@@ -1745,13 +1720,20 @@ function openPresetMainMenu() {
       ev.stopPropagation();
       const id = btn.getAttribute('data-preset-id');
       if (!id) return;
-      const list = state.presets || [];
-      const next = list.filter(p => p.id !== id);
-      state.presets = next;
-      savePresetsToStorage(next);
-      openPresetMainMenu(); // re-render after delete
+      handleDeletePreset(id);
+      // Re-render main menu to update list
+      openPresetMainMenu();
     });
   });
+
+  // Add preset button: saves current Line 1 by default (user can rename)
+  const addBtn = footer.querySelector('#presetAddPresetBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      handleAddPresetClick();
+      openPresetMainMenu(); // refresh list
+    });
+  }
 
   wrap.classList.remove('hidden');
 }
@@ -1763,17 +1745,17 @@ function openPresetPanelApp() {
 
 // === Add preset from current calc (defaults to Line 1) ===========================
 
-function handleAddPresetClick(initialName) {
+function handleAddPresetClick() {
   // New flow: open the dedicated Preset Line Editor popup
   // instead of directly capturing the current line state.
   const dept = loadDeptFromStorage() || {};
 
   openPresetEditorPopup({
     dept,
-    initialPreset: initialName ? { name: initialName } : null,
+    initialPreset: null,
     onSave(presetConfig) {
       // Minimal save path for now: store the config in state.presets
-      const name = initialName || (presetConfig && presetConfig.name) || 'New preset';
+      const name = (presetConfig && presetConfig.name) || 'New preset';
 
       const preset = {
         id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -1945,6 +1927,7 @@ const DEPT_NOZ_TO_CALC_NOZ = {
   "fog_175_75_150": "fog150_75",
   "fog_175_100_150": "fog150_100",
   "fog_xd_175_75_150": "fog150_75",
+  "fog_xd_175_50_185": "chiefXD",
   "fog_xd_25_50_265": "sb1_1_8",
   "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_112_600": "ms1_1_2_80",
@@ -1989,35 +1972,6 @@ export function getDeptNozzleIds() {
     return result;
   } catch (e) {
     console.warn('getDeptNozzleIds failed', e);
-    return [];
-  }
-}
-
-
-
-export function getDeptCustomNozzlesForCalc() {
-  try {
-    const dept = loadDeptFromStorage();
-    if (!dept || typeof dept !== 'object') return [];
-
-    const arr = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-    const out = [];
-
-    arr.forEach((n) => {
-      if (!n || typeof n !== 'object') return;
-      const id = (n.id != null ? String(n.id) : '').trim();
-      if (!id) return;
-      const name = n.label || n.name || id;
-      const gpm = typeof n.gpm === 'number' && Number.isFinite(n.gpm) ? n.gpm : 0;
-      const NP  = typeof n.psi === 'number' && Number.isFinite(n.psi) ? n.psi : (
-        typeof n.NP === 'number' && Number.isFinite(n.NP) ? n.NP : 50
-      );
-      out.push({ id, name, gpm, NP });
-    });
-
-    return out;
-  } catch (e) {
-    console.warn('getDeptCustomNozzlesForCalc failed', e);
     return [];
   }
 }
