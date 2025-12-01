@@ -873,22 +873,31 @@ function updateSegSwitchVisibility(){
         base = filtered;
       }
     }
+    // If Department has selected ids that did not match any known nozzle,
+    // add simple fallback entries so they still appear in the list.
+    if (ids.length) {
+      const baseIds = new Set(base.map(n => n && n.id).filter(Boolean));
+      ids.forEach(id => {
+        if (!baseIds.has(id)) {
+          base.push({ id, label: id });
+        }
+      });
+    }
+
+
 
     return base
       .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
       .join('');
   }
 
-  function refreshNozzleSelectOptions() {
-    const nozzleOptionsHTML = buildNozzleOptionsHTML();
-    [teNoz, teNozA, teNozB].forEach(sel => {
-      if (!sel) return;
-      sel.innerHTML = nozzleOptionsHTML;
-    });
-  }
+  const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  [teNoz, teNozA, teNozB].forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = nozzleOptionsHTML;
+  });
 
-  // Initial fill
-  refreshNozzleSelectOptions();
+
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1677,26 +1686,6 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
 
-      // If Department filtering removed the old nozzle id from the select,
-      // make sure we still show *something* by picking the first available option.
-      if (teNoz && !teNoz.value && teNoz.options && teNoz.options.length > 0) {
-        teNoz.selectedIndex = 0;
-        const chosenId = teNoz.value;
-        if (chosenId) {
-          try {
-            const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-            const found = fullList.find(n => n && n.id === chosenId);
-            if (found) {
-              L.nozRight = Object.assign({}, L.nozRight || {}, found, { id: found.id });
-            } else {
-              L.nozRight = Object.assign({}, L.nozRight || {}, { id: chosenId });
-            }
-          } catch (_e) {
-            // Non-fatal: at least a visible selection is present
-          }
-        }
-      }
-
       // For a Wye, also make sure branches have their defaults seeded
       if (L.hasWye) {
         setBranchBDefaultIfEmpty(L); // ensure B default when wye on
@@ -1765,7 +1754,6 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
-    if (typeof refreshNozzleSelectOptions === 'function') refreshNozzleSelectOptions();
     onOpenPopulateEditor(key, where);
     if (container && container.__segEnsureUI) container.__segEnsureUI(where);
 // Initialize segment selection based on clicked tip
@@ -2472,33 +2460,16 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-  if (!sel || !Array.isArray(NOZ_LIST)) return;
-
-  // Start from full nozzle library
-  let nozList = NOZ_LIST.slice();
-
-  // Try to filter by department-selected nozzles, if available
-  try {
-    if (typeof getDeptNozzleIds === 'function') {
-      const ids = getDeptNozzleIds() || [];
-      if (Array.isArray(ids) && ids.length) {
-        const allowed = new Set(ids.map(id => String(id)));
-        const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
-        if (filtered.length) {
-          nozList = filtered;
-        }
-      }
-    }
-  } catch (_e) {
-    // Non-fatal: if anything goes wrong, just fall back to the full list
+    try{
+      if(!sel || !Array.isArray(NOZ_LIST)) return;
+    }catch(e){}
+    if(!sel) return;
+    sel.innerHTML = NOZ_LIST.map(n=>{
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
   }
-
-  sel.innerHTML = nozList.map(n => {
-    const label = n.name || n.desc || n.id || 'Nozzle';
-    const val = n.id ?? label;
-    return `<option value="${val}">${label}</option>`;
-  }).join('');
-}
 
   // Branch A
   makeLen(
