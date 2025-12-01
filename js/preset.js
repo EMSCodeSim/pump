@@ -1651,28 +1651,15 @@ function openPresetMainMenu() {
   body.innerHTML = `
     <div class="dept-menu" style="margin-bottom:10px;">
       <p class="dept-intro" style="margin-top:2px;margin-bottom:4px;">
-        <strong>Department &amp; lines</strong>
+        <strong>Department setup</strong>
+      </p>
+      <p class="dept-help" style="margin:0 0 6px 0;font-size:0.9rem;line-height:1.3;">
+        Choose your default hoses, nozzles, appliances, and line setups for your department.
+        These choices control what appears in the main calculator, line defaults, and presets.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
         <button type="button" class="btn-primary" id="presetDeptSetupBtn">
-          Department setup
-        </button>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;">
-        <button type="button"
-          class="btn-secondary preset-line-btn"
-          data-line="1">
-          Line 1 setup
-        </button>
-        <button type="button"
-          class="btn-secondary preset-line-btn"
-          data-line="2">
-          Line 2 setup
-        </button>
-        <button type="button"
-          class="btn-secondary preset-line-btn"
-          data-line="3">
-          Line 3 setup
+          Open Department setup
         </button>
       </div>
     </div>
