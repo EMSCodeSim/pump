@@ -565,40 +565,6 @@ export function getDeptHoseOptions() {
   return Array.isArray(dept.hoses) ? dept.hoses : [];
 }
 
-
-function clearDepartmentSetup() {
-  // Clear department equipment (nozzles/hoses/accessories) + line defaults
-  try {
-    localStorage.removeItem(STORAGE_DEPT_KEY);
-  } catch (e) {
-    console.warn('Dept equipment reset failed', e);
-  }
-  try {
-    localStorage.removeItem(STORAGE_LINE_DEFAULTS_KEY);
-  } catch (e) {
-    console.warn('Dept line defaults reset failed', e);
-  }
-  // Also clear the store.js-backed department line defaults
-  try {
-    localStorage.removeItem('pump_dept_defaults_v1');
-  } catch (e) {
-    console.warn('Store.js dept defaults reset failed', e);
-  }
-
-  // Clear in-memory state so subsequent opens use fresh defaults
-  state.deptNozzles = [];
-  state.customNozzles = [];
-  state.deptHoses = [];
-  state.customHoses = [];
-  state.deptAccessories = [];
-  state.customAccessories = [];
-  state.lineDefaults = {
-    line1: null,
-    line2: null,
-    line3: null,
-  };
-}
-
 function loadLineDefaultsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
@@ -688,26 +654,9 @@ function renderDeptHomeScreen() {
     </div>
   `;
 
-  
-footerEl.innerHTML = `
-  <button type="button" class="btn-tertiary" id="deptResetBtn">Reset to defaults</button>
-  <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
-`;
-
-const resetBtn = footerEl.querySelector('#deptResetBtn');
-if (resetBtn) {
-  resetBtn.addEventListener('click', () => {
-    const ok = window.confirm('Reset department nozzles, hoses, accessories, and line defaults back to factory values?');
-    if (!ok) return;
-    try {
-      clearDepartmentSetup();
-    } catch (e) {
-      console.warn('Dept reset failed', e);
-    }
-    // Re-render the Department home screen with fresh defaults
-    renderDeptHomeScreen();
-  });
-}
+  footerEl.innerHTML = `
+    <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
+  `;
 
   const nozBtn = bodyEl.querySelector('#deptNozzlesBtn');
   if (nozBtn) nozBtn.addEventListener('click', () => renderNozzleSelectionScreen());
@@ -1968,16 +1917,41 @@ export function getDeptLineDefaults() {
 }
 
 
+const DEPT_NOZ_TO_NOZ_ID = {
+  "sb_78_50_160": "sb7_8",
+  "sb_1_50_210": "sb1",
+  "sb_114_50_325": "sb1_1_4",
+  "fog_175_75_150": "fog150_75",
+  "fog_175_100_150": "fog150_100",
+  "fog_xd_175_75_150": "fog150_75",
+  "ms_tip_138_500": "ms1_3_8_80",
+  "ms_tip_112_600": "ms1_1_2_80",
+  "ms_tip_134_800": "ms1_3_4_80",
+  "ms_tip_2_1000": "ms2_80",
+  "ms_fog_500": "ms1_3_8_80",
+  "ms_fog_1000": "ms2_80",
+  "sb_1516_50_185": "sb15_16",
+  "sb_1118_50_265": "sb1_1_8"
+};
+
 export function getDeptNozzleIds() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
     const out = [];
+
+    // Built-in department nozzle ids (from NOZZLES_* arrays)
     if (Array.isArray(dept.nozzles)) {
       dept.nozzles.forEach(id => {
-        if (typeof id === 'string' && id.trim().length) out.push(id.trim());
+        if (typeof id !== 'string') return;
+        const raw = id.trim();
+        if (!raw) return;
+        const mapped = DEPT_NOZ_TO_NOZ_ID[raw] || raw;
+        out.push(mapped);
       });
     }
+
+    // Custom nozzles: keep their own ids
     if (Array.isArray(dept.customNozzles)) {
       dept.customNozzles.forEach(n => {
         if (!n) return;
@@ -1990,6 +1964,7 @@ export function getDeptNozzleIds() {
         }
       });
     }
+
     return out;
   } catch (e) {
     console.warn('getDeptNozzleIds failed', e);
