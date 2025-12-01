@@ -2073,3 +2073,31 @@ if (typeof window !== 'undefined') {
     }
   };
 }
+
+// =====================================================
+// Expose department custom nozzles for calc view
+// =====================================================
+export function getDeptCustomNozzlesForCalc() {
+  try {
+    const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
+    const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    // Normalize into { id, label, gpm, np }
+    return customs.map((n, idx) => {
+      if (!n || typeof n !== 'object') return null;
+      const id = n.id || n.calcId || n.key || `custom_noz_${idx}`;
+      const label = n.label || n.name || n.desc || id;
+      const gpm = typeof n.gpm === 'number'
+        ? n.gpm
+        : (typeof n.flow === 'number' ? n.flow : null);
+      const np = typeof n.np === 'number'
+        ? n.np
+        : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : null));
+      return { id, label, gpm, np };
+    }).filter(Boolean);
+  } catch (e) {
+    console.warn('getDeptCustomNozzlesForCalc failed', e);
+    return [];
+  }
+}
+
