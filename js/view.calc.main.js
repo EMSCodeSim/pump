@@ -2425,6 +2425,40 @@ function initPlusMenus(root){
   elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
   drawElev();
 
+  const teNoz  = root.querySelector('#teNoz');
+  const teNozA = root.querySelector('#teNozA');
+  const teNozB = root.querySelector('#teNozB');
+
+  if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
+    let list = NOZ_LIST;
+
+    // If department has selected specific nozzles, filter to those.
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const allowed = new Set(ids);
+          const filtered = NOZ_LIST.filter(n => allowed.has(n.id));
+          if (filtered.length) {
+            list = filtered;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Dept nozzle filter failed', e);
+    }
+
+    const optionsHtml = list.map(n => {
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
+
+    if (teNoz)  teNoz.innerHTML  = optionsHtml;
+    if (teNozA) teNozA.innerHTML = optionsHtml;
+    if (teNozB) teNozB.innerHTML = optionsHtml;
+  }
+
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
     s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
