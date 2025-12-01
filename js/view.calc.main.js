@@ -2402,12 +2402,8 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if(teNoz && Array.isArray(NOZ_LIST)){
-    teNoz.innerHTML = NOZ_LIST.map(n => {
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
+  if (teNoz && typeof fillNozzles === 'function') {
+    fillNozzles(teNoz);
   }
 
   if(!root.__plusMenuStyles){
