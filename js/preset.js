@@ -1974,6 +1974,35 @@ export function getDeptNozzleIds() {
   }
 }
 
+
+
+export function getDeptCustomNozzlesForCalc() {
+  try {
+    const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
+
+    const arr = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    const out = [];
+
+    arr.forEach((n) => {
+      if (!n || typeof n !== 'object') return;
+      const id = (n.id != null ? String(n.id) : '').trim();
+      if (!id) return;
+      const name = n.label || n.name || id;
+      const gpm = typeof n.gpm === 'number' && Number.isFinite(n.gpm) ? n.gpm : 0;
+      const NP  = typeof n.psi === 'number' && Number.isFinite(n.psi) ? n.psi : (
+        typeof n.NP === 'number' && Number.isFinite(n.NP) ? n.NP : 50
+      );
+      out.push({ id, name, gpm, NP });
+    });
+
+    return out;
+  } catch (e) {
+    console.warn('getDeptCustomNozzlesForCalc failed', e);
+    return [];
+  }
+}
+
 export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
