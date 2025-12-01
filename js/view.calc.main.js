@@ -2425,15 +2425,6 @@ function initPlusMenus(root){
   elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
   drawElev();
 
-  const teNoz = root.querySelector('#teNoz');
-  if(teNoz && Array.isArray(NOZ_LIST)){
-    teNoz.innerHTML = NOZ_LIST.map(n => {
-      const label = n.name || n.desc || n.id || 'Nozzle';
-      const val = n.id ?? label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-  }
-
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
     s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
