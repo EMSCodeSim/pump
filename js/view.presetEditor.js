@@ -28,6 +28,11 @@ export function openPresetEditorPopup(options = {}) {
     }
   };
 
+  // Initialize name from options (chosen earlier in the Presets menu popup)
+  if (options.initialPreset && options.initialPreset.name) {
+    state.name = options.initialPreset.name;
+  }
+
   // ===== Overlay & panel =====
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
@@ -203,7 +208,7 @@ export function openPresetEditorPopup(options = {}) {
   preview.style.fontWeight = "600";
   preview.style.textAlign = "center";
 
-  body.append(nameRow, typeTitle, typeGrid, typeHint, preview);
+  body.append(typeTitle, typeGrid, typeHint, preview);
 
   // ===== Footer =====
   const footer = document.createElement("div");
