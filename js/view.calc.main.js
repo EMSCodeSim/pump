@@ -879,16 +879,13 @@ function updateSegSwitchVisibility(){
       .join('');
   }
 
-  function refreshNozzleSelectOptions() {
-    const nozzleOptionsHTML = buildNozzleOptionsHTML();
-    [teNoz, teNozA, teNozB].forEach(sel => {
-      if (!sel) return;
-      sel.innerHTML = nozzleOptionsHTML;
-    });
-  }
+  const nozzleOptionsHTML = buildNozzleOptionsHTML();
+  [teNoz, teNozA, teNozB].forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = nozzleOptionsHTML;
+  });
 
-  // Initial fill
-  refreshNozzleSelectOptions();
+
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1677,8 +1674,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
 
-      // If Department filtering removed the old nozzle id from the select,
-      // make sure we still show *something* by picking the first available option.
+      // If the chosen nozzle id isn't in the filtered Department list,
+      // fall back to the first available option so the field is never blank.
       if (teNoz && !teNoz.value && teNoz.options && teNoz.options.length > 0) {
         teNoz.selectedIndex = 0;
         const chosenId = teNoz.value;
@@ -1692,7 +1689,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
               L.nozRight = Object.assign({}, L.nozRight || {}, { id: chosenId });
             }
           } catch (_e) {
-            // Non-fatal: at least a visible selection is present
+            // Non-fatal: we at least have a visible selection
           }
         }
       }
@@ -1765,7 +1762,6 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
-    if (typeof refreshNozzleSelectOptions === 'function') refreshNozzleSelectOptions();
     onOpenPopulateEditor(key, where);
     if (container && container.__segEnsureUI) container.__segEnsureUI(where);
 // Initialize segment selection based on clicked tip
