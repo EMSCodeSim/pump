@@ -1473,8 +1473,7 @@ function renderLineInfoScreen(lineNumber) {
   footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
     const edited = readEditedLineState();
     const defaultName = `Line ${lineNumber} preset`;
-    const name = prompt('Preset name', defaultName);
-    if (!name) return;
+    const name = defaultName;
 
     const summaryParts = [];
     if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
@@ -1712,7 +1711,9 @@ function openPresetMainMenu() {
   const addBtn = footer.querySelector('#presetAddPresetBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      handleAddPresetClick();
+      const name = prompt('Preset name', 'New preset');
+      if (!name) return;
+      handleAddPresetClick(name);
       openPresetMainMenu(); // refresh list after new preset saved
     });
   }
@@ -1762,17 +1763,17 @@ function openPresetPanelApp() {
 
 // === Add preset from current calc (defaults to Line 1) ===========================
 
-function handleAddPresetClick() {
+function handleAddPresetClick(initialName) {
   // New flow: open the dedicated Preset Line Editor popup
   // instead of directly capturing the current line state.
   const dept = loadDeptFromStorage() || {};
 
   openPresetEditorPopup({
     dept,
-    initialPreset: null,
+    initialPreset: initialName ? { name: initialName } : null,
     onSave(presetConfig) {
       // Minimal save path for now: store the config in state.presets
-      const name = (presetConfig && presetConfig.name) || 'New preset';
+      const name = initialName || (presetConfig && presetConfig.name) || 'New preset';
 
       const preset = {
         id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
