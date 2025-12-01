@@ -1651,13 +1651,20 @@ function openPresetMainMenu() {
   
   body.innerHTML = `
     <div class="dept-menu" style="margin-bottom:8px;">
+      <p class="dept-intro" style="margin-top:0;margin-bottom:4px;">
+        <strong>Department setup</strong>
+      </p>
+      <p class="dept-help" style="margin:0 0 6px 0;font-size:0.9rem;line-height:1.3;">
+        Choose your default hoses, nozzles, appliances, and line setups for your department.
+        These choices control what appears in the main calculator, line defaults, and presets.
+      </p>
       <button type="button" class="btn-primary" id="presetDeptSetupBtn">
-        Department setup
+        Open Department setup
       </button>
     </div>
 
     <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      Saved presets
+      <strong>Saved presets</strong>
     </p>
     <div class="preset-menu-presets" id="presetSavedList">
       ${savedHtml}
@@ -1730,7 +1737,9 @@ function openPresetMainMenu() {
   const addBtn = footer.querySelector('#presetAddPresetBtn');
   if (addBtn) {
     addBtn.addEventListener('click', () => {
-      handleAddPresetClick();
+      const name = prompt('Preset name', 'New preset');
+      if (!name) return;
+      handleAddPresetClick(name);
       openPresetMainMenu(); // refresh list
     });
   }
@@ -1745,17 +1754,17 @@ function openPresetPanelApp() {
 
 // === Add preset from current calc (defaults to Line 1) ===========================
 
-function handleAddPresetClick() {
+function handleAddPresetClick(initialName) {
   // New flow: open the dedicated Preset Line Editor popup
   // instead of directly capturing the current line state.
   const dept = loadDeptFromStorage() || {};
 
   openPresetEditorPopup({
     dept,
-    initialPreset: null,
+    initialPreset: initialName ? { name: initialName } : null,
     onSave(presetConfig) {
       // Minimal save path for now: store the config in state.presets
-      const name = (presetConfig && presetConfig.name) || 'New preset';
+      const name = initialName || (presetConfig && presetConfig.name) || 'New preset';
 
       const preset = {
         id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
