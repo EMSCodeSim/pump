@@ -30,6 +30,43 @@ import {
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
 
+// Helper: resolve nozzle by id, including built-ins and department custom nozzles.
+function resolveNozzleById(id){
+  if (!id) return null;
+  try{
+    // 1) Built-in map
+    if (typeof NOZ === 'object' && NOZ && NOZ[id]){
+      return NOZ[id];
+    }
+
+    // 2) Built-in list
+    const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    const fromList = list.find(n => n && n.id === id);
+    if (fromList){
+      return fromList;
+    }
+
+    // 3) Department custom nozzles (from Department Setup)
+    if (typeof getDeptCustomNozzlesForCalc === 'function'){
+      const customs = getDeptCustomNozzlesForCalc() || [];
+      if (Array.isArray(customs) && customs.length){
+        const found = customs.find(n => n && n.id === id);
+        if (found){
+          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
+          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
+          const NP   = Number(found.NP ?? found.np ?? found.pressure ?? 50) || 50;
+          return { id: found.id, name, gpm, NP };
+        }
+      }
+    }
+  }catch(e){
+    console.warn('resolveNozzleById failed for id', id, e);
+  }
+  return null;
+}
+
+
+
 // Use shared FL_total_sections helper directly.
 // C-values (including 1 3/4" standard hose at 15.5) are now handled in calcShared.js
 // so we don't re-scale here. This keeps the main Max PP and the "Why" breakdown
@@ -1765,7 +1802,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     if (nozA) nozA.addEventListener('change', () => {
       try {
         const id = nozA.value;
-        if (id && NOZ && NOZ[id]) { L.nozLeft = NOZ[id]; }
+        const noz = resolveNozzleById(id);
+        if (noz) {
+          L.nozLeft = noz;
+        }
         // lock branch hose size to 1.75 is handled elsewhere in calc; just recompute
         recompute();
         render();
@@ -1774,7 +1814,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     if (nozB) nozB.addEventListener('change', () => {
       try {
         const id = nozB.value;
-        if (id && NOZ && NOZ[id]) { L.nozRight = NOZ[id]; }
+        const noz = resolveNozzleById(id);
+        if (noz) {
+          L.nozRight = noz;
+        }
         recompute();
         render();
       } catch(_){}
@@ -1846,8 +1889,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if(!wyeOn){
         L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
         // default nozzle by diameter if unset OR use chosen
-        if (teNoz && teNoz.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
-        else ensureDefaultNozzleFor(L,'main',size);
+        if (teNoz && teNoz.value){
+          const chosen = resolveNozzleById(teNoz.value);
+          if (chosen){
+            L.nozRight = chosen;
+          } else {
+            ensureDefaultNozzleFor(L,'main',size);
+          }
+        } else {
+          ensureDefaultNozzleFor(L,'main',size);
+        }
       }else{
         L.hasWye=true;
         const lenA = Math.max(0, +teLenA?.value||0);
