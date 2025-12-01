@@ -22,6 +22,20 @@ export const COLORS = {
   '5'   : '#ffd23a',   // yellow
 };
 
+// Department-scoped UI lists for hoses and nozzles.
+// These are populated when Department Setup is saved, and
+// reused by line editors / calc as a single source of truth.
+export let DEPT_UI_NOZZLES = [];
+export let DEPT_UI_HOSES = [];
+
+export function setDeptUiNozzles(list) {
+  DEPT_UI_NOZZLES = Array.isArray(list) ? list : [];
+}
+
+export function setDeptUiHoses(list) {
+  DEPT_UI_HOSES = Array.isArray(list) ? list : [];
+}
+
 /* =========================
  * Nozzle catalog (expanded)
  * ========================= */
