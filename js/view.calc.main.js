@@ -879,13 +879,16 @@ function updateSegSwitchVisibility(){
       .join('');
   }
 
-  const nozzleOptionsHTML = buildNozzleOptionsHTML();
-  [teNoz, teNozA, teNozB].forEach(sel => {
-    if (!sel) return;
-    sel.innerHTML = nozzleOptionsHTML;
-  });
+  function refreshNozzleSelectOptions() {
+    const nozzleOptionsHTML = buildNozzleOptionsHTML();
+    [teNoz, teNozA, teNozB].forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = nozzleOptionsHTML;
+    });
+  }
 
-
+  // Initial fill
+  refreshNozzleSelectOptions();
 
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
@@ -1742,6 +1745,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const tip = e.target.closest('.hose-end'); if(!tip) return;
     e.preventDefault(); e.stopPropagation();
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
+    if (typeof refreshNozzleSelectOptions === 'function') refreshNozzleSelectOptions();
     onOpenPopulateEditor(key, where);
     if (container && container.__segEnsureUI) container.__segEnsureUI(where);
 // Initialize segment selection based on clicked tip
@@ -2402,8 +2406,12 @@ function initPlusMenus(root){
   drawElev();
 
   const teNoz = root.querySelector('#teNoz');
-  if (teNoz && typeof fillNozzles === 'function') {
-    fillNozzles(teNoz);
+  if(teNoz && Array.isArray(NOZ_LIST)){
+    teNoz.innerHTML = NOZ_LIST.map(n => {
+      const label = n.name || n.desc || n.id || 'Nozzle';
+      const val = n.id ?? label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
   }
 
   if(!root.__plusMenuStyles){
