@@ -1610,87 +1610,125 @@ function renderDeptLineDefaultsScreen(lineNumber) {
   });
 }
 
+
 function openPresetMainMenu() {
   ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
+  const wrap   = document.getElementById('appPresetWrapper');
   if (!wrap) return;
   const body   = wrap.querySelector('#appPresetBody');
   const footer = wrap.querySelector('#appPresetFooter');
   const titleEl= wrap.querySelector('.preset-panel-title');
   if (!body || !footer || !titleEl) return;
 
-  titleEl.textContent = 'Presets';
+  titleEl.textContent = 'Presets & Department';
 
   const presets = state.presets || [];
   const savedHtml = presets.length
     ? presets.map(p => `
         <div class="preset-row">
           <button type="button"
-                  class="btn-secondary preset-menu-preset-btn"
-                  data-preset-id="${p.id}">
-            <span>${p.name}</span>
-            <span class="preset-menu-preset-meta">
-              Line ${p.lineNumber || (p.config && p.config.lineNumber) || 1}${p.summary ? ' • ' + p.summary : ''}
-            </span>
+            class="preset-menu-preset-btn"
+            data-preset-id="${p.id}">
+            <div class="preset-menu-preset-name">${p.name || 'Preset'}</div>
+            <div class="preset-menu-preset-meta">
+              ${p.notes ? p.notes : ''}
+            </div>
           </button>
           <button type="button"
-                  class="btn-tertiary preset-edit-btn"
-                  data-preset-id="${p.id}">
+            class="btn-tertiary preset-edit-btn"
+            data-preset-id="${p.id}">
             Edit
           </button>
           <button type="button"
-                  class="btn-tertiary preset-del-btn"
-                  data-preset-id="${p.id}">
+            class="btn-tertiary preset-del-btn"
+            data-preset-id="${p.id}">
             Del
           </button>
         </div>
       `).join('')
     : `<div class="preset-list-empty">No saved presets yet.</div>`;
 
-  
   body.innerHTML = `
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-primary" id="presetDeptSetupBtn">
-        Department setup
-      </button>
+    <div class="dept-menu" style="margin-bottom:10px;">
+      <p class="dept-intro" style="margin-top:2px;margin-bottom:4px;">
+        <strong>Department &amp; lines</strong>
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">
+        <button type="button" class="btn-primary" id="presetDeptSetupBtn">
+          Department setup
+        </button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <button type="button"
+          class="btn-secondary preset-line-btn"
+          data-line="1">
+          Line 1 setup
+        </button>
+        <button type="button"
+          class="btn-secondary preset-line-btn"
+          data-line="2">
+          Line 2 setup
+        </button>
+        <button type="button"
+          class="btn-secondary preset-line-btn"
+          data-line="3">
+          Line 3 setup
+        </button>
+      </div>
     </div>
 
-    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      Saved presets
+    <p class="dept-intro" style="margin-top:8px;margin-bottom:4px;">
+      <strong>Saved presets</strong>
     </p>
     <div class="preset-menu-presets" id="presetSavedList">
       ${savedHtml}
     </div>
   `;
+
   footer.innerHTML = `
     <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
     <button type="button" class="btn-primary" id="presetAddPresetBtn">Add preset</button>
   `;
 
-  // Department setup button
+  // Department setup button → open Department wizard
   const deptBtn = body.querySelector('#presetDeptSetupBtn');
   if (deptBtn) {
     deptBtn.addEventListener('click', () => {
-      wrap.classList.add('hidden');
-      openDeptWizard();
+      try {
+        if (typeof openDeptWizard === 'function') {
+          openDeptWizard();
+        } else if (typeof window !== 'undefined' && typeof window.fireopsOpenDeptSetup === 'function') {
+          window.fireopsOpenDeptSetup();
+        } else {
+          console.warn('Department setup wizard is not available.');
+        }
+      } catch (e) {
+        console.warn('Failed to open Department setup wizard:', e);
+      }
     });
   }
 
-  // Line buttons (scene-only quick editors)
+  // Line setup buttons → open line editor screen
   body.querySelectorAll('.preset-line-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderLineInfoScreen(line);
+      const lineStr = btn.getAttribute('data-line');
+      const lineNum = Number(lineStr || '1') || 1;
+      try {
+        renderLineInfoScreen(lineNum);
+      } catch (e) {
+        console.warn('Failed to open line setup screen:', e);
+      }
     });
   });
 
-  // Department line default buttons (open separate defaults editor)
-  body.querySelectorAll('.preset-line-default-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderDeptLineDefaultsScreen(line);
+  // "Add preset" button → open Preset Line Editor
+  const addBtn = footer.querySelector('#presetAddPresetBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      handleAddPresetClick();
+      openPresetMainMenu(); // refresh list after new preset saved
     });
-  });
+  }
 
   // Saved preset buttons: apply directly when clicked
   body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
@@ -1719,20 +1757,13 @@ function openPresetMainMenu() {
       ev.stopPropagation();
       const id = btn.getAttribute('data-preset-id');
       if (!id) return;
-      handleDeletePreset(id);
-      // Re-render main menu to update list
-      openPresetMainMenu();
+      const list = state.presets || [];
+      const next = list.filter(p => p.id !== id);
+      state.presets = next;
+      savePresetsToStorage(next);
+      openPresetMainMenu(); // re-render after delete
     });
   });
-
-  // Add preset button: saves current Line 1 by default (user can rename)
-  const addBtn = footer.querySelector('#presetAddPresetBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      handleAddPresetClick();
-      openPresetMainMenu(); // refresh list
-    });
-  }
 
   wrap.classList.remove('hidden');
 }
