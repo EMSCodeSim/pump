@@ -572,10 +572,10 @@
     })();
   </script>
 
-  <!-- App-only guards for presets links -->
+  <!-- App-only guards for presets links (temporarily disabled: treat all as app) -->
   <script>
     (function(){
-      const IS_APP = /Capacitor|iPhone.*Safari\/|Android.*wv/.test(navigator.userAgent);
+      const IS_APP = true; // TEMP: allow full presets / dept setup on any device
       const presetButtons = [
         ...document.querySelectorAll('[href*="presets"]'),
         ...document.querySelectorAll('#openPresets')
