@@ -844,9 +844,37 @@ function updateSegSwitchVisibility(){
   
   // Populate nozzle selects, honoring Department Setup choices if available.
   function buildNozzleOptionsHTML() {
-    const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-    if (!fullList.length) return '';
+    // Start with built-in nozzle catalog
+    const builtins = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    const all = [];
 
+    // Helper to push if id not already present
+    const seen = new Set();
+    const pushUnique = (n) => {
+      if (!n || typeof n !== 'object') return;
+      const id = (n.id != null ? String(n.id) : '').trim();
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      all.push(n);
+    };
+
+    builtins.forEach(pushUnique);
+
+    // Merge in department custom nozzles (from Department Setup)
+    try {
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        const customs = getDeptCustomNozzlesForCalc() || [];
+        if (Array.isArray(customs) && customs.length) {
+          customs.forEach(pushUnique);
+        }
+      }
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+    }
+
+    if (!all.length) return '';
+
+    // Gather department-selected nozzle ids for filtering of built-ins.
     let ids = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
@@ -862,24 +890,36 @@ function updateSegSwitchVisibility(){
       ids = [];
     }
 
-    // By default we show the entire nozzle catalog so the UI is never empty.
-    let base = fullList;
+    let base = all;
 
-    // If Department Setup has selected any valid nozzle ids, filter to those.
+    // If Department Setup has selected any built-in nozzle ids,
+    // filter the built-ins to those ids but ALWAYS keep customs.
     if (ids.length) {
       const idSet = new Set(ids);
-      const filtered = fullList.filter(n => n && typeof n.id === 'string' && idSet.has(n.id));
-      if (filtered.length) {
-        base = filtered;
+      const builtinsFiltered = all.filter(n => {
+        const id = (n.id != null ? String(n.id) : '').trim();
+        if (!id) return false;
+        // If it came from custom list, it won't be in DEPT_NOZ_TO_CALC_NOZ,
+        // but we always keep customs regardless of idSet.
+        // Heuristic: customs from getDeptCustomNozzlesForCalc tend to have gpm/NP set.
+        // We simply say: if id is in idSet OR it doesn't match any known builtin ids,
+        // keep it.
+        if (idSet.has(id)) return true;
+        // For customs, getDeptNozzleIds intentionally ignores them;
+        // we treat those as always included.
+        return !builtins.some(b => (b.id != null ? String(b.id) : '').trim() === id);
+      });
+      if (builtinsFiltered.length) {
+        base = builtinsFiltered;
       }
     }
 
     return base
-      .map(n => `<option value="${n.id}">${n.name || n.label || n.id}</option>`)
+      .map(n => `<option value="${n.id}">${n.name || n.label || n.desc || n.id}</option>`)
       .join('');
   }
 
-  function refreshNozzleSelectOptions() {
+function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
     [teNoz, teNozA, teNozB].forEach(sel => {
       if (!sel) return;
