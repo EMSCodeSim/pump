@@ -1,3 +1,5 @@
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+
 // view.lineMaster.js
 // Master stream / Blitz line editor.
 //
@@ -397,6 +399,22 @@ const PSI_PER_FT = 0.434;
 // Dept.nozzles can be array of strings OR array of objects.
 function msGetNozzleListFromDept(dept) {
   if (!dept || typeof dept !== 'object') {
+    // Fallback to department UI nozzles stored in store.js
+    if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+      return DEPT_UI_NOZZLES.map((n, idx) => {
+        if (!n) return null;
+        const id = n.id != null
+          ? String(n.id)
+          : String(n.value ?? n.name ?? idx);
+        const label = n.label || n.name || String(id);
+        const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
+          ? n.gpm
+          : (typeof n.flow === 'number' && n.flow > 0
+              ? n.flow
+              : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+        return { id, label, gpm };
+      }).filter(Boolean);
+    }
     return DEFAULT_MS_NOZZLES;
   }
 
@@ -432,6 +450,23 @@ function msGetNozzleListFromDept(dept) {
     }
   }
 
+  // If dept has no normalized nozzles, fall back to global department UI list.
+  if ((!Array.isArray(dept.nozzlesAll) || !dept.nozzlesAll.length) &&
+      (!Array.isArray(dept.nozzles) || !dept.nozzles.length) &&
+      Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    return DEPT_UI_NOZZLES.map((n, idx) => {
+      if (!n) return null;
+      const id = n.id != null
+        ? String(n.id)
+        : String(n.value ?? n.name ?? idx);
+      const label = n.label || n.name || String(id);
+      const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
+        ? n.gpm
+        : (typeof n.flow === 'number' && n.flow > 0 ? n.flow : 0);
+      return { id, label, gpm };
+    }).filter(Boolean);
+  }
+
   // Fallback for older dept shape: dept.nozzles as strings/objects
   const raw = Array.isArray(dept.nozzles) ? dept.nozzles : [];
   if (!raw.length) return DEFAULT_MS_NOZZLES;
@@ -456,6 +491,17 @@ function msGetNozzleListFromDept(dept) {
 // Dept.hoses can be array of strings OR array of objects.
 function msGetHoseListFromDept(dept) {
   if (!dept || typeof dept !== 'object') {
+    // Fallback to department UI hoses stored in store.js
+    if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+      return DEPT_UI_HOSES.map((h, idx) => {
+        if (!h) return null;
+        const id = h.id != null
+          ? String(h.id)
+          : String(h.value ?? h.name ?? idx);
+        const label = h.label || h.name || String(id);
+        return { id, label };
+      }).filter(Boolean);
+    }
     return DEFAULT_MS_HOSES;
   }
 
@@ -484,6 +530,20 @@ function msGetHoseListFromDept(dept) {
     if (list.length) {
       return list;
     }
+  }
+
+  // If dept has no normalized hoses, fall back to global department UI list.
+  if ((!Array.isArray(dept.hosesAll) || !dept.hosesAll.length) &&
+      (!Array.isArray(dept.hoses) || !dept.hoses.length) &&
+      Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+    return DEPT_UI_HOSES.map((h, idx) => {
+      if (!h) return null;
+      const id = h.id != null
+        ? String(h.id)
+        : String(h.value ?? h.name ?? idx);
+      const label = h.label || h.name || String(id);
+      return { id, label };
+    }).filter(Boolean);
   }
 
   // Fallback: older dept.hoses as strings/objects
