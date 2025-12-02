@@ -1,4 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptHoseDiameters, getDeptCustomNozzlesForCalc, getDeptNozzleIds } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
@@ -397,9 +397,42 @@ const MASTER_APPLIANCE_LOSS = 25;
 const PSI_PER_FT = 0.434;
 
 // Dept.nozzles can be array of strings OR array of objects.
+// Now prefer centralized department setup getters from store.js
 function msGetNozzleListFromDept(dept) {
+  // 1) Preferred: global dept nozzle objects for calc
+  try {
+    const storeNozzles = typeof getDeptCustomNozzlesForCalc === 'function'
+      ? getDeptCustomNozzlesForCalc()
+      : null;
+
+    if (Array.isArray(storeNozzles) && storeNozzles.length) {
+      const allowedIds = typeof getDeptNozzleIds === 'function' ? getDeptNozzleIds() : null;
+      let list = storeNozzles.map((n, idx) => {
+        if (!n) return null;
+        const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+        const label = n.label || n.name || String(id);
+        const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
+          ? n.gpm
+          : (typeof n.flow === 'number' && n.flow > 0
+              ? n.flow
+              : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+        return { id, label, gpm };
+      }).filter(Boolean);
+
+      if (Array.isArray(allowedIds) && allowedIds.length) {
+        const allowed = new Set(allowedIds.map(x => String(x)));
+        const filtered = list.filter(n => allowed.has(String(n.id)));
+        if (filtered.length) list = filtered;
+      }
+
+      if (list.length) return list;
+    }
+  } catch (err) {
+    console.warn('[view.lineMaster] getDeptCustomNozzlesForCalc() failed, falling back:', err);
+  }
+
+  // 2) Legacy: use dept object passed in and DEPT_UI_NOZZLES
   if (!dept || typeof dept !== 'object') {
-    // Fallback to department UI nozzles stored in store.js
     if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
       return DEPT_UI_NOZZLES.map((n, idx) => {
         if (!n) return null;
@@ -489,9 +522,30 @@ function msGetNozzleListFromDept(dept) {
 }
 
 // Dept.hoses can be array of strings OR array of objects.
+// Now prefer centralized department setup getters from store.js
 function msGetHoseListFromDept(dept) {
+  // 1) Preferred: global dept hose diameters for calc
+  try {
+    const storeHoses = typeof getDeptHoseDiameters === 'function'
+      ? getDeptHoseDiameters()
+      : null;
+
+    if (Array.isArray(storeHoses) && storeHoses.length) {
+      const list = storeHoses.map((h, idx) => {
+        if (!h) return null;
+        const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? h.diameter ?? idx);
+        const label = h.label || h.name || (h.diameter != null ? String(h.diameter) : String(id));
+        return { id, label };
+      }).filter(Boolean);
+
+      if (list.length) return list;
+    }
+  } catch (err) {
+    console.warn('[view.lineMaster] getDeptHoseDiameters() failed, falling back:', err);
+  }
+
+  // 2) Legacy: use dept object passed in and DEPT_UI_HOSES
   if (!dept || typeof dept !== 'object') {
-    // Fallback to department UI hoses stored in store.js
     if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
       return DEPT_UI_HOSES.map((h, idx) => {
         if (!h) return null;
@@ -826,31 +880,31 @@ export function openMasterStreamPopup({
       </p>
     `;
 
-  const footer2 = document.createElement('div');
-  footer2.className = 'ms-explain-footer';
+    const footer2 = document.createElement('div');
+    footer2.className = 'ms-explain-footer';
 
-  const ok2 = msEl('button', {
-    type: 'button',
-    class: 'ms-btn-primary',
-    text: 'Close',
-  });
+    const ok2 = msEl('button', {
+      type: 'button',
+      class: 'ms-btn-primary',
+      text: 'Close',
+    });
 
-  footer2.appendChild(ok2);
+    footer2.appendChild(ok2);
 
-  panel2.append(header2, body2, footer2);
-  overlay2.appendChild(panel2);
-  document.body.appendChild(overlay2);
+    panel2.append(header2, body2, footer2);
+    overlay2.appendChild(panel2);
+    document.body.appendChild(overlay2);
 
-  function closeExplain() {
-    if (overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
+    function closeExplain() {
+      if (overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
+    }
+
+    overlay2.addEventListener('click', (e) => {
+      if (e.target === overlay2) closeExplain();
+    });
+    close2.addEventListener('click', closeExplain);
+    ok2.addEventListener('click', closeExplain);
   }
-
-  overlay2.addEventListener('click', (e) => {
-    if (e.target === overlay2) closeExplain();
-  });
-  close2.addEventListener('click', closeExplain);
-  ok2.addEventListener('click', closeExplain);
-}
 
   explainBtn.addEventListener('click', openExplainPopup);
 
