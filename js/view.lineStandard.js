@@ -58,44 +58,23 @@ export function openStandardLinePopup(options) {
     return text;
   }
 
-  // ---- Build nozzle list (department-aware, using dept UI selections) ----
-  function normalizeDeptNozzleSource() {
-    // 1) Prefer DEPT_UI_NOZZLES from store
-    if (DEPT_UI_NOZZLES) {
-      if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-        return DEPT_UI_NOZZLES;
-      }
-      if (typeof DEPT_UI_NOZZLES === "object") {
-        const vals = Object.values(DEPT_UI_NOZZLES).filter(Boolean);
-        if (vals.length) return vals;
-      }
-    }
-    // 2) Then dept.nozzlesAll, if passed in
-    if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-      return dept.nozzlesAll;
-    }
-    // 3) Then any explicit choices from options
-    if (Array.isArray(options.nozzleChoices) && options.nozzleChoices.length) {
-      return options.nozzleChoices;
-    }
-    // 4) Finally, built-in defaults
-    return DEFAULT_NOZZLES;
+  // ---- Build nozzle list (department-aware, using department UI list) ----
+  // We lean on the same source that Master Stream uses:
+  // - DEPT_UI_NOZZLES from store.js is assumed to already reflect the
+  //   department setup screen (only checked nozzles).
+  // - If that's empty, we fall back to any dept.nozzlesAll passed in,
+  //   then to options.nozzleChoices, then finally to DEFAULT_NOZZLES.
+  let allNozzlesRaw;
+
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    allNozzlesRaw = DEPT_UI_NOZZLES;
+  } else if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    allNozzlesRaw = dept.nozzlesAll;
+  } else if (Array.isArray(options.nozzleChoices) && options.nozzleChoices.length) {
+    allNozzlesRaw = options.nozzleChoices;
+  } else {
+    allNozzlesRaw = DEFAULT_NOZZLES;
   }
-
-  let allNozzlesRaw = normalizeDeptNozzleSource();
-
-  if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
-    allNozzlesRaw = DEFAULT_NOZZLES.slice();
-  }
-
-  const selectedNozzleRaw = Array.isArray(dept.nozzlesSelected)
-    ? dept.nozzlesSelected
-    : [];
-
-  const selectedNozzleIdSet =
-    selectedNozzleRaw.length > 0
-      ? new Set(selectedNozzleRaw.map(x => String(x)))
-      : null;
 
   function mapStdNozzle(n, idx) {
     if (!n) return null;
@@ -111,16 +90,19 @@ export function openStandardLinePopup(options) {
     } else {
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
+
       if (typeof n.gpm === "number") gpm = n.gpm;
       if (typeof n.flow === "number" && gpm == null) gpm = n.flow;
+      if (typeof n.GPM === "number" && gpm == null) gpm = n.GPM;
+
       if (typeof n.np === "number")  np  = n.np;
       if (typeof n.NP === "number" && np == null)  np  = n.NP;
       if (typeof n.pressure === "number" && np == null) np = n.pressure;
     }
 
+    // Clean up into something like "Fog 150 gpm @ 50 psi" if needed.
     label = prettyStdNozzleLabel(label, gpm, np);
 
-    // If gpm/np still missing, try to parse from the label
     if (gpm == null) {
       const m = label.match(/(\d+)\s*gpm/i) || label.match(/(\d+)\s*@/i);
       if (m) gpm = Number(m[1]);
@@ -133,26 +115,14 @@ export function openStandardLinePopup(options) {
     return { id, label, gpm, np };
   }
 
-  let mappedNozzles = allNozzlesRaw.map(mapStdNozzle).filter(Boolean);
-
-  // If department has a selected list, filter against BOTH id and label
-  if (selectedNozzleIdSet && selectedNozzleIdSet.size) {
-    const filtered = mappedNozzles.filter(n => {
-      if (!n) return false;
-      const idStr = String(n.id);
-      const labelStr = String(n.label || "");
-      return selectedNozzleIdSet.has(idStr) || selectedNozzleIdSet.has(labelStr);
-    });
-    if (filtered.length) {
-      mappedNozzles = filtered;
-    }
-  }
+  let mappedNozzles = (Array.isArray(allNozzlesRaw) ? allNozzlesRaw : [])
+    .map(mapStdNozzle)
+    .filter(Boolean);
 
   // Always include a "Closed" nozzle option at the top
   const CLOSED_NOZZLE = { id: "closed", label: "Closed (no flow)", gpm: 0, np: 0 };
   const nozzleList = [CLOSED_NOZZLE, ...mappedNozzles];
-
-  // ---- Build hose list (department-aware, robust) ----
+// ---- Build hose list (department-aware, robust) ----
   function normalizeDeptHoseSource() {
     if (DEPT_UI_HOSES) {
       if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
