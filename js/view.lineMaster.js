@@ -5,13 +5,12 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 //
 // Behavior:
 // - Deck gun mode:
-//    * User ONLY chooses the nozzle (from department setup / global UI list).
+//    * User ONLY chooses the nozzle (from department/dept-selected list).
 //    * GPM is taken from that nozzle (if gpm/flow is defined).
 //    * NP for master is locked at 80 psi.
-//    * No hose / lines UI needed for pump calc.
 // - Portable mode:
-//    * User chooses 1 or 2 lines.
-//    * ONE shared hose size (from DEPT_UI_HOSES / dept.hoses).
+//    * User chooses 1 or 2 supply lines.
+//    * ONE shared hose size (from dept-selected hoses / DEPT_UI_HOSES).
 //    * ONE shared line length (ft).
 //    * Elevation in feet.
 //    * NP locked at 80 psi.
@@ -370,10 +369,10 @@ function msSelect(options, currentId, onChange) {
 /* --- Defaults & helpers --- */
 
 const DEFAULT_MS_NOZZLES = [
-  { id: 'ms_500',  label: '500 gpm master',  gpm: 500, np: 80 },
-  { id: 'ms_750',  label: '750 gpm master',  gpm: 750, np: 80 },
-  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000, np: 80 },
-  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250, np: 80 },
+  { id: 'ms1_3_8_80', label: 'MS 1 3/8″ @ 80', gpm: 500, NP: 80 },
+  { id: 'ms1_1_2_80', label: 'MS 1 1/2″ @ 80', gpm: 600, NP: 80 },
+  { id: 'ms1_3_4_80', label: 'MS 1 3/4″ @ 80', gpm: 800, NP: 80 },
+  { id: 'ms2_80',     label: 'MS 2″ @ 80',     gpm: 1000, NP: 80 },
 ];
 
 const DEFAULT_MS_HOSES = [
@@ -427,63 +426,59 @@ function formatNozzleLabel(baseLabel, nozzle, fallbackGpm = 0) {
   return baseLabel;
 }
 
-// Dept.nozzles come from global UI nozzle library (already filtered by Dept Setup elsewhere).
+// Dept.nozzles come from dept.nozzlesAll + dept.nozzlesSelected (same pattern
+// as view.lineStandard), with DEPT_UI_NOZZLES and a default master list as
+// fallbacks. This keeps Master Stream dropdown limited to the nozzles the
+// user picked in Department Setup.
 function msGetNozzleListFromDept(dept) {
-  // Base library: prefer DEPT_UI_NOZZLES if present
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    return DEPT_UI_NOZZLES.map((n, idx) => {
-      if (!n) return null;
-      const id = n.id != null
-        ? String(n.id)
-        : String(n.value ?? n.name ?? idx);
-      const baseLabel = n.label || n.name || String(id);
-      const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
-        ? n.gpm
-        : (typeof n.flow === 'number' && n.flow > 0
-            ? n.flow
-            : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+  // 1) Build the full raw list
+  let allNozzlesRaw = Array.isArray(dept.nozzlesAll)
+    ? dept.nozzlesAll
+    : (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length
+        ? DEPT_UI_NOZZLES
+        : DEFAULT_MS_NOZZLES);
 
-      const label = formatNozzleLabel(baseLabel, n, gpm);
-
-      return { id, label, gpm };
-    }).filter(Boolean);
+  if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
+    allNozzlesRaw = DEFAULT_MS_NOZZLES.slice();
   }
 
-  // Legacy dept.nozzles* shapes
-  if (dept && typeof dept === 'object') {
-    const allRaw = Array.isArray(dept.nozzlesAll) ? dept.nozzlesAll : [];
-    const raw = allRaw.length ? allRaw : (Array.isArray(dept.nozzles) ? dept.nozzles : []);
-    if (raw.length) {
-      return raw.map((n, idx) => {
-        if (!n) return null;
-        if (typeof n === 'object') {
-          const id = n.id != null
-            ? String(n.id)
-            : String(n.value ?? n.name ?? idx);
-          const baseLabel = n.label || n.name || String(id);
-          const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
-            ? n.gpm
-            : (typeof n.flow === 'number' && n.flow > 0
-                ? n.flow
-                : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+  // 2) Selected IDs from Department Setup (same shape as lineStandard)
+  const selectedNozzleIdsRaw = Array.isArray(dept.nozzlesSelected)
+    ? dept.nozzlesSelected
+    : [];
 
-          const label = formatNozzleLabel(baseLabel, n, gpm);
+  const selectedSet =
+    selectedNozzleIdsRaw.length > 0
+      ? new Set(selectedNozzleIdsRaw.map(id => String(id)))
+      : null;
 
-          return { id, label, gpm };
-        } else {
-          const id = String(n);
-          return { id, label: id, gpm: 0 };
-        }
-      }).filter(Boolean);
-    }
+  // 3) Filter down to selected ones, but never return an empty list
+  let baseList;
+  if (selectedSet) {
+    const filtered = allNozzlesRaw.filter(
+      n => n && selectedSet.has(String(n.id))
+    );
+    baseList = filtered.length ? filtered : allNozzlesRaw.slice();
+  } else {
+    baseList = allNozzlesRaw.slice();
   }
 
-  // Fallback default
-  return DEFAULT_MS_NOZZLES.map((n) => ({
-    id: n.id,
-    gpm: n.gpm,
-    label: formatNozzleLabel(n.label, n, n.gpm),
-  }));
+  // 4) Map to our label-friendly objects
+  return baseList.map((n, idx) => {
+    if (!n) return null;
+    const id = n.id != null
+      ? String(n.id)
+      : String(n.value ?? n.name ?? idx);
+    const baseLabel = n.label || n.name || String(id);
+    const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
+      ? n.gpm
+      : (typeof n.flow === 'number' && n.flow > 0
+          ? n.flow
+          : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+
+    const label = formatNozzleLabel(baseLabel, n, gpm);
+    return { id, label, gpm };
+  }).filter(Boolean);
 }
 
 // Dept.hoses can be array of strings OR array of objects.
@@ -883,7 +878,8 @@ export function openMasterStreamPopup({
     return { root, refresh };
   })();
 
-  const topSection = msEl('div', { class: 'ms-section' });
+  const topSection = document.createElement('div');
+  topSection.className = 'ms-section';
 
   const mountRow = msEl('div', { class: 'ms-row' },
     msEl('label', { text: 'Mount:' }),
@@ -932,18 +928,17 @@ export function openMasterStreamPopup({
     })
   );
 
-  body.append(
-    msEl('div', { class: 'ms-section' },
-      msEl('h3', { text: 'Master stream type' }),
-      mountRow,
-      nozzleRow,
-      feedLinesRow,
-      hoseRow,
-      lengthRow,
-      elevRow
-    ),
-    previewBar
+  topSection.append(
+    msEl('h3', { text: 'Master stream type' }),
+    mountRow,
+    nozzleRow,
+    feedLinesRow,
+    hoseRow,
+    lengthRow,
+    elevRow
   );
+
+  body.append(topSection, previewBar);
 
   mountToggle.refresh();
   feedToggle.refresh();
