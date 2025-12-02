@@ -1,4 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptHoseDiameters, getDeptNozzleIds } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptNozzleIds } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
@@ -472,74 +472,10 @@ function msGetNozzleListFromDept(dept) {
 }
 
 // Dept.hoses can be array of strings OR array of objects.
-// Prefer centralized department setup getter from store.js
+// We DO NOT require any extra hose getters from store.js.
 function msGetHoseListFromDept(dept) {
-  // 1) Preferred: global dept hose diameters for calc
-  try {
-    const storeHoses = typeof getDeptHoseDiameters === 'function'
-      ? getDeptHoseDiameters()
-      : null;
-
-    if (Array.isArray(storeHoses) && storeHoses.length) {
-      const list = storeHoses.map((h, idx) => {
-        if (!h) return null;
-        const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? h.diameter ?? idx);
-        const label = h.label || h.name || (h.diameter != null ? String(h.diameter) : String(id));
-        return { id, label };
-      }).filter(Boolean);
-
-      if (list.length) return list;
-    }
-  } catch (err) {
-    console.warn('[view.lineMaster] getDeptHoseDiameters() failed, falling back:', err);
-  }
-
-  // 2) Legacy: use dept object passed in and DEPT_UI_HOSES
-  if (!dept || typeof dept !== 'object') {
-    if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
-      return DEPT_UI_HOSES.map((h, idx) => {
-        if (!h) return null;
-        const id = h.id != null
-          ? String(h.id)
-          : String(h.value ?? h.name ?? idx);
-        const label = h.label || h.name || String(id);
-        return { id, label };
-      }).filter(Boolean);
-    }
-    return DEFAULT_MS_HOSES;
-  }
-
-  // Prefer normalized hosesAll / hosesSelected from view.calc.main.js
-  const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
-  const selectedIds = Array.isArray(dept.hosesSelected) ? dept.hosesSelected : [];
-
-  if (allRaw.length) {
-    let list = allRaw.map((h, idx) => {
-      if (!h) return null;
-      const id = h.id != null
-        ? String(h.id)
-        : String(h.value ?? h.name ?? idx);
-      const label = h.label || h.name || String(id);
-      return { id, label };
-    }).filter(Boolean);
-
-    if (selectedIds.length) {
-      const allowed = new Set(selectedIds.map(id => String(id)));
-      const filtered = list.filter(h => allowed.has(String(h.id)));
-      if (filtered.length) {
-        list = filtered;
-      }
-    }
-
-    if (list.length) {
-      return list;
-    }
-  }
-
-  // If dept has no normalized hoses, fall back to global department UI list.
-  if ((!Array.isArray(dept.hosesAll) || !dept.hosesAll.length) &&
-      (!Array.isArray(dept.hoses) || !dept.hoses.length) &&
-      Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+  // 1) Preferred: global UI hoses, already filtered by Dept Setup elsewhere
+  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
       if (!h) return null;
       const id = h.id != null
@@ -550,22 +486,51 @@ function msGetHoseListFromDept(dept) {
     }).filter(Boolean);
   }
 
-  // Fallback: older dept.hoses as strings/objects
-  const raw = Array.isArray(dept.hoses) ? dept.hoses : [];
-  if (!raw.length) return DEFAULT_MS_HOSES;
+  // 2) Legacy: use dept.hosesAll / hosesSelected
+  if (dept && typeof dept === 'object') {
+    const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+    const selectedIds = Array.isArray(dept.hosesSelected) ? dept.hosesSelected : [];
 
-  return raw.map((h, idx) => {
-    if (h && typeof h === 'object') {
-      const id = h.id != null
-        ? String(h.id)
-        : String(h.value ?? h.name ?? idx);
-      const label = h.label || h.name || String(id);
-      return { id, label };
-    } else {
-      const id = String(h);
-      return { id, label: id };
+    if (allRaw.length) {
+      let list = allRaw.map((h, idx) => {
+        if (!h) return null;
+        const id = h.id != null
+          ? String(h.id)
+          : String(h.value ?? h.name ?? idx);
+        const label = h.label || h.name || String(id);
+        return { id, label };
+      }).filter(Boolean);
+
+      if (selectedIds.length) {
+        const allowed = new Set(selectedIds.map(id => String(id)));
+        const filtered = list.filter(h => allowed.has(String(h.id)));
+        if (filtered.length) list = filtered;
+      }
+
+      if (list.length) return list;
     }
-  });
+
+    // Fallback: dept.hoses (simple list)
+    const raw = Array.isArray(dept.hoses) ? dept.hoses : [];
+    if (raw.length) {
+      const list = raw.map((h, idx) => {
+        if (h && typeof h === 'object') {
+          const id = h.id != null
+            ? String(h.id)
+            : String(h.value ?? h.name ?? idx);
+          const label = h.label || h.name || String(id);
+          return { id, label };
+        } else {
+          const id = String(h);
+          return { id, label: id };
+        }
+      }).filter(Boolean);
+      if (list.length) return list;
+    }
+  }
+
+  // 3) Final fallback: default master hoses
+  return DEFAULT_MS_HOSES;
 }
 
 function msGuessDiaFromHoseLabel(label) {
