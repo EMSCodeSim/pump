@@ -30,7 +30,6 @@ export function openStandardLinePopup(options) {
     setDeptUiHoses(dept.hosesAll);
   }
 
-
   // ---- Defaults & helpers for hoses / nozzles ----
   const DEFAULT_NOZZLES = [
     { id: "fog150_50",   label: "Fog 150@50",     gpm: 150, np: 50 },
@@ -46,11 +45,34 @@ export function openStandardLinePopup(options) {
     { id: "5",    label: "5\"",     c: 0.08 }
   ];
 
-  // ---- Build nozzle list (department-aware, robust) ----
-  let allNozzlesRaw = Array.isArray(dept.nozzlesAll)
-    ? dept.nozzlesAll
-    : (Array.isArray(options.nozzleChoices) ? options.nozzleChoices
-      : (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length ? DEPT_UI_NOZZLES : DEFAULT_NOZZLES));
+  function prettyStdNozzleLabel(label, gpm, np) {
+    const text = String(label || "");
+    // If it already looks like "185 gpm @ 50 psi", keep it.
+    if (/gpm/i.test(text) || /psi/i.test(text)) {
+      return text;
+    }
+    // Convert things like "Fog 150@50" → "Fog 150 gpm @ 50 psi"
+    const m = text.match(/^(.*?)(\d+)\s*@\s*(\d+)\s*$/);
+    if (m) {
+      const name = m[1].trim();
+      const g = gpm || Number(m[2]);
+      const p = np  || Number(m[3]);
+      return `${name} ${g} gpm @ ${p} psi`;
+    }
+    return text;
+  }
+
+  // ---- Build nozzle list (department-aware, using dept UI selections) ----
+  let allNozzlesRaw;
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    allNozzlesRaw = DEPT_UI_NOZZLES;
+  } else if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    allNozzlesRaw = dept.nozzlesAll;
+  } else if (Array.isArray(options.nozzleChoices)) {
+    allNozzlesRaw = options.nozzleChoices;
+  } else {
+    allNozzlesRaw = DEFAULT_NOZZLES;
+  }
 
   if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
     allNozzlesRaw = DEFAULT_NOZZLES.slice();
@@ -65,16 +87,48 @@ export function openStandardLinePopup(options) {
       ? new Set(selectedNozzleIdsRaw.map(id => String(id)))
       : null;
 
-  let baseNozzleList;
+  function mapStdNozzle(n, idx) {
+    if (!n) return null;
+
+    let id;
+    let label;
+    let gpm;
+    let np;
+
+    if (typeof n === "string" || typeof n === "number") {
+      id = String(idx);
+      label = String(n);
+    } else {
+      id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+      label = n.label || n.name || String(id);
+      if (typeof n.gpm === "number") gpm = n.gpm;
+      if (typeof n.np === "number")  np  = n.np;
+      if (typeof n.NP === "number")  np  = n.NP;
+    }
+
+    label = prettyStdNozzleLabel(label, gpm, np);
+
+    if (gpm == null) {
+      const m = label.match(/(\d+)\s*gpm/i) || label.match(/(\d+)\s*@/i);
+      if (m) gpm = Number(m[1]);
+    }
+    if (np == null) {
+      const m2 = label.match(/@[^0-9]*(\d+)\s*(psi)?/i);
+      if (m2) np = Number(m2[1]);
+    }
+
+    return { id, label, gpm, np };
+  }
+
+  let baseNozzleList = allNozzlesRaw.map(mapStdNozzle).filter(Boolean);
+
   if (selectedNozzleSet) {
-    // Filter by selected IDs (string-compare), but if that yields nothing,
-    // fall back to the full list so the popup never ends up "no options".
-    const filtered = allNozzlesRaw.filter(
+    const filtered = baseNozzleList.filter(
       n => n && selectedNozzleSet.has(String(n.id))
     );
-    baseNozzleList = filtered.length ? filtered : allNozzlesRaw.slice();
-  } else {
-    baseNozzleList = allNozzlesRaw.slice();
+    if (filtered.length) {
+      baseNozzleList = filtered;
+    }
   }
 
   // Always include a "Closed" nozzle option at the top
@@ -392,7 +446,8 @@ export function openStandardLinePopup(options) {
       const opt = document.createElement("option");
       const text = (item.label || item.id || "").toString();
       opt.value = item.id;
-      opt.textContent = text.length > 20 ? text.slice(0, 20) + "…" : text;
+      // Do NOT hard-truncate here; let the system picker show the full text.
+      opt.textContent = text;
       sel.appendChild(opt);
     });
 
