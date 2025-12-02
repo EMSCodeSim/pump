@@ -140,6 +140,7 @@ function getNozzleListFromDept(dept) {
     baseRaw = DEFAULT_NOZZLES;
   }
 
+
   const mapped = baseRaw.map((n, idx) => {
     if (!n) return null;
     let id;
@@ -164,7 +165,44 @@ function getNozzleListFromDept(dept) {
       }
     }
 
-    // If label already has "gpm" & "psi", keep as-is; else, expand if we have numbers.
+    // Try to parse NP from the id if still missing (e.g. fog_165_50, sb_15_16_50).
+    if (!np) {
+      const idNp = String(id).match(/_(\d{2,3})$/);
+      if (idNp) np = Number(idNp[1]);
+    }
+
+    // Build more user-friendly labels for common internal patterns
+    const lowerId = String(id).toLowerCase();
+    const lowerLabel = String(label).toLowerCase();
+
+    const hasGpmWord = /gpm/.test(lowerLabel);
+    const hasPsiWord = /psi/.test(lowerLabel);
+
+    // Only override "ugly" labels that don't already read nicely
+    if (!hasGpmWord && !hasPsiWord) {
+      // Smooth bore patterns: sb_15_16_50, sb_1_1_8_50, etc.
+      if (lowerId.startsWith('sb_')) {
+        let sizeText = 'Smooth bore';
+        if (lowerId.includes('15_16')) sizeText = 'Smooth 15/16"';
+        else if (lowerId.includes('1_1_8')) sizeText = 'Smooth 1 1/8"';
+        else if (lowerId.includes('7_8')) sizeText = 'Smooth 7/8"';
+        label = np ? `${sizeText} @ ${np} psi` : sizeText;
+      }
+      // Fog patterns: fog_165_50, fog165_50, etc.
+      else if (lowerId.startsWith('fog')) {
+        const flow = gpm || parseGpmFromLabel(id);
+        if (flow && np) {
+          label = `Fog ${flow} gpm @ ${np} psi`;
+        } else if (flow) {
+          label = `Fog ${flow} gpm`;
+        } else {
+          label = 'Fog nozzle';
+        }
+      }
+      // Otherwise leave department text alone.
+    }
+
+    // If label still has no gpm but we know the flow, append it.
     if (!/gpm/i.test(label) && gpm > 0) {
       if (/psi/i.test(label) || np > 0) {
         const npText = np > 0 ? np : '';
@@ -179,6 +217,7 @@ function getNozzleListFromDept(dept) {
 
   return mapped.length ? mapped : DEFAULT_NOZZLES;
 }
+
 
 function guessHoseCFromLabel(label) {
   if (!label) return 15.5;
