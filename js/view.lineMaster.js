@@ -1,22 +1,30 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { NOZ } from './store.js';
+import { getDeptNozzleIds, getDeptHoseDiameters } from './preset.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
 //
 // Behavior:
 // - Deck gun mode:
-//    * User ONLY chooses the nozzle (from department/dept-selected list).
+//    * User ONLY chooses the nozzle (from department setup).
 //    * GPM is taken from that nozzle (if gpm/flow is defined).
 //    * NP for master is locked at 80 psi.
 // - Portable mode:
-//    * User chooses 1 or 2 supply lines.
-//    * ONE shared hose size (from dept-selected hoses / DEPT_UI_HOSES).
+//    * User chooses 1 or 2 lines.
+//    * ONE shared hose size (from dept hoses the user selected).
 //    * ONE shared line length (ft).
 //    * Elevation in feet.
-//    * NP locked at 80 psi.
 //    * PDP uses hose C (based on hose size), length, elevation, and appliance loss.
 // - Bottom: big bar
 //      "Master stream – Flow: X gpm | PDP: Y psi"
+//
+// IMPORTANT:
+// - Nozzle dropdown is limited to *master stream* nozzles that the user picked
+//   in Department Setup (Master tab). If none are selected, we fall back to the
+//   built‑in master smooth‑bores.
+// - Hose dropdown is limited to hose diameters selected in Department Setup
+//   (Hoses tab) via getDeptHoseDiameters(), with a clean “2½\" supply” style
+//   label for readability.
 
 let msMasterStylesInjected = false;
 
@@ -368,19 +376,10 @@ function msSelect(options, currentId, onChange) {
 
 /* --- Defaults & helpers --- */
 
-const DEFAULT_MS_NOZZLES = [
-  { id: 'ms1_3_8_80', label: 'MS 1 3/8″ @ 80', gpm: 500, NP: 80 },
-  { id: 'ms1_1_2_80', label: 'MS 1 1/2″ @ 80', gpm: 600, NP: 80 },
-  { id: 'ms1_3_4_80', label: 'MS 1 3/4″ @ 80', gpm: 800, NP: 80 },
-  { id: 'ms2_80',     label: 'MS 2″ @ 80',     gpm: 1000, NP: 80 },
-];
+// Built‑in master nozzles (used as a fallback if dept has none selected)
+const DEFAULT_MS_NOZZLE_IDS = ['ms1_3_8_80', 'ms1_1_2_80', 'ms1_3_4_80', 'ms2_80'];
 
-const DEFAULT_MS_HOSES = [
-  { id: '2.5', label: '2 1/2"' },
-  { id: '3',   label: '3"'     },
-  { id: '4',   label: '4"'     },
-  { id: '5',   label: '5"'     },
-];
+const DEFAULT_MS_HOSE_DIAS = ['2.5', '3', '4', '5'];
 
 const MS_C_BY_DIA = {
   '1.75': 15.5,
@@ -426,97 +425,121 @@ function formatNozzleLabel(baseLabel, nozzle, fallbackGpm = 0) {
   return baseLabel;
 }
 
-// Dept.nozzles come from dept.nozzlesAll + dept.nozzlesSelected (same pattern
-// as view.lineStandard), with DEPT_UI_NOZZLES and a default master list as
-// fallbacks. This keeps Master Stream dropdown limited to the nozzles the
-// user picked in Department Setup.
-function msGetNozzleListFromDept(dept) {
-  // 1) Build the full raw list
-  let allNozzlesRaw = Array.isArray(dept.nozzlesAll)
-    ? dept.nozzlesAll
-    : (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length
-        ? DEPT_UI_NOZZLES
-        : DEFAULT_MS_NOZZLES);
-
-  if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
-    allNozzlesRaw = DEFAULT_MS_NOZZLES.slice();
+/**
+ * Build the master-stream nozzle list from department setup.
+ * Only master‑type nozzles the user picked are included.
+ */
+function msGetNozzleListFromDept() {
+  let selectedCalcIds = [];
+  try {
+    if (typeof getDeptNozzleIds === 'function') {
+      const ids = getDeptNozzleIds();
+      if (Array.isArray(ids)) selectedCalcIds = ids.map(id => String(id));
+    }
+  } catch (err) {
+    console.warn('[view.lineMaster] getDeptNozzleIds() failed:', err);
   }
 
-  // 2) Selected IDs from Department Setup (same shape as lineStandard)
-  const selectedNozzleIdsRaw = Array.isArray(dept.nozzlesSelected)
-    ? dept.nozzlesSelected
-    : [];
-
-  const selectedSet =
-    selectedNozzleIdsRaw.length > 0
-      ? new Set(selectedNozzleIdsRaw.map(id => String(id)))
-      : null;
-
-  // 3) Filter down to selected ones, but never return an empty list
-  let baseList;
-  if (selectedSet) {
-    const filtered = allNozzlesRaw.filter(
-      n => n && selectedSet.has(String(n.id))
-    );
-    baseList = filtered.length ? filtered : allNozzlesRaw.slice();
-  } else {
-    baseList = allNozzlesRaw.slice();
+  // Filter to NOZ entries that represent master streams
+  const masterIds = [];
+  if (Array.isArray(selectedCalcIds) && selectedCalcIds.length) {
+    selectedCalcIds.forEach(id => {
+      const noz = NOZ[id];
+      if (!noz) return;
+      const name = String(noz.name || noz.label || id).toLowerCase();
+      const isMaster =
+        id.startsWith('ms') ||
+        name.includes('master stream') ||
+        name.startsWith('ms ');
+      if (isMaster) masterIds.push(id);
+    });
   }
 
-  // 4) Map to our label-friendly objects
-  return baseList.map((n, idx) => {
-    if (!n) return null;
-    const id = n.id != null
-      ? String(n.id)
-      : String(n.value ?? n.name ?? idx);
-    const baseLabel = n.label || n.name || String(id);
-    const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
-      ? n.gpm
-      : (typeof n.flow === 'number' && n.flow > 0
-          ? n.flow
-          : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+  let baseIds = masterIds.length ? masterIds : DEFAULT_MS_NOZZLE_IDS.filter(id => NOZ[id]);
 
-    const label = formatNozzleLabel(baseLabel, n, gpm);
+  // Deduplicate but keep original order
+  const seen = new Set();
+  baseIds = baseIds.filter(id => {
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+
+  if (!baseIds.length) {
+    // absolute last resort: build from whatever NOZ entries look like master
+    Object.keys(NOZ || {}).forEach(id => {
+      if (baseIds.length >= 4) return;
+      const noz = NOZ[id];
+      if (!noz) return;
+      const name = String(noz.name || '').toLowerCase();
+      if (id.startsWith('ms') || name.includes('master stream')) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          baseIds.push(id);
+        }
+      }
+    });
+  }
+
+  return baseIds.map((id, idx) => {
+    const noz = NOZ[id] || {};
+    const baseLabel = noz.name || noz.label || id;
+    const gpm = (typeof noz.gpm === 'number' && noz.gpm > 0)
+      ? noz.gpm
+      : (typeof noz.GPM === 'number' && noz.GPM > 0 ? noz.GPM : 0);
+    const label = formatNozzleLabel(baseLabel, noz, gpm);
     return { id, label, gpm };
-  }).filter(Boolean);
+  });
 }
 
-// Dept.hoses can be array of strings OR array of objects.
-// Prefer global DEPT_UI_HOSES (already filtered by Dept Setup).
-function msGetHoseListFromDept(dept) {
-  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
-    return DEPT_UI_HOSES.map((h, idx) => {
-      if (!h) return null;
-      const id = h.id != null
-        ? String(h.id)
-        : String(h.value ?? h.name ?? idx);
-      const label = h.label || h.name || String(id);
-      return { id, label };
-    }).filter(Boolean);
-  }
+/**
+ * Nice readable label for a hose diameter string, like "2.5" → '2½" supply'.
+ */
+function formatHoseLabel(dia) {
+  const d = String(dia);
+  if (d === '1.75') return '1¾" supply';
+  if (d === '2.5')  return '2½" supply';
+  if (d === '3')    return '3" supply';
+  if (d === '4')    return '4" LDH';
+  if (d === '5')    return '5" LDH';
+  return `${d}" hose`;
+}
 
-  // Legacy dept.hoses* shapes
-  if (dept && typeof dept === 'object') {
-    const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
-    const raw = allRaw.length ? allRaw : (Array.isArray(dept.hoses) ? dept.hoses : []);
-    if (raw.length) {
-      return raw.map((h, idx) => {
-        if (h && typeof h === 'object') {
-          const id = h.id != null
-            ? String(h.id)
-            : String(h.value ?? h.name ?? idx);
-          const label = h.label || h.name || String(id);
-          return { id, label };
-        } else {
-          const id = String(h);
-          return { id, label: id };
-        }
-      }).filter(Boolean);
+/**
+ * Build hose list from Department Setup → Hoses tab (attack/supply/etc.).
+ * We only care about the diameters here.
+ */
+function msGetHoseListFromDept() {
+  let dias = [];
+  try {
+    if (typeof getDeptHoseDiameters === 'function') {
+      const vals = getDeptHoseDiameters();
+      if (Array.isArray(vals)) dias = vals.map(v => String(v));
     }
+  } catch (err) {
+    console.warn('[view.lineMaster] getDeptHoseDiameters() failed, falling back:', err);
   }
 
-  // Final fallback
-  return DEFAULT_MS_HOSES;
+  if (!dias.length) {
+    dias = DEFAULT_MS_HOSE_DIAS.slice();
+  }
+
+  // For master streams, we really only care about 2½"+, so filter small stuff out
+  dias = dias.filter(d => parseFloat(d) >= 2.5);
+
+  if (!dias.length) {
+    dias = DEFAULT_MS_HOSE_DIAS.slice();
+  }
+
+  const seen = new Set();
+  return dias
+    .filter(d => {
+      if (seen.has(d)) return false;
+      seen.add(d);
+      return true;
+    })
+    .sort((a, b) => parseFloat(a) - parseFloat(b))
+    .map(d => ({ id: d, label: formatHoseLabel(d) }));
 }
 
 function msGuessDiaFromHoseLabel(label) {
@@ -612,11 +635,12 @@ export function openMasterStreamPopup({
 } = {}) {
   injectMsStyles();
 
-  const hoses = msGetHoseListFromDept(dept);
-  const nozzles = msGetNozzleListFromDept(dept);
+  // Build dropdown data from Department Setup
+  const hoses = msGetHoseListFromDept();
+  const nozzles = msGetNozzleListFromDept();
 
-  const firstHose = hoses[0] || DEFAULT_MS_HOSES[0];
-  const firstNozzle = nozzles[0] || DEFAULT_MS_NOZZLES[0];
+  const firstHose = hoses[0] || { id: '2.5', label: '2½" supply' };
+  const firstNozzle = nozzles[0] || { id: 'ms1_3_8_80', label: 'MS 1 3/8″ @ 80', gpm: 500 };
 
   const state = {
     master: {
