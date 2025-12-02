@@ -370,10 +370,10 @@ function msSelect(options, currentId, onChange) {
 /* --- Defaults & helpers --- */
 
 const DEFAULT_MS_NOZZLES = [
-  { id: 'ms_500',  label: '500 gpm master',  gpm: 500 },
-  { id: 'ms_750',  label: '750 gpm master',  gpm: 750 },
-  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000 },
-  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250 },
+  { id: 'ms_500',  label: '500 gpm master',  gpm: 500, np: 80 },
+  { id: 'ms_750',  label: '750 gpm master',  gpm: 750, np: 80 },
+  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000, np: 80 },
+  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250, np: 80 },
 ];
 
 const DEFAULT_MS_HOSES = [
@@ -396,6 +396,37 @@ const MASTER_NP = 80;
 const MASTER_APPLIANCE_LOSS = 25;
 const PSI_PER_FT = 0.434;
 
+/**
+ * Build a nice human-friendly label like:
+ *   "ChiefXD 165 gpm @ 50 psi"
+ * falling back to name-only if we don't have flow/pressure.
+ */
+function formatNozzleLabel(baseLabel, nozzle, fallbackGpm = 0) {
+  const gpm = (typeof nozzle.gpm === 'number' && nozzle.gpm > 0)
+    ? nozzle.gpm
+    : (typeof nozzle.flow === 'number' && nozzle.flow > 0
+        ? nozzle.flow
+        : (typeof nozzle.GPM === 'number' && nozzle.GPM > 0
+            ? nozzle.GPM
+            : fallbackGpm));
+
+  const np = (typeof nozzle.np === 'number' && nozzle.np > 0)
+    ? nozzle.np
+    : (typeof nozzle.NP === 'number' && nozzle.NP > 0
+        ? nozzle.NP
+        : (typeof nozzle.pressure === 'number' && nozzle.pressure > 0
+            ? nozzle.pressure
+            : null));
+
+  if (gpm && np) {
+    return `${baseLabel} ${gpm} gpm @ ${np} psi`;
+  }
+  if (gpm) {
+    return `${baseLabel} ${gpm} gpm`;
+  }
+  return baseLabel;
+}
+
 // Dept.nozzles come from global UI nozzle library (already filtered by Dept Setup elsewhere).
 function msGetNozzleListFromDept(dept) {
   // Base library: prefer DEPT_UI_NOZZLES if present
@@ -405,12 +436,15 @@ function msGetNozzleListFromDept(dept) {
       const id = n.id != null
         ? String(n.id)
         : String(n.value ?? n.name ?? idx);
-      const label = n.label || n.name || String(id);
+      const baseLabel = n.label || n.name || String(id);
       const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
         ? n.gpm
         : (typeof n.flow === 'number' && n.flow > 0
             ? n.flow
             : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+
+      const label = formatNozzleLabel(baseLabel, n, gpm);
+
       return { id, label, gpm };
     }).filter(Boolean);
   }
@@ -426,12 +460,15 @@ function msGetNozzleListFromDept(dept) {
           const id = n.id != null
             ? String(n.id)
             : String(n.value ?? n.name ?? idx);
-          const label = n.label || n.name || String(id);
+          const baseLabel = n.label || n.name || String(id);
           const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
             ? n.gpm
             : (typeof n.flow === 'number' && n.flow > 0
                 ? n.flow
                 : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+
+          const label = formatNozzleLabel(baseLabel, n, gpm);
+
           return { id, label, gpm };
         } else {
           const id = String(n);
@@ -442,7 +479,11 @@ function msGetNozzleListFromDept(dept) {
   }
 
   // Fallback default
-  return DEFAULT_MS_NOZZLES.slice();
+  return DEFAULT_MS_NOZZLES.map((n) => ({
+    id: n.id,
+    gpm: n.gpm,
+    label: formatNozzleLabel(n.label, n, n.gpm),
+  }));
 }
 
 // Dept.hoses can be array of strings OR array of objects.
@@ -891,17 +932,18 @@ export function openMasterStreamPopup({
     })
   );
 
-  topSection.append(
-    msEl('h3', { text: 'Master stream type' }),
-    mountRow,
-    nozzleRow,
-    feedLinesRow,
-    hoseRow,
-    lengthRow,
-    elevRow
+  body.append(
+    msEl('div', { class: 'ms-section' },
+      msEl('h3', { text: 'Master stream type' }),
+      mountRow,
+      nozzleRow,
+      feedLinesRow,
+      hoseRow,
+      lengthRow,
+      elevRow
+    ),
+    previewBar
   );
-
-  body.append(topSection, previewBar);
 
   mountToggle.refresh();
   feedToggle.refresh();
