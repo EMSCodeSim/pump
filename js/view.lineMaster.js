@@ -212,7 +212,8 @@ function injectMsStyles() {
       background: #0ea5e9;
       border-color: #0ea5e9;
       color: #020617;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 0 0 1px rgba(56,189,248,0.8), 0 0 10px rgba(56,189,248,0.7);
     }
 
     .ms-preview {
@@ -384,20 +385,39 @@ const MASTER_NP = 80;
 const MASTER_APPLIANCE_LOSS = 25;
 const PSI_PER_FT = 0.434;
 
+
 function parseGpmFromLabel(label) {
+  // Look for patterns like "500 gpm"
   const m = String(label || '').match(/(\d+)\s*gpm/i);
   return m ? Number(m[1]) : 0;
 }
 
-function formatHoseLabel(idOrLabel) {
-  const s = String(idOrLabel).trim();
-  if (s.startsWith('1.75') || /1\s*3\/4/.test(s)) return '1 3/4"';
-  if (s.startsWith('2.5') || /2\s*1\/2/.test(s))  return '2 1/2"';
-  if (s.startsWith('3'))                          return '3"';
-  if (s.startsWith('4'))                          return '4"';
-  if (s.startsWith('5'))                          return '5"';
+// Try very hard to collapse any hose description down to a clean diameter label like:
+//  - 2 1/2"
+//  - 4"
+//  - 5"
+function formatHoseLabel(raw) {
+  const s = String(raw || '').trim();
+
+  // Common fractional sizes
+  if (/1\s*3\/4|1\.75/.test(s)) return '1 3/4"';
+  if (/1\s*1\/2|1\.5/.test(s))  return '1 1/2"';
+  if (/2\s*1\/2|2\.5/.test(s))  return '2 1/2"';
+
+  // Any bare whole-number diameter (3, 4, 5, etc.)
+  const mInches = s.match(/(\d(?:\.\d+)?)\s*(?:\"|in\b|inch\b)?/i);
+  if (mInches) {
+    const val = mInches[1];
+    if (val === '3') return '3\"';
+    if (val === '4') return '4\"';
+    if (val === '5') return '5\"';
+    if (val === '2') return '2\"';
+  }
+
+  // Fallback to original string
   return s;
 }
+
 
 // Turn internal ids like "ms_tip_138_500" into nice labels like
 // "MS tip 1 3/8\" – 500 gpm" and "MS fog 1250 gpm".
@@ -564,9 +584,10 @@ function calcMasterNumbers(state, hoses, nozzles) {
   const m = state.master;
   const noz = msGetNozzleById(nozzles, m.nozzleId) || {};
   const totalGpm = Number(
-    (typeof noz.gpm === 'number' && noz.gpm > 0)
-      ? noz.gpm
-      : (m.desiredGpm || parseGpmFromLabel(noz.label) || 800)
+    m.desiredGpm ||
+    parseGpmFromLabel(noz.label) ||
+    noz.gpm ||
+    800
   );
 
   const NP = MASTER_NP;
