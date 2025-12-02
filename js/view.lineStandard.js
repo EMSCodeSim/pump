@@ -2,19 +2,15 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, setDeptUiNozzles, setDeptUiHoses } from
 
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
-// Phone-friendly, no horizontal scroll:
-// - Bottom-sheet style on mobile.
-// - Inputs/selects >=16px font to avoid iOS zoom.
-// - All rows are stacked label → control.
-// - Top mode buttons use short labels: "Single" and "Wye" to reduce width.
-// - Selects are constrained with ellipsis so long labels don't widen the screen.
-// Logic:
-// - Hose + nozzle dropdowns use department-selected lists (or all if none).
-// - Nozzles always include a "Closed (no flow)" option.
-// - Single-line mode: GPM from nozzle, PDP from hose C, length, NP, elevation.
-// - Wye mode: Engine line + Branch A + Branch B, each with hose/nozzle dropdowns.
-//             Total GPM = sum of branch flows. PDP recalculated using both
-//             branches, engine FL, wye loss, and elevation.
+//
+// This version:
+// - Uses the SAME department nozzle logic as master stream.
+// - Always builds from department setup (DEPT_UI_NOZZLES / dept.nozzlesAll)
+//   before falling back to defaults.
+// - If DEPT_UI_NOZZLES is an object map instead of an array, it uses Object.values.
+// - Filters by dept.nozzlesSelected, matching by BOTH id and label text,
+//   so fog vs smooth-bore will not get crossed.
+// - Always includes "Closed (no flow)" at the top of the list.
 
 export function openStandardLinePopup(options) {
   options = options || {};
@@ -32,10 +28,10 @@ export function openStandardLinePopup(options) {
 
   // ---- Defaults & helpers for hoses / nozzles ----
   const DEFAULT_NOZZLES = [
-    { id: "fog150_50",   label: "Fog 150@50",     gpm: 150, np: 50 },
-    { id: "fog185_50",   label: "Fog 185@50",     gpm: 185, np: 50 },
-    { id: "sb_15_16_50", label: "SB 15/16\"@50",  gpm: 185, np: 50 },
-    { id: "sb_1_1_8_50", label: "SB 1 1/8\"@50",  gpm: 265, np: 50 }
+    { id: "fog150_50",   label: "Fog 150 gpm @ 50 psi", gpm: 150, np: 50 },
+    { id: "fog185_50",   label: "Fog 185 gpm @ 50 psi", gpm: 185, np: 50 },
+    { id: "sb_15_16_50", label: "SB 15/16\" 185 gpm @ 50 psi", gpm: 185, np: 50 },
+    { id: "sb_1_1_8_50", label: "SB 1 1/8\" 265 gpm @ 50 psi", gpm: 265, np: 50 }
   ];
 
   const DEFAULT_HOSES = [
@@ -48,10 +44,10 @@ export function openStandardLinePopup(options) {
   function prettyStdNozzleLabel(label, gpm, np) {
     const text = String(label || "");
     // If it already looks like "185 gpm @ 50 psi", keep it.
-    if (/gpm/i.test(text) || /psi/i.test(text)) {
+    if (/gpm/i.test(text) && /psi/i.test(text)) {
       return text;
     }
-    // Convert things like "Fog 150@50" → "Fog 150 gpm @ 50 psi"
+    // If it looks like "... 150@50" or "Fog 150 @ 50", expand it.
     const m = text.match(/^(.*?)(\d+)\s*@\s*(\d+)\s*$/);
     if (m) {
       const name = m[1].trim();
@@ -63,28 +59,42 @@ export function openStandardLinePopup(options) {
   }
 
   // ---- Build nozzle list (department-aware, using dept UI selections) ----
-  let allNozzlesRaw;
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    allNozzlesRaw = DEPT_UI_NOZZLES;
-  } else if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-    allNozzlesRaw = dept.nozzlesAll;
-  } else if (Array.isArray(options.nozzleChoices)) {
-    allNozzlesRaw = options.nozzleChoices;
-  } else {
-    allNozzlesRaw = DEFAULT_NOZZLES;
+  function normalizeDeptNozzleSource() {
+    // 1) Prefer DEPT_UI_NOZZLES from store
+    if (DEPT_UI_NOZZLES) {
+      if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+        return DEPT_UI_NOZZLES;
+      }
+      if (typeof DEPT_UI_NOZZLES === "object") {
+        const vals = Object.values(DEPT_UI_NOZZLES).filter(Boolean);
+        if (vals.length) return vals;
+      }
+    }
+    // 2) Then dept.nozzlesAll, if passed in
+    if (Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+      return dept.nozzlesAll;
+    }
+    // 3) Then any explicit choices from options
+    if (Array.isArray(options.nozzleChoices) && options.nozzleChoices.length) {
+      return options.nozzleChoices;
+    }
+    // 4) Finally, built-in defaults
+    return DEFAULT_NOZZLES;
   }
+
+  let allNozzlesRaw = normalizeDeptNozzleSource();
 
   if (!Array.isArray(allNozzlesRaw) || !allNozzlesRaw.length) {
     allNozzlesRaw = DEFAULT_NOZZLES.slice();
   }
 
-  const selectedNozzleIdsRaw = Array.isArray(dept.nozzlesSelected)
+  const selectedNozzleRaw = Array.isArray(dept.nozzlesSelected)
     ? dept.nozzlesSelected
     : [];
 
-  const selectedNozzleSet =
-    selectedNozzleIdsRaw.length > 0
-      ? new Set(selectedNozzleIdsRaw.map(id => String(id)))
+  const selectedNozzleIdSet =
+    selectedNozzleRaw.length > 0
+      ? new Set(selectedNozzleRaw.map(x => String(x)))
       : null;
 
   function mapStdNozzle(n, idx) {
@@ -96,69 +106,95 @@ export function openStandardLinePopup(options) {
     let np;
 
     if (typeof n === "string" || typeof n === "number") {
-      id = String(idx);
+      id = String(n);
       label = String(n);
     } else {
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
       if (typeof n.gpm === "number") gpm = n.gpm;
+      if (typeof n.flow === "number" && gpm == null) gpm = n.flow;
       if (typeof n.np === "number")  np  = n.np;
-      if (typeof n.NP === "number")  np  = n.NP;
+      if (typeof n.NP === "number" && np == null)  np  = n.NP;
+      if (typeof n.pressure === "number" && np == null) np = n.pressure;
     }
 
     label = prettyStdNozzleLabel(label, gpm, np);
 
+    // If gpm/np still missing, try to parse from the label
     if (gpm == null) {
       const m = label.match(/(\d+)\s*gpm/i) || label.match(/(\d+)\s*@/i);
       if (m) gpm = Number(m[1]);
     }
     if (np == null) {
-      const m2 = label.match(/@[^0-9]*(\d+)\s*(psi)?/i);
-      if (m2) np = Number(m2[1]);
+      const m2 = label.match(/@\s*([^0-9]*)(\d+)\s*(psi)?/i);
+      if (m2) np = Number(m2[2]);
     }
 
     return { id, label, gpm, np };
   }
 
-  let baseNozzleList = allNozzlesRaw.map(mapStdNozzle).filter(Boolean);
+  let mappedNozzles = allNozzlesRaw.map(mapStdNozzle).filter(Boolean);
 
-  if (selectedNozzleSet) {
-    const filtered = baseNozzleList.filter(
-      n => n && selectedNozzleSet.has(String(n.id))
-    );
+  // If department has a selected list, filter against BOTH id and label
+  if (selectedNozzleIdSet && selectedNozzleIdSet.size) {
+    const filtered = mappedNozzles.filter(n => {
+      if (!n) return false;
+      const idStr = String(n.id);
+      const labelStr = String(n.label || "");
+      return selectedNozzleIdSet.has(idStr) || selectedNozzleIdSet.has(labelStr);
+    });
     if (filtered.length) {
-      baseNozzleList = filtered;
+      mappedNozzles = filtered;
     }
   }
 
   // Always include a "Closed" nozzle option at the top
   const CLOSED_NOZZLE = { id: "closed", label: "Closed (no flow)", gpm: 0, np: 0 };
-  const nozzleList = [CLOSED_NOZZLE, ...baseNozzleList];
+  const nozzleList = [CLOSED_NOZZLE, ...mappedNozzles];
 
   // ---- Build hose list (department-aware, robust) ----
-  let allHosesRaw = Array.isArray(dept.hosesAll)
-    ? dept.hosesAll
-    : (Array.isArray(options.hoseChoices) ? options.hoseChoices
-      : (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length ? DEPT_UI_HOSES : DEFAULT_HOSES));
+  function normalizeDeptHoseSource() {
+    if (DEPT_UI_HOSES) {
+      if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+        return DEPT_UI_HOSES;
+      }
+      if (typeof DEPT_UI_HOSES === "object") {
+        const vals = Object.values(DEPT_UI_HOSES).filter(Boolean);
+        if (vals.length) return vals;
+      }
+    }
+    if (Array.isArray(dept.hosesAll) && dept.hosesAll.length) {
+      return dept.hosesAll;
+    }
+    if (Array.isArray(options.hoseChoices) && options.hoseChoices.length) {
+      return options.hoseChoices;
+    }
+    return DEFAULT_HOSES;
+  }
+
+  let allHosesRaw = normalizeDeptHoseSource();
 
   if (!Array.isArray(allHosesRaw) || !allHosesRaw.length) {
     allHosesRaw = DEFAULT_HOSES.slice();
   }
 
-  const selectedHoseIdsRaw = Array.isArray(dept.hosesSelected)
+  const selectedHoseRaw = Array.isArray(dept.hosesSelected)
     ? dept.hosesSelected
     : [];
 
-  const selectedHoseSet =
-    selectedHoseIdsRaw.length > 0
-      ? new Set(selectedHoseIdsRaw.map(id => String(id)))
+  const selectedHoseIdSet =
+    selectedHoseRaw.length > 0
+      ? new Set(selectedHoseRaw.map(x => String(x)))
       : null;
 
   let hoseList;
-  if (selectedHoseSet) {
-    const filtered = allHosesRaw.filter(
-      h => h && selectedHoseSet.has(String(h.id))
-    );
+  if (selectedHoseIdSet && selectedHoseIdSet.size) {
+    const filtered = allHosesRaw.filter(h => {
+      if (!h) return false;
+      const idStr = String(h.id);
+      const labelStr = String(h.label || "");
+      return selectedHoseIdSet.has(idStr) || selectedHoseIdSet.has(labelStr);
+    });
     hoseList = filtered.length ? filtered : allHosesRaw.slice();
   } else {
     hoseList = allHosesRaw.slice();
@@ -166,11 +202,11 @@ export function openStandardLinePopup(options) {
 
   function findNozzleById(id) {
     if (id === "closed" || !id) return CLOSED_NOZZLE;
-    return nozzleList.find(n => n.id === id) || null;
+    return nozzleList.find(n => String(n.id) === String(id)) || null;
   }
 
   function findHoseById(id) {
-    return hoseList.find(h => h.id === id) || null;
+    return hoseList.find(h => String(h.id) === String(id)) || null;
   }
 
   function defaultHoseCFromLabel(label) {
@@ -215,14 +251,14 @@ export function openStandardLinePopup(options) {
       branchA: {
         hoseId:   (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseId)   || (firstHose.id || "1.75"),
         hoseSize: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.hoseSize) || (firstHose.label || "1 3/4\""),
-        lengthFt: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.lengthFt) || 150,
+        lengthFt: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.lengthFt) || 200,
         nozzleId: (initial && initial.wye && initial.wye.branchA && initial.wye.branchA.nozzleId) || (firstNozzle && firstNozzle.id) || "closed"
       },
 
       branchB: {
         hoseId:   (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseId)   || (firstHose.id || "1.75"),
         hoseSize: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.hoseSize) || (firstHose.label || "1 3/4\""),
-        lengthFt: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.lengthFt) || 150,
+        lengthFt: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.lengthFt) || 200,
         nozzleId: (initial && initial.wye && initial.wye.branchB && initial.wye.branchB.nozzleId) || "closed"
       }
     }
@@ -446,12 +482,11 @@ export function openStandardLinePopup(options) {
       const opt = document.createElement("option");
       const text = (item.label || item.id || "").toString();
       opt.value = item.id;
-      // Do NOT hard-truncate here; let the system picker show the full text.
       opt.textContent = text;
       sel.appendChild(opt);
     });
 
-    if (selectedId) sel.value = selectedId;
+    if (selectedId != null) sel.value = selectedId;
 
     sel.addEventListener("change", () => {
       onChange(sel.value);
