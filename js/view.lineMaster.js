@@ -1,12 +1,12 @@
-import { DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
 //
 // Behavior:
 // - Deck gun mode:
-//    * User chooses the nozzle (from department setup / builder dept.nozzlesAll).
-//    * GPM is taken from that nozzle (if gpm/flow is defined).
+//    * User chooses the nozzle (from Department Setup nozzle list).
+//    * GPM is taken from that nozzle (parsed from label or gpm field).
 //    * NP is locked at 80 psi.
 //    * FL = 0, elevation = 0 → PDP = 80 psi.
 // - Portable mode:
@@ -370,10 +370,10 @@ function msSelect(options, currentId, onChange) {
 /* --- Defaults & helpers --- */
 
 const DEFAULT_MS_NOZZLES = [
-  { id: 'ms_500',  label: '500 gpm master',  gpm: 500 },
-  { id: 'ms_750',  label: '750 gpm master',  gpm: 750 },
-  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000 },
-  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250 },
+  { id: 'ms_500',  label: 'Master fog nozzle 500 gpm',  gpm: 500 },
+  { id: 'ms_750',  label: 'Master fog nozzle 750 gpm',  gpm: 750 },
+  { id: 'ms_1000', label: 'Master fog nozzle 1000 gpm', gpm: 1000 },
+  { id: 'ms_1250', label: 'Master fog nozzle 1250 gpm', gpm: 1250 },
 ];
 
 const DEFAULT_MS_HOSES = [
@@ -396,35 +396,9 @@ const MASTER_NP = 80;
 const MASTER_APPLIANCE_LOSS = 25;
 const PSI_PER_FT = 0.434;
 
-/**
- * Build a nice human-friendly label like:
- *   "ChiefXD 165 gpm @ 50 psi"
- * falling back to name-only if we don't have flow/pressure.
- */
-function formatNozzleLabel(baseLabel, nozzle, fallbackGpm = 0) {
-  const gpm = (typeof nozzle.gpm === 'number' && nozzle.gpm > 0)
-    ? nozzle.gpm
-    : (typeof nozzle.flow === 'number' && nozzle.flow > 0
-        ? nozzle.flow
-        : (typeof nozzle.GPM === 'number' && nozzle.GPM > 0
-            ? nozzle.GPM
-            : fallbackGpm));
-
-  const np = (typeof nozzle.np === 'number' && nozzle.np > 0)
-    ? nozzle.np
-    : (typeof nozzle.NP === 'number' && nozzle.NP > 0
-        ? nozzle.NP
-        : (typeof nozzle.pressure === 'number' && nozzle.pressure > 0
-            ? nozzle.pressure
-            : null));
-
-  if (gpm && np) {
-    return `${baseLabel} ${gpm} gpm @ ${np} psi`;
-  }
-  if (gpm) {
-    return `${baseLabel} ${gpm} gpm`;
-  }
-  return baseLabel;
+function parseGpmFromLabel(label) {
+  const m = String(label || '').match(/(\d+)\s*gpm/i);
+  return m ? Number(m[1]) : 0;
 }
 
 function formatHoseLabel(idOrLabel) {
@@ -437,50 +411,60 @@ function formatHoseLabel(idOrLabel) {
   return s;
 }
 
-// Build nozzle list ONLY from dept.nozzlesAll (builder-normalized), plus optional dept.nozzlesSelected.
-// This avoids any weird global UI caches that might hold numeric indices.
+// Dept.nozzles: use DEPT_UI_NOZZLES (already scoped to Department Setup selections).
+// Filter to master stream group via text ("master stream", "master fog") so
+// this list matches the Department Setup MASTER STREAM section as closely as possible.
 function msGetNozzleListFromDept(dept) {
-  let baseRaw = [];
+  let baseRaw;
 
-  if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-    baseRaw = dept.nozzlesAll.slice();
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    baseRaw = DEPT_UI_NOZZLES;
+  } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    baseRaw = dept.nozzlesAll;
+  } else if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
+    baseRaw = dept.nozzles;
   } else {
-    baseRaw = DEFAULT_MS_NOZZLES.slice();
+    baseRaw = DEFAULT_MS_NOZZLES;
   }
 
-  // Filter by dept.nozzlesSelected if present
-  const selectedIdsRaw = dept && Array.isArray(dept.nozzlesSelected)
-    ? dept.nozzlesSelected
-    : [];
-
-  if (selectedIdsRaw.length) {
-    const allowed = new Set(selectedIdsRaw.map(id => String(id)));
-    const filtered = baseRaw.filter(n => n && allowed.has(String(n.id)));
-    if (filtered.length) baseRaw = filtered;
+  if (!Array.isArray(baseRaw) || !baseRaw.length) {
+    baseRaw = DEFAULT_MS_NOZZLES;
   }
 
-  // Normalize to {id, label, gpm}
-  const list = baseRaw.map((n, idx) => {
+  const mapped = baseRaw.map((n, idx) => {
     if (!n) return null;
-    const id = n.id != null
-      ? String(n.id)
-      : String(n.value ?? n.name ?? idx);
 
-    // Prefer human-readable label from builder normalization
-    let baseLabel = n.label || n.name || '';
-    if (!baseLabel) baseLabel = String(id);
+    let id;
+    let label;
+    let gpm = 0;
 
-    const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
-      ? n.gpm
-      : (typeof n.flow === 'number' && n.flow > 0
-          ? n.flow
-          : (typeof n.GPM === 'number' && n.GPM > 0 ? n.GPM : 0));
+    if (typeof n === 'string' || typeof n === 'number') {
+      label = String(n);
+      id = String(idx);
+      gpm = parseGpmFromLabel(label);
+    } else {
+      id = n.id != null
+        ? String(n.id)
+        : String(n.value ?? n.name ?? idx);
+      label = n.label || n.name || String(id);
+      if (typeof n.gpm === 'number' && n.gpm > 0) {
+        gpm = n.gpm;
+      } else {
+        gpm = parseGpmFromLabel(label);
+      }
+    }
 
-    const label = formatNozzleLabel(baseLabel, n, gpm);
     return { id, label, gpm };
   }).filter(Boolean);
 
-  return list.length ? list : DEFAULT_MS_NOZZLES.slice();
+  // Prefer only the MASTER STREAM entries if we can detect them
+  const masterOnly = mapped.filter(n => {
+    const l = n.label.toLowerCase();
+    return l.includes('master stream') || l.includes('master fog');
+  });
+
+  const list = masterOnly.length ? masterOnly : mapped;
+  return list.length ? list : DEFAULT_MS_NOZZLES;
 }
 
 // Dept.hoses: prefer DEPT_UI_HOSES and format sizes clearly as 2 1/2", 4", 5"
@@ -558,7 +542,7 @@ function calcMasterNumbers(state, hoses, nozzles) {
   const totalGpm = Number(
     (typeof noz.gpm === 'number' && noz.gpm > 0)
       ? noz.gpm
-      : (m.desiredGpm || 800)
+      : (m.desiredGpm || parseGpmFromLabel(noz.label) || 800)
   );
 
   const NP = MASTER_NP;
@@ -626,7 +610,7 @@ export function openMasterStreamPopup({
       mountType: 'deck',
       feedLines: 1,
       nozzleId: firstNozzle.id,
-      desiredGpm: firstNozzle.gpm || 800,
+      desiredGpm: firstNozzle.gpm || parseGpmFromLabel(firstNozzle.label) || 800,
       elevationFt: 0,
       supplyHoseId: firstHose.id,
       supplyLengthFt: 150,
@@ -894,8 +878,9 @@ export function openMasterStreamPopup({
     msSelect(nozzles, state.master.nozzleId, (v) => {
       state.master.nozzleId = v;
       const noz = msGetNozzleById(nozzles, v);
-      if (noz && typeof noz.gpm === 'number' && noz.gpm > 0) {
-        state.master.desiredGpm = noz.gpm;
+      if (noz) {
+        const gpmParsed = noz.gpm || parseGpmFromLabel(noz.label);
+        if (gpmParsed > 0) state.master.desiredGpm = gpmParsed;
       }
       updatePreview();
     })
