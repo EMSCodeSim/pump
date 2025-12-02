@@ -1,17 +1,17 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptNozzleIds } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
 //
 // Behavior:
 // - Deck gun mode:
-//    * User ONLY chooses the nozzle (from department setup).
+//    * User ONLY chooses the nozzle (from department setup / global UI list).
 //    * GPM is taken from that nozzle (if gpm/flow is defined).
 //    * NP for master is locked at 80 psi.
 //    * No hose / lines UI needed for pump calc.
 // - Portable mode:
 //    * User chooses 1 or 2 lines.
-//    * ONE shared hose size (from dept.hoses).
+//    * ONE shared hose size (from DEPT_UI_HOSES / dept.hoses).
 //    * ONE shared line length (ft).
 //    * Elevation in feet.
 //    * NP locked at 80 psi.
@@ -396,24 +396,11 @@ const MASTER_NP = 80;
 const MASTER_APPLIANCE_LOSS = 25;
 const PSI_PER_FT = 0.434;
 
-// Dept.nozzles come from dept setup selection IDs + the global UI nozzle library.
-// We DO NOT require any extra exports from store.js beyond getDeptNozzleIds.
+// Dept.nozzles come from global UI nozzle library (already filtered by Dept Setup elsewhere).
 function msGetNozzleListFromDept(dept) {
-  // Selected nozzle IDs from department setup (global)
-  let selectedIds = [];
-  try {
-    if (typeof getDeptNozzleIds === 'function') {
-      const ids = getDeptNozzleIds();
-      if (Array.isArray(ids)) selectedIds = ids.map(id => String(id));
-    }
-  } catch (err) {
-    console.warn('[view.lineMaster] getDeptNozzleIds() failed:', err);
-  }
-
   // Base library: prefer DEPT_UI_NOZZLES if present
-  let baseList = [];
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    baseList = DEPT_UI_NOZZLES.map((n, idx) => {
+    return DEPT_UI_NOZZLES.map((n, idx) => {
       if (!n) return null;
       const id = n.id != null
         ? String(n.id)
@@ -428,12 +415,12 @@ function msGetNozzleListFromDept(dept) {
     }).filter(Boolean);
   }
 
-  // If no global UI list, look at dept.nozzles* shapes (legacy)
-  if (!baseList.length && dept && typeof dept === 'object') {
+  // Legacy dept.nozzles* shapes
+  if (dept && typeof dept === 'object') {
     const allRaw = Array.isArray(dept.nozzlesAll) ? dept.nozzlesAll : [];
     const raw = allRaw.length ? allRaw : (Array.isArray(dept.nozzles) ? dept.nozzles : []);
     if (raw.length) {
-      baseList = raw.map((n, idx) => {
+      return raw.map((n, idx) => {
         if (!n) return null;
         if (typeof n === 'object') {
           const id = n.id != null
@@ -454,27 +441,13 @@ function msGetNozzleListFromDept(dept) {
     }
   }
 
-  // If still nothing, fall back to default master nozzles
-  if (!baseList.length) {
-    baseList = DEFAULT_MS_NOZZLES.slice();
-  }
-
-  // If department has selected IDs, filter to only those
-  if (selectedIds.length) {
-    const allowed = new Set(selectedIds);
-    const filtered = baseList.filter(n => allowed.has(String(n.id)));
-    if (filtered.length) {
-      baseList = filtered;
-    }
-  }
-
-  return baseList;
+  // Fallback default
+  return DEFAULT_MS_NOZZLES.slice();
 }
 
 // Dept.hoses can be array of strings OR array of objects.
-// We DO NOT require any extra hose getters from store.js.
+// Prefer global DEPT_UI_HOSES (already filtered by Dept Setup).
 function msGetHoseListFromDept(dept) {
-  // 1) Preferred: global UI hoses, already filtered by Dept Setup elsewhere
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
       if (!h) return null;
@@ -486,34 +459,12 @@ function msGetHoseListFromDept(dept) {
     }).filter(Boolean);
   }
 
-  // 2) Legacy: use dept.hosesAll / hosesSelected
+  // Legacy dept.hoses* shapes
   if (dept && typeof dept === 'object') {
     const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
-    const selectedIds = Array.isArray(dept.hosesSelected) ? dept.hosesSelected : [];
-
-    if (allRaw.length) {
-      let list = allRaw.map((h, idx) => {
-        if (!h) return null;
-        const id = h.id != null
-          ? String(h.id)
-          : String(h.value ?? h.name ?? idx);
-        const label = h.label || h.name || String(id);
-        return { id, label };
-      }).filter(Boolean);
-
-      if (selectedIds.length) {
-        const allowed = new Set(selectedIds.map(id => String(id)));
-        const filtered = list.filter(h => allowed.has(String(h.id)));
-        if (filtered.length) list = filtered;
-      }
-
-      if (list.length) return list;
-    }
-
-    // Fallback: dept.hoses (simple list)
-    const raw = Array.isArray(dept.hoses) ? dept.hoses : [];
+    const raw = allRaw.length ? allRaw : (Array.isArray(dept.hoses) ? dept.hoses : []);
     if (raw.length) {
-      const list = raw.map((h, idx) => {
+      return raw.map((h, idx) => {
         if (h && typeof h === 'object') {
           const id = h.id != null
             ? String(h.id)
@@ -525,11 +476,10 @@ function msGetHoseListFromDept(dept) {
           return { id, label: id };
         }
       }).filter(Boolean);
-      if (list.length) return list;
     }
   }
 
-  // 3) Final fallback: default master hoses
+  // Final fallback
   return DEFAULT_MS_HOSES;
 }
 
