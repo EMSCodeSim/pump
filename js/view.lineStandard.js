@@ -2,28 +2,23 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
-// Uses the SAME hose + nozzle sourcing/formatting as Master Stream:
-// - Hose list comes from DEPT_UI_HOSES (or dept.hoses* fallbacks) and is formatted
-//   as 2 1/2", 4", 5" etc so desktop + phone match.
-// - Nozzle list comes from DEPT_UI_NOZZLES (or dept.nozzles* fallbacks) and shows
-//   EXACTLY what was selected in Department setup.
-// - No master-stream-only filter here: ALL department nozzles are available.
-//
-// Also:
-// - Adds a "Closed (no flow)" nozzle at the top.
-// - Phone-friendly bottom-sheet, no horizontal scroll.
-// - PDP math: single line OR wye (engine line + two branches).
-
-/* -------------------------------------------------------------------------- */
-/*  Shared helpers copied / adapted from view.lineMaster.js                   */
-/* -------------------------------------------------------------------------- */
+// - Hoses and nozzles come from department UI (same logic as master stream).
+// - NO master-stream-only filter; all department nozzles are available.
+// - Nozzle IDs like "fog_xd_175_50_165" are converted to readable labels
+//   like "Fog 165 gpm @ 50 psi" and their GPM/NP are parsed so math updates
+//   correctly.
 
 function parseGpmFromLabel(label) {
   const m = String(label || '').match(/(\d+)\s*gpm/i);
   return m ? Number(m[1]) : 0;
 }
 
-// Normalize hose labels so phone & desktop show the same thing.
+function parseNpFromLabel(label) {
+  const m = String(label || '').match(/@\s*(\d+)\s*psi/i);
+  return m ? Number(m[1]) : 0;
+}
+
+// Turn internal hose ids into nice labels that match on desktop/phone.
 function formatHoseLabel(idOrLabel) {
   const raw = String(idOrLabel || '').trim();
 
@@ -40,12 +35,12 @@ function formatHoseLabel(idOrLabel) {
   }
 
   // Internal IDs like h_175
-  if (/^h_?175$/.test(raw)) return '1 3/4"';
-  if (/^h_?15$/.test(raw))  return '1 1/2"';
-  if (/^h_?25$/.test(raw))  return '2 1/2"';
-  if (/^h_?3$/.test(raw))   return '3"';
-  if (/^h_?4$/.test(raw))   return '4"';
-  if (/^h_?5$/.test(raw))   return '5"';
+  if (/^h_?175$/i.test(raw)) return '1 3/4"';
+  if (/^h_?15$/i.test(raw))  return '1 1/2"';
+  if (/^h_?25$/i.test(raw))  return '2 1/2"';
+  if (/^h_?3$/i.test(raw))   return '3"';
+  if (/^h_?4$/i.test(raw))   return '4"';
+  if (/^h_?5$/i.test(raw))   return '5"';
 
   // Custom hose ids: "custom_hose_<...>"
   if (/^custom_hose_/i.test(raw)) {
@@ -76,8 +71,8 @@ function formatHoseLabel(idOrLabel) {
 const DEFAULT_NOZZLES = [
   { id: 'fog150_50',   label: 'Fog 150 gpm @ 50 psi', gpm: 150, np: 50 },
   { id: 'fog185_50',   label: 'Fog 185 gpm @ 50 psi', gpm: 185, np: 50 },
-  { id: 'sb_15_16_50', label: 'SB 15/16" 185 gpm @ 50 psi', gpm: 185, np: 50 },
-  { id: 'sb_1_1_8_50', label: 'SB 1 1/8" 265 gpm @ 50 psi', gpm: 265, np: 50 },
+  { id: 'sb_15_16_50', label: 'Smooth 15/16" 185 gpm @ 50 psi', gpm: 185, np: 50 },
+  { id: 'sb_1_1_8_50', label: 'Smooth 1 1/8" 265 gpm @ 50 psi', gpm: 265, np: 50 },
 ];
 
 const DEFAULT_HOSES = [
@@ -87,19 +82,107 @@ const DEFAULT_HOSES = [
   { id: '5',    label: '5"'     },
 ];
 
-// Department → hose list (matches view.lineMaster msGetHoseListFromDept, but generic).
+// Take an internal id / label / gpm / np and return a nicer label and
+// solid gpm/np values so math works. This specifically handles patterns
+// like "fog_xd_175_50_165" or "sb_15_16_50_185".
+function prettifyNozzle(id, label, gpm, np) {
+  const idStr = String(id || '');
+  let lbl = label ? String(label) : idStr;
+
+  const alreadyNice = /gpm/i.test(lbl) && /psi/i.test(lbl);
+
+  // If label already looks good, just backfill missing numbers from it.
+  if (alreadyNice) {
+    const gFromLabel = parseGpmFromLabel(lbl);
+    const npFromLabel = parseNpFromLabel(lbl);
+    if (!gpm && gFromLabel) gpm = gFromLabel;
+    if (!np && npFromLabel) np = npFromLabel;
+    return { label: lbl, gpm, np };
+  }
+
+  const lowerId = idStr.toLowerCase();
+
+  // FOG patterns
+  if (lowerId.includes('fog')) {
+    const nums = idStr.match(/\d+/g) || [];
+    if (nums.length >= 2) {
+      // Heuristic:
+      //  - last  number  → gpm  (e.g. 165)
+      //  - 2nd last      → np   (e.g. 50)
+      const g = Number(nums[nums.length - 1]);
+      const p = Number(nums[nums.length - 2]);
+      if (!gpm && g) gpm = g;
+      if (!np && p)  np  = p;
+    }
+    if (!gpm) gpm = parseGpmFromLabel(lbl);
+    if (!np)  np  = parseNpFromLabel(lbl) || 50;
+
+    lbl = `Fog ${gpm} gpm @ ${np} psi`;
+    return { label: lbl, gpm, np };
+  }
+
+  // SMOOTH BORE patterns
+  if (lowerId.startsWith('sb') || lowerId.includes('smooth')) {
+    const nums = idStr.match(/\d+/g) || [];
+    // Try patterns:
+    //   sb_15_16_50_185  → tip 15/16"  gpm 185  np 50
+    //   sb_7_8_50_160    → tip 7/8"    gpm 160  np 50
+    let tip = '';
+    if (nums.length >= 2) {
+      tip = `${nums[0]}/${nums[1]}`;
+    }
+    if (nums.length >= 4) {
+      const p = Number(nums[nums.length - 2]); // 50
+      const g = Number(nums[nums.length - 1]); // 185
+      if (!gpm && g) gpm = g;
+      if (!np && p)  np  = p;
+    }
+    if (!gpm) gpm = parseGpmFromLabel(lbl) || 0;
+    if (!np)  np  = parseNpFromLabel(lbl) || 50;
+
+    if (!tip) {
+      // Fallback: if label contains 15/16 etc
+      const tipMatch = lbl.match(/(\d+\/\d+)"/);
+      if (tipMatch) tip = tipMatch[1];
+    }
+
+    if (tip) {
+      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
+    } else {
+      lbl = `Smooth bore ${gpm} gpm @ ${np} psi`;
+    }
+    return { label: lbl, gpm, np };
+  }
+
+  // Generic: if we have numbers but no words, just format "XXX gpm @ YY psi"
+  if (!alreadyNice) {
+    if (!gpm) gpm = parseGpmFromLabel(lbl);
+    if (!np)  np  = parseNpFromLabel(lbl);
+    if (gpm && np) {
+      lbl = `${lbl} ${gpm} gpm @ ${np} psi`;
+    } else if (gpm) {
+      lbl = `${lbl} ${gpm} gpm`;
+    }
+  }
+
+  return { label: lbl, gpm, np };
+}
+
+// Department → hose list
 function getHoseListFromDept(dept) {
-  // 1) Preferred: DEPT_UI_HOSES from store (already scoped to department setup).
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
       if (!h) return null;
       const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
       const baseLabel = h.label || h.name || String(id);
-      return { id, label: formatHoseLabel(baseLabel) };
+      return {
+        id,
+        label: formatHoseLabel(baseLabel),
+        c: typeof h.c === 'number' ? h.c : undefined,
+      };
     }).filter(Boolean);
   }
 
-  // 2) Fallback: dept.hosesAll / dept.hoses if passed in.
   if (dept && typeof dept === 'object') {
     const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
     const raw = allRaw.length ? allRaw : (Array.isArray(dept.hoses) ? dept.hoses : []);
@@ -108,7 +191,11 @@ function getHoseListFromDept(dept) {
         if (h && typeof h === 'object') {
           const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
           const baseLabel = h.label || h.name || String(id);
-          return { id, label: formatHoseLabel(baseLabel), c: h.c };
+          return {
+            id,
+            label: formatHoseLabel(baseLabel),
+            c: typeof h.c === 'number' ? h.c : undefined,
+          };
         } else {
           const id = String(h);
           return { id, label: formatHoseLabel(id) };
@@ -117,15 +204,13 @@ function getHoseListFromDept(dept) {
     }
   }
 
-  // 3) Final fallback: built-in defaults.
   return DEFAULT_HOSES;
 }
 
-// Department → nozzle list. NO master-stream filtering: all dept nozzles allowed.
+// Department → nozzle list (no master-stream filter)
 function getNozzleListFromDept(dept) {
   let baseRaw;
 
-  // 1) Preferred: DEPT_UI_NOZZLES from store (already filtered by Department setup).
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
     baseRaw = DEPT_UI_NOZZLES;
   } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
@@ -140,84 +225,41 @@ function getNozzleListFromDept(dept) {
     baseRaw = DEFAULT_NOZZLES;
   }
 
-
   const mapped = baseRaw.map((n, idx) => {
     if (!n) return null;
+
     let id;
     let label;
     let gpm = 0;
     let np = 0;
 
     if (typeof n === 'string' || typeof n === 'number') {
+      id = String(n);
       label = String(n);
-      id = String(idx);
       gpm = parseGpmFromLabel(label);
+      np  = parseNpFromLabel(label);
     } else {
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
       if (typeof n.gpm === 'number') gpm = n.gpm;
-      else gpm = parseGpmFromLabel(label);
-      if (typeof n.np === 'number') np = n.np;
-      else if (typeof n.NP === 'number') np = n.NP;
-      else {
-        const m = String(label).match(/@\s*(\d+)\s*psi/i);
-        if (m) np = Number(m[1]);
-      }
+      if (typeof n.flow === 'number' && !gpm) gpm = n.flow;
+      if (typeof n.np === 'number')  np  = n.np;
+      if (typeof n.NP === 'number' && !np) np = n.NP;
+      if (typeof n.pressure === 'number' && !np) np = n.pressure;
     }
 
-    // Try to parse NP from the id if still missing (e.g. fog_165_50, sb_15_16_50).
-    if (!np) {
-      const idNp = String(id).match(/_(\d{2,3})$/);
-      if (idNp) np = Number(idNp[1]);
-    }
-
-    // Build more user-friendly labels for common internal patterns
-    const lowerId = String(id).toLowerCase();
-    const lowerLabel = String(label).toLowerCase();
-
-    const hasGpmWord = /gpm/.test(lowerLabel);
-    const hasPsiWord = /psi/.test(lowerLabel);
-
-    // Only override "ugly" labels that don't already read nicely
-    if (!hasGpmWord && !hasPsiWord) {
-      // Smooth bore patterns: sb_15_16_50, sb_1_1_8_50, etc.
-      if (lowerId.startsWith('sb_')) {
-        let sizeText = 'Smooth bore';
-        if (lowerId.includes('15_16')) sizeText = 'Smooth 15/16"';
-        else if (lowerId.includes('1_1_8')) sizeText = 'Smooth 1 1/8"';
-        else if (lowerId.includes('7_8')) sizeText = 'Smooth 7/8"';
-        label = np ? `${sizeText} @ ${np} psi` : sizeText;
-      }
-      // Fog patterns: fog_165_50, fog165_50, etc.
-      else if (lowerId.startsWith('fog')) {
-        const flow = gpm || parseGpmFromLabel(id);
-        if (flow && np) {
-          label = `Fog ${flow} gpm @ ${np} psi`;
-        } else if (flow) {
-          label = `Fog ${flow} gpm`;
-        } else {
-          label = 'Fog nozzle';
-        }
-      }
-      // Otherwise leave department text alone.
-    }
-
-    // If label still has no gpm but we know the flow, append it.
-    if (!/gpm/i.test(label) && gpm > 0) {
-      if (/psi/i.test(label) || np > 0) {
-        const npText = np > 0 ? np : '';
-        label = `${label} ${gpm} gpm ${npText ? '@ ' + npText + ' psi' : ''}`.trim();
-      } else {
-        label = `${label} ${gpm} gpm`;
-      }
-    }
-
-    return { id, label, gpm, np };
+    // Make it human-readable and fix gpm/np if needed
+    const pretty = prettifyNozzle(id, label, gpm, np);
+    return {
+      id,
+      label: pretty.label,
+      gpm: pretty.gpm || 0,
+      np:  pretty.np  || 0,
+    };
   }).filter(Boolean);
 
   return mapped.length ? mapped : DEFAULT_NOZZLES;
 }
-
 
 function guessHoseCFromLabel(label) {
   if (!label) return 15.5;
@@ -252,7 +294,6 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
   const nozzleList = getNozzleListFromDept(dept);
   const hoseList = getHoseListFromDept(dept);
 
-  // Always include a "Closed" nozzle option at the top.
   const CLOSED_NOZZLE = { id: 'closed', label: 'Closed (no flow)', gpm: 0, np: 0 };
   const allNozzles = [CLOSED_NOZZLE, ...nozzleList];
 
@@ -261,7 +302,7 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
   const firstNozzle = allNozzles[1] || allNozzles[0];
 
   const state = {
-    mode: (initial && initial.mode) || 'single', // 'single' or 'wye'
+    mode: (initial && initial.mode) || 'single',
     targetGpm: 0,
     targetPdp: 0,
     single: {
@@ -297,7 +338,7 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
   overlay.style.inset = '0';
   overlay.style.background = 'rgba(0,0,0,0.55)';
   overlay.style.display = 'flex';
-  overlay.style.alignItems = 'flex-end'; // bottom sheet
+  overlay.style.alignItems = 'flex-end';
   overlay.style.justifyContent = 'center';
   overlay.style.padding = '8px';
   overlay.style.zIndex = '9999';
@@ -387,115 +428,6 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
     b.style.fontSize = '14px';
   });
 
-  function renderSections() {
-    sectionsContainer.innerHTML = '';
-
-    if (state.mode === 'single') {
-      const section = makeSection('Single attack line');
-
-      section.box.appendChild(
-        makeSelectRow('Hose size', hoseList, state.single.hoseId, (id) => {
-          state.single.hoseId = id;
-          const h = findHoseById(hoseList, id);
-          if (h) state.single.hoseSize = h.label;
-          updatePreview();
-        })
-      );
-
-      section.box.appendChild(
-        makeNumberRow('Line length (ft)', state.single.lengthFt, (v) => {
-          state.single.lengthFt = v;
-          updatePreview();
-        })
-      );
-
-      section.box.appendChild(
-        makeNumberRow('Elevation (+/- ft)', state.single.elevationFt, (v) => {
-          state.single.elevationFt = v;
-          updatePreview();
-        })
-      );
-
-      section.box.appendChild(
-        makeSelectRow('Nozzle', allNozzles, state.single.nozzleId, (id) => {
-          state.single.nozzleId = id;
-          updatePreview();
-        })
-      );
-
-      sectionsContainer.appendChild(section.box);
-    } else {
-      const engine = makeSection('Engine to wye');
-      engine.box.appendChild(
-        makeSelectRow('Engine hose size', hoseList, state.wye.engineHoseId, (id) => {
-          state.wye.engineHoseId = id;
-          const h = findHoseById(hoseList, id);
-          if (h) state.wye.engineHoseSize = h.label;
-          updatePreview();
-        })
-      );
-      engine.box.appendChild(
-        makeNumberRow('Engine line length (ft)', state.wye.engineLengthFt, (v) => {
-          state.wye.engineLengthFt = v;
-          updatePreview();
-        })
-      );
-      engine.box.appendChild(
-        makeNumberRow('Elevation at nozzle (+/- ft)', state.wye.elevationFt, (v) => {
-          state.wye.elevationFt = v;
-          updatePreview();
-        })
-      );
-      sectionsContainer.appendChild(engine.box);
-
-      const branchA = makeSection('Branch A');
-      branchA.box.appendChild(
-        makeSelectRow('Hose size', hoseList, state.wye.branchA.hoseId, (id) => {
-          state.wye.branchA.hoseId = id;
-          const h = findHoseById(hoseList, id);
-          if (h) state.wye.branchA.hoseSize = h.label;
-          updatePreview();
-        })
-      );
-      branchA.box.appendChild(
-        makeNumberRow('Length (ft)', state.wye.branchA.lengthFt, (v) => {
-          state.wye.branchA.lengthFt = v;
-          updatePreview();
-        })
-      );
-      branchA.box.appendChild(
-        makeSelectRow('Nozzle', allNozzles, state.wye.branchA.nozzleId, (id) => {
-          state.wye.branchA.nozzleId = id;
-          updatePreview();
-        })
-      );
-      sectionsContainer.appendChild(branchA.box);
-
-      const branchB = makeSection('Branch B');
-      branchB.box.appendChild(
-        makeSelectRow('Hose size', hoseList, state.wye.branchB.hoseId, (id) => {
-          state.wye.branchB.hoseId = id;
-          const h = findHoseById(hoseList, id);
-          if (h) state.wye.branchB.hoseSize = h.label;
-          updatePreview();
-        })
-      );
-      branchB.box.appendChild(
-        makeNumberRow('Length (ft)', state.wye.branchB.lengthFt, (v) => {
-          state.wye.branchB.lengthFt = v;
-          updatePreview();
-        })
-      );
-      branchB.box.appendChild(
-        makeSelectRow('Nozzle', allNozzles, state.wye.branchB.nozzleId, (id) => {
-          state.wye.branchB.nozzleId = id;
-          updatePreview();
-        })
-      );
-      sectionsContainer.appendChild(branchB.box);
-    }
-  }
-
   function updateModeButtons() {
     if (state.mode === 'single') {
       singleBtn.style.background = '#022c22';
@@ -574,6 +506,7 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
     input.addEventListener('input', () => {
       const v = input.value === '' ? 0 : Number(input.value);
       onChange(v);
+      updatePreview();
     });
 
     row.append(label, input);
@@ -614,10 +547,107 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
 
     sel.addEventListener('change', () => {
       onChange(sel.value);
+      updatePreview();
     });
 
     row.append(label, sel);
     return row;
+  }
+
+  function renderSections() {
+    sectionsContainer.innerHTML = '';
+
+    if (state.mode === 'single') {
+      const section = makeSection('Single attack line');
+
+      section.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.single.hoseId, (id) => {
+          state.single.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.single.hoseSize = h.label;
+        })
+      );
+
+      section.box.appendChild(
+        makeNumberRow('Line length (ft)', state.single.lengthFt, (v) => {
+          state.single.lengthFt = v;
+        })
+      );
+
+      section.box.appendChild(
+        makeNumberRow('Elevation (+/- ft)', state.single.elevationFt, (v) => {
+          state.single.elevationFt = v;
+        })
+      );
+
+      section.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.single.nozzleId, (id) => {
+          state.single.nozzleId = id;
+        })
+      );
+
+      sectionsContainer.appendChild(section.box);
+    } else {
+      const engine = makeSection('Engine to wye');
+      engine.box.appendChild(
+        makeSelectRow('Engine hose size', hoseList, state.wye.engineHoseId, (id) => {
+          state.wye.engineHoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.engineHoseSize = h.label;
+        })
+      );
+      engine.box.appendChild(
+        makeNumberRow('Engine line length (ft)', state.wye.engineLengthFt, (v) => {
+          state.wye.engineLengthFt = v;
+        })
+      );
+      engine.box.appendChild(
+        makeNumberRow('Elevation at nozzle (+/- ft)', state.wye.elevationFt, (v) => {
+          state.wye.elevationFt = v;
+        })
+      );
+      sectionsContainer.appendChild(engine.box);
+
+      const branchA = makeSection('Branch A');
+      branchA.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.wye.branchA.hoseId, (id) => {
+          state.wye.branchA.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.branchA.hoseSize = h.label;
+        })
+      );
+      branchA.box.appendChild(
+        makeNumberRow('Length (ft)', state.wye.branchA.lengthFt, (v) => {
+          state.wye.branchA.lengthFt = v;
+        })
+      );
+      branchA.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.wye.branchA.nozzleId, (id) => {
+          state.wye.branchA.nozzleId = id;
+        })
+      );
+      sectionsContainer.appendChild(branchA.box);
+
+      const branchB = makeSection('Branch B');
+      branchB.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.wye.branchB.hoseId, (id) => {
+          state.wye.branchB.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.branchB.hoseSize = h.label;
+        })
+      );
+      branchB.box.appendChild(
+        makeNumberRow('Length (ft)', state.wye.branchB.lengthFt, (v) => {
+          state.wye.branchB.lengthFt = v;
+        })
+      );
+      branchB.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.wye.branchB.nozzleId, (id) => {
+          state.wye.branchB.nozzleId = id;
+        })
+      );
+      sectionsContainer.appendChild(branchB.box);
+    }
   }
 
   // ---- Preview + math ----
@@ -640,8 +670,8 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
   function calcSingle() {
     const noz = findNozzleById(allNozzles, state.single.nozzleId) || CLOSED_NOZZLE;
     const hose = findHoseById(hoseList, state.single.hoseId) || firstHose;
-    const gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
-    const np = noz.np || 50;
+    let gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
+    let np = noz.np || parseNpFromLabel(noz.label) || 50;
     const len = state.single.lengthFt || 0;
     const elevPsi = (state.single.elevationFt || 0) * PSI_PER_FT;
     const c = typeof hose.c === 'number' ? hose.c : guessHoseCFromLabel(hose.label);
@@ -654,8 +684,8 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
     const branch = (b) => {
       const noz = findNozzleById(allNozzles, b.nozzleId) || CLOSED_NOZZLE;
       const hose = findHoseById(hoseList, b.hoseId) || firstHose;
-      const gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
-      const np = noz.np || 50;
+      let gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
+      let np = noz.np || parseNpFromLabel(noz.label) || 50;
       const len = b.lengthFt || 0;
       const c = typeof hose.c === 'number' ? hose.c : guessHoseCFromLabel(hose.label);
       const fl = frictionLoss(c, gpm, len);
@@ -760,7 +790,6 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
 
   footer.append(cancelBtn, saveBtn);
 
-  // Numbers note
   const numbersNote = document.createElement('div');
   numbersNote.style.fontSize = '12px';
   numbersNote.style.marginTop = '6px';
@@ -768,7 +797,6 @@ export function openStandardLinePopup({ dept = {}, initial = null, onSave = () =
   numbersNote.textContent =
     'GPM comes from nozzle selection (Closed = 0 gpm). PDP uses hose C, length, nozzle pressure, elevation, and (for a wye) both branches plus the engine line and wye loss.';
 
-  // Assemble
   body.append(modeRow, sectionsContainer, numbersNote, preview);
   panel.append(header, body, footer);
 
