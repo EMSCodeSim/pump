@@ -5,13 +5,13 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 //
 // Behavior:
 // - Deck gun mode:
-//    * User ONLY chooses the nozzle (from department setup / global UI list).
+//    * User chooses the nozzle (from Department Setup nozzle list via DEPT_UI_NOZZLES).
 //    * GPM is taken from that nozzle (if gpm/flow is defined).
-//    * NP for master is locked at 80 psi.
-//    * FL = 0, elevation ignored → PDP = 80 psi.
+//    * NP is locked at 80 psi.
+//    * FL = 0, elevation = 0 → PDP = 80 psi.
 // - Portable mode:
-//    * User chooses 1 or 2 lines.
-//    * ONE shared hose size (from department hoses / DEPT_UI_HOSES).
+//    * User chooses 1 or 2 supply lines.
+//    * ONE shared hose size (from Department Setup hoses via DEPT_UI_HOSES).
 //    * ONE shared line length (ft).
 //    * Elevation in feet.
 //    * NP locked at 80 psi.
@@ -377,10 +377,10 @@ const DEFAULT_MS_NOZZLES = [
 ];
 
 const DEFAULT_MS_HOSES = [
-  { id: '2.5', label: '2½" supply' },
-  { id: '3',   label: '3" supply'  },
-  { id: '4',   label: '4" LDH'     },
-  { id: '5',   label: '5" LDH'     },
+  { id: '2.5', label: '2 1/2"' },
+  { id: '3',   label: '3"'      },
+  { id: '4',   label: '4"'      },
+  { id: '5',   label: '5"'      },
 ];
 
 const MS_C_BY_DIA = {
@@ -428,64 +428,19 @@ function formatNozzleLabel(baseLabel, nozzle, fallbackGpm = 0) {
 }
 
 function formatHoseLabel(idOrLabel) {
-  const s = String(idOrLabel);
-  if (s.startsWith('1.75') || /1\s*3\/4/.test(s)) return '1¾" supply';
-  if (s.startsWith('2.5') || /2\s*1\/2/.test(s))  return '2½" supply';
-  if (s.startsWith('3'))                          return '3" supply';
-  if (s.startsWith('4'))                          return '4" LDH';
-  if (s.startsWith('5'))                          return '5" LDH';
-  return s + ' supply';
+  const s = String(idOrLabel).trim();
+  if (s.startsWith('1.75') || /1\s*3\/4/.test(s)) return '1 3/4"';
+  if (s.startsWith('2.5') || /2\s*1\/2/.test(s))  return '2 1/2"';
+  if (s.startsWith('3'))                          return '3"';
+  if (s.startsWith('4'))                          return '4"';
+  if (s.startsWith('5'))                          return '5"';
+  return s;
 }
 
-/**
- * Decide if a nozzle is a "master stream" nozzle.
- * We try hard to include both solid and fog masters:
- *  - label/name contains "master", "deck gun", "blitz", or starts with "ms"
- *  - OR gpm >= 350 (big flows) regardless of type
- */
-function isMasterStreamNozzle(noz) {
-  if (!noz) return false;
-
-  const baseLabel = (noz.label || noz.name || noz.value || '').toString();
-  const lower = baseLabel.toLowerCase();
-
-  const gpm = (typeof noz.gpm === 'number' && noz.gpm > 0)
-    ? noz.gpm
-    : (typeof noz.flow === 'number' && noz.flow > 0
-        ? noz.flow
-        : (typeof noz.GPM === 'number' && noz.GPM > 0
-            ? noz.GPM
-            : 0));
-
-  // Heuristics based on text
-  if (lower.includes('master') ||
-      lower.includes('deck gun') ||
-      lower.includes('blitz') ||
-      lower.startsWith('ms ') ||
-      lower.startsWith('ms-')) {
-    return true;
-  }
-
-  // Category/type fields if present
-  if (noz.type === 'master' ||
-      noz.category === 'master' ||
-      noz.kind === 'master' ||
-      noz.group === 'master') {
-    return true;
-  }
-  if (Array.isArray(noz.tags) && noz.tags.some(t => String(t).toLowerCase().includes('master'))) {
-    return true;
-  }
-
-  // High-flow heuristic: treat anything >= 350 gpm as a master stream
-  if (gpm >= 350) return true;
-
-  return false;
-}
-
-// Dept.nozzles come primarily from DEPT_UI_NOZZLES,
-// which should already be filtered by Department Setup (user selections).
-// We then *further* filter to master-stream nozzles only.
+// Dept.nozzles: use DEPT_UI_NOZZLES (already scoped to Department Setup selections).
+// We no longer try to guess "master vs handline" here so ALL selected
+// fog + solid nozzles show in the list; Master Stream will still
+// calculate with NP=80 and use the chosen nozzle's flow.
 function msGetNozzleListFromDept(dept) {
   let baseRaw;
 
@@ -503,11 +458,7 @@ function msGetNozzleListFromDept(dept) {
     baseRaw = DEFAULT_MS_NOZZLES;
   }
 
-  const masterOnly = baseRaw.filter(isMasterStreamNozzle);
-
-  const listToUse = masterOnly.length ? masterOnly : DEFAULT_MS_NOZZLES;
-
-  return listToUse.map((n, idx) => {
+  return baseRaw.map((n, idx) => {
     if (!n) return null;
     const id = n.id != null
       ? String(n.id)
@@ -524,8 +475,7 @@ function msGetNozzleListFromDept(dept) {
   }).filter(Boolean);
 }
 
-// Dept.hoses can be array of strings OR array of objects.
-// Prefer global DEPT_UI_HOSES (already filtered by Dept Setup).
+// Dept.hoses: prefer DEPT_UI_HOSES and format sizes clearly as 2 1/2", 4", 5"
 function msGetHoseListFromDept(dept) {
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
@@ -566,12 +516,12 @@ function msGuessDiaFromHoseLabel(label) {
   if (!label) return 2.5;
   const m = label.match(/(\d(?:\.\d+)?)\s*"/);
   if (m) return Number(m[1]);
-  if (/1 3\/4/.test(label)) return 1.75;
-  if (/1¾/.test(label))     return 1.75;
-  if (/1\s?1\/2/.test(label)) return 1.5;
-  if (/2\s?1\/2/.test(label)) return 2.5;
-  if (/3"/.test(label))     return 3;
-  if (/5"/.test(label))     return 5;
+  if (/1\s*3\/4/.test(label)) return 1.75;
+  if (/1\s*1\/2/.test(label)) return 1.5;
+  if (/2\s*1\/2/.test(label)) return 2.5;
+  if (/3"/.test(label))       return 3;
+  if (/4"/.test(label))       return 4;
+  if (/5"/.test(label))       return 5;
   return 2.5;
 }
 
