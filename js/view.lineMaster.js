@@ -2,22 +2,6 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
-//
-// Behavior:
-// - Deck gun mode:
-//    * User chooses the nozzle (from Department Setup nozzle list).
-//    * GPM is taken from that nozzle (parsed from label or gpm field).
-//    * NP is locked at 80 psi.
-//    * FL = 0, elevation = 0 → PDP = 80 psi.
-// - Portable mode:
-//    * User chooses 1 or 2 supply lines.
-//    * ONE shared hose size (from Department Setup hoses via DEPT_UI_HOSES or dept.hoses*).
-//    * ONE shared line length (ft).
-//    * Elevation in feet.
-//    * NP locked at 80 psi.
-//    * PDP uses hose C (based on hose size), length, elevation, and appliance loss.
-// - Bottom: big bar
-//      "Master stream – Flow: X gpm | PDP: Y psi"
 
 let msMasterStylesInjected = false;
 
@@ -370,10 +354,14 @@ function msSelect(options, currentId, onChange) {
 /* --- Defaults & helpers --- */
 
 const DEFAULT_MS_NOZZLES = [
-  { id: 'ms_500',  label: 'Master fog nozzle 500 gpm',  gpm: 500 },
-  { id: 'ms_750',  label: 'Master fog nozzle 750 gpm',  gpm: 750 },
-  { id: 'ms_1000', label: 'Master fog nozzle 1000 gpm', gpm: 1000 },
-  { id: 'ms_1250', label: 'Master fog nozzle 1250 gpm', gpm: 1250 },
+  { id: 'ms_tip_138_500', label: 'MS tip 1 3/8" – 500 gpm', gpm: 500 },
+  { id: 'ms_tip_112_600', label: 'MS tip 1 1/2" – 600 gpm', gpm: 600 },
+  { id: 'ms_tip_134_800', label: 'MS tip 1 3/4" – 800 gpm', gpm: 800 },
+  { id: 'ms_tip_2_1000',  label: 'MS tip 2" – 1000 gpm',    gpm: 1000 },
+  { id: 'ms_fog_500',     label: 'MS fog 500 gpm',          gpm: 500 },
+  { id: 'ms_fog_750',     label: 'MS fog 750 gpm',          gpm: 750 },
+  { id: 'ms_fog_1000',    label: 'MS fog 1000 gpm',         gpm: 1000 },
+  { id: 'ms_fog_1250',    label: 'MS fog 1250 gpm',         gpm: 1250 },
 ];
 
 const DEFAULT_MS_HOSES = [
@@ -411,9 +399,39 @@ function formatHoseLabel(idOrLabel) {
   return s;
 }
 
+// Turn internal ids like "ms_tip_138_500" into nice labels like
+// "MS tip 1 3/8\" – 500 gpm" and "MS fog 1250 gpm".
+function prettyMasterLabel(id, fallbackLabel, gpm) {
+  if (!id) return fallbackLabel;
+  const parts = String(id).split('_');
+  if (parts[0] !== 'ms') return fallbackLabel;
+
+  if (parts[1] === 'tip') {
+    const boreCode = parts[2];
+    const flowCode = parts[3] || gpm || parseGpmFromLabel(fallbackLabel);
+    let boreText;
+    switch (boreCode) {
+      case '138': boreText = '1 3/8"'; break;
+      case '112': boreText = '1 1/2"'; break;
+      case '134': boreText = '1 3/4"'; break;
+      case '2':   boreText = '2"';     break;
+      default:    boreText = boreCode; break;
+    }
+    if (flowCode) return `MS tip ${boreText} – ${flowCode} gpm`;
+    return `MS tip ${boreText}`;
+  }
+
+  if (parts[1] === 'fog') {
+    const flowCode = parts[2] || gpm || parseGpmFromLabel(fallbackLabel);
+    if (flowCode) return `MS fog ${flowCode} gpm`;
+    return 'MS fog nozzle';
+  }
+
+  return fallbackLabel;
+}
+
 // Dept.nozzles: use DEPT_UI_NOZZLES (already scoped to Department Setup selections).
-// Filter to master stream group via text ("master stream", "master fog") so
-// this list matches the Department Setup MASTER STREAM section as closely as possible.
+// Filter to master-stream style entries and prettify labels.
 function msGetNozzleListFromDept(dept) {
   let baseRaw;
 
@@ -435,32 +453,38 @@ function msGetNozzleListFromDept(dept) {
     if (!n) return null;
 
     let id;
-    let label;
+    let rawLabel;
     let gpm = 0;
 
     if (typeof n === 'string' || typeof n === 'number') {
-      label = String(n);
+      rawLabel = String(n);
       id = String(idx);
-      gpm = parseGpmFromLabel(label);
+      gpm = parseGpmFromLabel(rawLabel);
     } else {
       id = n.id != null
         ? String(n.id)
         : String(n.value ?? n.name ?? idx);
-      label = n.label || n.name || String(id);
+      rawLabel = n.label || n.name || String(id);
       if (typeof n.gpm === 'number' && n.gpm > 0) {
         gpm = n.gpm;
       } else {
-        gpm = parseGpmFromLabel(label);
+        gpm = parseGpmFromLabel(rawLabel);
       }
     }
 
-    return { id, label, gpm };
+    const niceLabel = prettyMasterLabel(id, rawLabel, gpm);
+    return { id, label: niceLabel, gpm };
   }).filter(Boolean);
 
-  // Prefer only the MASTER STREAM entries if we can detect them
+  // Prefer only the master-stream entries if we can detect them
   const masterOnly = mapped.filter(n => {
-    const l = n.label.toLowerCase();
-    return l.includes('master stream') || l.includes('master fog');
+    const id = String(n.id);
+    const lower = n.label.toLowerCase();
+    return id.startsWith('ms_') ||
+      lower.includes('master stream') ||
+      lower.includes('master fog') ||
+      lower.startsWith('ms tip') ||
+      lower.startsWith('ms fog');
   });
 
   const list = masterOnly.length ? masterOnly : mapped;
@@ -548,7 +572,6 @@ function calcMasterNumbers(state, hoses, nozzles) {
   const NP = MASTER_NP;
 
   if (m.mountType === 'deck') {
-    // Deck gun: nozzle mounted to apparatus, FL = 0, elevation = 0
     const PDP = NP;
     return {
       mountType: 'deck',
