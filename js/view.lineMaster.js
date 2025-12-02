@@ -1,17 +1,17 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_HOSES } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
 //
 // Behavior:
 // - Deck gun mode:
-//    * User chooses the nozzle (from Department Setup nozzle list via DEPT_UI_NOZZLES).
+//    * User chooses the nozzle (from department setup / builder dept.nozzlesAll).
 //    * GPM is taken from that nozzle (if gpm/flow is defined).
 //    * NP is locked at 80 psi.
 //    * FL = 0, elevation = 0 → PDP = 80 psi.
 // - Portable mode:
 //    * User chooses 1 or 2 supply lines.
-//    * ONE shared hose size (from Department Setup hoses via DEPT_UI_HOSES).
+//    * ONE shared hose size (from Department Setup hoses via DEPT_UI_HOSES or dept.hoses*).
 //    * ONE shared line length (ft).
 //    * Elevation in feet.
 //    * NP locked at 80 psi.
@@ -370,17 +370,17 @@ function msSelect(options, currentId, onChange) {
 /* --- Defaults & helpers --- */
 
 const DEFAULT_MS_NOZZLES = [
-  { id: 'ms1_3_8_80', label: 'MS 1 3/8" @ 80', gpm: 500, NP: 80 },
-  { id: 'ms1_1_2_80', label: 'MS 1 1/2" @ 80', gpm: 600, NP: 80 },
-  { id: 'ms1_3_4_80', label: 'MS 1 3/4" @ 80', gpm: 800, NP: 80 },
-  { id: 'ms2_80',     label: 'MS 2" @ 80',     gpm: 1000, NP: 80 },
+  { id: 'ms_500',  label: '500 gpm master',  gpm: 500 },
+  { id: 'ms_750',  label: '750 gpm master',  gpm: 750 },
+  { id: 'ms_1000', label: '1000 gpm master', gpm: 1000 },
+  { id: 'ms_1250', label: '1250 gpm master', gpm: 1250 },
 ];
 
 const DEFAULT_MS_HOSES = [
   { id: '2.5', label: '2 1/2"' },
-  { id: '3',   label: '3"'      },
-  { id: '4',   label: '4"'      },
-  { id: '5',   label: '5"'      },
+  { id: '3',   label: '3"'     },
+  { id: '4',   label: '4"'     },
+  { id: '5',   label: '5"'     },
 ];
 
 const MS_C_BY_DIA = {
@@ -437,33 +437,39 @@ function formatHoseLabel(idOrLabel) {
   return s;
 }
 
-// Dept.nozzles: use DEPT_UI_NOZZLES (already scoped to Department Setup selections).
-// We no longer try to guess "master vs handline" here so ALL selected
-// fog + solid nozzles show in the list; Master Stream will still
-// calculate with NP=80 and use the chosen nozzle's flow.
+// Build nozzle list ONLY from dept.nozzlesAll (builder-normalized), plus optional dept.nozzlesSelected.
+// This avoids any weird global UI caches that might hold numeric indices.
 function msGetNozzleListFromDept(dept) {
-  let baseRaw;
+  let baseRaw = [];
 
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    baseRaw = DEPT_UI_NOZZLES;
-  } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-    baseRaw = dept.nozzlesAll;
-  } else if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
-    baseRaw = dept.nozzles;
+  if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    baseRaw = dept.nozzlesAll.slice();
   } else {
-    baseRaw = DEFAULT_MS_NOZZLES;
+    baseRaw = DEFAULT_MS_NOZZLES.slice();
   }
 
-  if (!Array.isArray(baseRaw) || !baseRaw.length) {
-    baseRaw = DEFAULT_MS_NOZZLES;
+  // Filter by dept.nozzlesSelected if present
+  const selectedIdsRaw = dept && Array.isArray(dept.nozzlesSelected)
+    ? dept.nozzlesSelected
+    : [];
+
+  if (selectedIdsRaw.length) {
+    const allowed = new Set(selectedIdsRaw.map(id => String(id)));
+    const filtered = baseRaw.filter(n => n && allowed.has(String(n.id)));
+    if (filtered.length) baseRaw = filtered;
   }
 
-  return baseRaw.map((n, idx) => {
+  // Normalize to {id, label, gpm}
+  const list = baseRaw.map((n, idx) => {
     if (!n) return null;
     const id = n.id != null
       ? String(n.id)
       : String(n.value ?? n.name ?? idx);
-    const baseLabel = n.label || n.name || String(id);
+
+    // Prefer human-readable label from builder normalization
+    let baseLabel = n.label || n.name || '';
+    if (!baseLabel) baseLabel = String(id);
+
     const gpm = (typeof n.gpm === 'number' && n.gpm > 0)
       ? n.gpm
       : (typeof n.flow === 'number' && n.flow > 0
@@ -473,6 +479,8 @@ function msGetNozzleListFromDept(dept) {
     const label = formatNozzleLabel(baseLabel, n, gpm);
     return { id, label, gpm };
   }).filter(Boolean);
+
+  return list.length ? list : DEFAULT_MS_NOZZLES.slice();
 }
 
 // Dept.hoses: prefer DEPT_UI_HOSES and format sizes clearly as 2 1/2", 4", 5"
