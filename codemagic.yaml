@@ -10,7 +10,7 @@ workflows:
       vars:
         ANDROID_APP_ID: "com.fireopscalc.app"
         ANDROID_APP_NAME: "FireOps Calc"
-      # This must match the name under Code signing → Android keystores in Codemagic
+      # Same keystore name as before in Codemagic → Code signing → Android keystores
       android_signing:
         - FireOpsCalcReleaseKey
 
@@ -25,6 +25,8 @@ workflows:
         script: |
           npm install
 
+      # 🔹 NEW: build your web assets into dist/ so Capacitor bundles
+      # the current FireOps Calc UI (fixes old header / black middle)
       - name: Build web assets (copy FireOps Calc into dist/)
         script: |
           npm run build
@@ -33,18 +35,26 @@ workflows:
         script: |
           npx cap sync android
 
-      - name: Build signed Android App Bundle
+      # 🔐 Build & sign using same logic as your old config
+      - name: Build signed Android app (AAB & APK)
         script: |
           cd android
-          ./gradlew clean bundleRelease
+          ./gradlew \
+            bundleRelease \
+            assembleRelease \
+            -Pandroid.injected.signing.store.file=$CM_KEYSTORE_PATH \
+            -Pandroid.injected.signing.store.password=$CM_KEYSTORE_PASSWORD \
+            -Pandroid.injected.signing.key.alias=$CM_KEY_ALIAS \
+            -Pandroid.injected.signing.key.password=$CM_KEY_PASSWORD
 
     artifacts:
-      - android/app/build/outputs/bundle/release/*.aab
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
 
     publishing:
       email:
         recipients:
-          - "you@example.com"   # <-- change to your email if you want notifications
+          - "you@example.com"   # <- swap to your real email if you want
         notify:
           success: true
           failure: true
