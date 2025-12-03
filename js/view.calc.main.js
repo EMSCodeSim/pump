@@ -1295,9 +1295,174 @@ function refreshNozzleSelectOptions() {
   }
 
 
-  function openPresetLineActions(id){
+  function function openPresetLineActions(id){
   const pl = activePresetLines[id];
   if (!pl) return;
+
+  const cfg = pl.config || {};
+  const lt  = cfg.lineType || (cfg.raw && cfg.raw.lineType) || pl.lineType || null;
+  const raw = cfg.raw || {};
+  const lc  = raw.lastCalc || {};
+
+  // Try to compute GPM and PDP in a line-type aware way
+  let gpm = cfg.directGpm;
+  let pdp = cfg.directPdp;
+
+  if (lt === 'standard' || lt === 'single' || lt === 'wye' || !lt) {
+    if (typeof raw.targetGpm === 'number') gpm = raw.targetGpm;
+    else if (typeof lc.targetGpm === 'number') gpm = lc.targetGpm;
+    if (typeof raw.targetPdp === 'number') pdp = raw.targetPdp;
+    else if (typeof lc.targetPdp === 'number') pdp = lc.targetPdp;
+  } else if (lt === 'master' || lt === 'standpipe' || lt === 'sprinkler' || lt === 'foam' || lt === 'supply' || lt === 'custom') {
+    // For these, rely on direct fields (which were already computed from lastCalc)
+    if (typeof gpm !== 'number' && typeof lc.gpm === 'number') gpm = lc.gpm;
+    if (typeof pdp !== 'number' && typeof lc.PDP === 'number') pdp = lc.PDP;
+  }
+
+  const lineTypeLabel = lt ? (lt.charAt(0).toUpperCase() + lt.slice(1)) : 'Standard';
+
+  // Helpers for summary text
+  function hoseLabelFromDept(id){
+    if (!id) return '';
+    try {
+      const dept = loadDeptForBuilders();
+      const list = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+      const found = list.find(h => String(h.id) === String(id));
+      return found && found.label ? found.label : String(id);
+    } catch (e) {
+      console.warn('hoseLabelFromDept failed', e);
+      return String(id);
+    }
+  }
+
+  function resolveNozSummary(nozzleId){
+    if (!nozzleId || nozzleId === 'closed') {
+      return { gpm: null, np: null, label: nozzleId === 'closed' ? 'Closed' : '' };
+    }
+    try {
+      if (typeof resolveNozzleById === 'function') {
+        const info = resolveNozzleById(nozzleId);
+        if (info) {
+          const g = (typeof info.gpm === 'number') ? info.gpm : null;
+          const np = (typeof info.NP === 'number')
+            ? info.NP
+            : (typeof info.np === 'number' ? info.np : null);
+          const label = info.name || info.label || info.id || '';
+          return { gpm: g, np, label };
+        }
+      }
+    } catch (e) {
+      console.warn('resolveNozSummary failed', e);
+    }
+    return { gpm: null, np: null, label: '' };
+  }
+
+  function buildStandardSummary(){
+    const mode = raw.mode || 'single';
+    const parts = [];
+
+    if (mode === 'wye') {
+      const wye = raw.wye || {};
+      const engLen  = wye.engineLengthFt || 0;
+      const engHose = wye.engineHoseSize || hoseLabelFromDept(wye.engineHoseId);
+
+      if (engLen) {
+        let line = 'Engine to wye: ' + engLen + '\'';
+        if (engHose) line += ' ' + engHose;
+        parts.push(line);
+      }
+
+      const bA = wye.branchA || {};
+      const aLen  = bA.lengthFt || 0;
+      const aHose = bA.hoseSize || hoseLabelFromDept(bA.hoseId);
+      if (aLen) {
+        let lineA = 'Branch A: ' + aLen + '\'';
+        if (aHose) lineA += ' ' + aHose;
+        const nozA = resolveNozSummary(bA.nozzleId);
+        if (nozA.gpm) lineA += ' ' + nozA.gpm + ' gpm nozzle';
+        if (nozA.np)  lineA += ' @ ' + nozA.np + ' psi';
+        if (bA.nozzleId === 'closed') lineA += ' (closed)';
+        parts.push(lineA);
+      }
+
+      const bB = wye.branchB || {};
+      const bLen  = bB.lengthFt || 0;
+      const bHose = bB.hoseSize || hoseLabelFromDept(bB.hoseId);
+      if (bLen || bB.nozzleId) {
+        let lineB = 'Branch B:';
+        if (bLen)  lineB += ' ' + bLen + '\'';
+        if (bHose) lineB += ' ' + bHose;
+        const nozB = resolveNozSummary(bB.nozzleId);
+        if (nozB.gpm) lineB += ' ' + nozB.gpm + ' gpm nozzle';
+        if (nozB.np)  lineB += ' @ ' + nozB.np + ' psi';
+        if (bB.nozzleId === 'closed') lineB += ' (closed)';
+        parts.push(lineB);
+      }
+    } else {
+      const s = raw.single || {};
+      const len  = s.lengthFt || 0;
+      const hose = s.hoseSize || hoseLabelFromDept(s.hoseId);
+      const noz  = resolveNozSummary(s.nozzleId);
+
+      let line = 'Engine line';
+      if (len)  line += ' ' + len + '\'';
+      if (hose) line += ' ' + hose;
+      if (noz.gpm) line += ' ' + noz.gpm + ' gpm nozzle';
+      if (noz.np)  line += ' @ ' + noz.np + ' psi';
+      if (!noz.gpm && s.nozzleId === 'closed') line += ' (closed nozzle)';
+      parts.push(line);
+    }
+
+    return parts.join('. ');
+  }
+
+  function buildStandpipeSummary(){
+    const parts = [];
+
+    const engLen   = raw.engineLengthFt || 0;
+    const engHose  = hoseLabelFromDept(raw.engineHoseId);
+    const hoseCt   = raw.engineHoseCount || 1;
+    if (engLen) {
+      let line = 'Engine to FDC: ' + engLen + '\'';
+      if (engHose) line += ' ' + engHose;
+      if (hoseCt > 1) line += ' (' + hoseCt + ' hoses)';
+      parts.push(line);
+    }
+
+    const atkLen  = raw.attackLengthFt || 0;
+    const atkHose = hoseLabelFromDept(raw.attackHoseId);
+    if (atkLen) {
+      let line2 = 'Standpipe to nozzle: ' + atkLen + '\'';
+      if (atkHose) line2 += ' ' + atkHose;
+      parts.push(line2);
+    }
+
+    const noz = resolveNozSummary(raw.nozzleId);
+    if (noz.gpm || noz.np) {
+      let line3 = 'Nozzle';
+      if (noz.gpm) line3 += ' ' + noz.gpm + ' gpm';
+      if (noz.np)  line3 += ' @ ' + noz.np + ' psi';
+      parts.push(line3);
+    }
+
+    return parts.join('. ');
+  }
+
+  function buildPresetSummary(){
+    try {
+      if (lt === 'standard' || lt === 'single' || lt === 'wye' || !lt) {
+        return buildStandardSummary();
+      }
+      if (lt === 'standpipe') {
+        return buildStandpipeSummary();
+      }
+    } catch (e) {
+      console.warn('buildPresetSummary failed', e);
+    }
+    return '';
+  }
+
+  const summaryText = buildPresetSummary();
 
   // Simple bottom-sheet style overlay
   const overlay = document.createElement('div');
@@ -1325,7 +1490,6 @@ function refreshNozzleSelectOptions() {
   title.style.fontWeight = '600';
   title.style.marginBottom = '4px';
 
-  // Show this line's information (type / GPM / PDP)
   const info = document.createElement('div');
   info.style.fontSize = '12px';
   info.style.lineHeight = '1.4';
@@ -1335,16 +1499,18 @@ function refreshNozzleSelectOptions() {
   info.style.background = 'rgba(15,23,42,0.95)';
   info.style.border = '1px solid rgba(55,65,81,0.9)';
 
-  const cfg = pl.config || {};
-  const lt  = cfg.lineType || 'Unknown';
-  const gpm = cfg.directGpm;
-  const pdp = cfg.directPdp;
-
-  let html = '<div><strong>Line type:</strong> ' + lt + '</div>';
-  if (typeof gpm === 'number') {
+  let html = '<div><strong>Line type:</strong> ' + lineTypeLabel + '</div>';
+  if (typeof gpm === 'number' && !Number.isNaN(gpm)) {
     html += '<div><strong>Flow:</strong> ' + gpm + ' gpm</div>';
   }
-  if (typeof pdp === 'number') {
+  if (summaryText) {
+    const escaped = typeof escapeHTML === 'function' ? escapeHTML(summaryText) : summaryText;
+    if (typeof pdp === 'number' && !Number.isNaN(pdp)) {
+      html += '<div style="margin-top:4px;">' + escaped + '. PP ' + pdp + ' psi</div>';
+    } else {
+      html += '<div style="margin-top:4px;">' + escaped + '</div>';
+    }
+  } else if (typeof pdp === 'number' && !Number.isNaN(pdp)) {
     html += '<div><strong>PDP:</strong> ' + pdp + ' psi</div>';
   }
   info.innerHTML = html;
@@ -1420,14 +1586,15 @@ function refreshNozzleSelectOptions() {
     closeOverlay();
   });
 
-  btnRow.appendChild(editBtn);
-  btnRow.appendChild(removeBtn);
-  btnRow.appendChild(cancelBtn);
+  const btnRowEl = btnRow;
+  btnRowEl.appendChild(editBtn);
+  btnRowEl.appendChild(removeBtn);
+  btnRowEl.appendChild(cancelBtn);
 
   panel.appendChild(title);
   panel.appendChild(info);
   panel.appendChild(subt);
-  panel.appendChild(btnRow);
+  panel.appendChild(btnRowEl);
   overlay.appendChild(panel);
 
   overlay.addEventListener('click', (e) => {
@@ -1436,8 +1603,7 @@ function refreshNozzleSelectOptions() {
 
   document.body.appendChild(overlay);
 }
-
-  // Click handler for preset line buttons
+// Click handler for preset line buttons
   container.addEventListener('click', (e)=>{
     const btn = e.target.closest('.preset-line-btn');
     if (!btn) return;
