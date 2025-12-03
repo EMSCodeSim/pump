@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rm -rf dist && mkdir dist && cp index.html about.html app-only.html app-only-presets.html how-to.html privacy-policy.html contact.html dist/ && cp manifest.json site.webmanifest dist/ && cp engine181.png fireopscalc.png fireopscalc2.png dist/ && cp -R js dist/js && cp -R ccs dist/ccs"
   },
   "keywords": [],
   "author": "",
