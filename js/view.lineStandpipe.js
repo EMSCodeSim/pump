@@ -4,7 +4,7 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 // Standpipe-only popup editor for a single line (Line 1 / 2 / 3).
 // - Uses same department hose/nozzle logic as view.lineStandard.js
 //   (DEPT_UI_HOSES / DEPT_UI_NOZZLES, with "Closed" nozzle option).
-// - Engine → standpipe hose: type + length
+// - Engine → standpipe hose: type + length + number of hoses
 // - Floors up (or vertical feet)
 // - Standpipe → nozzle hose: type + length
 // - Nozzle type
@@ -515,6 +515,13 @@ function injectStandpipeStyles() {
     border-radius: 4px;
     padding: 1px 4px;
   }
+
+  /* Rule-of-thumb button highlight */
+  .sp-rule25-active {
+    background: linear-gradient(135deg, #22c55e, #4ade80) !important;
+    color: #022c22 !important;
+    border-color: rgba(34, 197, 94, 0.9) !important;
+  }
   `;
   document.head.appendChild(style);
 }
@@ -651,10 +658,11 @@ export function openStandpipePopup({
   const state = {
     engineHoseId: firstHose.id,
     engineLengthFt: 200,
+    engineHoseCount: 1,          // NEW: number of hoses feeding the FDC
 
-    floorsUp: 3,        // or vertical distance
-    systemLossPsi: 25,  // standpipe system loss (valves, PRVs, etc.)
-    addRule25: false,
+    floorsUp: 3,
+    systemLossPsiUser: 0,        // base system loss (default 0)
+    addRule25: false,            // +25 psi rule-of-thumb toggle
 
     attackHoseId: firstHose.id,
     attackLengthFt: 150,
@@ -735,7 +743,11 @@ export function openStandpipePopup({
     const engLabel = getHoseLabelById(hoseList, state.engineHoseId);
     const engDia   = String(guessDiaFromHoseLabel(engLabel));
     const C1       = SP_C_BY_DIA[engDia] || 2;
-    const FL1      = calcFL(C1, gpm, state.engineLengthFt || 0);
+    const hosesParallel = Math.max(1, state.engineHoseCount || 1);
+
+    // Parallel hoses: effective C drops by n² (approx)
+    const C1eff    = C1 / (hosesParallel * hosesParallel);
+    const FL1      = calcFL(C1eff, gpm, state.engineLengthFt || 0);
 
     // Standpipe → nozzle
     const atkLabel = getHoseLabelById(hoseList, state.attackHoseId);
@@ -743,11 +755,12 @@ export function openStandpipePopup({
     const C2       = SP_C_BY_DIA[atkDia] || 2;
     const FL2      = calcFL(C2, gpm, state.attackLengthFt || 0);
 
-    const elev     = calcElevationPsi(state.floorsUp || 0);
-    const system   = state.systemLossPsi || 0;
-    const rule25   = state.addRule25 ? 25 : 0;
+    const elev         = calcElevationPsi(state.floorsUp || 0);
+    const systemBase   = state.systemLossPsiUser || 0;
+    const rule25       = state.addRule25 ? 25 : 0;
+    const systemTotal  = systemBase + rule25;
 
-    const PDP      = np + FL1 + FL2 + elev + system + rule25;
+    const PDP      = np + FL1 + FL2 + elev + systemTotal;
 
     return {
       gpm,
@@ -755,15 +768,18 @@ export function openStandpipePopup({
       FL1: Math.round(FL1),
       FL2: Math.round(FL2),
       elev: Math.round(elev),
-      system: Math.round(system),
-      rule25: Math.round(rule25),
+      systemBase: Math.round(systemBase),
+      systemExtra: Math.round(rule25),
+      system: Math.round(systemTotal),
       PDP: Math.round(PDP),
+      hosesParallel,
     };
   }
 
   function updatePreview() {
-    const { gpm, PDP } = calcStandpipeNumbers();
-    previewBar.textContent = `Standpipe – GPM: ${gpm}   |   PDP: ${PDP} psi`;
+    const { gpm, PDP, hosesParallel } = calcStandpipeNumbers();
+    const hoseText = hosesParallel > 1 ? ` (${hosesParallel} hoses to FDC)` : '';
+    previewBar.textContent = `Standpipe – GPM: ${gpm}   |   PDP: ${PDP} psi${hoseText}`;
   }
 
   // --- Explain math popup ---
@@ -801,22 +817,24 @@ export function openStandpipePopup({
 
     b.innerHTML = `
       <p>We are using a simple standpipe formula:</p>
-      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss + Rule-of-thumb</code></p>
+      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss</code></p>
 
       <p><strong>Inputs:</strong></p>
       <ul>
         <li>Nozzle: ${state.nozzleId || ''} → approx <code>${gpm} gpm</code> @ <code>${np} psi</code></li>
         <li>Engine → standpipe hose: <code>${engLabel || state.engineHoseId || 'unknown'}</code>,
-            length <code>${state.engineLengthFt || 0} ft</code></li>
+            length <code>${state.engineLengthFt || 0} ft</code>,
+            hoses in parallel: <code>${vals.hosesParallel}</code></li>
         <li>Standpipe → nozzle hose: <code>${atkLabel || state.attackHoseId || 'unknown'}</code>,
             length <code>${state.attackLengthFt || 0} ft</code></li>
         <li>Floors up / elevation: <code>${state.floorsUp || 0}</code></li>
-        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>
-        <li>Rule-of-thumb (+25 psi): <code>${vals.rule25} psi</code></li>
+        <li>System loss (valves, PRVs, fittings): <code>${vals.systemBase} psi</code></li>
+        <li>Rule-of-thumb (+25 psi): <code>${vals.systemExtra} psi</code></li>
       </ul>
 
       <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
-        We use FL = C × (GPM/100)² × (length/100)<br>
+        We use FL = C × (GPM/100)² × (length/100). With ${vals.hosesParallel} hose(s) in parallel,
+        we lower C accordingly.<br>
         → FL₁ ≈ <code>${vals.FL1} psi</code>
       </p>
 
@@ -831,8 +849,8 @@ export function openStandpipePopup({
       </p>
 
       <p><strong>Step 4 – System loss:</strong><br>
-        User-entered estimate for standpipe valves, PRVs, etc.<br>
-        → System loss ≈ <code>${vals.system} psi</code>
+        Base system loss plus optional +25 psi rule-of-thumb.<br>
+        → System loss total ≈ <code>${vals.system} psi</code>
       </p>
 
       <p><strong>Final pump discharge pressure (PDP):</strong></p>
@@ -842,12 +860,12 @@ export function openStandpipePopup({
                 ${vals.FL1} (FL₁) +
                 ${vals.FL2} (FL₂) +
                 ${vals.elev} (elev) +
-                ${vals.system} (system) +
-                ${vals.rule25} (rule-of-thumb)
+                ${vals.systemBase} (system) +
+                ${vals.systemExtra} (rule-of-thumb)
           = ${vals.PDP} psi
         </code>
       </p>
-    `;
+    ";
 
     const f = document.createElement('div');
     f.className = 'sp-footer';
@@ -884,6 +902,16 @@ export function openStandpipePopup({
     spEl('div', { class: 'sp-row' },
       spEl('label', { text: 'Hose type:' }),
       spSelect(hoseList, state.engineHoseId, v => { state.engineHoseId = v; updatePreview(); }),
+      spEl('span', { text: 'Hoses:' }),
+      spNumberInput(
+        state.engineHoseCount,
+        v => {
+          const n = v || 1;
+          state.engineHoseCount = n < 1 ? 1 : n;
+          updatePreview();
+        },
+        { min: '1', step: '1' }
+      ),
       spEl('span', { text: 'Length:' }),
       spNumberInput(state.engineLengthFt, v => { state.engineLengthFt = v || 0; updatePreview(); }),
       spEl('span', { text: 'ft' })
@@ -899,7 +927,10 @@ export function openStandpipePopup({
     ),
     spEl('div', { class: 'sp-row' },
       spEl('label', { text: 'System loss:' }),
-      spNumberInput(state.systemLossPsi, v => { state.systemLossPsi = v || 0; updatePreview(); }),
+      spNumberInput(
+        state.systemLossPsiUser,
+        v => { state.systemLossPsiUser = v || 0; updatePreview(); }
+      ),
       spEl('span', { text: 'psi (valves, PRVs, etc.)' })
     ),
     spEl('div', { class: 'sp-row' },
@@ -907,12 +938,21 @@ export function openStandpipePopup({
       (function() {
         const btn = spEl('button', {
           class: 'sp-btn-secondary',
-          text: state.addRule25 ? 'Rule of thumb +25 psi (on)' : 'Apply +25 psi rule of thumb',
+          text: state.addRule25 ? 'Rule of thumb +25 psi (+25 psi)' : 'Apply +25 psi rule of thumb',
         });
+        if (state.addRule25) {
+          btn.classList.add('sp-rule25-active');
+        }
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           state.addRule25 = !state.addRule25;
-          btn.textContent = state.addRule25 ? 'Rule of thumb +25 psi (on)' : 'Apply +25 psi rule of thumb';
+          if (state.addRule25) {
+            btn.textContent = 'Rule of thumb +25 psi (+25 psi)';
+            btn.classList.add('sp-rule25-active');
+          } else {
+            btn.textContent = 'Apply +25 psi rule of thumb';
+            btn.classList.remove('sp-rule25-active');
+          }
           updatePreview();
         });
         return btn;
@@ -944,8 +984,10 @@ export function openStandpipePopup({
       type: 'standpipe',
       engineHoseId: state.engineHoseId,
       engineLengthFt: state.engineLengthFt,
+      engineHoseCount: state.engineHoseCount,
       floorsUp: state.floorsUp,
-      systemLossPsi: state.systemLossPsi,
+      systemLossPsiUser: state.systemLossPsiUser,
+      addRule25: state.addRule25,
       attackHoseId: state.attackHoseId,
       attackLengthFt: state.attackLengthFt,
       nozzleId: state.nozzleId,
