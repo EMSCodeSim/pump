@@ -1,16 +1,20 @@
 workflows:
-  android-release:
-    name: FireOps Calc – Android Release
+  android-internal:
+    name: FireOps Calc – Android Internal Test
     max_build_duration: 60
     instance_type: mac_mini_m2
 
     environment:
       java: 21
       node: 20
+      # Optional: if you use variable groups in Codemagic, add them here
+      # groups:
+      #   - google-play-credentials
       vars:
         ANDROID_APP_ID: "com.fireopscalc.app"
         ANDROID_APP_NAME: "FireOps Calc"
       android_signing:
+        # This must match the Code signing → Android keystores entry in Codemagic
         - FireOpsCalcReleaseKey
 
     scripts:
@@ -24,7 +28,7 @@ workflows:
         script: |
           npm install
 
-      - name: Build web assets
+      - name: Build web assets (copy site into dist/)
         script: |
           npm run build
 
@@ -32,7 +36,20 @@ workflows:
         script: |
           npx cap sync android
 
-      - name: Build signed Android app
+      - name: Build signed Android App Bundle
         script: |
           cd android
-          ./gradlew bundleRelease
+          ./gradlew clean bundleRelease
+
+    artifacts:
+      # This is where the AAB will be output
+      - android/app/build/outputs/bundle/release/*.aab
+
+    publishing:
+      email:
+        # Change this to your email so you get the build link
+        recipients:
+          - "you@example.com"
+        notify:
+          success: true
+          failure: true
