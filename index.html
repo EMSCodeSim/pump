@@ -223,8 +223,8 @@
       background:#08111e;
       border-top:1px solid var(--edge);
       display:flex;
-      gap:6px;
-      padding:10px 10px calc(10px + env(safe-area-inset-bottom,0));
+      gap:10px;
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom,0));
       z-index:2000;
     }
     .navbtn{
@@ -233,17 +233,18 @@
       border:1px solid #192842;
       background:#050a14;
       color:#dbe8ff;
-      font-size:12px;
-      padding:7px 8px;
+      font-size:14px;
+      padding:11px 16px;
       display:flex;
       align-items:center;
       justify-content:center;
-      gap:4px;
+      gap:6px;
       cursor:pointer;
       white-space:nowrap;
+      touch-action:manipulation;
     }
     .navbtn span.icon{
-      font-size:14px;
+      font-size:16px;
       line-height:1;
     }
     .navbtn.active{
