@@ -1296,63 +1296,52 @@ function refreshNozzleSelectOptions() {
 
 
   
-
 function openPresetLineActions(id){
   const pl = activePresetLines[id];
   if (!pl) return;
 
   const cfg = pl.config || {};
 
-  // Basic fields used for summary / makeup
-  const lineType = cfg.lineType || 'Engine line';
-
-  const flowGpm = (typeof cfg.directGpm === 'number') ? cfg.directGpm : undefined;
-  const pdp      = (typeof cfg.directPdp === 'number') ? cfg.directPdp : undefined;
-
-  // Try several possible property names for hose length
-  const lengthFt =
-    (cfg.mainLengthFt != null ? cfg.mainLengthFt : null) ??
-    (cfg.lengthFt != null ? cfg.lengthFt : null) ??
-    (cfg.hoseLengthFt != null ? cfg.hoseLengthFt : null) ??
-    (cfg.attackLengthFt != null ? cfg.attackLengthFt : null) ??
-    (cfg.totalLengthFt != null ? cfg.totalLengthFt : null);
-
-  // Try several possible property names for hose diameter / label
-  function prettyHoseSize(raw){
-    const s = String(raw ?? '').trim();
-    if (!s) return '';
+  // Helper to make hose diameter labels phone-friendly.
+  function prettyHoseSize(d){
+    const s = String(d ?? '').trim();
+    if (s === '' || s === 'null' || s === 'undefined') return '';
     if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
-    if (s === '1.5'  || s === '1 1/2')               return '1 1/2"';
-    if (s === '2.5'  || s === '2 1/2')               return '2 1/2"';
-    if (s === '3')                                   return '3"';
-    if (s === '4')                                   return '4"';
-    if (s === '5')                                   return '5"';
+    if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
+    if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
+    if (s === '3')                                     return '3"';
+    if (s === '4')                                     return '4"';
+    if (s === '5')                                     return '5"';
     return s;
   }
 
-  const hoseSizeLabel = prettyHoseSize(
-    (cfg.mainHoseLabel != null ? cfg.mainHoseLabel : null) ??
-    (cfg.hoseLabel != null ? cfg.hoseLabel : null) ??
-    (cfg.hoseSizeLabel != null ? cfg.hoseSizeLabel : null) ??
-    (cfg.attackHoseLabel != null ? cfg.attackHoseLabel : null) ??
-    (cfg.hoseDiameterLabel != null ? cfg.hoseDiameterLabel : null) ??
-    (cfg.hoseSize != null ? cfg.hoseSize : null)
+  // Try to resolve nozzle details if they exist.
+  let noz = null;
+  if (cfg.nozzleId && typeof resolveNozzleById === 'function'){
+    try {
+      noz = resolveNozzleById(cfg.nozzleId) || null;
+    } catch (_e) {
+      noz = null;
+    }
+  }
+
+  const lengthFt = (typeof cfg.lengthFt === 'number') ? cfg.lengthFt : null;
+  const hoseSize = (cfg.hoseDiameter != null) ? prettyHoseSize(cfg.hoseDiameter) : '';
+
+  const gpm = (typeof cfg.directGpm === 'number')
+    ? cfg.directGpm
+    : (noz && typeof noz.gpm === 'number' ? noz.gpm : null);
+
+  const np = noz && (
+      (typeof noz.NP === 'number')        ? noz.NP
+    : (typeof noz.np === 'number')        ? noz.np
+    : (typeof noz.pressure === 'number')  ? noz.pressure
+    : null
   );
 
-  // Nozzle flow / NP if available
-  const nozzleGpm =
-    (cfg.nozzleGpm != null ? cfg.nozzleGpm : undefined) ??
-    (cfg.targetGpm != null ? cfg.targetGpm : undefined) ??
-    flowGpm;
+  const pdp = (typeof cfg.directPdp === 'number') ? cfg.directPdp : null;
 
-  const nozzlePsi =
-    (cfg.nozzleNp != null ? cfg.nozzleNp : undefined) ??
-    (cfg.nozzlePressure != null ? cfg.nozzlePressure : undefined) ??
-    (cfg.nozzleNpPsi != null ? cfg.nozzleNpPsi : undefined) ??
-    (cfg.targetNp != null ? cfg.targetNp : undefined) ??
-    50;
-
-  // --- Overlay shell ------------------------------------------------------
+  // Simple bottom-sheet style overlay
   const overlay = document.createElement('div');
   overlay.style.position = 'fixed';
   overlay.style.inset = '0';
@@ -1378,7 +1367,7 @@ function openPresetLineActions(id){
   title.style.fontWeight = '600';
   title.style.marginBottom = '4px';
 
-  // Info box describing line type, flow, PDP, and makeup.
+  // Info box with line details + makeup
   const info = document.createElement('div');
   info.style.fontSize = '12px';
   info.style.lineHeight = '1.4';
@@ -1388,30 +1377,29 @@ function openPresetLineActions(id){
   info.style.background = 'rgba(15,23,42,0.95)';
   info.style.border = '1px solid rgba(55,65,81,0.9)';
 
-  let html = '<div><strong>Line type:</strong> ' + lineType + '</div>';
-  if (flowGpm != null){
-    html += '<div><strong>Flow:</strong> ' + flowGpm + ' gpm</div>';
+  const ltText = cfg.lineType || 'Engine line';
+
+  let html = '<div><strong>Line type:</strong> ' + ltText + '</div>';
+  if (gpm != null){
+    html += '<div><strong>Flow:</strong> ' + gpm + ' gpm</div>';
   }
   if (pdp != null){
     html += '<div><strong>PDP:</strong> ' + pdp + ' psi</div>';
   }
 
-  // Build a simple "makeup" sentence if we have enough pieces.
-  let makeupParts = [];
-  makeupParts.push(lineType);
-  if (lengthFt != null) makeupParts.push(String(lengthFt) + "'");
-  if (hoseSizeLabel)    makeupParts.push(hoseSizeLabel);
-  if (nozzleGpm != null){
-    if (nozzlePsi != null){
-      makeupParts.push(String(nozzleGpm) + ' gpm nozzle @ ' + String(nozzlePsi) + ' psi');
-    } else {
-      makeupParts.push(String(nozzleGpm) + ' gpm nozzle');
+  // Makeup sentence: include hose length & size + nozzle + PP.
+  let makeup = '';
+  if (lengthFt != null || hoseSize || gpm != null || np != null || pdp != null){
+    makeup += ltText + ' ';
+    if (lengthFt != null) makeup += lengthFt + "\' ";
+    if (hoseSize) makeup += hoseSize + ' ';
+    if (gpm != null){
+      makeup += gpm + ' gpm nozzle';
+      if (np != null) makeup += ' @ ' + np + ' psi';
     }
-  }
-
-  let makeup = makeupParts.join(' ').trim();
-  if (makeup && pdp != null){
-    makeup += '.  PP ' + pdp + ' psi';
+    if (pdp != null){
+      makeup += '.  PP ' + pdp + ' psi';
+    }
   }
 
   if (makeup){
@@ -1428,23 +1416,24 @@ function openPresetLineActions(id){
   subt.style.opacity = '0.8';
   subt.style.marginBottom = '8px';
 
-  // --- Buttons row: [Preset name] [Edit] [Del] on one line (phone friendly) ---
-  const btnRowTop = document.createElement('div');
-  btnRowTop.style.display = 'flex';
-  btnRowTop.style.gap = '6px';
-  btnRowTop.style.marginTop = '4px';
-  btnRowTop.style.flexWrap = 'wrap';
+  // Row of main preset button + Edit + Del (phone-friendly)
+  const row = document.createElement('div');
+  row.style.display = 'flex';
+  row.style.flexWrap = 'wrap';
+  row.style.gap = '8px';
+  row.style.marginTop = '4px';
+  row.style.marginBottom = '6px';
 
   function makeBtn(label, variant){
     const b = document.createElement('button');
     b.type = 'button';
     b.textContent = label;
     b.style.borderRadius = '999px';
-    b.style.padding = '10px 8px';           // a bit taller, slightly narrower
+    b.style.padding = '10px 12px'; // taller tap target
     b.style.fontSize = '14px';
     b.style.border = 'none';
     b.style.cursor = 'pointer';
-    b.style.flex = '0 0 auto';              // let content define width
+    b.style.whiteSpace = 'nowrap';
     if (variant === 'primary'){
       b.style.background = '#22c55e';
       b.style.color = '#020617';
@@ -1453,11 +1442,6 @@ function openPresetLineActions(id){
       b.style.background = 'rgba(248,113,113,0.16)';
       b.style.color = '#fecaca';
       b.style.border = '1px solid rgba(248,113,113,0.5)';
-    } else if (variant === 'ghost'){
-      b.style.background = 'rgba(15,23,42,0.95)';
-      b.style.color = '#e5e7eb';
-      b.style.border = '1px solid rgba(55,65,81,0.9)';
-      b.style.fontWeight = '600';
     } else {
       b.style.background = 'rgba(148,163,184,0.12)';
       b.style.color = '#e5e7eb';
@@ -1465,19 +1449,21 @@ function openPresetLineActions(id){
     return b;
   }
 
-  // Big label-style button showing the preset name (acts like a close)
-  const mainBtn = makeBtn(pl.name || 'Preset', 'ghost');
-  // Tapping the main preset button just closes the sheet.
-  mainBtn.addEventListener('click', () => {
-    closeOverlay();
-  });
-
-  const editBtn = makeBtn('Edit', 'primary');
-  const removeBtn = makeBtn('Del', 'danger');
+  const mainBtn = makeBtn(pl.name || 'Preset', 'primary');
+  mainBtn.style.flex = '2 1 0';
+  const editBtn = makeBtn('Edit', 'secondary');
+  editBtn.style.flex = '1 1 0';
+  const delBtn  = makeBtn('Del', 'danger');
+  delBtn.style.flex = '1 1 0';
 
   function closeOverlay(){
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   }
+
+  // Tapping the main preset button just closes (it is informational here).
+  mainBtn.addEventListener('click', () => {
+    closeOverlay();
+  });
 
   editBtn.addEventListener('click', () => {
     closeOverlay();
@@ -1493,7 +1479,7 @@ function openPresetLineActions(id){
     });
   });
 
-  removeBtn.addEventListener('click', () => {
+  delBtn.addEventListener('click', () => {
     delete activePresetLines[id];
     closeOverlay();
     refreshTotals();
@@ -1501,27 +1487,23 @@ function openPresetLineActions(id){
     markDirty();
   });
 
-  btnRowTop.appendChild(mainBtn);
-  btnRowTop.appendChild(editBtn);
-  btnRowTop.appendChild(removeBtn);
+  row.appendChild(mainBtn);
+  row.appendChild(editBtn);
+  row.appendChild(delBtn);
 
-  // Separate small cancel button underneath
-  const btnRowBottom = document.createElement('div');
-  btnRowBottom.style.display = 'flex';
-  btnRowBottom.style.marginTop = '8px';
-
+  // Full-width Cancel button under the row
   const cancelBtn = makeBtn('Cancel', 'secondary');
-  cancelBtn.style.flex = '1 1 auto';
+  cancelBtn.style.width = '100%';
+  cancelBtn.style.marginTop = '4px';
   cancelBtn.addEventListener('click', () => {
     closeOverlay();
   });
-  btnRowBottom.appendChild(cancelBtn);
 
   panel.appendChild(title);
   panel.appendChild(info);
   panel.appendChild(subt);
-  panel.appendChild(btnRowTop);
-  panel.appendChild(btnRowBottom);
+  panel.appendChild(row);
+  panel.appendChild(cancelBtn);
   overlay.appendChild(panel);
 
   overlay.addEventListener('click', (e) => {
