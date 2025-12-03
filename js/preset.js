@@ -243,14 +243,21 @@ function injectAppPresetStyles() {
     }
     .dept-option {
       display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      font-size: 0.8rem;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .dept-option:hover {
+      background: rgba(30, 64, 175, 0.2);
     }
     .dept-option input[type="checkbox"] {
-      margin-top: 2px;
-      width: 14px;
-      height: 14px;
+      margin-top: 0;
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
     }
     .dept-option span {
       flex: 1;
@@ -299,31 +306,19 @@ function injectAppPresetStyles() {
     .preset-menu-presets {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px;
       margin-top: 4px;
     }
-    .preset-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
     .preset-menu-preset-btn {
-      flex: 3 1 0;
+      width: 100%;
       justify-content: space-between;
-      font-size: 0.9rem;
-      padding: 10px 12px;
+      font-size: 0.8rem;
     }
     .preset-menu-preset-meta {
       display: block;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       opacity: 0.75;
       margin-left: 4px;
-    }
-    .preset-edit-btn,
-    .preset-del-btn {
-      flex: 1 1 0;
-      padding: 10px 12px;
-      font-size: 0.8rem;
     }
   `;
   document.head.appendChild(style);
@@ -1649,12 +1644,12 @@ function openPresetMainMenu() {
           <button type="button"
                   class="btn-tertiary preset-edit-btn"
                   data-preset-id="${p.id}">
-            ✏️ Edit
+            Edit
           </button>
           <button type="button"
                   class="btn-tertiary preset-del-btn"
                   data-preset-id="${p.id}">
-            🗑️ Del
+            Del
           </button>
         </div>
       `).join('')
