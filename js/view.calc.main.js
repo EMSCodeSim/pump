@@ -1416,7 +1416,8 @@ function openPresetLineActions(id){
   subt.style.opacity = '0.8';
   subt.style.marginBottom = '8px';
 
-  // Row of main preset button + Edit + Del (phone-friendly)
+  
+  // Row of Remove / Edit / Cancel (phone-friendly)
   const row = document.createElement('div');
   row.style.display = 'flex';
   row.style.flexWrap = 'wrap';
@@ -1449,21 +1450,16 @@ function openPresetLineActions(id){
     return b;
   }
 
-  const mainBtn = makeBtn(pl.name || 'Preset', 'primary');
-  mainBtn.style.flex = '2 1 0';
-  const editBtn = makeBtn('Edit', 'secondary');
+  const removeBtn = makeBtn('Remove line', 'danger');
+  removeBtn.style.flex = '1 1 0';
+  const editBtn = makeBtn('Edit line', 'primary');
   editBtn.style.flex = '1 1 0';
-  const delBtn  = makeBtn('Del', 'danger');
-  delBtn.style.flex = '1 1 0';
+  const cancelBtn = makeBtn('Cancel', 'secondary');
+  cancelBtn.style.flex = '1 1 0';
 
   function closeOverlay(){
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   }
-
-  // Tapping the main preset button just closes (it is informational here).
-  mainBtn.addEventListener('click', () => {
-    closeOverlay();
-  });
 
   editBtn.addEventListener('click', () => {
     closeOverlay();
@@ -1479,7 +1475,7 @@ function openPresetLineActions(id){
     });
   });
 
-  delBtn.addEventListener('click', () => {
+  removeBtn.addEventListener('click', () => {
     delete activePresetLines[id];
     closeOverlay();
     refreshTotals();
@@ -1487,23 +1483,18 @@ function openPresetLineActions(id){
     markDirty();
   });
 
-  row.appendChild(mainBtn);
-  row.appendChild(editBtn);
-  row.appendChild(delBtn);
-
-  // Full-width Cancel button under the row
-  const cancelBtn = makeBtn('Cancel', 'secondary');
-  cancelBtn.style.width = '100%';
-  cancelBtn.style.marginTop = '4px';
   cancelBtn.addEventListener('click', () => {
     closeOverlay();
   });
+
+  row.appendChild(removeBtn);
+  row.appendChild(editBtn);
+  row.appendChild(cancelBtn);
 
   panel.appendChild(title);
   panel.appendChild(info);
   panel.appendChild(subt);
   panel.appendChild(row);
-  panel.appendChild(cancelBtn);
   overlay.appendChild(panel);
 
   overlay.addEventListener('click', (e) => {
@@ -1512,6 +1503,7 @@ function openPresetLineActions(id){
 
   document.body.appendChild(overlay);
 }
+
 
 
   // Click handler for preset line buttons
