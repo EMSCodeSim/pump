@@ -1,11 +1,303 @@
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+
 // view.lineStandpipe.js
 // Standpipe-only popup editor for a single line (Line 1 / 2 / 3).
+// - Uses same department hose/nozzle logic as view.lineStandard.js
+//   (DEPT_UI_HOSES / DEPT_UI_NOZZLES, with "Closed" nozzle option).
 // - Engine → standpipe hose: type + length
 // - Floors up (or vertical feet)
 // - Standpipe → nozzle hose: type + length
 // - Nozzle type
 // - Live GPM & PDP preview
 // - "Explain math" button shows breakdown window
+
+/* -------------------------------------------------------------------------- */
+/*  Shared hose / nozzle helpers (mirrored from view.lineStandard.js)         */
+/* -------------------------------------------------------------------------- */
+
+function parseGpmFromLabel(label) {
+  const m = String(label || '').match(/(\d+)\s*gpm/i);
+  return m ? Number(m[1]) : 0;
+}
+
+function parseNpFromLabel(label) {
+  const m = String(label || '').match(/@\s*(\d+)\s*psi/i);
+  return m ? Number(m[1]) : 0;
+}
+
+// Turn internal hose ids into nice labels that match on desktop/phone.
+function formatHoseLabel(idOrLabel) {
+  const raw = String(idOrLabel || '').trim();
+
+  // Already looks like 2.5" / 4" / 5"
+  const quoteMatch = raw.match(/(\d(?:\.\d+)?)\s*"/);
+  if (quoteMatch) {
+    const v = quoteMatch[1];
+    if (v === '1.75') return '1 3/4"';
+    if (v === '1.5')  return '1 1/2"';
+    if (v === '2.5')  return '2 1/2"';
+    if (v === '3')    return '3"';
+    if (v === '4')    return '4"';
+    if (v === '5')    return '5"';
+  }
+
+  // Internal IDs like h_175
+  if (/^h_?175$/i.test(raw)) return '1 3/4"';
+  if (/^h_?15$/i.test(raw))  return '1 1/2"';
+  if (/^h_?25$/i.test(raw))  return '2 1/2"';
+  if (/^h_?3$/i.test(raw))   return '3"';
+  if (/^h_?4$/i.test(raw))   return '4"';
+  if (/^h_?5$/i.test(raw))   return '5"';
+
+  // Custom hose ids: "custom_hose_<...>"
+  if (/^custom_hose_/i.test(raw)) {
+    if (/175/.test(raw)) return 'Custom 1 3/4"';
+    if (/15/.test(raw))  return 'Custom 1 1/2"';
+    if (/25/.test(raw))  return 'Custom 2 1/2"';
+    if (/\b3\b/.test(raw))   return 'Custom 3"';
+    if (/\b4\b/.test(raw))   return 'Custom 4"';
+    if (/\b5\b/.test(raw))   return 'Custom 5"';
+    return 'Custom hose';
+  }
+
+  // Text like "2.5 supply", "4 inch LDH"
+  const numMatch = raw.match(/(\d(?:\.\d+)?)/);
+  if (numMatch) {
+    const v = numMatch[1];
+    if (v === '1.75') return '1 3/4"';
+    if (v === '1.5')  return '1 1/2"';
+    if (v === '2.5')  return '2 1/2"';
+    if (v === '3')    return '3"';
+    if (v === '4')    return '4"';
+    if (v === '5')    return '5"';
+  }
+
+  return raw;
+}
+
+const DEFAULT_NOZZLES = [
+  { id: 'fog150_50',   label: 'Fog 150 gpm @ 50 psi', gpm: 150, np: 50 },
+  { id: 'fog185_50',   label: 'Fog 185 gpm @ 50 psi', gpm: 185, np: 50 },
+  { id: 'sb_15_16_50', label: '7/8" smooth bore 160 gpm @ 50 psi', gpm: 160, np: 50 },
+  { id: 'sb_1_1_8_50', label: '1 1/8" smooth bore 265 gpm @ 50 psi', gpm: 265, np: 50 },
+];
+
+const DEFAULT_HOSES = [
+  { id: '1.75', label: '1 3/4"' },
+  { id: '2.5',  label: '2 1/2"' },
+  { id: '3',    label: '3"'     },
+  { id: '5',    label: '5"'     },
+];
+
+const SMOOTH_TIP_GPM_MAP = {
+  '7/8': 160,
+  '15/16': 185,
+  '1': 210,
+  '1 1/8': 265,
+  '1 1/4': 325,
+};
+
+function extractSmoothTipFromLabel(label) {
+  const txt = String(label || '');
+
+  // 15/16", 7/8", 1 1/8", 1 1/4"
+  const frac = txt.match(/(\d+\s*\d*\/\d+)\s*"/);
+  if (frac) {
+    return frac[1].replace(/\s+/g, ' ');
+  }
+
+  // 7/8, 15/16 without quotes
+  const frac2 = txt.match(/(\d+\/\d+)/);
+  if (frac2) return frac2[1];
+
+  return '';
+}
+
+function prettifyNozzle(id, label, gpm, np) {
+  const idStr = String(id || '');
+  let lbl = label ? String(label) : idStr;
+  const lowerLbl = lbl.toLowerCase();
+  const lowerId = idStr.toLowerCase();
+
+  const hasGpmPsiWords = /gpm/i.test(lbl) && /psi/i.test(lbl);
+
+  // --- Smooth bores --------------------------------------------------------
+  if (lowerId.startsWith('sb') || lowerLbl.includes('smooth')) {
+    if (!/smooth/i.test(lbl)) {
+      lbl = 'Smooth ' + lbl;
+    }
+
+    let gFromLabel = parseGpmFromLabel(lbl);
+    let pFromLabel = parseNpFromLabel(lbl);
+
+    let tip = extractSmoothTipFromLabel(lbl);
+
+    if (!gFromLabel && tip && SMOOTH_TIP_GPM_MAP[tip]) {
+      gFromLabel = SMOOTH_TIP_GPM_MAP[tip];
+    }
+    if (!pFromLabel) pFromLabel = 50; // default if needed
+
+    if (!gpm && gFromLabel) gpm = gFromLabel;
+    if (!np && pFromLabel)  np  = pFromLabel;
+
+    if (tip && gpm && np) {
+      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
+    }
+
+    return { label: lbl, gpm, np };
+  }
+
+  // --- Fog and everything else --------------------------------------------
+  if (hasGpmPsiWords) {
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom;
+    return { label: lbl, gpm, np };
+  }
+
+  // FOG patterns based on id if available
+  if (lowerId.includes('fog')) {
+    const nums = idStr.match(/\d+/g) || [];
+    if (nums.length >= 2) {
+      const p = Number(nums[nums.length - 2]);
+      const g = Number(nums[nums.length - 1]);
+      if (!gpm && g) gpm = g;
+      if (!np && p)  np  = p;
+    }
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom || 50;
+
+    if (gpm && np) {
+      lbl = `Fog ${gpm} gpm @ ${np} psi`;
+    } else if (gpm) {
+      lbl = `Fog ${gpm} gpm`;
+    } else {
+      lbl = 'Fog nozzle';
+    }
+
+    return { label: lbl, gpm, np };
+  }
+
+  // Generic: if we have numbers but no words, just format "XXX gpm @ YY psi"
+  if (!hasGpmPsiWords) {
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom;
+
+    if (gpm && np) {
+      lbl = `${lbl} ${gpm} gpm @ ${np} psi`;
+    } else if (gpm) {
+      lbl = `${lbl} ${gpm} gpm`;
+    }
+  }
+
+  return { label: lbl, gpm, np };
+}
+
+// Department → hose list (same behavior as Standard line)
+function getHoseListFromDept(dept) {
+  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+    return DEPT_UI_HOSES.map((h, idx) => {
+      if (!h) return null;
+      const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
+      const baseLabel = h.label || h.name || String(id);
+      return {
+        id,
+        label: formatHoseLabel(baseLabel),
+        c: typeof h.c === 'number' ? h.c : undefined,
+      };
+    }).filter(Boolean);
+  }
+
+  if (dept && typeof dept === 'object') {
+    const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+    const raw = allRaw.length ? allRaw : (Array.isArray(dept.hoses) ? dept.hoses : []);
+    if (raw.length) {
+      return raw.map((h, idx) => {
+        if (h && typeof h === 'object') {
+          const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
+          const baseLabel = h.label || h.name || String(id);
+          return {
+            id,
+            label: formatHoseLabel(baseLabel),
+            c: typeof h.c === 'number' ? h.c : undefined,
+          };
+        } else {
+          const id = String(h);
+          return { id, label: formatHoseLabel(id) };
+        }
+      }).filter(Boolean);
+    }
+  }
+
+  return DEFAULT_HOSES;
+}
+
+// Department → nozzle list (no master-stream filter; includes prettified fog / smooth)
+function getNozzleListFromDept(dept) {
+  let baseRaw;
+
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    baseRaw = DEPT_UI_NOZZLES;
+  } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    baseRaw = dept.nozzlesAll;
+  } else if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
+    baseRaw = dept.nozzles;
+  } else {
+    baseRaw = DEFAULT_NOZZLES;
+  }
+
+  if (!Array.isArray(baseRaw) || !baseRaw.length) {
+    baseRaw = DEFAULT_NOZZLES;
+  }
+
+  const mapped = baseRaw.map((n, idx) => {
+    if (!n) return null;
+
+    let id;
+    let label;
+    let gpm = 0;
+    let np = 0;
+
+    if (typeof n === 'string' || typeof n === 'number') {
+      id = String(n);
+      label = String(n);
+      gpm = parseGpmFromLabel(label);
+      np  = parseNpFromLabel(label);
+    } else {
+      id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+      label = n.label || n.name || String(id);
+      if (typeof n.gpm === 'number') gpm = n.gpm;
+      if (typeof n.flow === 'number' && !gpm) gpm = n.flow;
+      if (typeof n.np === 'number')  np  = n.np;
+      if (typeof n.NP === 'number' && !np) np = n.NP;
+      if (typeof n.pressure === 'number' && !np) np = n.pressure;
+    }
+
+    const pretty = prettifyNozzle(id, label, gpm, np);
+    return {
+      id,
+      label: pretty.label,
+      gpm: pretty.gpm || 0,
+      np:  pretty.np  || 0,
+    };
+  }).filter(Boolean);
+
+  return mapped.length ? mapped : DEFAULT_NOZZLES;
+}
+
+function findNozzleById(list, id) {
+  if (!id) return null;
+  return list.find(n => String(n.id) === String(id)) || null;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Standpipe-specific helpers                                                */
+/* -------------------------------------------------------------------------- */
 
 let standpipeStylesInjected = false;
 
@@ -268,19 +560,22 @@ function spSelect(options, current, onChange) {
   return s;
 }
 
-// --- Simple helpers to estimate GPM / NP from nozzle label ---
-// Expects labels like "1 3/4\" fog 150 gpm @ 75 psi"
+// --- Simple helpers to estimate GPM / NP from nozzle (uses dept logic) ---
 
 function parseGpmFromNozzle(nozzles, nozzleId) {
-  const noz = nozzles.find(n => n.id === nozzleId);
-  if (!noz || !noz.label) return 150;
+  const noz = findNozzleById(nozzles, nozzleId);
+  if (!noz) return nozzleId === 'closed' ? 0 : 150;
+  if (typeof noz.gpm === 'number') return noz.gpm;
+  if (!noz.label) return 150;
   const m = noz.label.match(/(\d+)\s*gpm/i);
   return m ? Number(m[1]) : 150;
 }
 
 function parseNpFromNozzle(nozzles, nozzleId) {
-  const noz = nozzles.find(n => n.id === nozzleId);
-  if (!noz || !noz.label) return 100;
+  const noz = findNozzleById(nozzles, nozzleId);
+  if (!noz) return nozzleId === 'closed' ? 0 : 100;
+  if (typeof noz.np === 'number') return noz.np;
+  if (!noz.label) return 100;
   const m = noz.label.match(/@\s*(\d+)\s*psi/i);
   return m ? Number(m[1]) : 100;
 }
@@ -294,126 +589,6 @@ const SP_C_BY_DIA = {
   '4':   0.2,
   '5':   0.08,
 };
-// --- Department hose/nozzle normalization for Standpipe editor ------------------
-
-// Try to convert internal IDs like "h_175" or "fog_xd_175_75_185" into
-// user-friendly labels that still contain diameter / gpm / psi for the math.
-
-function spPrettyHoseLabelFromId(id) {
-  if (!id) return '';
-  // Attack line codes
-  if (id === 'h_1') return '1" attack hose';
-  if (id === 'h_15') return '1 1/2" attack hose';
-  if (id === 'h_175') return '1 3/4" attack hose';
-  if (id === 'h_2') return '2" attack hose';
-  if (id === 'h_25') return '2 1/2" attack hose';
-  if (id === 'h_3') return '3" attack hose';
-
-  // Supply / LDH
-  if (id === 'h_3_supply') return '3" supply line';
-  if (id === 'h_4_ldh') return '4" LDH supply';
-  if (id === 'h_5_ldh') return '5" LDH supply';
-
-  // Wildland / booster
-  if (id === 'h_w_1') return '1" wildland hose';
-  if (id === 'h_w_15') return '1 1/2" wildland hose';
-  if (id === 'h_booster_1') return '1" booster reel';
-
-  // Low-friction variants
-  if (id === 'h_lf_175') return '1 3/4" low-friction attack';
-
-  // Fallback – just show the raw id
-  return id;
-}
-
-function spPrettyDiaFromCode(code) {
-  if (!code) return '';
-  if (code === '1') return '1"';
-  if (code === '15') return '1 1/2"';
-  if (code === '175') return '1 3/4"';
-  if (code === '2') return '2"';
-  if (code === '25') return '2 1/2"';
-  if (code === '3') return '3"';
-  if (code === '4') return '4"';
-  if (code === '5') return '5"';
-  return code + '"';
-}
-
-function spPrettySbTipFromCode(code) {
-  if (!code) return '';
-  if (code === '78') return '7/8"';
-  if (code === '1516') return '15/16"';
-  if (code === '1') return '1"';
-  if (code === '118') return '1 1/8"';
-  return code + '" tip';
-}
-
-function spPrettyNozzleLabelFromId(id) {
-  if (!id) return '';
-
-  // Pattern: fog_xd_175_75_185 → type_model_diaCode_NP_GPM
-  const fogParts = id.split('_');
-  if (fogParts.length === 5 && fogParts[0] === 'fog') {
-    const [, model, diaCode, npRaw, gpmRaw] = fogParts;
-    const dia = spPrettyDiaFromCode(diaCode);
-    const np  = Number(npRaw) || npRaw;
-    const gpm = Number(gpmRaw) || gpmRaw;
-    const modelLabel = model.toUpperCase();
-    return dia + ' ' + modelLabel + ' fog ' + gpm + ' gpm @ ' + np + ' psi';
-  }
-
-  // Smooth bore pattern: sb_78_50_160 → tipCode_NP_GPM
-  const sbMatch = id.match(/^sb_([^_]+)_([^_]+)_([^_]+)/);
-  if (sbMatch) {
-    const tipCode = sbMatch[1];
-    const npRaw   = sbMatch[2];
-    const gpmRaw  = sbMatch[3];
-    const tip = spPrettySbTipFromCode(tipCode);
-    const np  = Number(npRaw) || npRaw;
-    const gpm = Number(gpmRaw) || gpmRaw;
-    return tip + ' smooth bore ' + gpm + ' gpm @ ' + np + ' psi';
-  }
-
-  // Generic fallback
-  return id;
-}
-
-// Normalize a dept list (hoses or nozzles) into [{id, label, ...}, ...].
-// If label is missing or just the id, we generate a prettier one.
-function spNormalizeDeptList(list, kind) {
-  if (!Array.isArray(list)) return [];
-
-  return list.map((item, idx) => {
-    if (item && typeof item === 'object') {
-      const id = item.id != null
-        ? String(item.id)
-        : String(item.value ?? item.name ?? idx);
-      let label = item.label || item.name || '';
-
-      if (!label || label === id) {
-        if (kind === 'hose') {
-          label = spPrettyHoseLabelFromId(id);
-        } else if (kind === 'nozzle') {
-          label = spPrettyNozzleLabelFromId(id);
-        } else {
-          label = id;
-        }
-      }
-
-      return { ...item, id, label };
-    }
-
-    const id = String(item);
-    let label = id;
-    if (kind === 'hose') {
-      label = spPrettyHoseLabelFromId(id);
-    } else if (kind === 'nozzle') {
-      label = spPrettyNozzleLabelFromId(id);
-    }
-    return { id, label, raw: item };
-  });
-}
-
 
 // If you store diameters in the dept.hoses objects, you can use that instead.
 // Here we'll try to guess from label.
@@ -431,7 +606,7 @@ function guessDiaFromHoseLabel(label) {
 }
 
 function getHoseLabelById(hoses, id) {
-  const h = hoses.find(x => x.id === id);
+  const h = hoses.find(x => String(x.id) === String(id));
   return h ? h.label : '';
 }
 
@@ -452,7 +627,7 @@ function calcElevationPsi(floorsUp) {
  * Standpipe popup entry point
  *
  * @param {Object} opts
- *   - dept: { hoses: [{id,label}], nozzles: [{id,label}] }
+ *   - dept: { hosesAll/nozzlesAll/etc. }, but main source is DEPT_UI_* from store.js
  *   - initial: optional existing config to seed the form
  *   - onSave: function(config) -> void
  */
@@ -463,20 +638,27 @@ export function openStandpipePopup({
 } = {}) {
   injectStandpipeStyles();
 
-  const hoses   = spNormalizeDeptList(dept.hoses   || [], 'hose');
-  const nozzles = spNormalizeDeptList(dept.nozzles || [], 'nozzle');
+  // Use same dept-driven logic as Standard line
+  const hoseList   = getHoseListFromDept(dept);
+  const nozzleList = getNozzleListFromDept(dept);
+
+  const CLOSED_NOZZLE = { id: 'closed', label: 'Closed (no flow)', gpm: 0, np: 0 };
+  const allNozzles = [CLOSED_NOZZLE, ...nozzleList];
+
+  const firstHose = hoseList[0] || DEFAULT_HOSES[0];
+  const firstNozzle = allNozzles[1] || allNozzles[0];
 
   const state = {
-    engineHoseId: hoses[0]?.id || '',
+    engineHoseId: firstHose.id,
     engineLengthFt: 200,
 
     floorsUp: 3,        // or vertical distance
     systemLossPsi: 25,  // standpipe system loss (valves, PRVs, etc.)
     addRule25: false,
 
-    attackHoseId: hoses[0]?.id || '',
+    attackHoseId: firstHose.id,
     attackLengthFt: 150,
-    nozzleId: nozzles[0]?.id || '',
+    nozzleId: firstNozzle.id,
   };
 
   if (initial && typeof initial === 'object') {
@@ -546,17 +728,17 @@ export function openStandpipePopup({
   const previewBar = spEl('div', { class: 'sp-preview' });
 
   function calcStandpipeNumbers() {
-    const gpm   = parseGpmFromNozzle(nozzles, state.nozzleId);
-    const np    = parseNpFromNozzle(nozzles, state.nozzleId);
+    const gpm   = parseGpmFromNozzle(allNozzles, state.nozzleId);
+    const np    = parseNpFromNozzle(allNozzles, state.nozzleId);
 
     // Engine → standpipe
-    const engLabel = getHoseLabelById(hoses, state.engineHoseId);
+    const engLabel = getHoseLabelById(hoseList, state.engineHoseId);
     const engDia   = String(guessDiaFromHoseLabel(engLabel));
     const C1       = SP_C_BY_DIA[engDia] || 2;
     const FL1      = calcFL(C1, gpm, state.engineLengthFt || 0);
 
     // Standpipe → nozzle
-    const atkLabel = getHoseLabelById(hoses, state.attackHoseId);
+    const atkLabel = getHoseLabelById(hoseList, state.attackHoseId);
     const atkDia   = String(guessDiaFromHoseLabel(atkLabel));
     const C2       = SP_C_BY_DIA[atkDia] || 2;
     const FL2      = calcFL(C2, gpm, state.attackLengthFt || 0);
@@ -614,12 +796,12 @@ export function openStandpipePopup({
     const gpm = vals.gpm;
     const np  = vals.np;
 
-    const engLabel = getHoseLabelById(hoses, state.engineHoseId);
-    const atkLabel = getHoseLabelById(hoses, state.attackHoseId);
+    const engLabel = getHoseLabelById(hoseList, state.engineHoseId);
+    const atkLabel = getHoseLabelById(hoseList, state.attackHoseId);
 
     b.innerHTML = `
       <p>We are using a simple standpipe formula:</p>
-      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss + Rule‑of‑thumb</code></p>
+      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss + Rule-of-thumb</code></p>
 
       <p><strong>Inputs:</strong></p>
       <ul>
@@ -629,7 +811,8 @@ export function openStandpipePopup({
         <li>Standpipe → nozzle hose: <code>${atkLabel || state.attackHoseId || 'unknown'}</code>,
             length <code>${state.attackLengthFt || 0} ft</code></li>
         <li>Floors up / elevation: <code>${state.floorsUp || 0}</code></li>
-        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>\n        <li>Rule‑of‑thumb (+25 psi): <code>${vals.rule25} psi</code></li>
+        <li>System loss (valves, PRVs, fittings): <code>${vals.system} psi</code></li>
+        <li>Rule-of-thumb (+25 psi): <code>${vals.rule25} psi</code></li>
       </ul>
 
       <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
@@ -660,7 +843,7 @@ export function openStandpipePopup({
                 ${vals.FL2} (FL₂) +
                 ${vals.elev} (elev) +
                 ${vals.system} (system) +
-                ${vals.rule25} (rule‑of‑thumb)
+                ${vals.rule25} (rule-of-thumb)
           = ${vals.PDP} psi
         </code>
       </p>
@@ -700,7 +883,7 @@ export function openStandpipePopup({
     spEl('h3', { text: 'Engine → standpipe (FDC)' }),
     spEl('div', { class: 'sp-row' },
       spEl('label', { text: 'Hose type:' }),
-      spSelect(hoses, state.engineHoseId, v => { state.engineHoseId = v; updatePreview(); }),
+      spSelect(hoseList, state.engineHoseId, v => { state.engineHoseId = v; updatePreview(); }),
       spEl('span', { text: 'Length:' }),
       spNumberInput(state.engineLengthFt, v => { state.engineLengthFt = v || 0; updatePreview(); }),
       spEl('span', { text: 'ft' })
@@ -741,14 +924,14 @@ export function openStandpipePopup({
     spEl('h3', { text: 'Standpipe → nozzle' }),
     spEl('div', { class: 'sp-row' },
       spEl('label', { text: 'Attack hose type:' }),
-      spSelect(hoses, state.attackHoseId, v => { state.attackHoseId = v; updatePreview(); }),
+      spSelect(hoseList, state.attackHoseId, v => { state.attackHoseId = v; updatePreview(); }),
       spEl('span', { text: 'Length:' }),
       spNumberInput(state.attackLengthFt, v => { state.attackLengthFt = v || 0; updatePreview(); }),
       spEl('span', { text: 'ft' })
     ),
     spEl('div', { class: 'sp-row' },
       spEl('label', { text: 'Nozzle:' }),
-      spSelect(nozzles, state.nozzleId, v => { state.nozzleId = v; updatePreview(); })
+      spSelect(allNozzles, state.nozzleId, v => { state.nozzleId = v; updatePreview(); })
     )
   );
 
