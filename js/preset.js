@@ -299,19 +299,31 @@ function injectAppPresetStyles() {
     .preset-menu-presets {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       margin-top: 4px;
     }
+    .preset-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .preset-menu-preset-btn {
-      width: 100%;
+      flex: 3 1 0;
       justify-content: space-between;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
+      padding: 10px 12px;
     }
     .preset-menu-preset-meta {
       display: block;
-      font-size: 0.72rem;
+      font-size: 0.75rem;
       opacity: 0.75;
       margin-left: 4px;
+    }
+    .preset-edit-btn,
+    .preset-del-btn {
+      flex: 1 1 0;
+      padding: 10px 12px;
+      font-size: 0.8rem;
     }
   `;
   document.head.appendChild(style);
@@ -1637,12 +1649,12 @@ function openPresetMainMenu() {
           <button type="button"
                   class="btn-tertiary preset-edit-btn"
                   data-preset-id="${p.id}">
-            Edit
+            ✏️ Edit
           </button>
           <button type="button"
                   class="btn-tertiary preset-del-btn"
                   data-preset-id="${p.id}">
-            Del
+            🗑️ Del
           </button>
         </div>
       `).join('')
