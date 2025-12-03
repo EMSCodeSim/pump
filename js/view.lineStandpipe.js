@@ -865,7 +865,7 @@ export function openStandpipePopup({
           = ${vals.PDP} psi
         </code>
       </p>
-    ";
+    `;
 
     const f = document.createElement('div');
     f.className = 'sp-footer';
