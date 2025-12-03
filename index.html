@@ -591,5 +591,44 @@
       });
     })();
   </script>
+
+  <!-- Screen Wake Lock to reduce phone timeouts on calc screen -->
+  <script>
+    (function(){
+      let wakeLock = null;
+
+      async function requestWakeLock(){
+        if (!('wakeLock' in navigator)) {
+          return;
+        }
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release', () => {
+            wakeLock = null;
+          });
+        } catch (err) {
+          console && console.warn && console.warn('Wake Lock error:', err);
+        }
+      }
+
+      // Re-acquire on visibility change (tab coming back to foreground)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !wakeLock) {
+          requestWakeLock();
+        }
+      });
+
+      // Only start after a user interaction (required by some browsers)
+      function armWakeLockOnce(){
+        document.removeEventListener('click', armWakeLockOnce);
+        document.removeEventListener('touchstart', armWakeLockOnce);
+        requestWakeLock();
+      }
+
+      document.addEventListener('click', armWakeLockOnce, { passive: true });
+      document.addEventListener('touchstart', armWakeLockOnce, { passive: true });
+    })();
+  </script>
+
 </body>
 </html>
