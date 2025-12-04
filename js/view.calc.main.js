@@ -568,9 +568,17 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       console.warn('getDeptNozzleIds failed', e);
     }
 
-    // If Department Setup didn’t pick any nozzles,
-    // selectedNozzleIds stays empty → meaning "show all"
+    // If Department Setup didn't pick any nozzles,
+    // selectedNozzleIds stays empty - meaning "show all"
     dept.nozzlesSelected = selectedNozzleIds;
+
+    // For local UI (line editor in this file), only show:
+    //  - selected nozzles if any are selected
+    //  - otherwise the full library
+    const effectiveNozzles = selectedNozzleIds.length
+      ? allNozzles.filter(n => selectedNozzleIds.includes(n.id))
+      : allNozzles;
+    dept.nozzlesAll = effectiveNozzles;
 
     // =========================
     // HOSES
