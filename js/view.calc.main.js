@@ -90,6 +90,7 @@ if (typeof window !== 'undefined') {
 
 import { WaterSupplyUI } from './waterSupply.js';
 import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults, getDeptCustomNozzlesForCalc } from './preset.js';
+import { setDeptEquipment, setDeptSelections } from './deptState.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
@@ -478,11 +479,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const presetButtonsRow = container.querySelector('#presetLineButtonsRow');
 
 
-  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1–3
-  
-  const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
-
-  function loadDeptForBuilders(){
+  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lifunction loadDeptForBuilders(){
     // Read raw dept config (for future use), then layer in hose/nozzle libraries
     let base = {};
     try {
@@ -528,13 +525,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     } catch (e) {
       console.warn('getDeptNozzleIds failed', e);
     }
-    
+
     if (!selectedNozzleIds.length && Array.isArray(base.nozzles)) {
       selectedNozzleIds = base.nozzles
         .map(id => typeof id === 'string' ? id.trim() : String(id || '').trim())
         .filter(id => id.length && allNozzles.some(n => n.id === id));
     }
-if (selectedNozzleIds.length) {
+    if (selectedNozzleIds.length) {
       dept.nozzlesSelected = selectedNozzleIds;
     }
 
@@ -570,7 +567,7 @@ if (selectedNozzleIds.length) {
           if (!hoseMetaById[id]) {
             hoseMetaById[id] = {
               id,
-              label: h.label || h.name || `${id}"`,
+              label: h.label || h.name || `${id}\"`,
               c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
             };
           }
@@ -584,7 +581,7 @@ if (selectedNozzleIds.length) {
           if (!hoseMetaById[id]) {
             hoseMetaById[id] = {
               id,
-              label: h.label || h.name || `${id}"`,
+              label: h.label || h.name || `${id}\"`,
               c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
             };
           }
@@ -599,7 +596,7 @@ if (selectedNozzleIds.length) {
       if (hosesAll.some(h => h.id === key)) return;
       const meta = hoseMetaById[key]
         || DEFAULT_HOSES.find(h => h.id === key)
-        || { id: key, label: `${key}"`, c: 15.5 };
+        || { id: key, label: `${key}\"`, c: 15.5 };
       hosesAll.push(Object.assign({}, meta));
     };
 
@@ -611,6 +608,30 @@ if (selectedNozzleIds.length) {
 
     dept.hosesAll = hosesAll;
     if (hoseIds.length) {
+      dept.hosesSelected = hoseIds;
+    }
+
+    // 🔗 Push into global deptState so all other views share this same data
+    try {
+      if (typeof setDeptEquipment === 'function') {
+        setDeptEquipment({
+          nozzlesAll: dept.nozzlesAll || [],
+          hosesAll: dept.hosesAll || [],
+          accessoriesAll: dept.accessoriesAll || [],
+        });
+      }
+      if (typeof setDeptSelections === 'function') {
+        setDeptSelections({
+          nozzleIds: dept.nozzlesSelected || [],
+          hoseIds: dept.hosesSelected || [],
+        });
+      }
+    } catch (e) {
+      console.warn('deptState sync failed in loadDeptForBuilders', e);
+    }
+
+    return dept;
+  }gth) {
       dept.hosesSelected = hoseIds;
     }
 
