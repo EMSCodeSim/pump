@@ -512,10 +512,37 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     // NOZZLES
     // =========================
 
-    // 1) Full nozzle library = built-ins + any custom nozzles
-    let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
+    // Build a map of id -> nozzle, with Department custom nozzles
+    // overriding the built-ins when they share the same id.
+    const nozzleMap = {};
 
-    // Add department custom nozzles (from Department Setup)
+    const builtInNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    builtInNozzles.forEach(n => {
+      if (!n || !n.id) return;
+      const id = String(n.id);
+      let gpm = 0;
+      let np  = 0;
+      if (typeof n.gpm === 'number') gpm = n.gpm;
+      if (!gpm && typeof n.GPM === 'number') gpm = n.GPM;
+      if (typeof n.np === 'number')  np  = n.np;
+      if (!np && typeof n.NP === 'number')  np  = n.NP;
+
+      if (NOZ && NOZ[id]) {
+        const cat = NOZ[id];
+        if (!gpm && typeof cat.gpm === 'number') gpm = cat.gpm;
+        if (!np && typeof cat.NP === 'number')  np  = cat.NP;
+      }
+
+      nozzleMap[id] = {
+        id,
+        label: n.label || n.name || id,
+        gpm,
+        np
+      };
+    });
+
+    // Add Department custom nozzles (from Department Setup), overwriting
+    // any built-in with the same id so the ChiefXD label wins over SB, etc.
     let customNozzles = [];
     try {
       if (typeof getDeptCustomNozzlesForCalc === 'function') {
@@ -526,42 +553,40 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
 
     if (Array.isArray(customNozzles) && customNozzles.length) {
-      allNozzles = allNozzles.concat(customNozzles);
+      customNozzles.forEach(n => {
+        if (!n || !n.id) return;
+        const id = String(n.id);
+        let gpm = 0;
+        let np  = 0;
+        if (typeof n.gpm === 'number') gpm = n.gpm;
+        if (!gpm && typeof n.GPM === 'number') gpm = n.GPM;
+        if (typeof n.np === 'number')  np  = n.np;
+        if (!np && typeof n.NP === 'number')  np  = n.NP;
+
+        if (NOZ && NOZ[id]) {
+          const cat = NOZ[id];
+          if (!gpm && typeof cat.gpm === 'number') gpm = cat.gpm;
+          if (!np && typeof cat.NP === 'number')  np  = cat.NP;
+        }
+
+        nozzleMap[id] = {
+          id,
+          label: n.label || n.name || id,
+          gpm,
+          np
+        };
+      });
     }
 
-    // Normalize to { id, label, gpm, np }
-    allNozzles = allNozzles.map(n => {
-      if (!n) return null;
-      const id    = n.id;
-      const label = n.label || n.name || id || '';
-      let gpm = 0;
-      let np  = 0;
+    const allNozzles = Object.values(nozzleMap);
 
-      if (typeof n.gpm === 'number') gpm = n.gpm;
-      if (!gpm && typeof n.GPM === 'number') gpm = n.GPM;
-      if (typeof n.np === 'number')  np  = n.np;
-      if (!np && typeof n.NP === 'number')  np  = n.NP;
-
-      // If in NOZ catalog, fill missing GPM/NP from there
-      if (NOZ && id && NOZ[id]) {
-        const cat = NOZ[id];
-        if (!gpm && typeof cat.gpm === 'number') gpm = cat.gpm;
-        if (!np && typeof cat.NP === 'number')  np  = cat.NP;
-      }
-
-      return { id, label, gpm, np };
-    }).filter(Boolean);
-
-    dept.nozzlesAll = allNozzles;
-
-    // 2) Selected nozzles = EXACTLY what Department Setup picked
+    // Selected nozzles = EXACTLY what Department Setup picked.
     let selectedNozzleIds = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids) && ids.length) {
-          const validIds = new Set(allNozzles.map(n => n.id));
-          selectedNozzleIds = ids.filter(id => validIds.has(id));
+          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
         }
       }
     } catch (e) {
@@ -569,15 +594,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
 
     // If Department Setup didn't pick any nozzles,
-    // selectedNozzleIds stays empty - meaning "show all"
+    // selectedNozzleIds stays empty - meaning "show all".
     dept.nozzlesSelected = selectedNozzleIds;
 
     // For local UI (line editor in this file), only show:
     //  - selected nozzles if any are selected
-    //  - otherwise the full library
+    //  - otherwise the full library.
     const effectiveNozzles = selectedNozzleIds.length
-      ? allNozzles.filter(n => selectedNozzleIds.includes(n.id))
+      ? selectedNozzleIds.map(id => nozzleMap[id]).filter(Boolean)
       : allNozzles;
+
     dept.nozzlesAll = effectiveNozzles;
 
     // =========================
@@ -585,14 +611,14 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     // =========================
 
     const DEFAULT_HOSES = [
-      { id: '1.75', label: '1 3/4\"', c: COEFF['1.75'] ?? 15.5 },
-      { id: '2.5',  label: '2 1/2\"', c: COEFF['2.5']  ?? 2.0 },
-      { id: '3',    label: '3\"',      c: COEFF['3']    ?? 0.8 },
-      { id: '4',    label: '4\"',      c: COEFF['4']    ?? 0.2 },
-      { id: '5',    label: '5\"',      c: COEFF['5']    ?? 0.08 }
+      { id: '1.75', label: '1 3/4"', c: COEFF['1.75'] ?? 15.5 },
+      { id: '2.5',  label: '2 1/2"', c: COEFF['2.5']  ?? 2.0 },
+      { id: '3',    label: '3"',      c: COEFF['3']    ?? 0.8 },
+      { id: '4',    label: '4"',      c: COEFF['4']    ?? 0.2 },
+      { id: '5',    label: '5"',      c: COEFF['5']    ?? 0.08 }
     ];
 
-    // 1) Diameters that the user selected in Department Setup
+    // Diameters that the user selected in Department Setup
     let hoseDiameters = [];
     try {
       if (typeof getDeptHoseDiameters === 'function') {
@@ -605,7 +631,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       console.warn('getDeptHoseDiameters failed', e);
     }
 
-    // 2) Helper to build a hose meta object for a given diameter
+    // Helper to build a hose meta object for a given diameter
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
     function metaForDiameter(dia) {
@@ -620,7 +646,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
            (COEFF[s] ?? 15.5));
         return {
           id: s,
-          label: custom.label || custom.name || `${s}\"`,
+          label: custom.label || custom.name || `${s}"`,
           c
         };
       }
@@ -632,7 +658,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       // Fallback
       return {
         id: s,
-        label: `${s}\"`,
+        label: `${s}"`,
         c: COEFF[s] ?? 15.5
       };
     }
