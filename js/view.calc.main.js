@@ -529,22 +529,22 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     } catch (e) {
       console.warn('getDeptNozzleIds failed', e);
     }
-
+    
     if (!selectedNozzleIds.length && Array.isArray(base.nozzles)) {
       selectedNozzleIds = base.nozzles
         .map(id => typeof id === 'string' ? id.trim() : String(id || '').trim())
         .filter(id => id.length && allNozzles.some(n => n.id === id));
     }
-    if (selectedNozzleIds.length) {
+if (selectedNozzleIds.length) {
       dept.nozzlesSelected = selectedNozzleIds;
     }
 
     // ----- Hoses -----
     const DEFAULT_HOSES = [
-      { id: "1.75", label: "1 3/4"", c: 15.5 },
-      { id: "2.5",  label: "2 1/2"", c: 2.0 },
-      { id: "3",    label: "3"",      c: 0.8 },
-      { id: "5",    label: "5"",      c: 0.08 }
+      { id: "1.75", label: "1 3/4\"", c: 15.5 },
+      { id: "2.5",  label: "2 1/2\"", c: 2.0 },
+      { id: "3",    label: "3\"",      c: 0.8 },
+      { id: "5",    label: "5\"",      c: 0.08 }
     ];
 
     let hoseIds = [];
@@ -615,6 +615,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       dept.hosesSelected = hoseIds;
     }
 
+    
     // Sync into global deptState so other views (presets, editors, calc) share one source of truth
     try {
       if (typeof setDeptEquipment === 'function') {
@@ -634,7 +635,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       console.warn('deptState sync failed', e);
     }
 
-    return dept;
+return dept;
   }
 const activePresetLines = {};
   // Editor fields
