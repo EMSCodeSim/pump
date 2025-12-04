@@ -76,6 +76,33 @@ export const NOZ = {
   ms1_1_2_80:     { id:'ms1_1_2_80',    name:'MS 1 1/2″ @ 80',     gpm:600,  NP:80 },
   ms1_3_4_80:     { id:'ms1_3_4_80',    name:'MS 1 3/4″ @ 80',     gpm:800,  NP:80 },
   ms2_80:         { id:'ms2_80',        name:'MS 2″ @ 80',         gpm:1000, NP:80 },
+  // Added to align with DEPT_NOZZLE_LIBRARY
+  fog175_50:      { id:'fog175_50',     name:'Fog 175 @ 50',       gpm:175,  NP:50 },
+  fog185_50:      { id:'fog185_50',     name:'Fog 185 @ 50',       gpm:185,  NP:50 },
+  fog200_50:      { id:'fog200_50',     name:'Fog 200 @ 50',       gpm:200,  NP:50 },
+  fog265_50:      { id:'fog265_50',     name:'Fog 265 @ 50',       gpm:265,  NP:50 },
+
+  fog95_100:      { id:'fog95_100',     name:'Fog 95 @ 100',       gpm:95,   NP:100 },
+  fog125_100:     { id:'fog125_100',    name:'Fog 125 @ 100',      gpm:125,  NP:100 },
+  fog175_100:     { id:'fog175_100',    name:'Fog 175 @ 100',      gpm:175,  NP:100 },
+  fog200_100:     { id:'fog200_100',    name:'Fog 200 @ 100',      gpm:200,  NP:100 },
+  fog250_100:     { id:'fog250_100',    name:'Fog 250 @ 100',      gpm:250,  NP:100 },
+
+  // Additional smooth-bore handline tips
+  sb12_50:        { id:'sb12_50',       name:'SB 1/2″ @ 50',       gpm:50,   NP:50 },
+  sb5_8_50:       { id:'sb5_8_50',      name:'SB 5/8″ @ 50',       gpm:80,   NP:50 },
+  sb3_4_50:       { id:'sb3_4_50',      name:'SB 3/4″ @ 50',       gpm:120,  NP:50 },
+
+  // Master stream fogs
+  fog500_100:     { id:'fog500_100',    name:'Master Fog 500 @ 100',  gpm:500,  NP:100 },
+  fog750_100:     { id:'fog750_100',    name:'Master Fog 750 @ 100',  gpm:750,  NP:100 },
+  fog1000_100:    { id:'fog1000_100',   name:'Master Fog 1000 @ 100', gpm:1000, NP:100 },
+
+  // Specialty examples
+  piercing100_100:{ id:'piercing100_100', name:'Piercing 100 @ 100', gpm:100, NP:100 },
+  cellar250_100:  { id:'cellar250_100',   name:'Cellar 250 @ 100',   gpm:250, NP:100 },
+  breaker30_100:  { id:'breaker30_100',   name:'Breaker 30 @ 100',   gpm:30,  NP:100 },
+
 };
 
 export const NOZ_LIST = Object.values(NOZ);
