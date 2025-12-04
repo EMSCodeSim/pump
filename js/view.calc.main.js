@@ -89,7 +89,13 @@ if (typeof window !== 'undefined') {
 
 
 import { WaterSupplyUI } from './waterSupply.js';
-import { setupPresets, getDeptNozzleIds, getDeptHoseDiameters, getDeptLineDefaults, getDeptCustomNozzlesForCalc } from './preset.js';
+import {
+  setupPresets,
+  getDeptNozzleIds,
+  getDeptHoseDiameters,
+  getDeptLineDefaults,
+  getDeptCustomNozzlesForCalc
+} from './preset.js';
 import { setDeptEquipment, setDeptSelections } from './deptState.js';
 import './view.calc.enhance.js';
 
@@ -483,8 +489,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   
   const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
-  function loadDeptForBuilders(){
-    // Read raw dept config (for future use), then layer in hose/nozzle libraries
+  function loadDeptForBuilders() {
+    // Read raw dept config for custom labels / custom C values
     let base = {};
     try {
       if (typeof localStorage !== 'undefined') {
@@ -500,142 +506,168 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       console.warn('Failed to load dept for builders', e);
     }
 
-    // Start with a shallow copy so we don't accidentally mutate stored config
     const dept = Object.assign({}, base || {});
 
-    // ----- Nozzles -----
-    let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
-    // Normalize nozzle objects for the popup: id, label, gpm, np
-    allNozzles = allNozzles.map(n => ({
-      id:    n.id,
-      label: n.name || n.label || n.id,
-      gpm:   typeof n.gpm === 'number' ? n.gpm : (typeof n.GPM === 'number' ? n.GPM : 0),
-      np:    typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : 0),
-    }));
+    // =========================
+    // NOZZLES
+    // =========================
 
-    // Full library for popups (Fog, SB, etc.)
+    // 1) Full nozzle library = built-ins + any custom nozzles
+    let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
+
+    // Add department custom nozzles (from Department Setup)
+    let customNozzles = [];
+    try {
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        customNozzles = getDeptCustomNozzlesForCalc() || [];
+      }
+    } catch (e) {
+      console.warn('getDeptCustomNozzlesForCalc failed', e);
+    }
+
+    if (Array.isArray(customNozzles) && customNozzles.length) {
+      allNozzles = allNozzles.concat(customNozzles);
+    }
+
+    // Normalize to { id, label, gpm, np }
+    allNozzles = allNozzles.map(n => {
+      if (!n) return null;
+      const id    = n.id;
+      const label = n.label || n.name || id || '';
+      let gpm = 0;
+      let np  = 0;
+
+      if (typeof n.gpm === 'number') gpm = n.gpm;
+      if (!gpm && typeof n.GPM === 'number') gpm = n.GPM;
+      if (typeof n.np === 'number')  np  = n.np;
+      if (!np && typeof n.NP === 'number')  np  = n.NP;
+
+      // If in NOZ catalog, fill missing GPM/NP from there
+      if (NOZ && id && NOZ[id]) {
+        const cat = NOZ[id];
+        if (!gpm && typeof cat.gpm === 'number') gpm = cat.gpm;
+        if (!np && typeof cat.NP === 'number')  np  = cat.NP;
+      }
+
+      return { id, label, gpm, np };
+    }).filter(Boolean);
+
     dept.nozzlesAll = allNozzles;
 
-    // Limit to department-selected nozzle IDs (e.g. only 15/16)
+    // 2) Selected nozzles = EXACTLY what Department Setup picked
     let selectedNozzleIds = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids) && ids.length) {
-          const valid = new Set(allNozzles.map(n => n.id));
-          selectedNozzleIds = ids.filter(id => valid.has(id));
+          const validIds = new Set(allNozzles.map(n => n.id));
+          selectedNozzleIds = ids.filter(id => validIds.has(id));
         }
       }
     } catch (e) {
       console.warn('getDeptNozzleIds failed', e);
     }
-    
-    if (!selectedNozzleIds.length && Array.isArray(base.nozzles)) {
-      selectedNozzleIds = base.nozzles
-        .map(id => typeof id === 'string' ? id.trim() : String(id || '').trim())
-        .filter(id => id.length && allNozzles.some(n => n.id === id));
-    }
-if (selectedNozzleIds.length) {
-      dept.nozzlesSelected = selectedNozzleIds;
-    }
 
-    // ----- Hoses -----
+    // If Department Setup didn’t pick any nozzles,
+    // selectedNozzleIds stays empty → meaning "show all"
+    dept.nozzlesSelected = selectedNozzleIds;
+
+    // =========================
+    // HOSES
+    // =========================
+
     const DEFAULT_HOSES = [
-      { id: "1.75", label: "1 3/4\"", c: 15.5 },
-      { id: "2.5",  label: "2 1/2\"", c: 2.0 },
-      { id: "3",    label: "3\"",      c: 0.8 },
-      { id: "5",    label: "5\"",      c: 0.08 }
+      { id: '1.75', label: '1 3/4\"', c: COEFF['1.75'] ?? 15.5 },
+      { id: '2.5',  label: '2 1/2\"', c: COEFF['2.5']  ?? 2.0 },
+      { id: '3',    label: '3\"',      c: COEFF['3']    ?? 0.8 },
+      { id: '4',    label: '4\"',      c: COEFF['4']    ?? 0.2 },
+      { id: '5',    label: '5\"',      c: COEFF['5']    ?? 0.08 }
     ];
 
-    let hoseIds = [];
+    // 1) Diameters that the user selected in Department Setup
+    let hoseDiameters = [];
     try {
       if (typeof getDeptHoseDiameters === 'function') {
         const ids = getDeptHoseDiameters() || [];
         if (Array.isArray(ids)) {
-          hoseIds = ids.map(x => String(x));
+          hoseDiameters = ids.map(x => String(x));
         }
       }
     } catch (e) {
       console.warn('getDeptHoseDiameters failed', e);
     }
 
-    // Try to pull custom hose labels / C values from stored dept config, if present.
-    const hoseMetaById = {};
-    if (base && base.hoses && typeof base.hoses === 'object') {
-      // Support either object map or array of hose configs.
-      if (Array.isArray(base.hoses)) {
-        base.hoses.forEach(h => {
-          if (!h) return;
-          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : null);
-          if (!id) return;
-          if (!hoseMetaById[id]) {
-            hoseMetaById[id] = {
-              id,
-              label: h.label || h.name || `${id}"`,
-              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
-            };
-          }
-        });
-      } else {
-        Object.keys(base.hoses).forEach(key => {
-          const h = base.hoses[key];
-          if (!h) return;
-          const id = h.id != null ? String(h.id) : (h.diameter != null ? String(h.diameter) : String(key));
-          if (!id) return;
-          if (!hoseMetaById[id]) {
-            hoseMetaById[id] = {
-              id,
-              label: h.label || h.name || `${id}"`,
-              c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
-            };
-          }
-        });
+    // 2) Helper to build a hose meta object for a given diameter
+    const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
+
+    function metaForDiameter(dia) {
+      const s = String(dia);
+
+      // Custom hose from Department Setup?
+      const custom = customs.find(h => String(h.diameter) === s);
+      if (custom) {
+        const c =
+          typeof custom.c === 'number' ? custom.c :
+          (typeof custom.flC === 'number' ? custom.flC :
+           (COEFF[s] ?? 15.5));
+        return {
+          id: s,
+          label: custom.label || custom.name || `${s}\"`,
+          c
+        };
       }
+
+      // Built-in defaults
+      const def = DEFAULT_HOSES.find(h => h.id === s);
+      if (def) return { ...def };
+
+      // Fallback
+      return {
+        id: s,
+        label: `${s}\"`,
+        c: COEFF[s] ?? 15.5
+      };
     }
 
     const hosesAll = [];
-    const addHoseIfNeeded = (id) => {
-      if (!id) return;
-      const key = String(id);
-      if (hosesAll.some(h => h.id === key)) return;
-      const meta = hoseMetaById[key]
-        || DEFAULT_HOSES.find(h => h.id === key)
-        || { id: key, label: `${key}"`, c: 15.5 };
-      hosesAll.push(Object.assign({}, meta));
-    };
 
-    if (hoseIds.length) {
-      hoseIds.forEach(addHoseIfNeeded);
+    if (hoseDiameters.length) {
+      // Only the diameters the user actually picked
+      hoseDiameters.forEach(d => {
+        hosesAll.push(metaForDiameter(d));
+      });
+      dept.hosesSelected = hoseDiameters.slice();
     } else {
-      DEFAULT_HOSES.forEach(h => hosesAll.push(Object.assign({}, h)));
+      // No department selection → show default hose sizes
+      DEFAULT_HOSES.forEach(h => hosesAll.push({ ...h }));
+      dept.hosesSelected = [];
     }
 
     dept.hosesAll = hosesAll;
-    if (hoseIds.length) {
-      dept.hosesSelected = hoseIds;
-    }
 
-    
-    // Sync into global deptState so other views (presets, editors, calc) share one source of truth
+    // =========================
+    // SYNC INTO deptState
+    // =========================
+
     try {
       if (typeof setDeptEquipment === 'function') {
         setDeptEquipment({
           nozzlesAll: dept.nozzlesAll || [],
           hosesAll: dept.hosesAll || [],
-          accessoriesAll: dept.accessoriesAll || [],
+          accessoriesAll: dept.accessoriesAll || []
         });
       }
       if (typeof setDeptSelections === 'function') {
         setDeptSelections({
           nozzleIds: dept.nozzlesSelected || [],
-          hoseIds: dept.hosesSelected || [],
+          hoseIds: dept.hosesSelected || []
         });
       }
     } catch (e) {
-      console.warn('deptState sync failed', e);
+      console.warn('deptState sync failed in loadDeptForBuilders', e);
     }
 
-return dept;
+    return dept;
   }
 const activePresetLines = {};
   // Editor fields
