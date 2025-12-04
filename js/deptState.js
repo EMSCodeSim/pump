@@ -55,7 +55,7 @@ import {
  * Storage keys (shared)
  * ========================= */
 
-const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';  // matches preset / calc
+const STORAGE_DEPT_KEY = 'fireops_dept_state_v1';  // internal deptState persistence only
 const STORAGE_LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1'; // line 1/2/3
 
 /* =========================
