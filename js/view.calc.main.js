@@ -479,7 +479,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
   const presetButtonsRow = container.querySelector('#presetLineButtonsRow');
 
 
-  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lifunction loadDeptForBuilders(){
+  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1–3
+  
+  const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+
+  function loadDeptForBuilders(){
     // Read raw dept config (for future use), then layer in hose/nozzle libraries
     let base = {};
     try {
@@ -537,10 +541,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
 
     // ----- Hoses -----
     const DEFAULT_HOSES = [
-      { id: "1.75", label: "1 3/4\"", c: 15.5 },
-      { id: "2.5",  label: "2 1/2\"", c: 2.0 },
-      { id: "3",    label: "3\"",      c: 0.8 },
-      { id: "5",    label: "5\"",      c: 0.08 }
+      { id: "1.75", label: "1 3/4"", c: 15.5 },
+      { id: "2.5",  label: "2 1/2"", c: 2.0 },
+      { id: "3",    label: "3"",      c: 0.8 },
+      { id: "5",    label: "5"",      c: 0.08 }
     ];
 
     let hoseIds = [];
@@ -567,7 +571,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           if (!hoseMetaById[id]) {
             hoseMetaById[id] = {
               id,
-              label: h.label || h.name || `${id}\"`,
+              label: h.label || h.name || `${id}"`,
               c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
             };
           }
@@ -581,7 +585,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           if (!hoseMetaById[id]) {
             hoseMetaById[id] = {
               id,
-              label: h.label || h.name || `${id}\"`,
+              label: h.label || h.name || `${id}"`,
               c: typeof h.c === 'number' ? h.c : (typeof h.flC === 'number' ? h.flC : undefined)
             };
           }
@@ -596,7 +600,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       if (hosesAll.some(h => h.id === key)) return;
       const meta = hoseMetaById[key]
         || DEFAULT_HOSES.find(h => h.id === key)
-        || { id: key, label: `${key}\"`, c: 15.5 };
+        || { id: key, label: `${key}"`, c: 15.5 };
       hosesAll.push(Object.assign({}, meta));
     };
 
@@ -611,7 +615,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       dept.hosesSelected = hoseIds;
     }
 
-    // 🔗 Push into global deptState so all other views share this same data
+    // Sync into global deptState so other views (presets, editors, calc) share one source of truth
     try {
       if (typeof setDeptEquipment === 'function') {
         setDeptEquipment({
@@ -627,12 +631,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         });
       }
     } catch (e) {
-      console.warn('deptState sync failed in loadDeptForBuilders', e);
-    }
-
-    return dept;
-  }gth) {
-      dept.hosesSelected = hoseIds;
+      console.warn('deptState sync failed', e);
     }
 
     return dept;
