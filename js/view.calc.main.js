@@ -981,22 +981,23 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Prefer the Department-selected nozzle list via store.getDeptNozzles(),
-    // so the visual markup stays the same but the contents are filtered.
+    // Single-source nozzle list for calc UI:
+    // 1) getDeptNozzles() -> DEPT_UI_NOZZLES when Dept Setup has selections
+    // 2) fallback to prior dept.nozzlesAll / NOZ_LIST behavior.
     let nozzles = [];
 
     try {
       if (typeof getDeptNozzles === 'function') {
         const fromStore = getDeptNozzles() || [];
         if (Array.isArray(fromStore) && fromStore.length) {
-          nozzles = fromStore;
+          nozzles = fromStore.slice();
         }
       }
     } catch (err) {
-      console.warn('buildNozzleOptionsHTML: getDeptNozzles failed, falling back to DEPT_UI_NOZZLES / dept.nozzlesAll', err);
+      console.warn('buildNozzleOptionsHTML: getDeptNozzles failed, falling back to older pipeline', err);
     }
 
-    // If store-based list is empty, fall back to prior behavior using DEPT_UI_NOZZLES / dept.nozzlesAll / NOZ_LIST.
+    // Fallback to previous behavior if nothing came back
     if (!nozzles || !nozzles.length) {
       // Prefer the same nozzle list the Department Setup UI is using.
       if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
@@ -1048,7 +1049,7 @@ function updateSegSwitchVisibility(){
         const id = n.id != null ? String(n.id) : '';
         const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
-        return `<option value="${id}">${label}</option>`;
+        return `<option value=\"${id}\">${label}</option>`;
       })
       .join('');
   }
@@ -2751,6 +2752,18 @@ function initPlusMenus(root){
       }
     } catch (e) {
       console.warn('Dept nozzle filter failed', e);
+    }
+
+    // Single-source override: if store-driven Dept nozzle list exists, use it
+    try {
+      if (typeof getDeptNozzles === 'function') {
+        const fromStore = getDeptNozzles() || [];
+        if (Array.isArray(fromStore) && fromStore.length) {
+          list = fromStore.slice();
+        }
+      }
+    } catch (e) {
+      console.warn('Plus-menu: getDeptNozzles failed, keeping existing list', e);
     }
 
     const optionsHtml = list.map(n => {
