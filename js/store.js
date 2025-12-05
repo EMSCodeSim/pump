@@ -420,6 +420,15 @@ export function saveDeptDefaults(obj){
   return writeDeptStorage(obj);
 }
 
+export function getDeptNozzles() {
+  // If Dept UI has a filtered nozzle list, use that first.
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    return DEPT_UI_NOZZLES;
+  }
+  // Fallback: full nozzle catalog
+  return Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+}
+
 export function getDeptLineDefault(key){
   const all = loadDeptDefaults();
   return all[key] || null;
