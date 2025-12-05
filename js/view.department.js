@@ -51,7 +51,9 @@ function renderHoseSelector() {
     const wrapper = qs("#dept-hose-list");
     const hoses = store.deptHoses;
 
-    wrapper.innerHTML = hoses.map(h => `
+    if (!wrapper) return;
+
+    const listHtml = hoses.map(h => `
         <label class="dept-item">
             <input 
                 type="checkbox" 
@@ -61,6 +63,18 @@ function renderHoseSelector() {
             ${h.label}
         </label>
     `).join("");
+
+    // Include action buttons (save + restore) directly in the department view
+    wrapper.innerHTML = `
+      <div class="dept-hose-wrapper">
+        ${listHtml}
+      </div>
+      <div class="dept-actions">
+        <button id="save-hose-selection">Save hose selection</button>
+        <button id="save-nozzle-selection">Save nozzle selection</button>
+        <button id="restore-dept-defaults">Restore Defaults</button>
+      </div>
+    `;
 }
 
 function renderNozzleSelector() {
