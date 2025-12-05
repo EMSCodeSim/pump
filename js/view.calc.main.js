@@ -967,93 +967,77 @@ function updateSegSwitchVisibility(){
 
   
   // Populate nozzle selects, honoring Department Setup choices if available.
+    /**
+   * Build nozzle <option> HTML using the SAME list as Department Setup.
+   *
+   * Source of truth:
+   *   - loadDeptForBuilders() → dept.nozzlesAll
+   *     (already built from NOZ_LIST + dept custom nozzles + dept selections)
+   *
+   * Behavior:
+   *   - If Department Setup has picked specific nozzles, only those appear.
+   *   - If none are picked, full library appears.
+   *   - Custom nozzles ONLY appear if selected in Department Setup.
+   */
   function buildNozzleOptionsHTML() {
-    // Start with built-in nozzle catalog
-    const builtins = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-    const all = [];
+    let nozzles = [];
 
-    // Helper to push if id not already present
-    const seen = new Set();
-    const pushUnique = (n) => {
-      if (!n || typeof n !== 'object') return;
-      const id = (n.id != null ? String(n.id) : '').trim();
-      if (!id || seen.has(id)) return;
-      seen.add(id);
-      all.push(n);
-    };
-
-    builtins.forEach(pushUnique);
-
-    // Merge in department custom nozzles (from Department Setup)
     try {
-      if (typeof getDeptCustomNozzlesForCalc === 'function') {
-        const customs = getDeptCustomNozzlesForCalc() || [];
-        if (Array.isArray(customs) && customs.length) {
-          customs.forEach(pushUnique);
-        }
+      const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
+        ? loadDeptForBuilders()
+        : null;
+      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+        nozzles = dept.nozzlesAll;
       }
     } catch (err) {
-      console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
     }
 
-    if (!all.length) return '';
-
-    // Gather department-selected nozzle ids for filtering of built-ins.
-    let ids = [];
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const fromPreset = getDeptNozzleIds() || [];
-        if (Array.isArray(fromPreset)) {
-          ids = fromPreset
-            .map(id => (id == null ? '' : String(id).trim()))
-            .filter(id => id.length > 0);
-        }
-      }
-    } catch (err) {
-      console.warn('buildNozzleOptionsHTML: getDeptNozzleIds failed', err);
-      ids = [];
+    // Fallback: if for some reason dept.nozzlesAll is empty,
+    // show the full nozzle library from NOZ_LIST.
+    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+      nozzles = NOZ_LIST.map(n => ({
+        id: n.id,
+        label: n.label || n.name || n.desc || n.id
+      }));
     }
 
-    let base = all;
-
-    // If Department Setup has selected any built-in nozzle ids,
-    // filter the built-ins to those ids but ALWAYS keep customs.
-    if (ids.length) {
-      const idSet = new Set(ids);
-      const builtinsFiltered = all.filter(n => {
-        const id = (n.id != null ? String(n.id) : '').trim();
-        if (!id) return false;
-        // If it came from custom list, it won't be in DEPT_NOZ_TO_CALC_NOZ,
-        // but we always keep customs regardless of idSet.
-        // Heuristic: customs from getDeptCustomNozzlesForCalc tend to have gpm/NP set.
-        // We simply say: if id is in idSet OR it doesn't match any known builtin ids,
-        // keep it.
-        if (idSet.has(id)) return true;
-        // For customs, getDeptNozzleIds intentionally ignores them;
-        // we treat those as always included.
-        return !builtins.some(b => (b.id != null ? String(b.id) : '').trim() === id);
-      });
-      if (builtinsFiltered.length) {
-        base = builtinsFiltered;
-      }
+    if (!nozzles || !nozzles.length) {
+      return '';
     }
 
-    return base
-      .map(n => `<option value="${n.id}">${n.name || n.label || n.desc || n.id}</option>`)
+    return nozzles
+      .map(n => {
+        if (!n) return '';
+        const id = n.id != null ? String(n.id) : '';
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
+        if (!id) return '';
+        return `<option value="${id}">${label}</option>`;
+      })
       .join('');
   }
 
-function refreshNozzleSelectOptions() {
+  function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
+
     [teNoz, teNozA, teNozB].forEach(sel => {
       if (!sel) return;
+
+      // Try to preserve current selection if it’s still valid
+      const previous = sel.value;
       sel.innerHTML = nozzleOptionsHTML;
+
+      if (previous && Array.from(sel.options).some(opt => opt.value === previous)) {
+        sel.value = previous;
+      } else if (!sel.value && sel.options.length) {
+        // Default to first option if nothing is selected
+        sel.selectedIndex = 0;
+      }
     });
   }
 
-  // Initial fill
+  // Initial fill for all three nozzle selects in the tip editor
   refreshNozzleSelectOptions();
-
   // Panels controlled by waterSupply.js
   const hydrantHelper = container.querySelector('#hydrantHelper');
   const staticHelper  = container.querySelector('#staticHelper');
