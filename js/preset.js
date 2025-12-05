@@ -1999,18 +1999,6 @@ export function getDeptNozzleIds() {
   }
 }
 
-    // We intentionally ignore customNozzles here for filtering,
-    // so adding a custom nozzle does not cause the app to fall
-    // back to the full list. Custom nozzles can be wired later
-    // with explicit mappings as needed.
-
-    return result;
-  } catch (e) {
-    console.warn('getDeptNozzleIds failed', e);
-    return [];
-  }
-}
-
 export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
