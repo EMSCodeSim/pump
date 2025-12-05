@@ -107,6 +107,16 @@ export const NOZ = {
 
 export const NOZ_LIST = Object.values(NOZ);
 
+export function getDeptNozzles() {
+  // Canonical nozzle list for all UIs:
+  // 1) Department Setup UI-selected list, if any
+  // 2) Otherwise full catalog so dropdowns are never empty.
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    return DEPT_UI_NOZZLES;
+  }
+  return Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+}
+
 /* =========================
  * Friction-loss coefficients
  * ========================= */
@@ -418,15 +428,6 @@ export function loadDeptDefaults(){
 export function saveDeptDefaults(obj){
   if(!obj) return false;
   return writeDeptStorage(obj);
-}
-
-export function getDeptNozzles() {
-  // If Dept Setup UI has provided a filtered nozzle list, use that first.
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    return DEPT_UI_NOZZLES;
-  }
-  // Fallback: full nozzle catalog
-  return Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
 }
 
 export function getDeptLineDefault(key){
