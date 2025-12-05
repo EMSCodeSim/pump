@@ -163,7 +163,29 @@ function setupCustomNozzleForm() {
 function setupSaveButtons() {
     const saveHosesBtn = qs("#save-hose-selection");
     const saveNozzlesBtn = qs("#save-nozzle-selection");
-    const restoreDefaultsBtn = qs("#restore-dept-defaults");
+    let restoreDefaultsBtn = qs("#restore-dept-defaults");
+
+    // If the Restore Defaults button does not exist in HTML,
+    // create it next to the "save nozzle" button.
+    if (!restoreDefaultsBtn && saveNozzlesBtn) {
+        restoreDefaultsBtn = document.createElement("button");
+        restoreDefaultsBtn.id = "restore-dept-defaults";
+        restoreDefaultsBtn.textContent = "Restore Defaults";
+        // Match styling if saveNozzlesBtn has a class
+        if (saveNozzlesBtn.className) {
+            restoreDefaultsBtn.className = saveNozzlesBtn.className;
+        }
+        // Insert right after the save nozzle button
+        if (saveNozzlesBtn.parentElement) {
+            saveNozzlesBtn.parentElement.insertBefore(
+                restoreDefaultsBtn,
+                saveNozzlesBtn.nextSibling
+            );
+        } else {
+            // Fallback: append to body
+            document.body.appendChild(restoreDefaultsBtn);
+        }
+    }
 
     if (saveHosesBtn) {
         saveHosesBtn.onclick = () => {
@@ -187,9 +209,7 @@ function setupSaveButtons() {
 
             // If older store-based helper exists, keep it in sync too
             try {
-                if (typeof setSelectedNozzles === "function") {
-                    setSelectedNozzles(selections);
-                }
+                if (typ  }
             } catch (e) {
                 console.warn("setSelectedNozzles failed", e);
             }
@@ -235,9 +255,66 @@ function setupSaveButtons() {
     }
 }
 
-eof setSelectedNozzles === "function") {
-                    setSelectedNozzles(selections);
+
+
+    if (saveNozzlesBtn) {
+        saveNozzlesBtn.onclick = () => {
+            const selections = qsa(".dept-nozzle-check")
+                .filter(el => el.checked)
+                .map(el => el.value);
+
+            // Persist to shared department config used by presets / calc
+            saveDeptConfig({ nozzles: selections });
+
+            // If older store-based helper exists, keep it in sync too
+            try {
+                if (typ  }
+            } catch (e) {
+                console.warn("setSelectedNozzles failed", e);
+            }
+
+            alert("Department nozzle selection saved!");
+        };
+    }
+
+    if (restoreDefaultsBtn) {
+        restoreDefaultsBtn.onclick = () => {
+            try {
+                // Hoses: default = all department hoses
+                const allHoseIds = Array.isArray(store.deptHoses)
+                    ? store.deptHoses.map(h => h.id)
+                    : [];
+
+                setSelectedHoses(allHoseIds);
+
+                // Nozzles: default = all entries from DEPT_NOZZLE_LIBRARY
+                const allNozzleIds = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => n.id)
+                    : [];
+
+                // Save into shared dept config used by presets/calc
+                saveDeptConfig({
+                    nozzles: allNozzleIds
+                });
+
+                // Keep legacy store-based helper in sync if present
+                if (typeof setSelectedNozzles === "function") {
+                    setSelectedNozzles(allNozzleIds);
                 }
+
+                // Re-render UI selections
+                renderHoseSelector();
+                renderNozzleSelector();
+
+                alert("Department defaults restored.");
+            } catch (e) {
+                console.warn("Restore defaults failed", e);
+            }
+        };
+    }
+}
+
+  }
             } catch (e) {
                 console.warn("setSelectedNozzles failed", e);
             }
