@@ -88,7 +88,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptNozzles } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -2706,36 +2706,24 @@ function initPlusMenus(root){
   const teNozA = root.querySelector('#teNozA');
   const teNozB = root.querySelector('#teNozB');
 
-  if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
-    // Start with built-in nozzles
-    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
+  if (teNoz || teNozA || teNozB) {
+    let list = [];
 
-    // Merge in department custom nozzles if available
+    // Prefer department's selected nozzle list via getDeptNozzles(),
+    // fall back to NOZ_LIST so the menu is never empty.
     try {
-      if (typeof getDeptCustomNozzlesForCalc === 'function') {
-        const customs = getDeptCustomNozzlesForCalc() || [];
-        if (Array.isArray(customs) && customs.length) {
-          list = list.concat(customs);
+      if (typeof getDeptNozzles === 'function') {
+        const fromDept = getDeptNozzles() || [];
+        if (Array.isArray(fromDept) && fromDept.length) {
+          list = fromDept.slice();
         }
       }
     } catch (e) {
-      console.warn('Dept custom nozzles load failed', e);
+      console.warn('Plus-menu: getDeptNozzles failed, falling back to NOZ_LIST', e);
     }
 
-    // If department selected specific nozzles, filter to that set
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids) && ids.length) {
-          const allowed = new Set(ids);
-          const filtered = list.filter(n => n && allowed.has(n.id));
-          if (filtered.length) {
-            list = filtered;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Dept nozzle filter failed', e);
+    if (!Array.isArray(list) || !list.length) {
+      list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
     }
 
     const optionsHtml = list.map(n => {
