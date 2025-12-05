@@ -1966,19 +1966,38 @@ export function getDeptNozzleIds() {
 
     if (Array.isArray(dept.nozzles)) {
       dept.nozzles.forEach(raw => {
-        if (typeof raw !== 'string') return;
-        const trimmed = raw.trim();
+        if (raw == null) return;
+        const trimmed = String(raw).trim();
         if (!trimmed) return;
-        const mapped = DEPT_NOZ_TO_CALC_NOZ[trimmed];
-        if (typeof mapped === 'string') {
-          if (!seen.has(mapped)) {
-            seen.add(mapped);
-            result.push(mapped);
+
+        let mapped = null;
+
+        // New style: dept.nozzles stores internal nozzle IDs
+        // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
+        if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
+          mapped = trimmed;
+        } else {
+          // Legacy style: dept.nozzles stored a display label that
+          // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
+          const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
+          if (typeof viaMap === 'string' && viaMap) {
+            mapped = viaMap;
           }
         }
-        // if no mapping, we skip it so it doesn't break filtering
+
+        if (mapped && !seen.has(mapped)) {
+          seen.add(mapped);
+          result.push(mapped);
+        }
       });
     }
+
+    return result;
+  } catch (e) {
+    console.warn('getDeptNozzleIds failed', e);
+    return [];
+  }
+}
 
     // We intentionally ignore customNozzles here for filtering,
     // so adding a custom nozzle does not cause the app to fall
