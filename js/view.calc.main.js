@@ -570,7 +570,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
           if (!np && typeof cat.NP === 'number')  np  = cat.NP;
         }
 
-
         nozzleMap[id] = {
           id,
           label: n.label || n.name || id,
@@ -581,24 +580,32 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
 
     const allNozzles = Object.values(nozzleMap);
-    console.log('[DeptDebug] base config loaded for builders:', base);
-    console.log('[DeptDebug] allNozzles count:', allNozzles.length);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
+    // Single source of truth: dept config in localStorage ("nozzles" array),
+    // with optional legacy getDeptNozzleIds() override if config is missing.
     let selectedNozzleIds = [];
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        console.log('[DeptDebug] getDeptNozzleIds() returned:', ids);
-        if (Array.isArray(ids) && ids.length) {
-          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
-        }
-      }
-    } catch (e) {
-      console.warn('getDeptNozzleIds failed', e);
+
+    // 1) Prefer IDs stored by Department Setup in base.nozzles
+    if (Array.isArray(base.nozzles) && base.nozzles.length) {
+      selectedNozzleIds = base.nozzles
+        .map(id => String(id))
+        .filter(id => nozzleMap[id]);
     }
 
-    console.log('[DeptDebug] selectedNozzleIds after helper:', selectedNozzleIds);
+    // 2) If nothing from base.nozzles, fall back to legacy helper
+    if (!selectedNozzleIds.length) {
+      try {
+        if (typeof getDeptNozzleIds === 'function') {
+          const ids = getDeptNozzleIds() || [];
+          if (Array.isArray(ids) && ids.length) {
+            selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
+          }
+        }
+      } catch (e) {
+        console.warn('getDeptNozzleIds failed', e);
+      }
+    }
 
     // If Department Setup didn't pick any nozzles,
     // selectedNozzleIds stays empty - meaning "show all".
@@ -611,15 +618,11 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       ? selectedNozzleIds.map(id => nozzleMap[id]).filter(Boolean)
       : allNozzles;
 
-    console.log('[DeptDebug] effectiveNozzles count:', effectiveNozzles.length);
-
     dept.nozzlesAll = effectiveNozzles;
 
     // =========================
     // HOSES
     // =========================
-
-=====================
 
     const DEFAULT_HOSES = [
       { id: '1.75', label: '1 3/4"', c: COEFF['1.75'] ?? 15.5 },
