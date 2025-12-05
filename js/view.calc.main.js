@@ -88,8 +88,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-// Dept UI nozzle list now read via loadDeptForBuilders()
-
+import { DEPT_UI_NOZZLES } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -982,24 +981,12 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Build the nozzle list used by the tip editor and plus-menus.
-    // Source of truth:
-    //   1) Department wizard selections (via loadDeptForBuilders().nozzlesAll)
-    //   2) If none saved yet, fall back to the full NOZ_LIST library.
-    let nozzles = [];
+    // Prefer the same nozzle list the Department Setup UI is using.
+    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
 
-    try {
-      const dept = (typeof loadDeptForBuilders === 'function')
-        ? loadDeptForBuilders()
-        : null;
-      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-        nozzles = dept.nozzlesAll;
-      }
-    } catch (err) {
-      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
-    }
-
-    // If nothing is configured yet, fall back to full catalog + custom nozzles.
+    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
+    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
+    // and finally to NOZ_LIST so the menu is never empty.
     if (!nozzles || !nozzles.length) {
       try {
         const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
@@ -2719,11 +2706,44 @@ function initPlusMenus(root){
   const teNozA = root.querySelector('#teNozA');
   const teNozB = root.querySelector('#teNozB');
 
-  if (teNoz || teNozA || teNozB) {
-    // Reuse the same HTML builder as the main tip editor so that
-    // plus-menus and the editor always see the exact same nozzle list.
-    const optionsHtml = buildNozzleOptionsHTML();
-    if (!optionsHtml) return;
+  if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
+    // Start with built-in nozzles
+    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
+
+    // Merge in department custom nozzles if available
+    try {
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        const customs = getDeptCustomNozzlesForCalc() || [];
+        if (Array.isArray(customs) && customs.length) {
+          list = list.concat(customs);
+        }
+      }
+    } catch (e) {
+      console.warn('Dept custom nozzles load failed', e);
+    }
+
+    // If department selected specific nozzles, filter to that set
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const allowed = new Set(ids);
+          const filtered = list.filter(n => n && allowed.has(n.id));
+          if (filtered.length) {
+            list = filtered;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Dept nozzle filter failed', e);
+    }
+
+    const optionsHtml = list.map(n => {
+      if (!n) return '';
+      const label = n.label || n.name || n.desc || n.id || 'Nozzle';
+      const val   = n.id || label;
+      return `<option value="${val}">${label}</option>`;
+    }).join('');
 
     if (teNoz)  teNoz.innerHTML  = optionsHtml;
     if (teNozA) teNozA.innerHTML = optionsHtml;
@@ -2768,30 +2788,29 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-  if (!sel) return;
+  if (!sel || !Array.isArray(NOZ_LIST)) return;
 
-  let nozList = [];
+  // Start from full nozzle library
+  let nozList = NOZ_LIST.slice();
 
-  // Prefer Department wizard / Dept Setup selections via loadDeptForBuilders()
+  // Try to filter by department-selected nozzles, if available
   try {
-    const dept = (typeof loadDeptForBuilders === 'function')
-      ? loadDeptForBuilders()
-      : null;
-    if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-      nozList = dept.nozzlesAll;
+    if (typeof getDeptNozzleIds === 'function') {
+      const ids = getDeptNozzleIds() || [];
+      if (Array.isArray(ids) && ids.length) {
+        const allowed = new Set(ids.map(id => String(id)));
+        const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
+        if (filtered.length) {
+          nozList = filtered;
+        }
+      }
     }
-  } catch (e) {
-    console.warn('fillNozzles: loadDeptForBuilders failed, falling back to NOZ_LIST', e);
-  }
-
-  // If nothing configured yet, fall back to the full catalog
-  if (!Array.isArray(nozList) || !nozList.length) {
-    nozList = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
+  } catch (_e) {
+    // Non-fatal: if anything goes wrong, just fall back to the full list
   }
 
   sel.innerHTML = nozList.map(n => {
-    if (!n) return '';
-    const label = n.name || n.label || n.desc || n.id || 'Nozzle';
+    const label = n.name || n.desc || n.id || 'Nozzle';
     const val = n.id ?? label;
     return `<option value="${val}">${label}</option>`;
   }).join('');
