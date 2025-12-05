@@ -2742,8 +2742,6 @@ function initPlusMenus(root){
     refreshNozzleSelectOptions();
   }
 
-  }
-
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
     s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
