@@ -421,7 +421,7 @@ export function saveDeptDefaults(obj){
 }
 
 export function getDeptNozzles() {
-  // If Dept UI has a filtered nozzle list, use that first.
+  // If Dept Setup UI has provided a filtered nozzle list, use that first.
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
     return DEPT_UI_NOZZLES;
   }
