@@ -14,6 +14,8 @@ import {
     setLineDefaults,
     getLineDefaults
 } from "./store.js";
+import { setDeptUiNozzles } from "./store.js";
+
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
 
 
@@ -200,16 +202,37 @@ function setupSaveButtons() {
 
     if (saveNozzlesBtn) {
         saveNozzlesBtn.onclick = () => {
-            const selections = qsa(".dept-nozzle-check")
+            const selectedIds = qsa(".dept-nozzle-check")
                 .filter(el => el.checked)
                 .map(el => el.value);
 
             // Persist to shared department config used by presets / calc
-            saveDeptConfig({ nozzles: selections });
+            saveDeptConfig({ nozzles: selectedIds });
 
-            // If older store-based helper exists, keep it in sync too
+            // Build UI-ready nozzle objects for calc screen
+            const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                ? DEPT_NOZZLE_LIBRARY
+                    .filter(n => selectedIds.includes(String(n.id)))
+                    .map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                : [];
+
+            // Update the global Dept UI nozzle list used by calc view
             try {
-                if (typ  }
+                if (typeof setDeptUiNozzles === "function") {
+                    setDeptUiNozzles(uiList);
+                }
+            } catch (e) {
+                console.warn("setDeptUiNozzles failed", e);
+            }
+
+            // Keep legacy store-based helper in sync if present
+            try {
+                if (typeof setSelectedNozzles === "function") {
+                    setSelectedNozzles(selectedIds);
+                }
             } catch (e) {
                 console.warn("setSelectedNozzles failed", e);
             }
@@ -238,64 +261,17 @@ function setupSaveButtons() {
                     nozzles: allNozzleIds
                 });
 
-                // Keep legacy store-based helper in sync if present
-                if (typeof setSelectedNozzles === "function") {
-                    setSelectedNozzles(allNozzleIds);
+                // Build full UI nozzle list
+                const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                    : [];
+
+                if (typeof setDeptUiNozzles === "function") {
+                    setDeptUiNozzles(uiList);
                 }
-
-                // Re-render UI selections
-                renderHoseSelector();
-                renderNozzleSelector();
-
-                alert("Department defaults restored.");
-            } catch (e) {
-                console.warn("Restore defaults failed", e);
-            }
-        };
-    }
-}
-
-
-
-    if (saveNozzlesBtn) {
-        saveNozzlesBtn.onclick = () => {
-            const selections = qsa(".dept-nozzle-check")
-                .filter(el => el.checked)
-                .map(el => el.value);
-
-            // Persist to shared department config used by presets / calc
-            saveDeptConfig({ nozzles: selections });
-
-            // If older store-based helper exists, keep it in sync too
-            try {
-                if (typ  }
-            } catch (e) {
-                console.warn("setSelectedNozzles failed", e);
-            }
-
-            alert("Department nozzle selection saved!");
-        };
-    }
-
-    if (restoreDefaultsBtn) {
-        restoreDefaultsBtn.onclick = () => {
-            try {
-                // Hoses: default = all department hoses
-                const allHoseIds = Array.isArray(store.deptHoses)
-                    ? store.deptHoses.map(h => h.id)
-                    : [];
-
-                setSelectedHoses(allHoseIds);
-
-                // Nozzles: default = all entries from DEPT_NOZZLE_LIBRARY
-                const allNozzleIds = Array.isArray(DEPT_NOZZLE_LIBRARY)
-                    ? DEPT_NOZZLE_LIBRARY.map(n => n.id)
-                    : [];
-
-                // Save into shared dept config used by presets/calc
-                saveDeptConfig({
-                    nozzles: allNozzleIds
-                });
 
                 // Keep legacy store-based helper in sync if present
                 if (typeof setSelectedNozzles === "function") {
@@ -313,16 +289,6 @@ function setupSaveButtons() {
         };
     }
 }
-
-  }
-            } catch (e) {
-                console.warn("setSelectedNozzles failed", e);
-            }
-
-            alert("Department nozzle selection saved!");
-        };
-    }
-
 // ===========================================================
 //              LINE DEFAULTS (Line 1, 2, 3)
 // ===========================================================
