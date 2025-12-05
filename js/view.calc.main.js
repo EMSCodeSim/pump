@@ -88,7 +88,8 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptNozzles } from './store.js';
+// Dept UI nozzle list now read via loadDeptForBuilders()
+
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -981,12 +982,24 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Prefer the same nozzle list the Department Setup UI is using.
-    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
+    // Build the nozzle list used by the tip editor and plus-menus.
+    // Source of truth:
+    //   1) Department wizard selections (via loadDeptForBuilders().nozzlesAll)
+    //   2) If none saved yet, fall back to the full NOZ_LIST library.
+    let nozzles = [];
 
-    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
-    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
-    // and finally to NOZ_LIST so the menu is never empty.
+    try {
+      const dept = (typeof loadDeptForBuilders === 'function')
+        ? loadDeptForBuilders()
+        : null;
+      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+        nozzles = dept.nozzlesAll;
+      }
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+    }
+
+    // If nothing is configured yet, fall back to full catalog + custom nozzles.
     if (!nozzles || !nozzles.length) {
       try {
         const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
@@ -2707,31 +2720,10 @@ function initPlusMenus(root){
   const teNozB = root.querySelector('#teNozB');
 
   if (teNoz || teNozA || teNozB) {
-    let list = [];
-
-    // Prefer department's selected nozzle list via getDeptNozzles(),
-    // fall back to NOZ_LIST so the menu is never empty.
-    try {
-      if (typeof getDeptNozzles === 'function') {
-        const fromDept = getDeptNozzles() || [];
-        if (Array.isArray(fromDept) && fromDept.length) {
-          list = fromDept.slice();
-        }
-      }
-    } catch (e) {
-      console.warn('Plus-menu: getDeptNozzles failed, falling back to NOZ_LIST', e);
-    }
-
-    if (!Array.isArray(list) || !list.length) {
-      list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
-    }
-
-    const optionsHtml = list.map(n => {
-      if (!n) return '';
-      const label = n.label || n.name || n.desc || n.id || 'Nozzle';
-      const val   = n.id || label;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
+    // Reuse the same HTML builder as the main tip editor so that
+    // plus-menus and the editor always see the exact same nozzle list.
+    const optionsHtml = buildNozzleOptionsHTML();
+    if (!optionsHtml) return;
 
     if (teNoz)  teNoz.innerHTML  = optionsHtml;
     if (teNozA) teNozA.innerHTML = optionsHtml;
@@ -2776,29 +2768,30 @@ function initBranchPlusMenus(root){
   }
 
   function fillNozzles(sel){
-  if (!sel || !Array.isArray(NOZ_LIST)) return;
+  if (!sel) return;
 
-  // Start from full nozzle library
-  let nozList = NOZ_LIST.slice();
+  let nozList = [];
 
-  // Try to filter by department-selected nozzles, if available
+  // Prefer Department wizard / Dept Setup selections via loadDeptForBuilders()
   try {
-    if (typeof getDeptNozzleIds === 'function') {
-      const ids = getDeptNozzleIds() || [];
-      if (Array.isArray(ids) && ids.length) {
-        const allowed = new Set(ids.map(id => String(id)));
-        const filtered = nozList.filter(n => n && allowed.has(String(n.id)));
-        if (filtered.length) {
-          nozList = filtered;
-        }
-      }
+    const dept = (typeof loadDeptForBuilders === 'function')
+      ? loadDeptForBuilders()
+      : null;
+    if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+      nozList = dept.nozzlesAll;
     }
-  } catch (_e) {
-    // Non-fatal: if anything goes wrong, just fall back to the full list
+  } catch (e) {
+    console.warn('fillNozzles: loadDeptForBuilders failed, falling back to NOZ_LIST', e);
+  }
+
+  // If nothing configured yet, fall back to the full catalog
+  if (!Array.isArray(nozList) || !nozList.length) {
+    nozList = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
   }
 
   sel.innerHTML = nozList.map(n => {
-    const label = n.name || n.desc || n.id || 'Nozzle';
+    if (!n) return '';
+    const label = n.name || n.label || n.desc || n.id || 'Nozzle';
     const val = n.id ?? label;
     return `<option value="${val}">${label}</option>`;
   }).join('');
