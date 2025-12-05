@@ -14,10 +14,37 @@ import {
     setLineDefaults,
     getLineDefaults
 } from "./store.js";
+import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
+
 
 // ------- DOM Helpers -------
 function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
+
+
+const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+
+function loadDeptConfig() {
+    try {
+        const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (e) {
+        console.warn("Dept config load failed", e);
+        return {};
+    }
+}
+
+function saveDeptConfig(update) {
+    try {
+        const current = loadDeptConfig();
+        const merged = Object.assign({}, current || {}, update || {});
+        localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(merged));
+    } catch (e) {
+        console.warn("Dept config save failed", e);
+    }
+}
 
 // ------- Render Existing Lists -------
 function renderHoseSelector() {
@@ -38,7 +65,14 @@ function renderHoseSelector() {
 
 function renderNozzleSelector() {
     const wrapper = qs("#dept-nozzle-list");
-    const nozzles = store.deptNozzles;
+    if (!wrapper) return;
+
+    const dept = loadDeptConfig();
+    const selectedIds = new Set(
+        Array.isArray(dept.nozzles) ? dept.nozzles.map(String) : []
+    );
+
+    const nozzles = DEPT_NOZZLE_LIBRARY;
 
     wrapper.innerHTML = nozzles.map(n => `
         <label class="dept-item">
@@ -46,11 +80,12 @@ function renderNozzleSelector() {
                 type="checkbox" 
                 class="dept-nozzle-check" 
                 value="${n.id}" 
-                ${store.deptSelectedNozzles.includes(n.id) ? "checked" : ""} >
+                ${selectedIds.has(String(n.id)) ? "checked" : ""} >
             ${n.label}
         </label>
     `).join("");
 }
+
 
 // ===========================================================
 //                ADD CUSTOM HOSE
@@ -146,11 +181,21 @@ function setupSaveButtons() {
                 .filter(el => el.checked)
                 .map(el => el.value);
 
-            setSelectedNozzles(selections);
+            // Persist to shared department config used by presets / calc
+            saveDeptConfig({ nozzles: selections });
+
+            // If older store-based helper exists, keep it in sync too
+            try {
+                if (typeof setSelectedNozzles === "function") {
+                    setSelectedNozzles(selections);
+                }
+            } catch (e) {
+                console.warn("setSelectedNozzles failed", e);
+            }
+
             alert("Department nozzle selection saved!");
         };
     }
-}
 
 // ===========================================================
 //              LINE DEFAULTS (Line 1, 2, 3)
