@@ -88,6 +88,7 @@ if (typeof window !== 'undefined') {
 }
 
 
+import { DEPT_UI_NOZZLES } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -982,24 +983,42 @@ function updateSegSwitchVisibility(){
   function buildNozzleOptionsHTML() {
     let nozzles = [];
 
+    // 1) Preferred: DEPT_UI_NOZZLES from Department Setup UI (exact selected list)
     try {
-      const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
-        ? loadDeptForBuilders()
-        : null;
-      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-        nozzles = dept.nozzlesAll;
+      if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+        nozzles = DEPT_UI_NOZZLES.slice();
       }
     } catch (err) {
-      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+      console.warn('buildNozzleOptionsHTML: DEPT_UI_NOZZLES not available', err);
     }
 
-    // Fallback: if for some reason dept.nozzlesAll is empty,
-    // show the full nozzle library from NOZ_LIST.
+    // 2) If DEPT_UI_NOZZLES empty, use dept.nozzlesAll (same effective list logic)
+    if (!nozzles || !nozzles.length) {
+      try {
+        const dept = (typeof loadDeptForBuilders === 'function')
+          ? loadDeptForBuilders()
+          : null;
+        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+          nozzles = dept.nozzlesAll.slice();
+        }
+      } catch (err) {
+        console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+      }
+    }
+
+    // 3) Final fallback: full catalog (NOZ_LIST + customs) so menu is never empty
     if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-      nozzles = NOZ_LIST.map(n => ({
-        id: n.id,
-        label: n.label || n.name || n.desc || n.id
-      }));
+      nozzles = NOZ_LIST.slice();
+      try {
+        if (typeof getDeptCustomNozzlesForCalc === 'function') {
+          const customs = getDeptCustomNozzlesForCalc() || [];
+          if (Array.isArray(customs) && customs.length) {
+            nozzles = nozzles.concat(customs);
+          }
+        }
+      } catch (err) {
+        console.warn('buildNozzleOptionsHTML: fallback custom nozzles failed', err);
+      }
     }
 
     if (!nozzles || !nozzles.length) {
@@ -1010,11 +1029,12 @@ function updateSegSwitchVisibility(){
       .map(n => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : '';
-        const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
         return `<option value="${id}">${label}</option>`;
       })
       .join('');
+  }
   }
 
   function refreshNozzleSelectOptions() {
@@ -2685,20 +2705,35 @@ function initPlusMenus(root){
   const teNozA = root.querySelector('#teNozA');
   const teNozB = root.querySelector('#teNozB');
 
-  // Populate nozzle selects using the same effective list as Department Setup.
+  // Populate nozzle selects using the same effective list as Department Setup,
+  // preferring DEPT_UI_NOZZLES and falling back to dept.nozzlesAll / NOZ_LIST.
   function buildNozzleOptionsHTMLFromDept() {
     let nozzles = [];
 
+    // 1) Preferred: DEPT_UI_NOZZLES (exact UI list from Department Setup)
     try {
-      const dept = loadDeptForBuilders && loadDeptForBuilders();
-      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-        nozzles = dept.nozzlesAll;
+      if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+        nozzles = DEPT_UI_NOZZLES.slice();
       }
     } catch (e) {
-      console.warn('Nozzle options: loadDeptForBuilders failed, falling back to NOZ_LIST', e);
+      console.warn('Plus-menu nozzles: DEPT_UI_NOZZLES not available', e);
     }
 
-    // Fallback: if dept.nozzlesAll is empty, fall back to full catalog
+    // 2) If empty, use dept.nozzlesAll
+    if (!nozzles || !nozzles.length) {
+      try {
+        const dept = (typeof loadDeptForBuilders === 'function')
+          ? loadDeptForBuilders()
+          : null;
+        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+          nozzles = dept.nozzlesAll.slice();
+        }
+      } catch (e) {
+        console.warn('Plus-menu nozzles: loadDeptForBuilders failed, falling back to NOZ_LIST', e);
+      }
+    }
+
+    // 3) Final fallback: full catalog (NOZ_LIST + customs)
     if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
       nozzles = NOZ_LIST.slice();
       try {
@@ -2709,7 +2744,7 @@ function initPlusMenus(root){
           }
         }
       } catch (e) {
-        console.warn('Nozzle options: fallback custom nozzles failed', e);
+        console.warn('Plus-menu nozzles: fallback custom nozzles failed', e);
       }
     }
 
@@ -2719,7 +2754,7 @@ function initPlusMenus(root){
       if (!n) return '';
       const id = n.id != null ? String(n.id) : '';
       if (!id) return '';
-      const label = n.label || n.name || n.desc || id;
+      const label = n.label || n.name || n.desc || id || 'Nozzle';
       return `<option value="${id}">${label}</option>`;
     }).join('');
   }
@@ -2737,7 +2772,6 @@ function initPlusMenus(root){
       }
     });
   }
-
   if (teNoz || teNozA || teNozB) {
     refreshNozzleSelectOptions();
   }
