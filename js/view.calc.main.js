@@ -88,7 +88,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptNozzles } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -981,44 +981,59 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Prefer the same nozzle list the Department Setup UI is using.
-    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
+    // Prefer the Department-selected nozzle list via store.getDeptNozzles(),
+    // so the visual markup stays the same but the contents are filtered.
+    let nozzles = [];
 
-    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
-    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
-    // and finally to NOZ_LIST so the menu is never empty.
-    if (!nozzles || !nozzles.length) {
-      try {
-        const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
-          ? loadDeptForBuilders()
-          : null;
-        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-          nozzles = dept.nozzlesAll;
+    try {
+      if (typeof getDeptNozzles === 'function') {
+        const fromStore = getDeptNozzles() || [];
+        if (Array.isArray(fromStore) && fromStore.length) {
+          nozzles = fromStore;
         }
-      } catch (err) {
-        console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
       }
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: getDeptNozzles failed, falling back to DEPT_UI_NOZZLES / dept.nozzlesAll', err);
+    }
 
-      if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-        nozzles = NOZ_LIST.slice();
-
+    // If store-based list is empty, fall back to prior behavior using DEPT_UI_NOZZLES / dept.nozzlesAll / NOZ_LIST.
+    if (!nozzles || !nozzles.length) {
+      // Prefer the same nozzle list the Department Setup UI is using.
+      if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+        nozzles = DEPT_UI_NOZZLES.slice();
+      } else {
         try {
-          const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
-            ? getDeptCustomNozzlesForCalc() || []
-            : [];
-          if (Array.isArray(custom) && custom.length) {
-            const seen = new Set(nozzles.map(n => String(n.id)));
-            custom.forEach(n => {
-              if (!n || n.id == null) return;
-              const id = String(n.id);
-              if (!seen.has(id)) {
-                seen.add(id);
-                nozzles.push(n);
-              }
-            });
+          const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
+            ? loadDeptForBuilders()
+            : null;
+          if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+            nozzles = dept.nozzlesAll;
           }
         } catch (err) {
-          console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+          console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+        }
+
+        if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+          nozzles = NOZ_LIST.slice();
+
+          try {
+            const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
+              ? getDeptCustomNozzlesForCalc() || []
+              : [];
+            if (Array.isArray(custom) && custom.length) {
+              const seen = new Set(nozzles.map(n => String(n.id)));
+              custom.forEach(n => {
+                if (!n || n.id == null) return;
+                const id = String(n.id);
+                if (!seen.has(id)) {
+                  seen.add(id);
+                  nozzles.push(n);
+                }
+              });
+            }
+          } catch (err) {
+            console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+          }
         }
       }
     }
