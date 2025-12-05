@@ -1035,7 +1035,6 @@ function updateSegSwitchVisibility(){
       })
       .join('');
   }
-  }
 
   function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
@@ -2621,7 +2620,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         }
       } catch(_){}
     } catch(_){}
-
+}
 
 export default { render };
 
