@@ -980,83 +980,59 @@ function updateSegSwitchVisibility(){
    *   - If none are picked, full library appears.
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
-  function function buildNozzleOptionsHTML() {
-    // Build the nozzle <option> list for the calc UI.
-    // Priority:
-    //   1) DEPT_UI_NOZZLES (explicit subset from Department Setup UI)
-    //   2) Dept config saved in localStorage (fireops_dept_equipment_v1.nozzles)
-    //   3) Full NOZ_LIST catalog (safe fallback)
-    let list = [];
+  function buildNozzleOptionsHTML() {
+    // Prefer the same nozzle list the Department Setup UI is using.
+    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
 
-    // 1) If Department Setup UI has populated the shared nozzle list,
-    //    use that directly. These are simple { id, label } objects and
-    //    already represent only the user-selected nozzles.
-    if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-      list = DEPT_UI_NOZZLES
-        .map((n, idx) => {
-          if (!n) return null;
-          const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
-          const id = rawId != null ? String(rawId) : String(idx);
-          const label = n.label || n.name || id;
-          return { id, label };
-        })
-        .filter(Boolean);
-    }
-
-    // 2) If UI list is empty, fall back to Dept config saved in localStorage.
-    if (!list.length) {
-      let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
-      let selectedIds = [];
+    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
+    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
+    // and finally to NOZ_LIST so the menu is never empty.
+    if (!nozzles || !nozzles.length) {
       try {
-        if (typeof localStorage !== 'undefined') {
-          const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed && Array.isArray(parsed.nozzles) && parsed.nozzles.length) {
-              selectedIds = parsed.nozzles.map(id => String(id));
-            }
-          }
+        const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
+          ? loadDeptForBuilders()
+          : null;
+        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+          nozzles = dept.nozzlesAll;
         }
       } catch (err) {
-        console.warn('buildNozzleOptionsHTML: failed to read dept config from localStorage', err);
+        console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
       }
 
-      if (selectedIds.length && allNozzles.length) {
-        const allowed = new Set(selectedIds);
-        list = allNozzles
-          .filter((n, idx) => {
-            if (!n) return false;
-            const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
-            const id = rawId != null ? String(rawId) : String(idx);
-            return allowed.has(id);
-          })
-          .map((n, idx) => {
-            const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
-            const id = rawId != null ? String(rawId) : String(idx);
-            const label = n.label || n.name || id;
-            return { id, label };
-          });
-      } else {
-        // No dept selection saved; show full catalog to avoid an empty menu.
-        list = allNozzles.map((n, idx) => {
-          if (!n) return null;
-          const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
-          const id = rawId != null ? String(rawId) : String(idx);
-          const label = n.label || n.name || id;
-          return { id, label };
-        }).filter(Boolean);
+      if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+        nozzles = NOZ_LIST.slice();
+
+        try {
+          const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
+            ? getDeptCustomNozzlesForCalc() || []
+            : [];
+          if (Array.isArray(custom) && custom.length) {
+            const seen = new Set(nozzles.map(n => String(n.id)));
+            custom.forEach(n => {
+              if (!n || n.id == null) return;
+              const id = String(n.id);
+              if (!seen.has(id)) {
+                seen.add(id);
+                nozzles.push(n);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+        }
       }
     }
 
-    if (!list.length) {
-      return '<option value="">No Options</option>';
+    if (!nozzles || !nozzles.length) {
+      return '';
     }
 
-    return list
-      .map((n, idx) => {
+    return nozzles
+      .map(n => {
         if (!n) return '';
-        const id = n.id != null ? String(n.id) : String(idx);
-        const label = n.label || 'Nozzle';
+        const id = n.id != null ? String(n.id) : '';
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
+        if (!id) return '';
         return `<option value="${id}">${label}</option>`;
       })
       .join('');
