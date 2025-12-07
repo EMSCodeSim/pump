@@ -981,54 +981,41 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    let nozzles = [];
-
-    // Primary: use the same UI nozzle list that all line editors see
-    // via deptState (respects Department Setup selections and customs).
+    // Always try dept UI nozzles first; if empty, fall back to full catalog.
     try {
-      if (typeof getUiNozzles === 'function') {
-        const uiNozzles = getUiNozzles() || [];
-        if (Array.isArray(uiNozzles) && uiNozzles.length) {
-          nozzles = uiNozzles;
-        }
+      if (typeof DEPT_UI_NOZZLES !== 'undefined' && Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+        return DEPT_UI_NOZZLES
+          .map(n => {
+            if (!n) return '';
+            const id = n.id != null ? String(n.id) : '';
+            const label = n.label || n.name || n.desc || id || 'Nozzle';
+            if (!id) return '';
+            return `<option value="${id}">${label}</option>`;
+          })
+          .join('');
       }
-    } catch (err) {
-      console.warn('buildNozzleOptionsHTML: getUiNozzles failed, falling back to DEPT_UI_NOZZLES', err);
+    } catch (e) {
+      console.warn('buildNozzleOptionsHTML: DEPT_UI_NOZZLES lookup failed', e);
     }
 
-    // Secondary: fall back to DEPT_UI_NOZZLES from store.js
-    if ((!nozzles || !nozzles.length) && Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-      nozzles = DEPT_UI_NOZZLES;
-    }
-
-    // Tertiary: brand‑new user with no dept config yet → fall back to NOZ_LIST
-    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-      let hasDeptConfig = false;
-      try {
-        if (typeof localStorage !== 'undefined') {
-          hasDeptConfig = !!localStorage.getItem(STORAGE_DEPT_KEY);
-        }
-      } catch (e) {
-        // ignore storage errors; we'll just skip the fallback
+    // Fallback: use full NOZ_LIST catalog so the menu is never empty.
+    try {
+      if (typeof NOZ_LIST !== 'undefined' && Array.isArray(NOZ_LIST) && NOZ_LIST.length) {
+        return NOZ_LIST
+          .map(n => {
+            if (!n) return '';
+            const id = n.id != null ? String(n.id) : '';
+            const label = n.label || n.name || n.desc || id || 'Nozzle';
+            if (!id) return '';
+            return `<option value="${id}">${label}</option>`;
+          })
+          .join('');
       }
-      if (!hasDeptConfig) {
-        nozzles = NOZ_LIST.slice();
-      }
+    } catch (e) {
+      console.warn('buildNozzleOptionsHTML: NOZ_LIST fallback failed', e);
     }
 
-    if (!nozzles || !nozzles.length) {
-      return '';
-    }
-
-    return nozzles
-      .map(n => {
-        if (!n) return '';
-        const id = n.id != null ? String(n.id) : '';
-        const label = n.label || n.name || n.desc || id || 'Nozzle';
-        if (!id) return '';
-        return `<option value="${id}">${label}</option>`;
-      })
-      .join('');
+    return '';
   }
 
 function refreshNozzleSelectOptions() {
