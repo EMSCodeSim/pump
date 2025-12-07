@@ -1970,6 +1970,7 @@ export function getDeptNozzleIds() {
     const result = [];
     const seen = new Set();
 
+    // 1) Built-in department nozzles (checkbox list)
     if (Array.isArray(dept.nozzles)) {
       dept.nozzles.forEach(raw => {
         if (raw == null) return;
@@ -1994,6 +1995,21 @@ export function getDeptNozzleIds() {
         if (mapped && !seen.has(mapped)) {
           seen.add(mapped);
           result.push(mapped);
+        }
+      });
+    }
+
+    // 2) Custom nozzles – treat every custom defined in Department Setup
+    //    as "selected" so they show up in calc + line editors.
+    if (Array.isArray(dept.customNozzles)) {
+      dept.customNozzles.forEach((n, idx) => {
+        if (!n || typeof n !== 'object') return;
+        const id = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
+        const trimmedId = String(id).trim();
+        if (!trimmedId) return;
+        if (!seen.has(trimmedId)) {
+          seen.add(trimmedId);
+          result.push(trimmedId);
         }
       });
     }
