@@ -981,13 +981,10 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Build nozzle <option> list for calc UI directly from the Department
-    // Setup configuration saved in localStorage. This keeps the calc screen
-    // in sync with the user-selected nozzles, independent of any in-memory
-    // globals like DEPT_UI_NOZZLES.
-
-    // 1) Start from the full catalog (NOZ_LIST) plus any custom nozzles,
-    //    so we have a master list we can filter by ID.
+    // Build nozzle <option> list for the calc UI directly from the
+    // Department Setup configuration saved in localStorage. This keeps
+    // the calc screen in sync with the user-selected nozzles.
+    // 1) Start from the full catalog (NOZ_LIST) plus any custom nozzles.
     let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
 
     try {
@@ -1009,8 +1006,7 @@ function updateSegSwitchVisibility(){
       console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
     }
 
-    // 2) Read the saved Department Setup config from localStorage and get
-    //    the list of selected nozzle IDs (dept.nozzles).
+    // 2) Read the saved Department Setup config from localStorage.
     let selectedIds = [];
     try {
       if (typeof localStorage !== 'undefined') {
@@ -1027,8 +1023,8 @@ function updateSegSwitchVisibility(){
     }
 
     // 3) If we have selected nozzle IDs from Department Setup, filter the
-    //    master list down to those IDs. Otherwise, fall back to showing the
-    //    full catalog for first-time users.
+    // master list down to those IDs. Otherwise, fall back to showing the
+    // full catalog (for first-time users with no config yet).
     let list = allNozzles;
     if (selectedIds.length) {
       const allowed = new Set(selectedIds);
@@ -1039,11 +1035,11 @@ function updateSegSwitchVisibility(){
       return '';
     }
 
-    rreturn list
+    return list
       .map((n, idx) => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
-        const label = n.label || n.name || String(id);
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
         return `<option value="${id}">${label}</option>`;
       })
