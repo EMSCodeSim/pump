@@ -980,101 +980,70 @@ function updateSegSwitchVisibility(){
    *   - If none are picked, full library appears.
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
-  
-// Helper: build a department-aware nozzle list using the same pipeline
-// as view.lineStandard (DEPT_UI_NOZZLES -> dept.nozzlesAll -> dept.nozzles -> NOZ_LIST).
-function getNozzleListFromDeptForCalc(dept) {
-  let baseRaw;
+  function buildNozzleOptionsHTML() {
+    // Build nozzle <option> list for calc UI directly from the Department
+    // Setup configuration saved in localStorage. This keeps the calc screen
+    // in sync with the user-selected nozzles, independent of any in-memory
+    // globals like DEPT_UI_NOZZLES.
 
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    baseRaw = DEPT_UI_NOZZLES;
-  } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-    baseRaw = dept.nozzlesAll;
-  } else if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
-    baseRaw = dept.nozzles;
-  } else if (Array.isArray(NOZ_LIST)) {
-    baseRaw = NOZ_LIST;
-  } else {
-    baseRaw = [];
-  }
-
-  if (!Array.isArray(baseRaw) || !baseRaw.length) {
-    return [];
-  }
-
-  // Normalize to simple { id, label } objects for calc dropdown.
-  const mapped = baseRaw.map((n, idx) => {
-    if (!n) return null;
-
-    if (typeof n === 'string' || typeof n === 'number') {
-      const id = String(n);
-      return { id, label: id };
-    }
-
-    const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
-    const label = n.label || n.name || String(id);
-    return { id, label };
-  }).filter(Boolean);
-
-  return mapped;
-}
-
-function buildNozzleOptionsHTML() {
-    // Build nozzle <option> list for calc UI using the same department-aware
-    // pipeline as view.lineStandard: DEPT_UI_NOZZLES -> dept.nozzlesAll ->
-    // dept.nozzles -> NOZ_LIST.
-    let nozzles = [];
+    // 1) Start from the full catalog (NOZ_LIST) plus any custom nozzles,
+    //    so we have a master list we can filter by ID.
+    let allNozzles = Array.isArray(NOZ_LIST) ? NOZ_LIST.slice() : [];
 
     try {
-      if (typeof loadDeptForBuilders === 'function') {
-        const dept = loadDeptForBuilders();
-        nozzles = getNozzleListFromDeptForCalc(dept);
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        const custom = getDeptCustomNozzlesForCalc() || [];
+        if (Array.isArray(custom) && custom.length) {
+          const seen = new Set(allNozzles.map(n => String(n.id)));
+          custom.forEach(n => {
+            if (!n || n.id == null) return;
+            const id = String(n.id);
+            if (!seen.has(id)) {
+              seen.add(id);
+              allNozzles.push(n);
+            }
+          });
+        }
       }
     } catch (err) {
-      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+      console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
     }
 
-    // Ultimate fallback: full catalog (including customs) so first-time users
-    // still see a complete list if nothing is configured yet.
-    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-      let list = NOZ_LIST.slice();
-
-      try {
-        if (typeof getDeptCustomNozzlesForCalc === 'function') {
-          const custom = getDeptCustomNozzlesForCalc() || [];
-          if (Array.isArray(custom) && custom.length) {
-            const seen = new Set(list.map(n => String(n.id)));
-            custom.forEach(n => {
-              if (!n || n.id == null) return;
-              const id = String(n.id);
-              if (!seen.has(id)) {
-                seen.add(id);
-                list.push(n);
-              }
-            });
+    // 2) Read the saved Department Setup config from localStorage and get
+    //    the list of selected nozzle IDs (dept.nozzles).
+    let selectedIds = [];
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.nozzles) && parsed.nozzles.length) {
+            selectedIds = parsed.nozzles.map(id => String(id));
           }
         }
-      } catch (err) {
-        console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
       }
-
-      nozzles = list.map((n, idx) => {
-        if (!n) return null;
-        const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
-        const label = n.label || n.name || String(id);
-        return { id, label };
-      }).filter(Boolean);
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: failed to read dept config from localStorage', err);
     }
 
-    if (!nozzles || !nozzles.length) {
+    // 3) If we have selected nozzle IDs from Department Setup, filter the
+    //    master list down to those IDs. Otherwise, fall back to showing the
+    //    full catalog for first-time users.
+    let list = allNozzles;
+    if (selectedIds.length) {
+      const allowed = new Set(selectedIds);
+      list = allNozzles.filter(n => n && allowed.has(String(n.id)));
+    }
+
+    if (!list || !list.length) {
       return '';
     }
 
-    return nozzles
-      .map(n => {
+    return list
+      .map((n, idx) => {
         if (!n) return '';
-        const id = n.id != null ? String(n.id) : '';
-        const label = n.label || 'Nozzle';
+        const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+        const label = n.label || n.name || String(id);
         if (!id) return '';
         return `<option value="${id}">${label}</option>`;
       })
