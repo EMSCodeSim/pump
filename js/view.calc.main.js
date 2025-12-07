@@ -580,35 +580,12 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const allNozzles = Object.values(nozzleMap);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
-    // If Department Setup refers to nozzle ids that are not yet in nozzleMap
-    // (for example, ChiefXD tips that exist in NOZ but were omitted from NOZ_LIST),
-    // pull them in from NOZ so they still appear in the UI.
     let selectedNozzleIds = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
-        const idsRaw = getDeptNozzleIds() || [];
-        if (Array.isArray(idsRaw) && idsRaw.length) {
-          const ids = idsRaw.map(id => String(id));
-          ids.forEach(id => {
-            if (!nozzleMap[id] && NOZ && NOZ[id]) {
-              const src = NOZ[id];
-              if (src) {
-                let gpm = 0;
-                let np  = 0;
-                if (typeof src.gpm === 'number') gpm = src.gpm;
-                if (!gpm && typeof src.GPM === 'number') gpm = src.GPM;
-                if (typeof src.np === 'number')  np  = src.np;
-                if (!np && typeof src.NP === 'number')  np  = src.NP;
-                nozzleMap[id] = {
-                  id,
-                  label: src.label || src.name || id,
-                  gpm,
-                  np
-                };
-              }
-            }
-          });
-          selectedNozzleIds = ids.filter(id => nozzleMap[id]);
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
         }
       }
     } catch (e) {
@@ -2815,8 +2792,8 @@ function initPlusMenus(root){
       if (typeof getDeptNozzleIds === 'function') {
         const ids = getDeptNozzleIds() || [];
         if (Array.isArray(ids) && ids.length) {
-          const allowed = new Set(ids);
-          const filtered = list.filter(n => n && allowed.has(n.id));
+          const allowed = new Set(ids.map(id => String(id)));
+          const filtered = list.filter(n => n && allowed.has(String(n.id)));
           if (filtered.length) {
             list = filtered;
           }
@@ -2826,10 +2803,32 @@ function initPlusMenus(root){
       console.warn('Dept nozzle filter failed', e);
     }
 
+    // Overlay labels from deptState's UI list so ChiefXD tips keep their Department label
+    let uiById = null;
+    try {
+      if (typeof getUiNozzles === 'function') {
+        const uiNozzles = getUiNozzles() || [];
+        if (Array.isArray(uiNozzles) && uiNozzles.length) {
+          uiById = new Map(
+            uiNozzles
+              .filter(n => n && n.id != null)
+              .map(n => [String(n.id), n])
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('deptState getUiNozzles failed', e);
+    }
+
     const optionsHtml = list.map(n => {
       if (!n) return '';
-      const label = n.label || n.name || n.desc || n.id || 'Nozzle';
-      const val   = n.id || label;
+      const id = n.id != null ? String(n.id) : '';
+      if (!id) return '';
+      const fromUi = uiById && uiById.get(id);
+      const label =
+        (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
+        n.label || n.name || n.desc || id || 'Nozzle';
+      const val = id;
       return `<option value="${val}">${label}</option>`;
     }).join('');
 
@@ -2837,6 +2836,7 @@ function initPlusMenus(root){
     if (teNozA) teNozA.innerHTML = optionsHtml;
     if (teNozB) teNozB.innerHTML = optionsHtml;
   }
+
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
