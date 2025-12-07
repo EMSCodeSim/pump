@@ -97,7 +97,7 @@ import {
   getDeptLineDefaults,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import { setDeptEquipment, setDeptSelections } from './deptState.js';
+import { setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
 import './view.calc.enhance.js';
 
 /*                                Main render                                 */
@@ -981,45 +981,38 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Prefer the same nozzle list the Department Setup UI is using.
-    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
+    let nozzles = [];
 
-    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
-    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
-    // and finally to NOZ_LIST so the menu is never empty.
-    if (!nozzles || !nozzles.length) {
-      try {
-        const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
-          ? loadDeptForBuilders()
-          : null;
-        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-          nozzles = dept.nozzlesAll;
+    // Primary: use the same UI nozzle list that all line editors see
+    // via deptState (respects Department Setup selections and customs).
+    try {
+      if (typeof getUiNozzles === 'function') {
+        const uiNozzles = getUiNozzles() || [];
+        if (Array.isArray(uiNozzles) && uiNozzles.length) {
+          nozzles = uiNozzles;
         }
-      } catch (err) {
-        console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
       }
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: getUiNozzles failed, falling back to DEPT_UI_NOZZLES', err);
+    }
 
-      if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-        nozzles = NOZ_LIST.slice();
+    // Secondary: fall back to DEPT_UI_NOZZLES from store.js
+    if ((!nozzles || !nozzles.length) && Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+      nozzles = DEPT_UI_NOZZLES;
+    }
 
-        try {
-          const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
-            ? getDeptCustomNozzlesForCalc() || []
-            : [];
-          if (Array.isArray(custom) && custom.length) {
-            const seen = new Set(nozzles.map(n => String(n.id)));
-            custom.forEach(n => {
-              if (!n || n.id == null) return;
-              const id = String(n.id);
-              if (!seen.has(id)) {
-                seen.add(id);
-                nozzles.push(n);
-              }
-            });
-          }
-        } catch (err) {
-          console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
+    // Tertiary: brand‑new user with no dept config yet → fall back to NOZ_LIST
+    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+      let hasDeptConfig = false;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          hasDeptConfig = !!localStorage.getItem(STORAGE_DEPT_KEY);
         }
+      } catch (e) {
+        // ignore storage errors; we'll just skip the fallback
+      }
+      if (!hasDeptConfig) {
+        nozzles = NOZ_LIST.slice();
       }
     }
 
@@ -1038,7 +1031,7 @@ function updateSegSwitchVisibility(){
       .join('');
   }
 
-  function refreshNozzleSelectOptions() {
+function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
 
     [teNoz, teNozA, teNozB].forEach(sel => {
