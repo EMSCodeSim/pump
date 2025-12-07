@@ -580,24 +580,33 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     }
 
     const allNozzles = Object.values(nozzleMap);
-    console.log('[DeptDebug] base config loaded for builders:', base);
-    console.log('[DeptDebug] allNozzles count:', allNozzles.length);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
+    // SINGLE SOURCE: department config stored in localStorage ("nozzles" array).
     let selectedNozzleIds = [];
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        console.log('[DeptDebug] getDeptNozzleIds() returned:', ids);
-        if (Array.isArray(ids) && ids.length) {
-          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
-        }
-      }
-    } catch (e) {
-      console.warn('getDeptNozzleIds failed', e);
+
+    // 1) Prefer IDs stored by Department Setup in base.nozzles
+    if (Array.isArray(base.nozzles) && base.nozzles.length) {
+      selectedNozzleIds = base.nozzles
+        .map(id => String(id))
+        .filter(id => nozzleMap[id]);
     }
 
-    console.log('[DeptDebug] selectedNozzleIds after helper:', selectedNozzleIds);
+    // 2) If nothing from base.nozzles, fall back to legacy helper (if present)
+    if (!selectedNozzleIds.length) {
+      try {
+        if (typeof getDeptNozzleIds === 'function') {
+          const ids = getDeptNozzleIds() || [];
+          if (Array.isArray(ids) && ids.length) {
+            selectedNozzleIds = ids
+              .map(id => String(id))
+              .filter(id => nozzleMap[id]);
+          }
+        }
+      } catch (e) {
+        console.warn('getDeptNozzleIds failed', e);
+      }
+    }
 
     // If Department Setup didn't pick any nozzles,
     // selectedNozzleIds stays empty - meaning "show all".
@@ -610,12 +619,10 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       ? selectedNozzleIds.map(id => nozzleMap[id]).filter(Boolean)
       : allNozzles;
 
-    console.log('[DeptDebug] effectiveNozzles count:', effectiveNozzles.length);
-
     dept.nozzlesAll = effectiveNozzles;
 
 
-    // =========================
+// =========================
     // HOSES
     // =========================
 
@@ -975,59 +982,47 @@ function updateSegSwitchVisibility(){
 
 
   
-  // Populate nozzle selects, honoring Department Setup choices if available.
-    /**
-   * Build nozzle <option> HTML using the SAME list as Department Setup.
-   *
-   * Source of truth:
-   *   - loadDeptForBuilders() → dept.nozzlesAll
-   *     (already built from NOZ_LIST + dept custom nozzles + dept selections)
-   *
-   * Behavior:
-   *   - If Department Setup has picked specific nozzles, only those appear.
-   *   - If none are picked, full library appears.
-   *   - Custom nozzles ONLY appear if selected in Department Setup.
+  // Populate nozzle selects, honoring Depart  /**
+   * Build nozzle <option> HTML using the SAME list as Department Setup,
+   * based on the persisted department configuration in localStorage.
    */
   function buildNozzleOptionsHTML() {
-    // Prefer the same nozzle list the Department Setup UI is using.
-    let nozzles = Array.isArray(DEPT_UI_NOZZLES) ? DEPT_UI_NOZZLES : [];
+    let nozzles = [];
 
-    // If Department Setup hasn't populated DEPT_UI_NOZZLES yet,
-    // fall back to the existing dept.nozzlesAll logic (same behavior as before),
-    // and finally to NOZ_LIST so the menu is never empty.
-    if (!nozzles || !nozzles.length) {
+    // Primary source: dept.nozzlesAll from loadDeptForBuilders(),
+    // which is built from NOZ_LIST + custom nozzles + base.nozzles selection.
+    try {
+      const dept = (typeof loadDeptForBuilders === 'function')
+        ? loadDeptForBuilders()
+        : null;
+      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+        nozzles = dept.nozzlesAll;
+      }
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
+    }
+
+    // Ultimate fallback: full library (first-run / no Dept Setup saved yet).
+    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+      nozzles = NOZ_LIST.slice();
+
       try {
-        const dept = loadDeptForBuilders && typeof loadDeptForBuilders === 'function'
-          ? loadDeptForBuilders()
-          : null;
-        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-          nozzles = dept.nozzlesAll;
+        const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
+          ? getDeptCustomNozzlesForCalc() || []
+          : [];
+        if (Array.isArray(custom) && custom.length) {
+          const seen = new Set(nozzles.map(n => String(n.id)));
+          custom.forEach(n => {
+            if (!n || n.id == null) return;
+            const id = String(n.id);
+            if (!seen.has(id)) {
+              seen.add(id);
+              nozzles.push(n);
+            }
+          });
         }
       } catch (err) {
-        console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
-      }
-
-      if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-        nozzles = NOZ_LIST.slice();
-
-        try {
-          const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
-            ? getDeptCustomNozzlesForCalc() || []
-            : [];
-          if (Array.isArray(custom) && custom.length) {
-            const seen = new Set(nozzles.map(n => String(n.id)));
-            custom.forEach(n => {
-              if (!n || n.id == null) return;
-              const id = String(n.id);
-              if (!seen.has(id)) {
-                seen.add(id);
-                nozzles.push(n);
-              }
-            });
-          }
-        } catch (err) {
-          console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
-        }
+        console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
       }
     }
 
@@ -1045,6 +1040,7 @@ function updateSegSwitchVisibility(){
       })
       .join('');
   }
+
 
   function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
