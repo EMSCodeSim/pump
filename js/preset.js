@@ -1940,11 +1940,16 @@ const DEPT_NOZ_TO_CALC_NOZ = {
   "sb_1_50_210": "sb1",
   "sb_1118_50_265": "sb1_1_8",
   "sb_114_50_325": "sb1_1_4",
+
   "fog_175_75_150": "fog150_75",
   "fog_175_100_150": "fog150_100",
-  "fog_xd_175_75_150": "fog150_75",
-  "fog_xd_175_50_185": "chiefXD",
-  "fog_xd_25_50_265": "sb1_1_8",
+
+  // Chief XD fog options – map to dedicated hydraulic IDs
+  "fog_xd_175_75_150": "fog150_75",       // 150 @ 75
+  "fog_xd_175_50_165": "chiefXD165_50",   // 165 @ 50
+  "fog_xd_175_50_185": "chief185_50",     // 185 @ 50
+  "fog_xd_25_50_265":  "chiefXD265",      // 2½" 265 @ 50
+
   "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_112_600": "ms1_1_2_80",
   "ms_tip_134_800": "ms1_3_4_80",
@@ -1954,6 +1959,7 @@ const DEPT_NOZ_TO_CALC_NOZ = {
   "ms_fog_1000": "ms2_80",
   "ms_fog_1250": "ms2_80"
 };
+
 
 
 export function getDeptNozzleIds() {
