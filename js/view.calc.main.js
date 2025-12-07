@@ -981,41 +981,54 @@ function updateSegSwitchVisibility(){
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
-    // Always try dept UI nozzles first; if empty, fall back to full catalog.
+    let nozzles = [];
+
+    // Primary: use the same UI nozzle list that all line editors see
+    // via deptState (respects Department Setup selections and customs).
     try {
-      if (typeof DEPT_UI_NOZZLES !== 'undefined' && Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-        return DEPT_UI_NOZZLES
-          .map(n => {
-            if (!n) return '';
-            const id = n.id != null ? String(n.id) : '';
-            const label = n.label || n.name || n.desc || id || 'Nozzle';
-            if (!id) return '';
-            return `<option value="${id}">${label}</option>`;
-          })
-          .join('');
+      if (typeof getUiNozzles === 'function') {
+        const uiNozzles = getUiNozzles() || [];
+        if (Array.isArray(uiNozzles) && uiNozzles.length) {
+          nozzles = uiNozzles;
+        }
       }
-    } catch (e) {
-      console.warn('buildNozzleOptionsHTML: DEPT_UI_NOZZLES lookup failed', e);
+    } catch (err) {
+      console.warn('buildNozzleOptionsHTML: getUiNozzles failed, falling back to DEPT_UI_NOZZLES', err);
     }
 
-    // Fallback: use full NOZ_LIST catalog so the menu is never empty.
-    try {
-      if (typeof NOZ_LIST !== 'undefined' && Array.isArray(NOZ_LIST) && NOZ_LIST.length) {
-        return NOZ_LIST
-          .map(n => {
-            if (!n) return '';
-            const id = n.id != null ? String(n.id) : '';
-            const label = n.label || n.name || n.desc || id || 'Nozzle';
-            if (!id) return '';
-            return `<option value="${id}">${label}</option>`;
-          })
-          .join('');
-      }
-    } catch (e) {
-      console.warn('buildNozzleOptionsHTML: NOZ_LIST fallback failed', e);
+    // Secondary: fall back to DEPT_UI_NOZZLES from store.js
+    if ((!nozzles || !nozzles.length) && Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+      nozzles = DEPT_UI_NOZZLES;
     }
 
-    return '';
+    // Tertiary: brand‑new user with no dept config yet → fall back to NOZ_LIST
+    if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
+      let hasDeptConfig = false;
+      try {
+        if (typeof localStorage !== 'undefined') {
+          hasDeptConfig = !!localStorage.getItem(STORAGE_DEPT_KEY);
+        }
+      } catch (e) {
+        // ignore storage errors; we'll just skip the fallback
+      }
+      if (!hasDeptConfig) {
+        nozzles = NOZ_LIST.slice();
+      }
+    }
+
+    if (!nozzles || !nozzles.length) {
+      return '';
+    }
+
+    return nozzles
+      .map(n => {
+        if (!n) return '';
+        const id = n.id != null ? String(n.id) : '';
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
+        if (!id) return '';
+        return `<option value="${id}">${label}</option>`;
+      })
+      .join('');
   }
 
 function refreshNozzleSelectOptions() {
@@ -2686,39 +2699,39 @@ function initPlusMenus(root){
   const teNozA = root.querySelector('#teNozA');
   const teNozB = root.querySelector('#teNozB');
 
-  if ((teNoz || teNozA || teNozB)) {
-    let list = [];
+  if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
+    // Start with built-in nozzles
+    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
 
-    // Primary source: deptState UI nozzles (already trimmed to Department Setup selection)
+    // Merge in department custom nozzles if available
     try {
-      if (typeof getUiNozzles === 'function') {
-        const uiNozzles = getUiNozzles() || [];
-        if (Array.isArray(uiNozzles) && uiNozzles.length) {
-          list = uiNozzles.slice();
+      if (typeof getDeptCustomNozzlesForCalc === 'function') {
+        const customs = getDeptCustomNozzlesForCalc() || [];
+        if (Array.isArray(customs) && customs.length) {
+          list = list.concat(customs);
         }
       }
     } catch (e) {
-      console.warn('plus-menu: getUiNozzles failed', e);
+      console.warn('Dept custom nozzles load failed', e);
     }
 
-    // Fallback: if for some reason deptState is empty, fall back to NOZ_LIST + customs
-    if (!list || !list.length) {
-      try {
-        if (Array.isArray(NOZ_LIST)) {
-          list = [...NOZ_LIST];
-        }
-        if (typeof getDeptCustomNozzlesForCalc === 'function') {
-          const customs = getDeptCustomNozzlesForCalc() || [];
-          if (Array.isArray(customs) && customs.length) {
-            list = list.concat(customs);
+    // If department selected specific nozzles, filter to that set
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const allowed = new Set(ids.map(id => String(id)));
+          const filtered = list.filter(n => n && allowed.has(String(n.id)));
+          if (filtered.length) {
+            list = filtered;
           }
         }
-      } catch (e) {
-        console.warn('plus-menu: NOZ_LIST/custom fallback failed', e);
       }
+    } catch (e) {
+      console.warn('Dept nozzle filter failed', e);
     }
 
-    // Build a small map from UI list for better labels (ChiefXD, etc.)
+    // Overlay labels from deptState's UI list so ChiefXD, etc., keep their name
     let uiById = null;
     try {
       if (typeof getUiNozzles === 'function') {
@@ -2732,27 +2745,26 @@ function initPlusMenus(root){
         }
       }
     } catch (e) {
-      console.warn('plus-menu: overlay getUiNozzles failed', e);
+      console.warn('deptState getUiNozzles failed', e);
     }
 
-    const optionsHtml = (list || [])
-      .map(n => {
-        if (!n) return '';
-        const id = n.id != null ? String(n.id) : '';
-        if (!id) return '';
-        const fromUi = uiById && uiById.get(id);
-        const label =
-          (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
-          n.label || n.name || n.desc || id || 'Nozzle';
-        return `<option value="${id}">${label}</option>`;
-      })
-      .join('');
+    const optionsHtml = list.map(n => {
+      if (!n) return '';
+      const id = String(n.id);
+      const fromUi = uiById && uiById.get(id);
+
+      const label =
+        (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
+        n.label || n.name || n.desc || id || 'Nozzle';
+
+      const val = id; // keep value = internal id
+      return `<option value="\${val}">\${label}</option>`;
+    }).join('');
 
     if (teNoz)  teNoz.innerHTML  = optionsHtml;
     if (teNozA) teNozA.innerHTML = optionsHtml;
     if (teNozB) teNozB.innerHTML = optionsHtml;
   }
-
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
