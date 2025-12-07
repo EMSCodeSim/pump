@@ -1039,7 +1039,7 @@ function updateSegSwitchVisibility(){
       return '';
     }
 
-    return list
+    rreturn list
       .map((n, idx) => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
