@@ -582,7 +582,8 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const allNozzles = Object.values(nozzleMap);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
-    // SINGLE SOURCE: department config stored in localStorage ("nozzles" array).
+    // Single source of truth: dept config in localStorage ("nozzles" array),
+    // with optional legacy getDeptNozzleIds() fallback if config is missing.
     let selectedNozzleIds = [];
 
     // 1) Prefer IDs stored by Department Setup in base.nozzles
@@ -592,15 +593,13 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
         .filter(id => nozzleMap[id]);
     }
 
-    // 2) If nothing from base.nozzles, fall back to legacy helper (if present)
+    // 2) If nothing from base.nozzles, fall back to legacy helper
     if (!selectedNozzleIds.length) {
       try {
         if (typeof getDeptNozzleIds === 'function') {
           const ids = getDeptNozzleIds() || [];
           if (Array.isArray(ids) && ids.length) {
-            selectedNozzleIds = ids
-              .map(id => String(id))
-              .filter(id => nozzleMap[id]);
+            selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
           }
         }
       } catch (e) {
@@ -622,7 +621,7 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     dept.nozzlesAll = effectiveNozzles;
 
 
-// =========================
+    // =========================
     // HOSES
     // =========================
 
@@ -982,44 +981,55 @@ function updateSegSwitchVisibility(){
 
 
   
-  // Populate nozzle selects, honoring Depart  /**
-   * Build nozzle <option> HTML using the SAME list as Department Setup,
-   * based on the persisted department configuration in localStorage.
+  // Populate nozzle selects, honoring Department Setup choices if available.
+    /**
+   * Build nozzle <option> HTML using the SAME list as Department Setup.
+   *
+   * Source of truth:
+   *   - loadDeptForBuilders() → dept.nozzlesAll
+   *     (already built from NOZ_LIST + dept custom nozzles + dept selections)
+   *
+   * Behavior:
+   *   - If Department Setup has picked specific nozzles, only those appear.
+   *   - If none are picked, full library appears.
+   *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
   function buildNozzleOptionsHTML() {
+    // Build nozzle <option> list for calc UI from department config.
+    // Primary source: dept.nozzlesAll from loadDeptForBuilders(),
+    // which is derived from the saved Department Setup nozzle IDs.
     let nozzles = [];
 
-    // Primary source: dept.nozzlesAll from loadDeptForBuilders(),
-    // which is built from NOZ_LIST + custom nozzles + base.nozzles selection.
     try {
-      const dept = (typeof loadDeptForBuilders === 'function')
-        ? loadDeptForBuilders()
-        : null;
-      if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-        nozzles = dept.nozzlesAll;
+      if (typeof loadDeptForBuilders === 'function') {
+        const dept = loadDeptForBuilders();
+        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+          nozzles = dept.nozzlesAll;
+        }
       }
     } catch (err) {
       console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
     }
 
-    // Ultimate fallback: full library (first-run / no Dept Setup saved yet).
+    // Ultimate fallback: full catalog (including customs) so first-time users
+    // still see a complete list if nothing is configured yet.
     if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
       nozzles = NOZ_LIST.slice();
 
       try {
-        const custom = (typeof getDeptCustomNozzlesForCalc === 'function')
-          ? getDeptCustomNozzlesForCalc() || []
-          : [];
-        if (Array.isArray(custom) && custom.length) {
-          const seen = new Set(nozzles.map(n => String(n.id)));
-          custom.forEach(n => {
-            if (!n || n.id == null) return;
-            const id = String(n.id);
-            if (!seen.has(id)) {
-              seen.add(id);
-              nozzles.push(n);
-            }
-          });
+        if (typeof getDeptCustomNozzlesForCalc === 'function') {
+          const custom = getDeptCustomNozzlesForCalc() || [];
+          if (Array.isArray(custom) && custom.length) {
+            const seen = new Set(nozzles.map(n => String(n.id)));
+            custom.forEach(n => {
+              if (!n || n.id == null) return;
+              const id = String(n.id);
+              if (!seen.has(id)) {
+                seen.add(id);
+                nozzles.push(n);
+              }
+            });
+          }
         }
       } catch (err) {
         console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
@@ -1040,7 +1050,6 @@ function updateSegSwitchVisibility(){
       })
       .join('');
   }
-
 
   function refreshNozzleSelectOptions() {
     const nozzleOptionsHTML = buildNozzleOptionsHTML();
