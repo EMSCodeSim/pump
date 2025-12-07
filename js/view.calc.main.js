@@ -580,12 +580,35 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const allNozzles = Object.values(nozzleMap);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
+    // If Department Setup refers to nozzle ids that are not yet in nozzleMap
+    // (for example, ChiefXD tips that exist in NOZ but were omitted from NOZ_LIST),
+    // pull them in from NOZ so they still appear in the UI.
     let selectedNozzleIds = [];
     try {
       if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids) && ids.length) {
-          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
+        const idsRaw = getDeptNozzleIds() || [];
+        if (Array.isArray(idsRaw) && idsRaw.length) {
+          const ids = idsRaw.map(id => String(id));
+          ids.forEach(id => {
+            if (!nozzleMap[id] && NOZ && NOZ[id]) {
+              const src = NOZ[id];
+              if (src) {
+                let gpm = 0;
+                let np  = 0;
+                if (typeof src.gpm === 'number') gpm = src.gpm;
+                if (!gpm && typeof src.GPM === 'number') gpm = src.GPM;
+                if (typeof src.np === 'number')  np  = src.np;
+                if (!np && typeof src.NP === 'number')  np  = src.NP;
+                nozzleMap[id] = {
+                  id,
+                  label: src.label || src.name || id,
+                  gpm,
+                  np
+                };
+              }
+            }
+          });
+          selectedNozzleIds = ids.filter(id => nozzleMap[id]);
         }
       }
     } catch (e) {
