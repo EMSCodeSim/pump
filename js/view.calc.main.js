@@ -582,29 +582,16 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
     const allNozzles = Object.values(nozzleMap);
 
     // Selected nozzles = EXACTLY what Department Setup picked.
-    // Single source of truth: dept config in localStorage ("nozzles" array),
-    // with optional legacy getDeptNozzleIds() fallback if config is missing.
     let selectedNozzleIds = [];
-
-    // 1) Prefer IDs stored by Department Setup in base.nozzles
-    if (Array.isArray(base.nozzles) && base.nozzles.length) {
-      selectedNozzleIds = base.nozzles
-        .map(id => String(id))
-        .filter(id => nozzleMap[id]);
-    }
-
-    // 2) If nothing from base.nozzles, fall back to legacy helper
-    if (!selectedNozzleIds.length) {
-      try {
-        if (typeof getDeptNozzleIds === 'function') {
-          const ids = getDeptNozzleIds() || [];
-          if (Array.isArray(ids) && ids.length) {
-            selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
-          }
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          selectedNozzleIds = ids.map(id => String(id)).filter(id => nozzleMap[id]);
         }
-      } catch (e) {
-        console.warn('getDeptNozzleIds failed', e);
       }
+    } catch (e) {
+      console.warn('getDeptNozzleIds failed', e);
     }
 
     // If Department Setup didn't pick any nozzles,
@@ -619,7 +606,6 @@ try{(function(){const s=document.createElement("style");s.textContent="@media (m
       : allNozzles;
 
     dept.nozzlesAll = effectiveNozzles;
-
 
     // =========================
     // HOSES
@@ -994,18 +980,55 @@ function updateSegSwitchVisibility(){
    *   - If none are picked, full library appears.
    *   - Custom nozzles ONLY appear if selected in Department Setup.
    */
-  function buildNozzleOptionsHTML() {
-    // Build nozzle <option> list for calc UI from department config.
-    // Primary source: dept.nozzlesAll from loadDeptForBuilders(),
-    // which is derived from the saved Department Setup nozzle IDs.
+  
+// Helper: build a department-aware nozzle list using the same pipeline
+// as view.lineStandard (DEPT_UI_NOZZLES -> dept.nozzlesAll -> dept.nozzles -> NOZ_LIST).
+function getNozzleListFromDeptForCalc(dept) {
+  let baseRaw;
+
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    baseRaw = DEPT_UI_NOZZLES;
+  } else if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
+    baseRaw = dept.nozzlesAll;
+  } else if (dept && Array.isArray(dept.nozzles) && dept.nozzles.length) {
+    baseRaw = dept.nozzles;
+  } else if (Array.isArray(NOZ_LIST)) {
+    baseRaw = NOZ_LIST;
+  } else {
+    baseRaw = [];
+  }
+
+  if (!Array.isArray(baseRaw) || !baseRaw.length) {
+    return [];
+  }
+
+  // Normalize to simple { id, label } objects for calc dropdown.
+  const mapped = baseRaw.map((n, idx) => {
+    if (!n) return null;
+
+    if (typeof n === 'string' || typeof n === 'number') {
+      const id = String(n);
+      return { id, label: id };
+    }
+
+    const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+    const label = n.label || n.name || String(id);
+    return { id, label };
+  }).filter(Boolean);
+
+  return mapped;
+}
+
+function buildNozzleOptionsHTML() {
+    // Build nozzle <option> list for calc UI using the same department-aware
+    // pipeline as view.lineStandard: DEPT_UI_NOZZLES -> dept.nozzlesAll ->
+    // dept.nozzles -> NOZ_LIST.
     let nozzles = [];
 
     try {
       if (typeof loadDeptForBuilders === 'function') {
         const dept = loadDeptForBuilders();
-        if (dept && Array.isArray(dept.nozzlesAll) && dept.nozzlesAll.length) {
-          nozzles = dept.nozzlesAll;
-        }
+        nozzles = getNozzleListFromDeptForCalc(dept);
       }
     } catch (err) {
       console.warn('buildNozzleOptionsHTML: loadDeptForBuilders failed, falling back to NOZ_LIST', err);
@@ -1014,19 +1037,19 @@ function updateSegSwitchVisibility(){
     // Ultimate fallback: full catalog (including customs) so first-time users
     // still see a complete list if nothing is configured yet.
     if ((!nozzles || !nozzles.length) && Array.isArray(NOZ_LIST)) {
-      nozzles = NOZ_LIST.slice();
+      let list = NOZ_LIST.slice();
 
       try {
         if (typeof getDeptCustomNozzlesForCalc === 'function') {
           const custom = getDeptCustomNozzlesForCalc() || [];
           if (Array.isArray(custom) && custom.length) {
-            const seen = new Set(nozzles.map(n => String(n.id)));
+            const seen = new Set(list.map(n => String(n.id)));
             custom.forEach(n => {
               if (!n || n.id == null) return;
               const id = String(n.id);
               if (!seen.has(id)) {
                 seen.add(id);
-                nozzles.push(n);
+                list.push(n);
               }
             });
           }
@@ -1034,6 +1057,13 @@ function updateSegSwitchVisibility(){
       } catch (err) {
         console.warn('buildNozzleOptionsHTML: getDeptCustomNozzlesForCalc failed', err);
       }
+
+      nozzles = list.map((n, idx) => {
+        if (!n) return null;
+        const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+        const label = n.label || n.name || String(id);
+        return { id, label };
+      }).filter(Boolean);
     }
 
     if (!nozzles || !nozzles.length) {
@@ -1044,7 +1074,7 @@ function updateSegSwitchVisibility(){
       .map(n => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : '';
-        const label = n.label || n.name || n.desc || id || 'Nozzle';
+        const label = n.label || 'Nozzle';
         if (!id) return '';
         return `<option value="${id}">${label}</option>`;
       })
