@@ -991,10 +991,12 @@ function updateSegSwitchVisibility(){
       if (typeof getDeptCustomNozzlesForCalc === 'function') {
         const custom = getDeptCustomNozzlesForCalc() || [];
         if (Array.isArray(custom) && custom.length) {
-          const seen = new Set(allNozzles.map(n => String(n.id)));
+          const seen = new Set(allNozzles.map(n => String((n && (n.id != null ? n.id : (n.value != null ? n.value : n.name))))));
           custom.forEach(n => {
-            if (!n || n.id == null) return;
-            const id = String(n.id);
+            if (!n) return;
+            const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
+            if (rawId == null) return;
+            const id = String(rawId);
             if (!seen.has(id)) {
               seen.add(id);
               allNozzles.push(n);
@@ -1028,17 +1030,23 @@ function updateSegSwitchVisibility(){
     let list = allNozzles;
     if (selectedIds.length) {
       const allowed = new Set(selectedIds);
-      list = allNozzles.filter(n => n && allowed.has(String(n.id)));
+      list = allNozzles.filter((n, idx) => {
+        if (!n) return false;
+        const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
+        const id = rawId != null ? String(rawId) : String(idx);
+        return allowed.has(id);
+      });
     }
 
     if (!list || !list.length) {
-      return '';
+      return '<option value="">No Options</option>';
     }
 
     return list
       .map((n, idx) => {
         if (!n) return '';
-        const id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
+        const rawId = (n.id != null ? n.id : (n.value != null ? n.value : n.name));
+        const id = rawId != null ? String(rawId) : String(idx);
         const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
         return `<option value="${id}">${label}</option>`;
