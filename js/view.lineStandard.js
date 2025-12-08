@@ -1,4 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, NOZ } from './store.js';
 
 // view.lineStandard.js
 // Standard attack line popup (with optional wye).
@@ -145,7 +145,7 @@ function prettifyNozzle(id, label, gpm, np) {
 
     // Build a clean label if we have tip & numbers; otherwise use original.
     if (tip && gpm && np) {
-      lbl = `SB ${tip}" @ ${np}`;
+      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
     }
 
     return { label: lbl, gpm, np };
@@ -271,9 +271,16 @@ function getNozzleListFromDept(dept) {
 
     if (typeof n === 'string' || typeof n === 'number') {
       id = String(n);
-      label = String(n);
-      gpm = parseGpmFromLabel(label);
-      np  = parseNpFromLabel(label);
+      const fromCatalog = NOZ && NOZ[id] ? NOZ[id] : null;
+      if (fromCatalog) {
+        label = fromCatalog.name || id;
+        gpm = typeof fromCatalog.gpm === 'number' ? fromCatalog.gpm : 0;
+        np  = typeof fromCatalog.NP  === 'number' ? fromCatalog.NP  : 0;
+      } else {
+        label = String(n);
+        gpm = parseGpmFromLabel(label);
+        np  = parseNpFromLabel(label);
+      }
     } else {
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
