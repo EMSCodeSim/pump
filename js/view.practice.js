@@ -349,6 +349,13 @@ export function render(container) {
   container.innerHTML = `
     <style>
       .practice-actions .btn { min-height: 40px; }
+
+      /* Make New Question stand out more */
+      .practice-actions #newScenarioBtn {
+        font-weight: 600;
+        min-width: 120px;
+      }
+
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #0f172a; }
       .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
@@ -386,7 +393,7 @@ export function render(container) {
           <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
         </div>
         <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn" id="newScenarioBtn">New Question</button>
+          <button class="btn primary" id="newScenarioBtn">New Question</button>
           <button class="btn" id="eqToggleBtn">Equations</button>
           <button class="btn" id="revealBtn">Reveal</button>
         </div>
@@ -403,7 +410,7 @@ export function render(container) {
 
       <div id="eqBox" style="margin-top:6px; display:none"></div>
 
-      <div id="practiceInfo" class="status" style="margin-top:8px">Tap <b>New Question</b> to generate a scenario.</div>
+      <div id="practiceInfo" class="status" style="margin-top:8px">Loading first question…</div>
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
 
@@ -685,8 +692,10 @@ export function render(container) {
   window.addEventListener('practice:newProblem', onNew);
   window.addEventListener('toggle:equations', onEq);
 
-  // initial state
-  practiceAnswer = null; scenario = null;
+  // initial state: immediately generate first practice question on page load
+  practiceAnswer = null;
+  scenario = null;
+  makePractice();
 
   return {
     dispose(){
