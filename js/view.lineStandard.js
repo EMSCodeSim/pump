@@ -145,7 +145,7 @@ function prettifyNozzle(id, label, gpm, np) {
 
     // Build a clean label if we have tip & numbers; otherwise use original.
     if (tip && gpm && np) {
-      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
+      lbl = `SB ${tip}" @ ${np}`;
     }
 
     return { label: lbl, gpm, np };
