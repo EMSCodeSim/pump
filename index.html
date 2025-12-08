@@ -395,6 +395,81 @@
       margin-bottom:12px;
     }
 
+
+    /* Quick Start overlay */
+    .qs-modal{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.65);
+      backdrop-filter:blur(6px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:99998;
+    }
+    .qs-modal.hidden{display:none;}
+    .qs-window{
+      background:#0b1320;
+      border:1px solid var(--edge);
+      border-radius:16px;
+      padding:18px 16px 16px;
+      width:90%;
+      max-width:480px;
+      max-height:85vh;
+      overflow-y:auto;
+      box-shadow:0 14px 32px rgba(0,0,0,0.8);
+      font-size:14px;
+    }
+    .qs-window h2{
+      margin:0 0 6px 0;
+      font-size:18px;
+      text-align:center;
+    }
+    .qs-window h3{
+      margin:14px 0 4px 0;
+      font-size:15px;
+    }
+    .qs-window p{
+      margin:0 0 6px 0;
+      color:var(--muted);
+    }
+    .qs-link{
+      margin-top:4px;
+      margin-bottom:8px;
+      width:100%;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid #2a4066;
+      background:#050a14;
+      color:#e9f1ff;
+      font-size:13px;
+      cursor:pointer;
+      text-align:center;
+    }
+    .qs-link:hover{
+      border-color:var(--accent);
+      color:#fff;
+    }
+    .qs-checkbox{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:8px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .qs-close{
+      margin-top:10px;
+      width:100%;
+      padding:9px 10px;
+      border-radius:999px;
+      border:1px solid #2a4066;
+      background:#141b2a;
+      color:#e9f1ff;
+      font-size:14px;
+      cursor:pointer;
+    }
+
     @media (min-width:768px){
       .shell{padding:16px 16px 90px}
       .navbtn{font-size:13px;padding:8px 10px}
@@ -493,8 +568,128 @@
     </div>
   </div>
 
+
+  <!-- Quick Start overlay -->
+  <div id="quickStartModal" class="qs-modal hidden" role="dialog" aria-modal="true" aria-label="Quick start guide">
+    <div class="qs-window">
+      <h2>FireOps Calc — Quick Start</h2>
+
+      <section>
+        <h3>1. Set up your department</h3>
+        <p>Select the hoses, nozzles, accessories, and presets your department actually carries. Menus will then show only these items for faster use on scene.</p>
+        <button class="qs-link" type="button" data-qsgoto="department">Open Department Setup</button>
+      </section>
+
+      <section>
+        <h3>2. Calculation mode</h3>
+        <p>Run fast field-ready calculations for preconnects, quick length and nozzle changes, and water supply (hydrants, relay, shuttle, and tank operations). Use custom presets for master streams, standpipes, foam lines, and more.</p>
+        <button class="qs-link" type="button" data-qsgoto="calc">Open Calculations</button>
+      </section>
+
+      <section>
+        <h3>3. Practice mode</h3>
+        <p>Use the visual pump simulator to adjust hose layouts, lengths, elevation, and nozzles and see PDP update live. Great for keeping pump skills sharp.</p>
+        <button class="qs-link" type="button" data-qsgoto="practice">Open Practice Mode</button>
+      </section>
+
+      <section>
+        <h3>4. Tables</h3>
+        <p>View reference tables for nozzles, hose coefficients, rules of thumb, and water supply formulas.</p>
+        <button class="qs-link" type="button" data-qsgoto="tables">Open Tables</button>
+      </section>
+
+      <label class="qs-checkbox">
+        <input type="checkbox" id="qsDontShow"> Do not show this again
+      </label>
+
+      <button class="qs-close" type="button" id="qsCloseBtn">Close</button>
+    </div>
+  </div>
+
+
   <!-- App JS (router + view.calc.js, etc.) -->
   <script type="module" src="/js/app.js"></script>
+
+
+  <!-- Quick Start wiring -->
+  <script>
+    (function(){
+      const MODAL_KEY = 'fireops_quickstart_hide';
+      const modal = document.getElementById('quickStartModal');
+      const dontShowBox = document.getElementById('qsDontShow');
+      const closeBtn = document.getElementById('qsCloseBtn');
+
+      function navClick(selector){
+        const btn = document.querySelector(selector);
+        if (btn) btn.click();
+      }
+
+      function go(screen){
+        switch(screen){
+          case 'department':
+            try{
+              if (window && typeof window.fireopsOpenDeptSetup === 'function'){
+                window.fireopsOpenDeptSetup();
+              } else {
+                navClick('#navSettings');
+              }
+            }catch(e){}
+            break;
+          case 'calc':
+            navClick('.bottom-nav .navbtn[data-view="calc"]');
+            break;
+          case 'practice':
+            navClick('.bottom-nav .navbtn[data-view="practice"]');
+            break;
+          case 'tables':
+            navClick('.bottom-nav .navbtn[data-view="charts"]');
+            break;
+        }
+        hide();
+      }
+
+      function hide(){
+        if (!modal) return;
+        if (dontShowBox && dontShowBox.checked){
+          try{ localStorage.setItem(MODAL_KEY, '1'); }catch(e){}
+        }
+        modal.classList.add('hidden');
+      }
+
+      function showIfNeeded(){
+        if (!modal) return;
+        let suppressed = false;
+        try{
+          suppressed = localStorage.getItem(MODAL_KEY) === '1';
+        }catch(e){}
+        if (!suppressed){
+          modal.classList.remove('hidden');
+        }
+      }
+
+      if (modal){
+        // link buttons
+        modal.addEventListener('click', function(evt){
+          const t = evt.target;
+          if (t && t.matches('[data-qsgoto]')){
+            const dest = t.getAttribute('data-qsgoto');
+            go(dest);
+          }
+        });
+        if (closeBtn){
+          closeBtn.addEventListener('click', hide);
+        }
+        modal.addEventListener('click', function(evt){
+          if (evt.target === modal){
+            hide();
+          }
+        });
+      }
+
+      document.addEventListener('DOMContentLoaded', showIfNeeded);
+    })();
+  </script>
+
 
   <!-- About overlay wiring + Department setup shortcut -->
   <script>
