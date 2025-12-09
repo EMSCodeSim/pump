@@ -1,6 +1,6 @@
 
 import { openPresetEditorPopup } from './view.presetEditor.js';
-import { openStandardLinePopup }   from './view.lineStandard.js';
+import * as lineStandard from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
 import { openStandpipePopup }      from './view.lineStandpipe.js';
 import { openSprinklerPopup }      from './view.lineSprinkler.js';
@@ -8,6 +8,8 @@ import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
 import { setDeptLineDefault, NOZ } from './store.js';
+const openStandardLinePopup = (lineStandard && lineStandard.openStandardLinePopup) ? lineStandard.openStandardLinePopup : () => {};
+;
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
@@ -663,8 +665,34 @@ function renderDeptHomeScreen() {
   `;
 
   footerEl.innerHTML = `
+    <button type="button" class="btn-secondary" id="deptResetDefaultsBtn">Reset to defaults</button>
     <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
   `;
+
+  // Reset department setup back to factory defaults
+  const resetBtn = footerEl.querySelector('#deptResetDefaultsBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if (!window.confirm('Reset department setup to defaults? This will clear your nozzle, hose, and accessory selections.')) {
+        return;
+      }
+      try {
+        // Reset state from STORAGE_DEPT_DEFAULT and persist
+        const def = { ...STORAGE_DEPT_DEFAULT };
+        state.deptNozzles = def.nozzles || [];
+        state.customNozzles = def.customNozzles || [];
+        state.deptHoses = def.hoses || [];
+        state.customHoses = def.customHoses || [];
+        state.deptAccessories = def.accessories || [];
+        state.customAccessories = def.customAccessories || [];
+        saveDeptToStorage();
+      } catch (e) {
+        console.warn('Failed to reset department defaults', e);
+      }
+      // Re-render home screen with cleared selections
+      renderDeptHomeScreen();
+    });
+  }
 
   const nozBtn = bodyEl.querySelector('#deptNozzlesBtn');
   if (nozBtn) nozBtn.addEventListener('click', () => renderNozzleSelectionScreen());
