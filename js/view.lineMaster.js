@@ -1,4 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, NOZ } from './store.js';
 
 // view.lineMaster.js
 // Master stream / Blitz line editor.
@@ -502,31 +502,64 @@ function msGetNozzleListFromDept(dept) {
     let id;
     let rawLabel;
     let gpm = 0;
+    let np  = 0;
 
+    // ---- Case 1: plain string/number entries (often just an internal ID) ----
     if (typeof n === 'string' || typeof n === 'number') {
-      rawLabel = String(n);
-      id = String(idx);
-      gpm = parseGpmFromLabel(rawLabel);
+      const nozzleId = String(n);
+      id = nozzleId;
+
+      const fromCatalog = NOZ && NOZ[nozzleId];
+
+      if (fromCatalog) {
+        rawLabel = fromCatalog.name || nozzleId;
+        if (typeof fromCatalog.gpm === 'number') gpm = fromCatalog.gpm;
+        if (typeof fromCatalog.NP  === 'number') np  = fromCatalog.NP;
+      } else {
+        rawLabel = nozzleId;
+        gpm = parseGpmFromLabel(rawLabel);
+      }
     } else {
+      // ---- Case 2: structured objects from DEPT_UI_NOZZLES / dept.nozzles ----
       id = n.id != null
         ? String(n.id)
         : String(n.value ?? n.name ?? idx);
-      rawLabel = n.label || n.name || String(id);
+
+      const fromCatalog = NOZ && NOZ[id];
+
+      let labelCandidate = n.label || n.name;
+      if (!labelCandidate && fromCatalog) {
+        labelCandidate = fromCatalog.name;
+      }
+      rawLabel = labelCandidate || String(id);
+
       if (typeof n.gpm === 'number' && n.gpm > 0) {
         gpm = n.gpm;
+      } else if (fromCatalog && typeof fromCatalog.gpm === 'number') {
+        gpm = fromCatalog.gpm;
       } else {
         gpm = parseGpmFromLabel(rawLabel);
       }
+
+      if (typeof n.np === 'number') {
+        np = n.np;
+      } else if (typeof n.NP === 'number') {
+        np = n.NP;
+      } else if (fromCatalog && typeof fromCatalog.NP === 'number') {
+        np = fromCatalog.NP;
+      }
     }
 
+    // prettyMasterLabel will beautify true master-stream ids (ms_*),
+    // otherwise it just passes through the human label we built above.
     const niceLabel = prettyMasterLabel(id, rawLabel, gpm);
-    return { id, label: niceLabel, gpm };
+    return { id, label: niceLabel, gpm, np };
   }).filter(Boolean);
 
   // Prefer only the master-stream entries if we can detect them
   const masterOnly = mapped.filter(n => {
     const id = String(n.id);
-    const lower = n.label.toLowerCase();
+    const lower = String(n.label || '').toLowerCase();
     return id.startsWith('ms_') ||
       lower.includes('master stream') ||
       lower.includes('master fog') ||
@@ -536,9 +569,7 @@ function msGetNozzleListFromDept(dept) {
 
   const list = masterOnly.length ? masterOnly : mapped;
   return list.length ? list : DEFAULT_MS_NOZZLES;
-}
-
-// Dept.hoses: prefer DEPT_UI_HOSES and format sizes clearly as 2 1/2", 4", 5"
+}// Dept.hoses: prefer DEPT_UI_HOSES and format sizes clearly as 2 1/2", 4", 5"
 function msGetHoseListFromDept(dept) {
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
