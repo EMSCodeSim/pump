@@ -1,6 +1,6 @@
 
 import { openPresetEditorPopup } from './view.presetEditor.js';
-import * as lineStandard from './view.lineStandard.js';
+import { openStandardLinePopup }   from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
 import { openStandpipePopup }      from './view.lineStandpipe.js';
 import { openSprinklerPopup }      from './view.lineSprinkler.js';
@@ -8,17 +8,6 @@ import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
 import { setDeptLineDefault, NOZ } from './store.js';
-
-// Safe wrapper for optional line standard popup.
-// If ./view.lineStandard.js does not export openStandardLinePopup,
-// this will no-op and log a warning instead of crashing.
-const openStandardLinePopup =
-  (lineStandard && typeof lineStandard.openStandardLinePopup === 'function')
-    ? lineStandard.openStandardLinePopup
-    : (opts = {}) => {
-        console.warn('openStandardLinePopup is not exported from ./view.lineStandard.js; called with', opts);
-      };
-
 // preset.js – Department presets + line presets for FireOps Calc
 // - Main Presets menu from the Preset button
 //   • Department Setup
