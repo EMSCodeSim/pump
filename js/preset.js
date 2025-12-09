@@ -2064,8 +2064,6 @@ export function getDeptHoseDiameters() {
     return [];
   }
 }
-}
-
 export function setupPresets(opts = {}) {
   state.isApp = !!opts.isApp;
   state.triggerButtonId = opts.triggerButtonId || 'presetsBtn';
