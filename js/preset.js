@@ -1,4 +1,3 @@
-
 import { openPresetEditorPopup } from './view.presetEditor.js';
 import { openStandardLinePopup }   from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
@@ -436,7 +435,6 @@ const ACCESSORIES_MONITORS = [
 ];
 
 // === Storage helpers ==============================================================
-
 function loadPresetsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -492,8 +490,6 @@ function saveDeptToStorage() {
     console.warn('Dept save failed', e);
   }
 }
-
-
 
 // === Department equipment helpers (normalized views) ===============================
 
@@ -595,7 +591,6 @@ function saveLineDefaultsToStorage() {
 }
 
 // === Shared popup wrapper: Dept wizard ===========================================
-
 function ensureDeptPopupWrapper() {
   injectAppPresetStyles();
   if (document.getElementById('deptPopupWrapper')) return;
@@ -628,7 +623,6 @@ function ensureDeptPopupWrapper() {
 }
 
 // === Department setup: home menu ==================================================
-
 function renderDeptHomeScreen() {
   ensureDeptPopupWrapper();
   const wrap = document.getElementById('deptPopupWrapper');
@@ -687,7 +681,6 @@ function renderDeptHomeScreen() {
 }
 
 // === Nozzle selection screen ======================================================
-
 function renderNozzleSelectionScreen() {
   ensureDeptPopupWrapper();
   const wrap = document.getElementById('deptPopupWrapper');
@@ -903,7 +896,6 @@ function renderNozzleSelectionScreen() {
 }
 
 // === Hose selection screen ========================================================
-
 function renderHoseSelectionScreen() {
   ensureDeptPopupWrapper();
   const wrap = document.getElementById('deptPopupWrapper');
@@ -1121,7 +1113,6 @@ function renderHoseSelectionScreen() {
 }
 
 // === Accessories selection screen =================================================
-
 function renderAccessorySelectionScreen() {
   ensureDeptPopupWrapper();
   const wrap = document.getElementById('deptPopupWrapper');
@@ -1321,7 +1312,6 @@ function renderAccessorySelectionScreen() {
 }
 
 // === Dept wizard entry ============================================================
-
 function openDeptWizard() {
   const dept = loadDeptFromStorage();
   state.deptNozzles = dept.nozzles;
@@ -1334,7 +1324,6 @@ function openDeptWizard() {
 }
 
 // === App Preset panel wrapper (top-level presets menu) ============================
-
 function ensureAppPresetPanelExists() {
   injectAppPresetStyles();
   if (document.getElementById('appPresetWrapper')) return;
@@ -1367,7 +1356,6 @@ function ensureAppPresetPanelExists() {
 }
 
 // === Line detail screen (Line 1 / Line 2 / Line 3) – EDITABLE =====================
-
 function renderLineInfoScreen(lineNumber) {
   ensureAppPresetPanelExists();
   const wrap = document.getElementById('appPresetWrapper');
@@ -1508,10 +1496,6 @@ function renderLineInfoScreen(lineNumber) {
 }
 
 // === Main Presets menu ===========================================================
-
-
-
-
 function renderDeptLineDefaultsScreen(lineNumber) {
   // When editing department line defaults, use the full Standard Line builder.
   // These become the saved defaults for Line 1 / 2 / 3 on the main screen.
@@ -1655,7 +1639,6 @@ function openPresetMainMenu() {
       `).join('')
     : `<div class="preset-list-empty">No saved presets yet.</div>`;
 
-  
   body.innerHTML = `
     <div class="dept-menu" style="margin-bottom:8px;">
       <p class="dept-intro" style="margin-top:0;margin-bottom:4px;">
@@ -1760,7 +1743,6 @@ function openPresetPanelApp() {
 }
 
 // === Add preset from current calc (defaults to Line 1) ===========================
-
 function handleAddPresetClick(initialName) {
   // New flow: open the dedicated Preset Line Editor popup
   // instead of directly capturing the current line state.
@@ -1792,9 +1774,6 @@ function handleAddPresetClick(initialName) {
   });
 }
 
-
-
-
 function handleEditPreset(id) {
   const presets = state.presets || [];
   const preset = presets.find(p => p.id === id);
@@ -1802,7 +1781,7 @@ function handleEditPreset(id) {
 
   // Older presets without a lineType / config can’t be reliably edited
   if (!preset.lineType || !preset.config) {
-    alert('This preset was created before the new builders and can\'t be auto‑edited. Please recreate it using the Add preset button.');
+    alert('This preset was created before the new builders and can't be auto‑edited. Please recreate it using the Add preset button.');
     return;
   }
 
@@ -1927,12 +1906,9 @@ function openPresetInfoPanelWeb() {
 }
 
 // === Public API ===================================================================
-
-
 export function getDeptLineDefaults() {
   return state.lineDefaults || {};
 }
-
 
 const DEPT_NOZ_TO_CALC_NOZ = {
   "sb_78_50_160": "sb7_8",
@@ -1959,8 +1935,6 @@ const DEPT_NOZ_TO_CALC_NOZ = {
   "ms_fog_1000": "ms2_80",
   "ms_fog_1250": "ms2_80"
 };
-
-
 
 export function getDeptNozzleIds() {
   try {
@@ -2103,7 +2077,6 @@ export function setupPresets(opts = {}) {
   });
 }
 
-
 // Global hook so About → Department setup opens the Department wizard overlay
 if (typeof window !== 'undefined') {
   window.fireopsOpenDeptSetup = function () {
@@ -2145,4 +2118,3 @@ export function getDeptCustomNozzlesForCalc() {
     return [];
   }
 }
-
