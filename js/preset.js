@@ -1944,7 +1944,19 @@ export function getDeptNozzleIds() {
     const result = [];
     const seen = new Set();
 
-    // 1) Built-in department nozzles (checkbox list)
+    // Build a set of valid custom nozzle ids so we only accept ids that
+    // actually exist in dept.customNozzles.
+    const customIdSet = new Set();
+    if (Array.isArray(dept.customNozzles)) {
+      dept.customNozzles.forEach((n, idx) => {
+        if (!n || typeof n !== 'object') return;
+        const id = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
+        const trimmedId = String(id).trim();
+        if (trimmedId) customIdSet.add(trimmedId);
+      });
+    }
+
+    // dept.nozzles is the list of CHECKED nozzles from the Department UI.
     if (Array.isArray(dept.nozzles)) {
       dept.nozzles.forEach(raw => {
         if (raw == null) return;
@@ -1953,37 +1965,23 @@ export function getDeptNozzleIds() {
 
         let mapped = null;
 
-        // New style: dept.nozzles stores internal nozzle IDs
-        // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
+        // 1) Direct match to internal calc nozzle id
         if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
           mapped = trimmed;
         } else {
-          // Legacy style: dept.nozzles stored a display label that
-          // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
+          // 2) Legacy UI id -> internal nozzle id
           const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
           if (typeof viaMap === 'string' && viaMap) {
             mapped = viaMap;
+          } else if (customIdSet.has(trimmed)) {
+            // 3) Selected custom nozzle id
+            mapped = trimmed;
           }
         }
 
         if (mapped && !seen.has(mapped)) {
           seen.add(mapped);
           result.push(mapped);
-        }
-      });
-    }
-
-    // 2) Custom nozzles – treat every custom defined in Department Setup
-    //    as "selected" so they show up in calc + line editors.
-    if (Array.isArray(dept.customNozzles)) {
-      dept.customNozzles.forEach((n, idx) => {
-        if (!n || typeof n !== 'object') return;
-        const id = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
-        const trimmedId = String(id).trim();
-        if (!trimmedId) return;
-        if (!seen.has(trimmedId)) {
-          seen.add(trimmedId);
-          result.push(trimmedId);
         }
       });
     }
@@ -1995,10 +1993,12 @@ export function getDeptNozzleIds() {
   }
 }
 
+
 export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
+
     const outSet = new Set();
 
     // Map built-in hose IDs to diameters (in inches, as strings used by COEFF)
@@ -2021,32 +2021,49 @@ export function getDeptHoseDiameters() {
       'h_lf_5':     '5',
     };
 
-    // Built-in hose selections
-    if (Array.isArray(dept.hoses)) {
-      dept.hoses.forEach(id => {
-        if (typeof id !== 'string') return;
-        const key = id.trim();
-        const dia = HOSE_ID_TO_DIA[key];
-        if (dia) outSet.add(dia);
+    // Index custom hoses by id so we can match them against dept.hoses selections.
+    const customById = {};
+    if (Array.isArray(dept.customHoses)) {
+      dept.customHoses.forEach((h, idx) => {
+        if (!h || typeof h !== 'object') return;
+        const id = String(h.id || h.key || `custom_hose_${idx}`).trim();
+        if (!id) return;
+        customById[id] = h;
       });
     }
 
-    // Custom hoses with explicit diameters
-    if (Array.isArray(dept.customHoses)) {
-      dept.customHoses.forEach(h => {
-        if (!h) return;
-        if (typeof h.diameter === 'number' && h.diameter > 0) {
-          const dia = String(h.diameter);
-          outSet.add(dia);
+    // dept.hoses is the list of CHECKED hoses from the Department UI.
+    if (Array.isArray(dept.hoses)) {
+      dept.hoses.forEach(raw => {
+        if (raw == null) return;
+        const key = String(raw).trim();
+        if (!key) return;
+
+        // 1) Built-in hose selection
+        const builtinDia = HOSE_ID_TO_DIA[key];
+        if (builtinDia) {
+          outSet.add(builtinDia);
+          return;
+        }
+
+        // 2) Custom hose selection
+        const custom = customById[key];
+        if (custom) {
+          if (typeof custom.diameter === 'number' && custom.diameter > 0) {
+            outSet.add(String(custom.diameter));
+          } else if (typeof custom.diameter === 'string' && custom.diameter.trim()) {
+            outSet.add(custom.diameter.trim());
+          }
         }
       });
     }
 
-    return Array.from(outSet).sort((a,b) => parseFloat(a) - parseFloat(b));
+    return Array.from(outSet).sort((a, b) => parseFloat(a) - parseFloat(b));
   } catch (e) {
     console.warn('getDeptHoseDiameters failed', e);
     return [];
   }
+}
 }
 
 export function setupPresets(opts = {}) {
