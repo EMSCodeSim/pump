@@ -1,4 +1,3 @@
-
 import { openPresetEditorPopup } from './view.presetEditor.js';
 import { openStandardLinePopup }   from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
@@ -16,1951 +15,1486 @@ import { setDeptLineDefault, NOZ } from './store.js';
 //   • "Add preset" button
 // - Department setup popup (Nozzles, Hoses, Accessories)
 // - Grouped nozzle selection (smooth / fog / master / specialty + custom)
-// - Hose selection (attack / supply / wildland / low-friction + custom C)
-// - Accessories selection (appliances, foam/eductors, gauges, misc + custom)
-// - Line preset list stored in localStorage and applied via applyPresetToCalc
+// - Hose selection (attack / supply / wildland / etc.)
 
-const STORAGE_KEY = 'fireops_presets_v1';
-const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+const STORAGE_PRESETS_KEY = 'fireops_presets_v1';
 const STORAGE_LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
+const STORAGE_DEPT_EQ = 'fireops_dept_equipment_v1';
 
-let state = {
-  // wiring from setupPresets()
+// Global mutable state for this module
+const state = {
   isApp: false,
   triggerButtonId: 'presetsBtn',
   appStoreUrl: '',
   playStoreUrl: '',
-  getLineState: null,      // function(lineNumber) -> {...}
-  applyPresetToCalc: null, // function(preset)
-
-  // presets
   presets: [],
-
-  // department equipment
+  lineDefaults: {},
   deptNozzles: [],
   customNozzles: [],
-
   deptHoses: [],
   customHoses: [],
-
   deptAccessories: [],
   customAccessories: [],
-
-  // department line defaults (per lineNumber)
-  lineDefaults: {},
+  getLineState: null,
+  applyPresetToCalc: null
 };
 
-// === Shared styles for preset / dept popups =======================================
-
-function injectAppPresetStyles() {
-  if (document.getElementById('presetStyles')) return;
-
-  const style = document.createElement('style');
-  style.id = 'presetStyles';
-  style.textContent = `
-    .preset-panel-wrapper {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 12px 8px;
-      box-sizing: border-box;
-      background: rgba(3, 7, 18, 0.55);
-      backdrop-filter: blur(6px);
-    }
-    .preset-panel-wrapper.hidden {
-      display: none;
-    }
-    .preset-panel-backdrop {
-      position: absolute;
-      inset: 0;
-    }
-    .preset-panel {
-      position: relative;
-      max-width: 480px;
-      width: 100%;
-      margin: 0 auto;
-      background: #020617;
-      border-radius: 18px;
-      box-shadow:
-        0 18px 30px rgba(15, 23, 42, 0.75),
-        0 0 0 1px rgba(148, 163, 184, 0.35);
-      padding: 12px 14px 10px;
-      color: #e5e7eb;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    @media (min-width: 640px) {
-      .preset-panel {
-        margin-top: 12px;
-        border-radius: 20px;
-        padding: 14px 16px 12px;
-      }
-    }
-    .preset-panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-    }
-    .preset-panel-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-    .preset-close-btn {
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.6);
-      background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
-      color: #e5e7eb;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-    }
-    .preset-close-btn:hover {
-      background: #111827;
-    }
-    .preset-panel-body {
-      font-size: 0.85rem;
-      line-height: 1.45;
-      max-height: min(60vh, 420px);
-      overflow-y: auto;
-      padding-top: 4px;
-      padding-bottom: 4px;
-    }
-    .preset-panel-body p {
-      margin: 0 0 6px 0;
-    }
-    .preset-panel-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 6px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(148, 163, 184, 0.25);
-    }
-    .btn-primary,
-    .btn-secondary,
-    .btn-tertiary {
-      border-radius: 999px;
-      padding: 6px 12px;
-      font-size: 0.82rem;
-      border: none;
-      cursor: pointer;
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, #38bdf8, #22c55e);
-      color: #020617;
-      font-weight: 600;
-    }
-    .btn-secondary {
-      background: rgba(15, 23, 42, 0.9);
-      color: #e5e7eb;
-      border: 1px solid rgba(148, 163, 184, 0.7);
-    }
-    .btn-tertiary {
-      background: rgba(15, 23, 42, 0.9);
-      color: #e5e7eb;
-      border: 1px solid rgba(148, 163, 184, 0.45);
-      padding: 4px 8px;
-      font-size: 0.75rem;
-    }
-    .btn-primary:active,
-    .btn-secondary:active {
-      transform: translateY(1px);
-    }
-
-    /* Dept / wizard & line edit form */
-    .dept-intro {
-      font-size: 0.82rem;
-      color: #cbd5f5;
-      margin-bottom: 10px;
-    }
-    .dept-menu {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 4px;
-    }
-    @media (min-width: 480px) {
-      .dept-menu {
-        flex-direction: row;
-        flex-wrap: wrap;
-      }
-      .dept-menu .btn-primary,
-      .dept-menu .btn-secondary {
-        flex: 1 1 120px;
-        text-align: center;
-        justify-content: center;
-      }
-    }
-    .dept-columns {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 10px;
-      flex-wrap: nowrap;
-    }
-    @media (min-width: 480px) {
-      .dept-columns {
-        flex-direction: row;
-        flex-wrap: wrap;
-      }
-      .dept-column {
-        flex: 1 1 200px;
-      }
-    }
-    .dept-column h3 {
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin: 0 0 4px 0;
-      color: #bfdbfe;
-    }
-    .dept-list {
-      border-radius: 10px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(30, 64, 175, 0.5);
-      padding: 6px 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .dept-option {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.9rem;
-      padding: 8px 10px;
-      border-radius: 10px;
-      cursor: pointer;
-    }
-    .dept-option:hover {
-      background: rgba(30, 64, 175, 0.2);
-    }
-    .dept-option input[type="checkbox"] {
-      margin-top: 0;
-      width: 20px;
-      height: 20px;
-      flex-shrink: 0;
-    }
-    .dept-option span {
-      flex: 1;
-      word-break: break-word;
-    }
-
-    .dept-custom {
-      margin-top: 8px;
-      padding-top: 6px;
-      border-top: 1px dashed rgba(148, 163, 184, 0.4);
-    }
-    .dept-custom h3 {
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin: 0 0 4px 0;
-      color: #e5e7eb;
-    }
-    .dept-custom-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 4px;
-      font-size: 0.78rem;
-    }
-    .dept-custom-row label {
-      flex: 1 1 90px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-    .dept-custom-row input,
-    .dept-custom-row select {
-      background: #020617;
-      border-radius: 8px;
-      border: 1px solid rgba(55, 65, 81, 0.9);
-      color: #e5e7eb;
-      padding: 4px 6px;
-      font-size: 0.8rem;
-    }
-
-    /* Preset list bits */
-    .preset-list-empty {
-      font-size: 0.8rem;
-      opacity: 0.8;
-    }
-    .preset-menu-presets {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-top: 4px;
-    }
-    .preset-menu-preset-btn {
-      width: 100%;
-      justify-content: space-between;
-      font-size: 0.8rem;
-    }
-    .preset-menu-preset-meta {
-      display: block;
-      font-size: 0.72rem;
-      opacity: 0.75;
-      margin-left: 4px;
-    }
-  `;
-  document.head.appendChild(style);
+// Utility to safely read JSON from localStorage
+function safeReadJSON(key, fallback) {
+  try {
+    if (typeof localStorage === 'undefined') return fallback;
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed == null ? fallback : parsed;
+  } catch (e) {
+    console.warn('safeReadJSON failed for key', key, e);
+    return fallback;
+  }
 }
 
-// === Department data: nozzles + hoses + accessories ===============================
+// Utility to safely write JSON to localStorage
+function safeWriteJSON(key, value) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn('safeWriteJSON failed for key', key, e);
+  }
+}
 
-const STORAGE_DEPT_DEFAULT = {
-  nozzles: [],
-  customNozzles: [],
-  hoses: [],
-  customHoses: [],
-  accessories: [],
-  customAccessories: [],
-};
-
-// NOZZLES
-const NOZZLES_SMOOTH = [
-  { id: 'sb_78_50_160',   label: '7/8" smooth bore 160 gpm @ 50 psi' },
-  { id: 'sb_1516_50_185', label: '15/16" smooth bore 185 gpm @ 50 psi' },
-  { id: 'sb_1_50_210',    label: '1" smooth bore 210 gpm @ 50 psi' },
-  { id: 'sb_1118_50_265', label: '1 1/8" smooth bore 265 gpm @ 50 psi' },
-  { id: 'sb_114_50_325',  label: '1 1/4" smooth bore 325 gpm @ 50 psi' },
-];
-
-const NOZZLES_FOG = [
-  { id: 'fog_15_100_95',       label: '1½" fog 95 gpm @ 100 psi' },
-  { id: 'fog_15_100_125',      label: '1½" fog 125 gpm @ 100 psi' },
-  { id: 'fog_175_75_150',      label: '1¾" fog 150 gpm @ 75 psi' },
-  { id: 'fog_175_100_150',     label: '1¾" fog 150 gpm @ 100 psi' },
-
-  // Chief XD options
-  { id: 'fog_xd_175_75_150',   label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
-  { id: 'fog_xd_175_75_185',   label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
-  { id: 'fog_xd_175_50_165',   label: 'Chief XD 1¾" 165 gpm @ 50 psi' },
-  { id: 'fog_xd_175_50_185',   label: 'Chief XD 1¾" 185 gpm @ 50 psi' },
-  { id: 'fog_xd_25_50_265',    label: 'Chief XD 2½" 265 gpm @ 50 psi' },
-
-  { id: 'fog_25_100_250',      label: '2½" fog 250 gpm @ 100 psi' },
-  { id: 'fog_25_100_300',      label: '2½" fog 300 gpm @ 100 psi' },
-];
-
-const NOZZLES_MASTER = [
-  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
-  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
-  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
-  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
-  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
-  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
-  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
-  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
-];
-
-const NOZZLES_SPECIAL = [
-  { id: 'sp_celler',        label: 'Celler nozzle' },
-  { id: 'sp_piercing',      label: 'Piercing nozzle (pike pole)' },
-  { id: 'sp_bresnan',       label: 'Bresnan distributor' },
-  { id: 'sp_distributor',   label: 'Rotary distributor nozzle' },
-  { id: 'sp_foammaster',    label: 'High expansion foam nozzle' },
-  { id: 'sp_forestry',      label: 'Forestry nozzle (1")' },
-  { id: 'sp_wildland_gated',label: 'Wildland gated wye / nozzle set' },
-];
-
-// HOSES
-const HOSES_ATTACK = [
-  { id: 'h_1',    label: '1" attack line (C ~ 12)' },
-  { id: 'h_15',   label: '1½" attack line (C ~ 24)' },
-  { id: 'h_175',  label: '1¾" attack line (C ~ 15)' },
-  { id: 'h_2',    label: '2" attack line (C ~ 8)' },
-  { id: 'h_25',   label: '2½" attack line (C ~ 2)' },
-  { id: 'h_3',    label: '3" large line (C ~ 0.8)' },
-];
-
-const HOSES_SUPPLY = [
-  { id: 'h_3_supply',  label: '3" supply line (C ~ 0.8)' },
-  { id: 'h_4_ldh',     label: '4" LDH (C ~ 0.2)' },
-  { id: 'h_5_ldh',     label: '5" LDH (C ~ 0.08)' },
-];
-
-const HOSES_WILDLAND = [
-  { id: 'h_w_1',   label: '1" wildland hose' },
-  { id: 'h_w_15',  label: '1½" wildland hose' },
-  { id: 'h_booster_1', label: '1" booster reel' },
-];
-
-const HOSES_LOWFRICTION = [
-  { id: 'h_lf_175', label: '1¾" low-friction attack (C ~ 12)' },
-  { id: 'h_lf_2',   label: '2" low-friction attack (C ~ 6)' },
-  { id: 'h_lf_25',  label: '2½" low-friction attack (C ~ 1.5)' },
-  { id: 'h_lf_5',   label: '5" low-friction LDH (C ~ 0.06)' },
-];
-
-// ACCESSORIES
-const ACCESSORIES_APPLIANCES = [
-  { id: 'acc_wye',         label: 'Gated wye' },
-  { id: 'acc_siamese',     label: 'Siamese' },
-  { id: 'acc_water_thief', label: 'Water thief' },
-  { id: 'acc_manifold',    label: 'Portable manifold' },
-];
-
-const ACCESSORIES_FOAM = [
-  { id: 'acc_eductor',     label: 'Inline foam eductor' },
-  { id: 'acc_foam_pro',    label: 'Foam proportioner' },
-];
-
-const ACCESSORIES_MONITORING = [
-  { id: 'acc_inline_gauge', label: 'Inline pressure gauge' },
-  { id: 'acc_hydrant_gate', label: 'Hydrant gate' },
-];
-
-const ACCESSORIES_MONITORS = [
-  { id: 'acc_deck_gun',     label: 'Deck gun / apparatus monitor' },
-  { id: 'acc_ground_monitor', label: 'Portable ground monitor' },
-  { id: 'acc_blitzfire',    label: 'Blitzfire / RAM monitor' },
-];
-
-// === Storage helpers ==============================================================
+// ===============================================
+// Load / save: Presets + Line Defaults + Dept Eq
+// ===============================================
 
 function loadPresetsFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    console.warn('Preset load failed', e);
-    return [];
-  }
+  const data = safeReadJSON(STORAGE_PRESETS_KEY, []);
+  if (!Array.isArray(data)) return [];
+  return data;
 }
 
-function savePresetsToStorage() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.presets || []));
-  } catch (e) {
-    console.warn('Preset save failed', e);
-  }
-}
-
-function loadDeptFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-    if (!raw) return { ...STORAGE_DEPT_DEFAULT };
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return { ...STORAGE_DEPT_DEFAULT };
-    return {
-      nozzles: Array.isArray(parsed.nozzles) ? parsed.nozzles : [],
-      customNozzles: Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [],
-      hoses: Array.isArray(parsed.hoses) ? parsed.hoses : [],
-      customHoses: Array.isArray(parsed.customHoses) ? parsed.customHoses : [],
-      accessories: Array.isArray(parsed.accessories) ? parsed.accessories : [],
-      customAccessories: Array.isArray(parsed.customAccessories) ? parsed.customAccessories : [],
-    };
-  } catch (e) {
-    console.warn('Dept load failed', e);
-    return { ...STORAGE_DEPT_DEFAULT };
-  }
-}
-
-function saveDeptToStorage() {
-  try {
-    const payload = {
-      nozzles: state.deptNozzles || [],
-      customNozzles: state.customNozzles || [],
-      hoses: state.deptHoses || [],
-      customHoses: state.customHoses || [],
-      accessories: state.deptAccessories || [],
-      customAccessories: state.customAccessories || [],
-    };
-    localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(payload));
-  } catch (e) {
-    console.warn('Dept save failed', e);
-  }
-}
-
-
-
-// === Department equipment helpers (normalized views) ===============================
-
-// Normalize a single hose/nozzle/accessory item (string or object) so everything
-// looks like { id, label, ...rest }. Not exported.
-function normalizeDeptItem(item, fallbackPrefix, index) {
-  if (item && typeof item === 'object') {
-    const id = item.id != null
-      ? String(item.id)
-      : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
-    const label = item.label || item.name || String(id);
-    return { id, label, ...item };
-  }
-  const id = String(item);
-  return { id, label: id, raw: item };
-}
-
-/**
- * Returns a normalized department equipment object:
- * {
- *   nozzles:     [{ id, label, gpm?, ... }, ...],
- *   hoses:       [{ id, label, ... }, ...],
- *   accessories: [{ id, label, ... }, ...],
- *   ...all original fields
- * }
- */
-export function getDeptEquipment() {
-  let raw = null;
-  try {
-    raw = loadDeptFromStorage();
-  } catch (e) {
-    console.warn('getDeptEquipment load failed', e);
-  }
-  if (!raw || typeof raw !== 'object') raw = {};
-
-  const {
-    nozzles = [],
-    hoses = [],
-    accessories = [],
-  } = raw;
-
-  const normNozzles = Array.isArray(nozzles)
-    ? nozzles.map((n, i) => normalizeDeptItem(n, 'noz', i))
-    : [];
-
-  const normHoses = Array.isArray(hoses)
-    ? hoses.map((h, i) => normalizeDeptItem(h, 'hose', i))
-    : [];
-
-  const normAccessories = Array.isArray(accessories)
-    ? accessories.map((a, i) => normalizeDeptItem(a, 'acc', i))
-    : [];
-
-  return {
-    ...raw,
-    nozzles: normNozzles,
-    hoses: normHoses,
-    accessories: normAccessories,
-  };
-}
-
-/**
- * Convenience: nozzle list for dropdowns.
- * Returns [{ id, label, gpm?, ... }, ...]
- */
-export function getDeptNozzleOptions() {
-  const dept = getDeptEquipment();
-  return Array.isArray(dept.nozzles) ? dept.nozzles : [];
-}
-
-/**
- * Convenience: hose list for dropdowns.
- * Returns [{ id, label, ... }, ...]
- */
-export function getDeptHoseOptions() {
-  const dept = getDeptEquipment();
-  return Array.isArray(dept.hoses) ? dept.hoses : [];
+function savePresetsToStorage(list) {
+  if (!Array.isArray(list)) return;
+  safeWriteJSON(STORAGE_PRESETS_KEY, list);
 }
 
 function loadLineDefaultsFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (e) {
-    console.warn('Line defaults load failed', e);
-    return {};
-  }
+  const data = safeReadJSON(STORAGE_LINE_DEFAULTS_KEY, {});
+  if (!data || typeof data !== 'object') return {};
+  return data;
 }
 
-function saveLineDefaultsToStorage() {
-  try {
-    const payload = state.lineDefaults || {};
-    localStorage.setItem(STORAGE_LINE_DEFAULTS_KEY, JSON.stringify(payload));
-  } catch (e) {
-    console.warn('Line defaults save failed', e);
-  }
+function saveLineDefaultsToStorage(obj) {
+  if (!obj || typeof obj !== 'object') return;
+  safeWriteJSON(STORAGE_LINE_DEFAULTS_KEY, obj);
 }
 
-// === Shared popup wrapper: Dept wizard ===========================================
-
-function ensureDeptPopupWrapper() {
-  injectAppPresetStyles();
-  if (document.getElementById('deptPopupWrapper')) return;
-
-  const wrap = document.createElement('div');
-  wrap.id = 'deptPopupWrapper';
-  wrap.className = 'preset-panel-wrapper hidden';
-
-  wrap.innerHTML = `
-    <div class="preset-panel-backdrop" data-dept-close="1"></div>
-    <div class="preset-panel">
-      <div class="preset-panel-header">
-        <div class="preset-panel-title" id="deptPopupTitle">Presets</div>
-        <button type="button" class="preset-close-btn" data-dept-close="1">✕</button>
-      </div>
-      <div class="preset-panel-body" id="deptPopupBody"></div>
-      <div class="preset-panel-footer" id="deptPopupFooter"></div>
-    </div>
-  `;
-
-  document.body.appendChild(wrap);
-
-  wrap.addEventListener('click', (ev) => {
-    const target = ev.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.dataset.deptClose === '1') {
-      wrap.classList.add('hidden');
-    }
-  });
-}
-
-// === Department setup: home menu ==================================================
-
-function renderDeptHomeScreen() {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
-  titleEl.textContent = 'Department setup';
-
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Choose what you want to configure for your department. You can set up nozzles,
-      hoses, and common accessories, then save line presets that match your rigs.
-    </p>
-    <div class="dept-menu">
-      <button type="button" class="btn-primary" id="deptNozzlesBtn">Nozzles</button>
-      <button type="button" class="btn-secondary" id="deptHosesBtn">Hoses</button>
-      <button type="button" class="btn-secondary" id="deptAccessoriesBtn">Accessories</button>
-    </div>
-
-    <p class="dept-intro" style="margin-top:12px; margin-bottom:4px;">
-      Department line defaults
-    </p>
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="1">Line 1 default</button>
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="2">Line 2 default</button>
-      <button type="button" class="btn-secondary preset-line-default-btn" data-line="3">Line 3 default</button>
-    </div>
-  `;
-
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" data-dept-close="1">Close</button>
-  `;
-
-  const nozBtn = bodyEl.querySelector('#deptNozzlesBtn');
-  if (nozBtn) nozBtn.addEventListener('click', () => renderNozzleSelectionScreen());
-
-  const hoseBtn = bodyEl.querySelector('#deptHosesBtn');
-  if (hoseBtn) hoseBtn.addEventListener('click', () => renderHoseSelectionScreen());
-
-  const accBtn = bodyEl.querySelector('#deptAccessoriesBtn');
-  if (accBtn) accBtn.addEventListener('click', () => renderAccessorySelectionScreen());
-
-  // Line defaults buttons inside Department setup home
-  bodyEl.querySelectorAll('.preset-line-default-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderDeptLineDefaultsScreen(line);
-    });
-  });
-
-  wrap.classList.remove('hidden');
-}
-
-// === Nozzle selection screen ======================================================
-
-function renderNozzleSelectionScreen() {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
-  titleEl.textContent = 'Department nozzles';
-
-  const smoothHtml = NOZZLES_SMOOTH.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
-
-  const fogHtml = NOZZLES_FOG.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
-
-  const masterHtml = NOZZLES_MASTER.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
-
-  const specialHtml = NOZZLES_SPECIAL.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
-
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Check the nozzles your department actually carries. These will be used in future
-      updates to shorten nozzle dropdowns and presets.
-    </p>
-
-    <div class="dept-columns">
-      <div class="dept-column">
-        <h3>Smooth bore</h3>
-        <div class="dept-list" id="deptSmoothList">
-          ${smoothHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Fog / Combination</h3>
-        <div class="dept-list" id="deptFogList">
-          ${fogHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Master stream</h3>
-        <div class="dept-list" id="deptMasterList">
-          ${masterHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Specialty</h3>
-        <div class="dept-list" id="deptSpecialList">
-          ${specialHtml}
-        </div>
-      </div>
-    </div>
-
-    <div class="dept-custom">
-      <h3>Custom nozzle</h3>
-      <div class="dept-custom-row">
-        <label>Name / label
-          <input type="text" id="customNozName" placeholder="Example: 1 3/4&quot; attack line 160 gpm @ 75 psi">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>GPM
-          <input type="number" id="customNozGpm" inputmode="numeric" placeholder="160">
-        </label>
-        <label>Nozzle PSI
-          <input type="number" id="customNozPsi" inputmode="numeric" placeholder="75">
-        </label>
-        <label>Type
-          <select id="customNozType">
-            <option value="smooth">Smooth bore</option>
-            <option value="fog">Fog / Combo</option>
-            <option value="master">Master stream</option>
-            <option value="special">Specialty</option>
-          </select>
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <button type="button" class="btn-secondary" id="customNozAddBtn">Add custom nozzle</button>
-      </div>
-    </div>
-  `;
-
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" id="deptNozBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptNozSaveBtn">Save</button>
-  `;
-
-  const smoothList = bodyEl.querySelector('#deptSmoothList');
-  const fogList    = bodyEl.querySelector('#deptFogList');
-  const masterList = bodyEl.querySelector('#deptMasterList');
-  const specialList= bodyEl.querySelector('#deptSpecialList');
-
-  // Render saved custom nozzles
-  const savedCustom = Array.isArray(state.customNozzles) ? state.customNozzles : [];
-  for (const cn of savedCustom) {
-    let host = null;
-    if (cn.type === 'smooth') host = smoothList;
-    else if (cn.type === 'fog') host = fogList;
-    else if (cn.type === 'master') host = masterList;
-    else host = specialList || fogList;
-    if (!host) continue;
-    const row = document.createElement('label');
-    row.className = 'dept-option';
-    row.innerHTML = `
-      <input type="checkbox" data-noz-id="${cn.id}">
-      <span>${cn.label}</span>
-    `;
-    host.appendChild(row);
-  }
-
-  // Pre-check based on state.deptNozzles
-  const selected = new Set(state.deptNozzles || []);
-  bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
-    const id = cb.getAttribute('data-noz-id');
-    if (id && selected.has(id)) cb.checked = true;
-  });
-
-  const addBtn = bodyEl.querySelector('#customNozAddBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const nameEl = bodyEl.querySelector('#customNozName');
-      const gpmEl  = bodyEl.querySelector('#customNozGpm');
-      const psiEl  = bodyEl.querySelector('#customNozPsi');
-      const typeEl = bodyEl.querySelector('#customNozType');
-      if (!nameEl || !gpmEl || !psiEl || !typeEl) return;
-
-      const name = String(nameEl.value || '').trim();
-      if (!name) {
-        alert('Please enter a name/label for the custom nozzle.');
-        return;
-      }
-      const gpm = Number(gpmEl.value || 0);
-      const psi = Number(psiEl.value || 0);
-      let type = String(typeEl.value || 'fog');
-      if (!['smooth','fog','master','special'].includes(type)) type = 'fog';
-
-      const id = 'custom_noz_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-      const labelParts = [name];
-      if (gpm > 0) labelParts.push(gpm + ' gpm');
-      if (psi > 0) labelParts.push('@ ' + psi + ' psi');
-      const fullLabel = labelParts.join(' ');
-
-      const custom = { id, label: fullLabel, type, gpm, psi };
-      if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
-      state.customNozzles.push(custom);
-
-      let host = null;
-      if (type === 'smooth') host = smoothList;
-      else if (type === 'fog') host = fogList;
-      else if (type === 'master') host = masterList;
-      else host = specialList || fogList;
-
-      if (host) {
-        const row = document.createElement('label');
-        row.className = 'dept-option';
-        row.innerHTML = `
-          <input type="checkbox" data-noz-id="${id}" checked>
-          <span>${fullLabel}</span>
-        `;
-        host.appendChild(row);
-      }
-
-      saveDeptToStorage();
-
-      nameEl.value = '';
-      gpmEl.value = '';
-      psiEl.value = '';
-    });
-  }
-
-  const backBtn = footerEl.querySelector('#deptNozBackBtn');
-  if (backBtn) backBtn.addEventListener('click', () => renderDeptHomeScreen());
-
-  const saveBtn = footerEl.querySelector('#deptNozSaveBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      const chosen = [];
-      bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
-        if (cb.checked) {
-          const id = cb.getAttribute('data-noz-id');
-          if (id) chosen.push(id);
-        }
-      });
-      state.deptNozzles = chosen;
-      saveDeptToStorage();
-      const wrap2 = document.getElementById('deptPopupWrapper');
-      if (wrap2) wrap2.classList.add('hidden');
-      openPresetMainMenu();
-    });
-  }
-
-  wrap.classList.remove('hidden');
-}
-
-// === Hose selection screen ========================================================
-
-function renderHoseSelectionScreen() {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
-  titleEl.textContent = 'Department hoses';
-
-  const attackHtml = HOSES_ATTACK.map(h => `
-    <label class="dept-option">
-      <input type="checkbox" data-hose-id="${h.id}">
-      <span>${h.label}</span>
-    </label>
-  `).join('');
-
-  const supplyHtml = HOSES_SUPPLY.map(h => `
-    <label class="dept-option">
-      <input type="checkbox" data-hose-id="${h.id}">
-      <span>${h.label}</span>
-    </label>
-  `).join('');
-
-  const wildHtml = HOSES_WILDLAND.map(h => `
-    <label class="dept-option">
-      <input type="checkbox" data-hose-id="${h.id}">
-      <span>${h.label}</span>
-    </label>
-  `).join('');
-
-  const lowHtml = HOSES_LOWFRICTION.map(h => `
-    <label class="dept-option">
-      <input type="checkbox" data-hose-id="${h.id}">
-      <span>${h.label}</span>
-    </label>
-  `).join('');
-
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Check the hose sizes your department carries. Low-friction and custom hoses with C values
-      can be added here and used later in your line presets and calculations.
-    </p>
-
-    <div class="dept-columns">
-      <div class="dept-column">
-        <h3>Attack lines</h3>
-        <div class="dept-list" id="deptHoseAttackList">
-          ${attackHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Supply</h3>
-        <div class="dept-list" id="deptHoseSupplyList">
-          ${supplyHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Wildland / Booster</h3>
-        <div class="dept-list" id="deptHoseWildList">
-          ${wildHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Low-friction hose</h3>
-        <div class="dept-list" id="deptHoseLFList">
-          ${lowHtml}
-        </div>
-      </div>
-    </div>
-
-    <div class="dept-custom">
-      <h3>Custom hose</h3>
-      <div class="dept-custom-row">
-        <label>Name / label
-          <input type="text" id="customHoseName" placeholder="Example: 1 3/4&quot; low-friction preconnect">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Diameter (inches)
-          <input type="number" id="customHoseDia" inputmode="decimal" placeholder="1.75">
-        </label>
-        <label>C value
-          <input type="number" id="customHoseC" inputmode="decimal" placeholder="15">
-        </label>
-        <label>Category
-          <select id="customHoseCategory">
-            <option value="attack">Attack</option>
-            <option value="supply">Supply</option>
-            <option value="wildland">Wildland / Booster</option>
-            <option value="lowfriction">Low-friction</option>
-          </select>
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <button type="button" class="btn-secondary" id="customHoseAddBtn">Add custom hose</button>
-      </div>
-    </div>
-  `;
-
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" id="deptHoseBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptHoseSaveBtn">Save</button>
-  `;
-
-  const attackList = bodyEl.querySelector('#deptHoseAttackList');
-  const supplyList = bodyEl.querySelector('#deptHoseSupplyList');
-  const wildList   = bodyEl.querySelector('#deptHoseWildList');
-  const lfList     = bodyEl.querySelector('#deptHoseLFList');
-
-  // Render saved custom hoses
-  const savedCustomHoses = Array.isArray(state.customHoses) ? state.customHoses : [];
-  for (const ch of savedCustomHoses) {
-    let host = null;
-    if (ch.category === 'attack') host = attackList;
-    else if (ch.category === 'supply') host = supplyList;
-    else if (ch.category === 'wildland') host = wildList;
-    else host = lfList || supplyList;
-    if (!host) continue;
-    const row = document.createElement('label');
-    row.className = 'dept-option';
-    row.innerHTML = `
-      <input type="checkbox" data-hose-id="${ch.id}">
-      <span>${ch.label}</span>
-    `;
-    host.appendChild(row);
-  }
-
-  // Pre-check based on state.deptHoses
-  const hSelected = new Set(state.deptHoses || []);
-  bodyEl.querySelectorAll('input[data-hose-id]').forEach((cb) => {
-    const id = cb.getAttribute('data-hose-id');
-    if (id && hSelected.has(id)) cb.checked = true;
-  });
-
-  const addBtn = bodyEl.querySelector('#customHoseAddBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const nameEl = bodyEl.querySelector('#customHoseName');
-      const diaEl  = bodyEl.querySelector('#customHoseDia');
-      const cEl    = bodyEl.querySelector('#customHoseC');
-      const catEl  = bodyEl.querySelector('#customHoseCategory');
-      if (!nameEl || !diaEl || !cEl || !catEl) return;
-
-      const name = String(nameEl.value || '').trim();
-      if (!name) {
-        alert('Please enter a name/label for the custom hose.');
-        return;
-      }
-      const dia = Number(diaEl.value || 0);
-      const c   = Number(cEl.value || 0);
-      let cat   = String(catEl.value || 'attack');
-      if (!['attack','supply','wildland','lowfriction'].includes(cat)) {
-        cat = 'attack';
-      }
-
-      const id = 'custom_hose_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-      const labelParts = [name];
-      if (dia > 0) labelParts.push(dia + '"');
-      if (c > 0) labelParts.push('(C ' + c + ')');
-      const fullLabel = labelParts.join(' ');
-
-      const custom = { id, label: fullLabel, diameter: dia, cValue: c, category: cat };
-      if (!Array.isArray(state.customHoses)) state.customHoses = [];
-      state.customHoses.push(custom);
-
-      let host = null;
-      if (cat === 'attack') host = attackList;
-      else if (cat === 'supply') host = supplyList;
-      else if (cat === 'wildland') host = wildList;
-      else host = lfList || supplyList;
-
-      if (host) {
-        const row = document.createElement('label');
-        row.className = 'dept-option';
-        row.innerHTML = `
-          <input type="checkbox" data-hose-id="${id}" checked>
-          <span>${fullLabel}</span>
-        `;
-        host.appendChild(row);
-      }
-
-      saveDeptToStorage();
-
-      nameEl.value = '';
-      diaEl.value  = '';
-      cEl.value    = '';
-    });
-  }
-
-  const backBtn = footerEl.querySelector('#deptHoseBackBtn');
-  if (backBtn) backBtn.addEventListener('click', () => renderDeptHomeScreen());
-
-  const saveBtn = footerEl.querySelector('#deptHoseSaveBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      const chosen = [];
-      bodyEl.querySelectorAll('input[data-hose-id]').forEach((cb) => {
-        if (cb.checked) {
-          const id = cb.getAttribute('data-hose-id');
-          if (id) chosen.push(id);
-        }
-      });
-      state.deptHoses = chosen;
-      saveDeptToStorage();
-      const wrap2 = document.getElementById('deptPopupWrapper');
-      if (wrap2) wrap2.classList.add('hidden');
-      openPresetMainMenu();
-    });
-  }
-
-  wrap.classList.remove('hidden');
-}
-
-// === Accessories selection screen =================================================
-
-function renderAccessorySelectionScreen() {
-  ensureDeptPopupWrapper();
-  const wrap = document.getElementById('deptPopupWrapper');
-  if (!wrap) return;
-
-  const titleEl = wrap.querySelector('#deptPopupTitle');
-  const bodyEl  = wrap.querySelector('#deptPopupBody');
-  const footerEl= wrap.querySelector('#deptPopupFooter');
-  if (!titleEl || !bodyEl || !footerEl) return;
-
-  titleEl.textContent = 'Department accessories';
-
-  const appHtml = ACCESSORIES_APPLIANCES.map(a => `
-    <label class="dept-option">
-      <input type="checkbox" data-acc-id="${a.id}">
-      <span>${a.label}</span>
-    </label>
-  `).join('');
-
-  const foamHtml = ACCESSORIES_FOAM.map(a => `
-    <label class="dept-option">
-      <input type="checkbox" data-acc-id="${a.id}">
-      <span>${a.label}</span>
-    </label>
-  `).join('');
-
-  const monHtml = ACCESSORIES_MONITORING.map(a => `
-    <label class="dept-option">
-      <input type="checkbox" data-acc-id="${a.id}">
-      <span>${a.label}</span>
-    </label>
-  `).join('');
-
-  const devHtml = ACCESSORIES_MONITORS.map(a => `
-    <label class="dept-option">
-      <input type="checkbox" data-acc-id="${a.id}">
-      <span>${a.label}</span>
-    </label>
-  `).join('');
-
-  bodyEl.innerHTML = `
-    <p class="dept-intro">
-      Select accessories and appliances commonly used in your operations. These can later be
-      tied into scenarios, notes, or pump card references.
-    </p>
-
-    <div class="dept-columns">
-      <div class="dept-column">
-        <h3>Appliances</h3>
-        <div class="dept-list" id="deptAccAppList">
-          ${appHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Foam / Eductor</h3>
-        <div class="dept-list" id="deptAccFoamList">
-          ${foamHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Gauges / Gates</h3>
-        <div class="dept-list" id="deptAccMonList">
-          ${monHtml}
-        </div>
-      </div>
-      <div class="dept-column">
-        <h3>Monitors</h3>
-        <div class="dept-list" id="deptAccDevList">
-          ${devHtml}
-        </div>
-      </div>
-    </div>
-
-    <div class="dept-custom">
-      <h3>Custom accessory</h3>
-      <div class="dept-custom-row">
-        <label>Name / label
-          <input type="text" id="customAccName" placeholder="Example: High-rise pack w/ inline gauge">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Category
-          <select id="customAccCategory">
-            <option value="appliance">Appliance</option>
-            <option value="foam">Foam / Eductor</option>
-            <option value="monitoring">Gauge / Gate</option>
-            <option value="monitor">Monitor / Device</option>
-          </select>
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <button type="button" class="btn-secondary" id="customAccAddBtn">Add custom accessory</button>
-      </div>
-    </div>
-  `;
-
-  footerEl.innerHTML = `
-    <button type="button" class="btn-secondary" id="deptAccBackBtn">Back</button>
-    <button type="button" class="btn-primary" id="deptAccSaveBtn">Save</button>
-  `;
-
-  const appList = bodyEl.querySelector('#deptAccAppList');
-  const foamList= bodyEl.querySelector('#deptAccFoamList');
-  const monList = bodyEl.querySelector('#deptAccMonList');
-  const devList = bodyEl.querySelector('#deptAccDevList');
-
-  const savedCustomAcc = Array.isArray(state.customAccessories) ? state.customAccessories : [];
-  for (const ca of savedCustomAcc) {
-    let host = null;
-    if (ca.category === 'appliance') host = appList;
-    else if (ca.category === 'foam') host = foamList;
-    else if (ca.category === 'monitoring') host = monList;
-    else host = devList || appList;
-    if (!host) continue;
-    const row = document.createElement('label');
-    row.className = 'dept-option';
-    row.innerHTML = `
-      <input type="checkbox" data-acc-id="${ca.id}">
-      <span>${ca.label}</span>
-    `;
-    host.appendChild(row);
-  }
-
-  const accSelected = new Set(state.deptAccessories || []);
-  bodyEl.querySelectorAll('input[data-acc-id]').forEach((cb) => {
-    const id = cb.getAttribute('data-acc-id');
-    if (id && accSelected.has(id)) cb.checked = true;
-  });
-
-  const addBtn = bodyEl.querySelector('#customAccAddBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const nameEl = bodyEl.querySelector('#customAccName');
-      const catEl  = bodyEl.querySelector('#customAccCategory');
-      if (!nameEl || !catEl) return;
-
-      const name = String(nameEl.value || '').trim();
-      if (!name) {
-        alert('Please enter a name/label for the accessory.');
-        return;
-      }
-      let cat = String(catEl.value || 'appliance');
-      if (!['appliance','foam','monitoring','monitor'].includes(cat)) {
-        cat = 'appliance';
-      }
-
-      const id = 'custom_acc_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-      const fullLabel = name;
-
-      const custom = { id, label: fullLabel, category: cat };
-      if (!Array.isArray(state.customAccessories)) state.customAccessories = [];
-      state.customAccessories.push(custom);
-
-      let host = null;
-      if (cat === 'appliance') host = appList;
-      else if (cat === 'foam') host = foamList;
-      else if (cat === 'monitoring') host = monList;
-      else host = devList || appList;
-
-      if (host) {
-        const row = document.createElement('label');
-        row.className = 'dept-option';
-        row.innerHTML = `
-          <input type="checkbox" data-acc-id="${id}" checked>
-          <span>${fullLabel}</span>
-        `;
-        host.appendChild(row);
-      }
-
-      saveDeptToStorage();
-      nameEl.value = '';
-    });
-  }
-
-  const backBtn = footerEl.querySelector('#deptAccBackBtn');
-  if (backBtn) backBtn.addEventListener('click', () => renderDeptHomeScreen());
-
-  const saveBtn = footerEl.querySelector('#deptAccSaveBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      const chosen = [];
-      bodyEl.querySelectorAll('input[data-acc-id]').forEach((cb) => {
-        if (cb.checked) {
-          const id = cb.getAttribute('data-acc-id');
-          if (id) chosen.push(id);
-        }
-      });
-      state.deptAccessories = chosen;
-      saveDeptToStorage();
-      const wrap2 = document.getElementById('deptPopupWrapper');
-      if (wrap2) wrap2.classList.add('hidden');
-      openPresetMainMenu();
-    });
-  }
-
-  wrap.classList.remove('hidden');
-}
-
-// === Dept wizard entry ============================================================
-
-function openDeptWizard() {
-  const dept = loadDeptFromStorage();
-  state.deptNozzles = dept.nozzles;
-  state.customNozzles = dept.customNozzles;
-  state.deptHoses = dept.hoses;
-  state.customHoses = dept.customHoses;
-  state.deptAccessories = dept.accessories;
-  state.customAccessories = dept.customAccessories;
-  renderDeptHomeScreen();
-}
-
-// === App Preset panel wrapper (top-level presets menu) ============================
-
-function ensureAppPresetPanelExists() {
-  injectAppPresetStyles();
-  if (document.getElementById('appPresetWrapper')) return;
-
-  const wrap = document.createElement('div');
-  wrap.id = 'appPresetWrapper';
-  wrap.className = 'preset-panel-wrapper hidden';
-
-  wrap.innerHTML = `
-    <div class="preset-panel-backdrop" data-app-preset-close="1"></div>
-    <div class="preset-panel">
-      <div class="preset-panel-header">
-        <div class="preset-panel-title">Presets</div>
-        <button type="button" class="preset-close-btn" data-app-preset-close="1">✕</button>
-      </div>
-      <div class="preset-panel-body" id="appPresetBody"></div>
-      <div class="preset-panel-footer" id="appPresetFooter"></div>
-    </div>
-  `;
-
-  document.body.appendChild(wrap);
-
-  wrap.addEventListener('click', (ev) => {
-    const target = ev.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.dataset.appPresetClose === '1') {
-      wrap.classList.add('hidden');
-    }
-  });
-}
-
-// === Line detail screen (Line 1 / Line 2 / Line 3) – EDITABLE =====================
-
-function renderLineInfoScreen(lineNumber) {
-  ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
-  if (!wrap) return;
-  const body   = wrap.querySelector('#appPresetBody');
-  const footer = wrap.querySelector('#appPresetFooter');
-  const titleEl= wrap.querySelector('.preset-panel-title');
-  if (!body || !footer || !titleEl) return;
-
-  const current = state.getLineState ? (state.getLineState(lineNumber) || {}) : {};
-
-  const hoseVal = current.hoseDiameter ?? '';
-  const lenVal  = (typeof current.lengthFt === 'number' ? current.lengthFt : (current.lengthFt ?? ''));
-  const nozVal  = current.nozzleId ?? '';
-  const psiVal  = (typeof current.nozzlePsi === 'number' ? current.nozzlePsi : (current.nozzlePsi ?? ''));
-
-  titleEl.textContent = `Line ${lineNumber} setup`;
-
-  body.innerHTML = `
-    <p class="dept-intro">
-      Edit the Line ${lineNumber} setup here. This does not change the main line until you
-      hit "Apply to line". You can also save this as a reusable preset.
-    </p>
-    <div class="dept-list">
-      <div class="dept-custom-row">
-        <label>Hose diameter (inches)
-          <input type="number" id="lineEditHoseDia" inputmode="decimal" value="${hoseVal}">
-        </label>
-        <label>Length (ft)
-          <input type="number" id="lineEditLength" inputmode="numeric" value="${lenVal}">
-        </label>
-      </div>
-      <div class="dept-custom-row">
-        <label>Nozzle ID / label
-          <input type="text" id="lineEditNozId" value="${nozVal}">
-        </label>
-        <label>Nozzle PSI
-          <input type="number" id="lineEditNozPsi" inputmode="numeric" value="${psiVal}">
-        </label>
-      </div>
-    </div>
-  `;
-
-  footer.innerHTML = `
-    <button type="button" class="btn-secondary" id="lineBackBtn">Back</button>
-    <button type="button" class="btn-secondary" id="lineRefreshBtn">Refresh from calc</button>
-    <button type="button" class="btn-secondary" id="lineApplyBtn">Apply to line</button>
-    <button type="button" class="btn-primary" id="lineSavePresetBtn">Save as preset</button>
-  `;
-
-  function readEditedLineState() {
-    const hoseEl = body.querySelector('#lineEditHoseDia');
-    const lenEl  = body.querySelector('#lineEditLength');
-    const nozEl  = body.querySelector('#lineEditNozId');
-    const psiEl  = body.querySelector('#lineEditNozPsi');
-    const edited = { ...(state.getLineState ? (state.getLineState(lineNumber) || {}) : {}) };
-
-    if (hoseEl) {
-      const v = hoseEl.value.trim();
-      edited.hoseDiameter = v ? Number(v) : null;
-    }
-    if (lenEl) {
-      const v = lenEl.value.trim();
-      edited.lengthFt = v ? Number(v) : null;
-    }
-    if (nozEl) {
-      edited.nozzleId = nozEl.value.trim();
-    }
-    if (psiEl) {
-      const v = psiEl.value.trim();
-      edited.nozzlePsi = v ? Number(v) : null;
-    }
-    return edited;
-  }
-
-  footer.querySelector('#lineBackBtn')?.addEventListener('click', () => {
-    openPresetMainMenu();
-  });
-
-  footer.querySelector('#lineRefreshBtn')?.addEventListener('click', () => {
-    if (!state.getLineState) return;
-    const latest = state.getLineState(lineNumber) || {};
-    const hoseEl = body.querySelector('#lineEditHoseDia');
-    const lenEl  = body.querySelector('#lineEditLength');
-    const nozEl  = body.querySelector('#lineEditNozId');
-    const psiEl  = body.querySelector('#lineEditNozPsi');
-    if (hoseEl) hoseEl.value = latest.hoseDiameter ?? '';
-    if (lenEl)  lenEl.value  = (typeof latest.lengthFt === 'number' ? latest.lengthFt : (latest.lengthFt ?? ''));
-    if (nozEl)  nozEl.value  = latest.nozzleId ?? '';
-    if (psiEl)  psiEl.value  = (typeof latest.nozzlePsi === 'number' ? latest.nozzlePsi : (latest.nozzlePsi ?? ''));
-  });
-
-  footer.querySelector('#lineApplyBtn')?.addEventListener('click', () => {
-    if (!state.applyPresetToCalc) {
-      alert('Apply function not wired yet.');
-      return;
-    }
-    const edited = readEditedLineState();
-    const tempPreset = {
-      id: null,
-      name: `Line ${lineNumber} (edited)`,
-      lineNumber,
-      summary: '',
-      payload: edited,
+// Department equipment is stored in a single object under STORAGE_DEPT_EQ
+// {
+//   nozzles: [...],
+//   customNozzles: [...],
+//   hoses: [...],
+//   customHoses: [...],
+//   accessories: [...],
+//   customAccessories: [...],
+// }
+function loadDeptFromStorage() {
+  const data = safeReadJSON(STORAGE_DEPT_EQ, {});
+  if (!data || typeof data !== 'object') {
+    return {
+      nozzles: [],
+      customNozzles: [],
+      hoses: [],
+      customHoses: [],
+      accessories: [],
+      customAccessories: []
     };
-    state.applyPresetToCalc(tempPreset);
-    const wrap2 = document.getElementById('appPresetWrapper');
-    if (wrap2) wrap2.classList.add('hidden');
-  });
-
-  footer.querySelector('#lineSavePresetBtn')?.addEventListener('click', () => {
-    const edited = readEditedLineState();
-    const defaultName = `Line ${lineNumber} preset`;
-    const name = prompt('Preset name', defaultName);
-    if (!name) return;
-
-    const summaryParts = [];
-    if (edited.hoseDiameter) summaryParts.push(edited.hoseDiameter + '"');
-    if (typeof edited.lengthFt === 'number') summaryParts.push(edited.lengthFt + ' ft');
-    if (edited.nozzleId) summaryParts.push('Nozzle: ' + edited.nozzleId);
-    const summary = summaryParts.join(' • ');
-
-    const preset = {
-      id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-      name,
-      lineNumber,
-      summary,
-      payload: edited,
-    };
-
-    if (!Array.isArray(state.presets)) state.presets = [];
-    state.presets.push(preset);
-    savePresetsToStorage();
-    openPresetMainMenu();
-  });
-
-  wrap.classList.remove('hidden');
-}
-
-// === Main Presets menu ===========================================================
-
-
-
-
-function renderDeptLineDefaultsScreen(lineNumber) {
-  // When editing department line defaults, use the full Standard Line builder.
-  // These become the saved defaults for Line 1 / 2 / 3 on the main screen.
-  const key = 'line' + String(lineNumber);
-
-  // Keep the department popup wrapper around so the user returns there when done.
-  ensureDeptPopupWrapper();
-
-  // Pull any existing "simple" defaults from this module's storage
-  const currentDefaults = (state.lineDefaults && state.lineDefaults[key]) || {};
-
-  const hoseVal = currentDefaults.hoseDiameter;
-  const lenVal  = currentDefaults.lengthFt;
-  const nozVal  = currentDefaults.nozzleId;
-
-  let elevVal;
-  if (typeof currentDefaults.elevationFt === 'number') {
-    elevVal = currentDefaults.elevationFt;
-  } else if (typeof currentDefaults.elevation === 'number') {
-    elevVal = currentDefaults.elevation;
-  } else {
-    elevVal = 0;
   }
 
-  const hoseId = hoseVal != null ? String(hoseVal) : '1.75';
-  const lengthFt = lenVal != null ? Number(lenVal) : 200;
-  const nozzleId = nozVal || 'closed';
-  const elevationFt = elevVal != null ? Number(elevVal) : 0;
+  const {
+    nozzles = [],
+    customNozzles = [],
+    hoses = [],
+    customHoses = [],
+    accessories = [],
+    customAccessories = []
+  } = data;
 
-  const dept = typeof loadDeptFromStorage === 'function'
-    ? (loadDeptFromStorage() || {})
-    : {};
-
-  const initialPayload = {
-    type: 'standard',
-    mode: 'single',
-    single: {
-      hoseId,
-      hoseSize: hoseId,
-      lengthFt,
-      elevationFt,
-      nozzleId
-    }
-    // Wye config will fall back to defaults inside the builder if needed
+  return {
+    nozzles: Array.isArray(nozzles) ? nozzles : [],
+    customNozzles: Array.isArray(customNozzles) ? customNozzles : [],
+    hoses: Array.isArray(hoses) ? hoses : [],
+    customHoses: Array.isArray(customHoses) ? customHoses : [],
+    accessories: Array.isArray(accessories) ? accessories : [],
+    customAccessories: Array.isArray(customAccessories) ? customAccessories : []
   };
-
-  openStandardLinePopup({
-    dept,
-    initial: initialPayload,
-    onSave(payload) {
-      if (!payload || typeof payload !== 'object') return;
-      const single = payload.single || {};
-
-      const next = {
-        hoseDiameter: single.hoseId ? Number(single.hoseId) : null,
-        lengthFt: single.lengthFt != null ? Number(single.lengthFt) : null,
-        nozzleId: single.nozzleId || '',
-        nozzlePsi: null,
-        elevationFt: single.elevationFt != null ? Number(single.elevationFt) : 0
-      };
-
-      // Save in this module's simpler lineDefaults object
-      if (!state.lineDefaults) state.lineDefaults = {};
-      state.lineDefaults[key] = next;
-      saveLineDefaultsToStorage();
-
-      // Also save into the central dept defaults in store.js
-      try {
-        const storeKey =
-          lineNumber === 1 ? 'left' :
-          lineNumber === 2 ? 'back' :
-          lineNumber === 3 ? 'right' :
-          null;
-
-        if (storeKey) {
-          const L = {
-            label: 'Line ' + String(lineNumber),
-            visible: false,
-            itemsMain: [],
-            itemsLeft: [],
-            itemsRight: [],
-            hasWye: false,
-            elevFt: next.elevationFt || 0,
-            nozRight: null
-          };
-
-          if (single.hoseId) {
-            L.itemsMain.push({
-              size: String(single.hoseId),
-              lengthFt: next.lengthFt || 0
-            });
-          }
-
-          if (single.nozzleId && NOZ[single.nozzleId]) {
-            L.nozRight = NOZ[single.nozzleId];
-          }
-
-          setDeptLineDefault(storeKey, L);
-        }
-      } catch (e) {
-        console.warn('Failed to sync dept line default to store', e);
-      }
-    }
-  });
 }
 
-function openPresetMainMenu() {
-  ensureAppPresetPanelExists();
-  const wrap = document.getElementById('appPresetWrapper');
-  if (!wrap) return;
-  const body   = wrap.querySelector('#appPresetBody');
-  const footer = wrap.querySelector('#appPresetFooter');
-  const titleEl= wrap.querySelector('.preset-panel-title');
-  if (!body || !footer || !titleEl) return;
-
-  titleEl.textContent = 'Presets';
-
-  const presets = state.presets || [];
-  const savedHtml = presets.length
-    ? presets.map(p => `
-        <div class="preset-row">
-          <button type="button"
-                  class="btn-secondary preset-menu-preset-btn"
-                  data-preset-id="${p.id}">
-            <span>${p.name}</span>
-            <span class="preset-menu-preset-meta">
-              Line ${p.lineNumber || (p.config && p.config.lineNumber) || 1}${p.summary ? ' • ' + p.summary : ''}
-            </span>
-          </button>
-          <button type="button"
-                  class="btn-tertiary preset-edit-btn"
-                  data-preset-id="${p.id}">
-            Edit
-          </button>
-          <button type="button"
-                  class="btn-tertiary preset-del-btn"
-                  data-preset-id="${p.id}">
-            Del
-          </button>
-        </div>
-      `).join('')
-    : `<div class="preset-list-empty">No saved presets yet.</div>`;
-
-  
-  body.innerHTML = `
-    <div class="dept-menu" style="margin-bottom:8px;">
-      <p class="dept-intro" style="margin-top:0;margin-bottom:4px;">
-        <strong>Department setup</strong>
-      </p>
-      <p class="dept-help" style="margin:0 0 6px 0;font-size:0.9rem;line-height:1.3;">
-        Choose your default hoses, nozzles, appliances, and line setups for your department.
-        These choices control what appears in the main calculator, line defaults, and presets.
-      </p>
-      <button type="button" class="btn-primary" id="presetDeptSetupBtn">
-        Open Department setup
-      </button>
-    </div>
-
-    <p class="dept-intro" style="margin-top:6px; margin-bottom:4px;">
-      <strong>Saved presets</strong>
-    </p>
-    <div class="preset-menu-presets" id="presetSavedList">
-      ${savedHtml}
-    </div>
-  `;
-  footer.innerHTML = `
-    <button type="button" class="btn-secondary" data-app-preset-close="1">Close</button>
-    <button type="button" class="btn-primary" id="presetAddPresetBtn">Add preset</button>
-  `;
-
-  // Department setup button
-  const deptBtn = body.querySelector('#presetDeptSetupBtn');
-  if (deptBtn) {
-    deptBtn.addEventListener('click', () => {
-      wrap.classList.add('hidden');
-      openDeptWizard();
-    });
-  }
-
-  // Line buttons (scene-only quick editors)
-  body.querySelectorAll('.preset-line-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderLineInfoScreen(line);
-    });
-  });
-
-  // Department line default buttons (open separate defaults editor)
-  body.querySelectorAll('.preset-line-default-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const line = Number(btn.getAttribute('data-line') || '1');
-      renderDeptLineDefaultsScreen(line);
-    });
-  });
-
-  // Saved preset buttons: apply directly when clicked
-  body.querySelectorAll('.preset-menu-preset-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-preset-id');
-      const preset = (state.presets || []).find(p => p.id === id);
-      if (!preset || !state.applyPresetToCalc) return;
-      state.applyPresetToCalc(preset);
-      wrap.classList.add('hidden');
-    });
-  });
-
-  // Edit buttons: open the original editor with this preset's data
-  body.querySelectorAll('.preset-edit-btn').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const id = btn.getAttribute('data-preset-id');
-      if (!id) return;
-      handleEditPreset(id);
-    });
-  });
-
-  // Delete buttons: remove preset from storage
-  body.querySelectorAll('.preset-del-btn').forEach(btn => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const id = btn.getAttribute('data-preset-id');
-      if (!id) return;
-      handleDeletePreset(id);
-      // Re-render main menu to update list
-      openPresetMainMenu();
-    });
-  });
-
-  // Add preset button: saves current Line 1 by default (user can rename)
-  const addBtn = footer.querySelector('#presetAddPresetBtn');
-  if (addBtn) {
-    addBtn.addEventListener('click', () => {
-      const name = prompt('Preset name', 'New preset');
-      if (!name) return;
-      handleAddPresetClick(name);
-      openPresetMainMenu(); // refresh list
-    });
-  }
-
-  wrap.classList.remove('hidden');
+function saveDeptToStorage(dept) {
+  if (!dept || typeof dept !== 'object') return;
+  const payload = {
+    nozzles: Array.isArray(dept.nozzles) ? dept.nozzles : [],
+    customNozzles: Array.isArray(dept.customNozzles) ? dept.customNozzles : [],
+    hoses: Array.isArray(dept.hoses) ? dept.hoses : [],
+    customHoses: Array.isArray(dept.customHoses) ? dept.customHoses : [],
+    accessories: Array.isArray(dept.accessories) ? dept.accessories : [],
+    customAccessories: Array.isArray(dept.customAccessories) ? dept.customAccessories : []
+  };
+  safeWriteJSON(STORAGE_DEPT_EQ, payload);
 }
 
-// Legacy helper: keep name but point to new main menu
+// ==========================================================
+// Presets Panel (top-level menu opened by Presets button)
+// ==========================================================
+
 function openPresetPanelApp() {
-  openPresetMainMenu();
-}
+  const existing = document.getElementById('presetsOverlay');
+  if (existing) {
+    existing.remove();
+  }
 
-// === Add preset from current calc (defaults to Line 1) ===========================
+  const overlay = document.createElement('div');
+  overlay.id = 'presetsOverlay';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(0,0,0,0.45)';
+  overlay.style.zIndex = '9999';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
 
-function handleAddPresetClick(initialName) {
-  // New flow: open the dedicated Preset Line Editor popup
-  // instead of directly capturing the current line state.
-  const dept = loadDeptFromStorage() || {};
-
-  openPresetEditorPopup({
-    dept,
-    initialPreset: initialName ? { name: initialName } : null,
-    onSave(presetConfig) {
-      // Minimal save path for now: store the config in state.presets
-      const name = initialName || (presetConfig && presetConfig.name) || 'New preset';
-
-      const preset = {
-        id: 'preset_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-        name,
-        lineType: presetConfig && presetConfig.lineType,
-        config: presetConfig || {},
-      };
-
-      if (!Array.isArray(state.presets)) state.presets = [];
-      state.presets.push(preset);
-      savePresetsToStorage();
-
-      // Re-open the main preset panel to show the new preset
-      if (typeof openPresetPanelApp === 'function') {
-        openPresetPanelApp();
-      }
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
     }
   });
+
+  const panel = document.createElement('div');
+  panel.style.background = '#111';
+  panel.style.color = '#fff';
+  panel.style.borderRadius = '12px';
+  panel.style.border = '1px solid rgba(255,255,255,0.15)';
+  panel.style.boxShadow = '0 12px 40px rgba(0,0,0,0.6)';
+  panel.style.maxWidth = '420px';
+  panel.style.width = '90%';
+  panel.style.padding = '16px';
+  panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  panel.style.maxHeight = '90vh';
+  panel.style.overflowY = 'auto';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.marginBottom = '12px';
+
+  const title = document.createElement('div');
+  title.textContent = 'Presets & Department Setup';
+  title.style.fontSize = '18px';
+  title.style.fontWeight = '600';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.background = 'transparent';
+  closeBtn.style.border = 'none';
+  closeBtn.style.color = '#fff';
+  closeBtn.style.fontSize = '18px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.addEventListener('click', () => overlay.remove());
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+  panel.appendChild(header);
+
+  const section = document.createElement('div');
+  section.style.display = 'flex';
+  section.style.flexDirection = 'column';
+  section.style.gap = '8px';
+
+  function makeButton(label, description, onClick) {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '2px';
+    wrapper.style.padding = '8px 10px';
+    wrapper.style.borderRadius = '8px';
+    wrapper.style.background = 'rgba(255,255,255,0.03)';
+    wrapper.style.border = '1px solid rgba(255,255,255,0.08)';
+    wrapper.style.cursor = 'pointer';
+
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.justifyContent = 'space-between';
+
+    const lbl = document.createElement('div');
+    lbl.textContent = label;
+    lbl.style.fontSize = '15px';
+    lbl.style.fontWeight = '500';
+
+    const chevron = document.createElement('div');
+    chevron.textContent = '›';
+    chevron.style.opacity = '0.7';
+
+    row.appendChild(lbl);
+    row.appendChild(chevron);
+
+    const desc = document.createElement('div');
+    desc.textContent = description;
+    desc.style.fontSize = '12px';
+    desc.style.opacity = '0.7';
+
+    wrapper.appendChild(row);
+    wrapper.appendChild(desc);
+
+    wrapper.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onClick();
+    });
+
+    return wrapper;
+  }
+
+  section.appendChild(
+    makeButton(
+      'Department Setup',
+      'Pick your nozzles, hose sizes, and accessories.',
+      () => {
+        overlay.remove();
+        openDeptWizard();
+      }
+    )
+  );
+
+  section.appendChild(
+    makeButton(
+      'Line 1 / 2 / 3 Defaults',
+      'Quick presets for your main three attack lines.',
+      () => {
+        overlay.remove();
+        openStandardLinePopup();
+      }
+    )
+  );
+
+  section.appendChild(
+    makeButton(
+      'Master Stream Defaults',
+      'Deck gun and portable monitor presets.',
+      () => {
+        overlay.remove();
+        openMasterStreamPopup();
+      }
+    )
+  );
+
+  section.appendChild(
+    makeButton(
+      'Standpipe Defaults',
+      'Preconfigured high-rise / standpipe lines.',
+      () => {
+        overlay.remove();
+        openStandpipePopup();
+      }
+    )
+  );
+
+  section.appendChild(
+    makeButton(
+      'Sprinkler / Foam / Supply / Custom',
+      'More advanced presets for special setups.',
+      () => {
+        overlay.remove();
+        openPresetEditorPopup();
+      }
+    )
+  );
+
+  const savedHeader = document.createElement('div');
+  savedHeader.textContent = 'Saved Presets';
+  savedHeader.style.marginTop = '12px';
+  savedHeader.style.fontSize = '14px';
+  savedHeader.style.fontWeight = '600';
+  savedHeader.style.opacity = '0.8';
+  section.appendChild(savedHeader);
+
+  const savedList = document.createElement('div');
+  savedList.id = 'presetsList';
+  savedList.style.display = 'flex';
+  savedList.style.flexDirection = 'column';
+  savedList.style.gap = '4px';
+  section.appendChild(savedList);
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '＋ Add preset from current setup';
+  addBtn.style.marginTop = '8px';
+  addBtn.style.padding = '8px 10px';
+  addBtn.style.borderRadius = '999px';
+  addBtn.style.border = 'none';
+  addBtn.style.background = '#ffbf00';
+  addBtn.style.color = '#000';
+  addBtn.style.fontSize = '14px';
+  addBtn.style.fontWeight = '600';
+  addBtn.style.cursor = 'pointer';
+  addBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    handleAddPresetFromCurrent();
+  });
+
+  section.appendChild(addBtn);
+
+  panel.appendChild(section);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  renderSavedPresetsList(savedList);
 }
 
-
-
-
-function handleEditPreset(id) {
+function renderSavedPresetsList(container) {
+  container.innerHTML = '';
   const presets = state.presets || [];
-  const preset = presets.find(p => p.id === id);
-  if (!preset) return;
-
-  // Older presets without a lineType / config can’t be reliably edited
-  if (!preset.lineType || !preset.config) {
-    alert('This preset was created before the new builders and can\'t be auto‑edited. Please recreate it using the Add preset button.');
+  if (!Array.isArray(presets) || presets.length === 0) {
+    const empty = document.createElement('div');
+    empty.textContent = 'No saved presets yet.';
+    empty.style.fontSize = '13px';
+    empty.style.opacity = '0.75';
+    container.appendChild(empty);
     return;
   }
 
-  const dept = loadDeptFromStorage ? (loadDeptFromStorage() || {}) : {};
-  const type = preset.lineType;
-  const cfg  = preset.config || {};
+  presets.forEach((p, index) => {
+    if (!p || typeof p !== 'object') return;
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.justifyContent = 'space-between';
+    row.style.padding = '6px 8px';
+    row.style.borderRadius = '6px';
+    row.style.background = 'rgba(255,255,255,0.03)';
 
-  // Figure out the correct builder payload for this type
-  const configs = (cfg.configs && typeof cfg.configs === 'object') ? cfg.configs : {};
-  let initialPayload = null;
+    const left = document.createElement('div');
+    left.style.display = 'flex';
+    left.style.flexDirection = 'column';
+    left.style.gap = '2px';
 
-  // Prefer the configs map from the Preset Line Editor
-  if (configs[type]) {
-    initialPayload = configs[type];
-  } else {
-    // Fall back to type-specific top-level fields like standardConfig, masterConfig, etc.
-    const key = type + 'Config';
-    if (cfg[key]) {
-      initialPayload = cfg[key];
-    } else if (cfg.raw && typeof cfg.raw === 'object') {
-      // For presets that were saved directly from a builder
-      initialPayload = cfg.raw;
-    } else {
-      // Last resort: treat the whole config as the payload
-      initialPayload = cfg;
+    const nameEl = document.createElement('div');
+    nameEl.textContent = p.name || `Preset ${index + 1}`;
+    nameEl.style.fontSize = '14px';
+    nameEl.style.fontWeight = '500';
+
+    const metaEl = document.createElement('div');
+    metaEl.style.fontSize = '11px';
+    metaEl.style.opacity = '0.7';
+    const where = p.where || 'Main';
+    const size = p.size || '';
+    const length = p.length || '';
+    metaEl.textContent = [where, size ? `${size}"` : '', length ? `${length} ft` : '']
+      .filter(Boolean).join(' · ');
+
+    left.appendChild(nameEl);
+    left.appendChild(metaEl);
+
+    const right = document.createElement('div');
+    right.style.display = 'flex';
+    right.style.gap = '6px';
+
+    const applyBtn = document.createElement('button');
+    applyBtn.textContent = 'Apply';
+    applyBtn.style.fontSize = '11px';
+    applyBtn.style.padding = '4px 7px';
+    applyBtn.style.borderRadius = '999px';
+    applyBtn.style.border = 'none';
+    applyBtn.style.background = '#2ecc71';
+    applyBtn.style.color = '#000';
+    applyBtn.style.cursor = 'pointer';
+    applyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      applyPreset(index);
+    });
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Del';
+    delBtn.style.fontSize = '11px';
+    delBtn.style.padding = '4px 7px';
+    delBtn.style.borderRadius = '999px';
+    delBtn.style.border = 'none';
+    delBtn.style.background = '#e74c3c';
+    delBtn.style.color = '#000';
+    delBtn.style.cursor = 'pointer';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePreset(index);
+    });
+
+    right.appendChild(applyBtn);
+    right.appendChild(delBtn);
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    container.appendChild(row);
+  });
+}
+
+function handleAddPresetFromCurrent() {
+  if (typeof state.getLineState !== 'function') {
+    alert('Line state function is not available.');
+    return;
+  }
+
+  const snapshot = state.getLineState();
+  if (!snapshot || typeof snapshot !== 'object') {
+    alert('Unable to read current line state.');
+    return;
+  }
+
+  const name = window.prompt('Preset name?', '');
+  if (!name) return;
+
+  const presets = Array.isArray(state.presets) ? state.presets.slice() : [];
+  presets.push({
+    name,
+    where: snapshot.where || 'Main',
+    size: snapshot.size,
+    length: snapshot.length,
+    elev: snapshot.elev,
+    wye: snapshot.wye,
+    lenA: snapshot.lenA,
+    lenB: snapshot.lenB,
+    noz: snapshot.noz,
+    nozA: snapshot.nozA,
+    nozB: snapshot.nozB,
+    raw: snapshot
+  });
+
+  state.presets = presets;
+  savePresetsToStorage(presets);
+
+  const list = document.getElementById('presetsList');
+  if (list) {
+    renderSavedPresetsList(list);
+  }
+}
+
+function applyPreset(index) {
+  if (typeof state.applyPresetToCalc !== 'function') {
+    alert('Apply preset function is not available.');
+    return;
+  }
+  const presets = Array.isArray(state.presets) ? state.presets : [];
+  const p = presets[index];
+  if (!p) return;
+  state.applyPresetToCalc(p.raw);
+}
+
+function deletePreset(index) {
+  const presets = Array.isArray(state.presets) ? state.presets.slice() : [];
+  if (!presets[index]) return;
+  presets.splice(index, 1);
+  state.presets = presets;
+  savePresetsToStorage(presets);
+
+  const list = document.getElementById('presetsList');
+  if (list) {
+    renderSavedPresetsList(list);
+  }
+}
+
+// ======================================
+// Department Setup: Wizard / Overlays
+// ======================================
+
+function openDeptWizard() {
+  const existing = document.getElementById('deptSetupOverlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'deptSetupOverlay';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(0,0,0,0.65)';
+  overlay.style.zIndex = '9999';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  const panel = document.createElement('div');
+  panel.style.background = '#111';
+  panel.style.color = '#fff';
+  panel.style.borderRadius = '12px';
+  panel.style.border = '1px solid rgba(255,255,255,0.18)';
+  panel.style.boxShadow = '0 16px 50px rgba(0,0,0,0.7)';
+  panel.style.maxWidth = '520px';
+  panel.style.width = '94%';
+  panel.style.maxHeight = '90vh';
+  panel.style.overflow = 'hidden';
+  panel.style.display = 'flex';
+  panel.style.flexDirection = 'column';
+  panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.padding = '10px 12px';
+  header.style.borderBottom = '1px solid rgba(255,255,255,0.14)';
+
+  const title = document.createElement('div');
+  title.textContent = 'Department Setup';
+  title.style.fontSize = '17px';
+  title.style.fontWeight = '600';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.background = 'transparent';
+  closeBtn.style.border = 'none';
+  closeBtn.style.color = '#fff';
+  closeBtn.style.fontSize = '18px';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.addEventListener('click', () => overlay.remove());
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  const tabRow = document.createElement('div');
+  tabRow.style.display = 'flex';
+  tabRow.style.borderBottom = '1px solid rgba(255,255,255,0.12)';
+
+  const tabs = [
+    { id: 'nozzles', label: 'Nozzles' },
+    { id: 'hoses', label: 'Hoses' },
+    { id: 'accessories', label: 'Accessories' }
+  ];
+
+  const content = document.createElement('div');
+  content.style.flex = '1';
+  content.style.overflowY = 'auto';
+  content.style.padding = '10px 12px';
+  content.id = 'deptSetupContent';
+
+  let activeTabId = 'nozzles';
+
+  function renderTabButtons() {
+    tabRow.innerHTML = '';
+    tabs.forEach(tab => {
+      const btn = document.createElement('button');
+      btn.textContent = tab.label;
+      btn.style.flex = '1';
+      btn.style.padding = '8px 0';
+      btn.style.border = 'none';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '13px';
+      btn.style.fontWeight = '500';
+      btn.style.background = (tab.id === activeTabId) ? '#1f1f1f' : '#151515';
+      btn.style.color = tab.id === activeTabId ? '#ffbf00' : '#fff';
+      btn.addEventListener('click', () => {
+        activeTabId = tab.id;
+        renderTabButtons();
+        renderActiveTab();
+      });
+      tabRow.appendChild(btn);
+    });
+  }
+
+  function renderActiveTab() {
+    const dept = loadDeptFromStorage();
+    if (activeTabId === 'nozzles') {
+      renderNozzleSelector(content, dept);
+    } else if (activeTabId === 'hoses') {
+      renderHoseSelector(content, dept);
+    } else if (activeTabId === 'accessories') {
+      renderAccessorySelector(content, dept);
     }
   }
 
-  const saveBack = (updatedPayload) => {
-    if (!updatedPayload) return;
+  renderTabButtons();
+  renderActiveTab();
 
-    const oldCfg = preset.config || {};
-    const oldConfigs = (oldCfg.configs && typeof oldCfg.configs === 'object') ? oldCfg.configs : {};
+  const footer = document.createElement('div');
+  footer.style.display = 'flex';
+  footer.style.justifyContent = 'flex-end';
+  footer.style.padding = '8px 12px';
+  footer.style.borderTop = '1px solid rgba(255,255,255,0.14)';
 
-    const newConfigs = { ...oldConfigs, [type]: updatedPayload };
+  const closeFooterBtn = document.createElement('button');
+  closeFooterBtn.textContent = 'Close';
+  closeFooterBtn.style.padding = '6px 10px';
+  closeFooterBtn.style.borderRadius = '8px';
+  closeFooterBtn.style.border = 'none';
+  closeFooterBtn.style.background = '#444';
+  closeFooterBtn.style.color = '#fff';
+  closeFooterBtn.style.cursor = 'pointer';
+  closeFooterBtn.style.fontSize = '13px';
+  closeFooterBtn.addEventListener('click', () => overlay.remove());
 
-    const newCfg = {
-      ...oldCfg,
-      lineType: type,
-      configs: newConfigs,
+  footer.appendChild(closeFooterBtn);
+
+  panel.appendChild(header);
+  panel.appendChild(tabRow);
+  panel.appendChild(content);
+  panel.appendChild(footer);
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+
+// ======================================
+// Nozzle Selection
+// ======================================
+
+const SMOOTH_BORE_NOZZLES = [
+  { id: 'sb78_50',   label: 'Smooth 7/8" @ 50 psi' },
+  { id: 'sb1516_50', label: 'Smooth 15/16" @ 50 psi' },
+  { id: 'sb1_50',    label: 'Smooth 1" @ 50 psi' },
+  { id: 'sb114_50',  label: 'Smooth 1 1/4" @ 50 psi' },
+  { id: 'sb138_80',  label: 'Smooth 1 3/8" @ 80 psi' },
+  { id: 'sb112_80',  label: 'Smooth 1 1/2" @ 80 psi' },
+  { id: 'sb134_80',  label: 'Smooth 1 3/4" @ 80 psi' },
+  { id: 'sb2_80',    label: 'Smooth 2" @ 80 psi' }
+];
+
+const FOG_NOZZLES = [
+  { id: 'fog150_75', label: 'Fog 150 gpm @ 75 psi' },
+  { id: 'fog150_50', label: 'Fog 150 gpm @ 50 psi' },
+  { id: 'fog175_75', label: 'Fog 175 gpm @ 75 psi' },
+  { id: 'fog175_50', label: 'Fog 175 gpm @ 50 psi' },
+  { id: 'fog185_75', label: 'Fog 185 gpm @ 75 psi' },
+  { id: 'fog185_50', label: 'Fog 185 gpm @ 50 psi' },
+  { id: 'fog200_75', label: 'Fog 200 gpm @ 75 psi' },
+  { id: 'fog200_50', label: 'Fog 200 gpm @ 50 psi' }
+];
+
+const MASTER_STREAM_NOZZLES = [
+  { id: 'ms1_3_8_80', label: 'Master 1 3/8" 500 gpm @ 80 psi' },
+  { id: 'ms1_1_2_80', label: 'Master 1 1/2" 600 gpm @ 80 psi' },
+  { id: 'ms1_3_4_80', label: 'Master 1 3/4" 800 gpm @ 80 psi' },
+  { id: 'ms2_80',     label: 'Master 2" 1000 gpm @ 80 psi' },
+  { id: 'msfog500',   label: 'Master Fog 500 gpm' },
+  { id: 'msfog750',   label: 'Master Fog 750 gpm' },
+  { id: 'msfog1000',  label: 'Master Fog 1000 gpm' },
+  { id: 'msfog1250',  label: 'Master Fog 1250 gpm' }
+];
+
+const SPECIALTY_NOZZLES = [
+  { id: 'piercing', label: 'Piercing nozzle' },
+  { id: 'blitz',    label: 'Blitzfire / Ground monitor' },
+  { id: 'cellar',   label: 'Cellar / Bresnan' },
+  { id: 'water_can',label: 'Water can / extinguisher' }
+];
+
+function renderNozzleSelector(container, dept) {
+  container.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.textContent = 'Select the nozzles your department carries.';
+  title.style.fontSize = '14px';
+  title.style.marginBottom = '8px';
+
+  const sub = document.createElement('div');
+  sub.textContent = 'These will be the only options that show up in the main calculator and line presets.';
+  sub.style.fontSize = '12px';
+  sub.style.opacity = '0.75';
+  sub.style.marginBottom = '8px';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex';
+  wrapper.style.flexDirection = 'column';
+  wrapper.style.gap = '10px';
+
+  const selected = new Set(
+    Array.isArray(dept.nozzles)
+      ? dept.nozzles.map(x => String(x)) : []
+  );
+
+  function makeGroup(label, items, groupKey) {
+    const box = document.createElement('div');
+    box.style.border = '1px solid rgba(255,255,255,0.12)';
+    box.style.borderRadius = '8px';
+    box.style.padding = '6px 8px';
+
+    const header = document.createElement('div');
+    header.textContent = label;
+    header.style.fontSize = '13px';
+    header.style.fontWeight = '600';
+    header.style.marginBottom = '4px';
+
+    const list = document.createElement('div');
+    list.style.display = 'grid';
+    list.style.gridTemplateColumns = '1fr 1fr';
+    list.style.gap = '4px 8px';
+    list.style.fontSize = '12px';
+
+    items.forEach(item => {
+      const row = document.createElement('label');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '4px';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = item.id;
+      checkbox.checked = selected.has(item.id);
+
+      const span = document.createElement('span');
+      span.textContent = item.label;
+
+      row.appendChild(checkbox);
+      row.appendChild(span);
+
+      list.appendChild(row);
+    });
+
+    box.appendChild(header);
+    box.appendChild(list);
+    return box;
+  }
+
+  wrapper.appendChild(makeGroup('Smooth bore', SMOOTH_BORE_NOZZLES, 'smooth'));
+  wrapper.appendChild(makeGroup('Fog nozzles', FOG_NOZZLES, 'fog'));
+  wrapper.appendChild(makeGroup('Master streams', MASTER_STREAM_NOZZLES, 'master'));
+  wrapper.appendChild(makeGroup('Specialty', SPECIALTY_NOZZLES, 'specialty'));
+
+  const customBox = document.createElement('div');
+  customBox.style.border = '1px solid rgba(255,255,255,0.12)';
+  customBox.style.borderRadius = '8px';
+  customBox.style.padding = '6px 8px';
+
+  const customHeader = document.createElement('div');
+  customHeader.textContent = 'Custom nozzles';
+  customHeader.style.fontSize = '13px';
+  customHeader.style.fontWeight = '600';
+  customHeader.style.marginBottom = '4px';
+
+  const customList = document.createElement('div');
+  customList.style.display = 'flex';
+  customList.style.flexDirection = 'column';
+  customList.style.gap = '4px';
+
+  function renderCustomList() {
+    customList.innerHTML = '';
+    const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    customs.forEach((n, idx) => {
+      if (!n) return;
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.gap = '4px';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '4px';
+
+      const id = n.id || `custom_noz_${idx}`;
+      const label = n.label || n.name || `Custom nozzle ${idx + 1}`;
+      const gpm = (typeof n.gpm === 'number' ? n.gpm : (typeof n.flow === 'number' ? n.flow : null));
+      const np = (typeof n.np === 'number'
+        ? n.np
+        : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : null)));
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = id;
+      checkbox.checked = selected.has(id);
+
+      const span = document.createElement('span');
+      span.textContent = gpm && np
+        ? `${label} – ${gpm} gpm @ ${np} psi`
+        : label;
+
+      left.appendChild(checkbox);
+      left.appendChild(span);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Del';
+      delBtn.style.fontSize = '11px';
+      delBtn.style.padding = '2px 6px';
+      delBtn.style.borderRadius = '6px';
+      delBtn.style.border = 'none';
+      delBtn.style.background = '#e74c3c';
+      delBtn.style.color = '#000';
+      delBtn.style.cursor = 'pointer';
+
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const arr = Array.isArray(dept.customNozzles) ? dept.customNozzles.slice() : [];
+        arr.splice(idx, 1);
+        dept.customNozzles = arr;
+        saveDeptToStorage(dept);
+        renderCustomList();
+      });
+
+      row.appendChild(left);
+      row.appendChild(delBtn);
+      customList.appendChild(row);
+    });
+
+    if (customList.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No custom nozzles yet.';
+      empty.style.fontSize = '12px';
+      empty.style.opacity = '0.7';
+      customList.appendChild(empty);
+    }
+  }
+
+  renderCustomList();
+
+  const addCustomBtn = document.createElement('button');
+  addCustomBtn.textContent = 'Add custom nozzle';
+  addCustomBtn.style.marginTop = '6px';
+  addCustomBtn.style.padding = '4px 8px';
+  addCustomBtn.style.borderRadius = '999px';
+  addCustomBtn.style.border = 'none';
+  addCustomBtn.style.background = '#3498db';
+  addCustomBtn.style.color = '#000';
+  addCustomBtn.style.fontSize = '12px';
+  addCustomBtn.style.cursor = 'pointer';
+
+  addCustomBtn.addEventListener('click', () => {
+    const label = window.prompt('Label (e.g. "Chief XD 165 @ 50 psi")?', '');
+    if (!label) return;
+    const gpmStr = window.prompt('Flow (gpm)?', '');
+    if (!gpmStr) return;
+    const gpm = Number(gpmStr);
+    if (!gpm || !Number.isFinite(gpm)) return;
+    const npStr = window.prompt('Nozzle pressure (psi)?', '50');
+    const np = Number(npStr || '50');
+    const id = `custom_noz_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    const custom = {
+      id,
+      label,
+      gpm,
+      np
     };
 
-    // Also keep a direct *Config field for this type for compatibility
-    newCfg[type + 'Config'] = updatedPayload;
+    const arr = Array.isArray(dept.customNozzles) ? dept.customNozzles.slice() : [];
+    arr.push(custom);
+    dept.customNozzles = arr;
 
-    preset.config   = newCfg;
-    preset.lineType = type;
+    const sel = new Set(
+      Array.isArray(dept.nozzles)
+        ? dept.nozzles.map(x => String(x))
+        : []
+    );
+    sel.add(id);
+    dept.nozzles = Array.from(sel);
 
-    if (updatedPayload.lineNumber != null) {
-      preset.lineNumber = updatedPayload.lineNumber;
-    }
-    if (typeof updatedPayload.summary === 'string') {
-      preset.summary = updatedPayload.summary;
-    }
+    saveDeptToStorage(dept);
+    renderNozzleSelector(container, dept);
+  });
 
-    savePresetsToStorage();
-    openPresetMainMenu();
-  };
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save nozzles';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.style.alignSelf = 'flex-end';
+  saveBtn.style.padding = '6px 10px';
+  saveBtn.style.borderRadius = '8px';
+  saveBtn.style.border = 'none';
+  saveBtn.style.background = '#2ecc71';
+  saveBtn.style.color = '#000';
+  saveBtn.style.cursor = 'pointer';
+  saveBtn.style.fontSize = '13px';
 
-  if (type === 'standard' || type === 'single' || type === 'wye') {
-    openStandardLinePopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
+  saveBtn.addEventListener('click', () => {
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const selectedIds = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedIds.push(cb.value);
+      }
     });
-  } else if (type === 'master') {
-    openMasterStreamPopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
+    dept.nozzles = selectedIds;
+    saveDeptToStorage(dept);
+    alert('Nozzle selection saved.');
+  });
+
+  customBox.appendChild(customHeader);
+  customBox.appendChild(customList);
+  customBox.appendChild(addCustomBtn);
+
+  wrapper.appendChild(customBox);
+  wrapper.appendChild(saveBtn);
+
+  container.appendChild(title);
+  container.appendChild(sub);
+  container.appendChild(wrapper);
+}
+
+// ======================================
+// Hose Selection
+// ======================================
+
+const ATTACK_HOSES = [
+  { id: 'h_1',        label: '1"' },
+  { id: 'h_15',       label: '1 1/2"' },
+  { id: 'h_175',      label: '1 3/4"' },
+  { id: 'h_2',        label: '2"' },
+  { id: 'h_25',       label: '2 1/2"' }
+];
+
+const SUPPLY_HOSES = [
+  { id: 'h_3',        label: '3"' },
+  { id: 'h_3_supply', label: '3" supply' },
+  { id: 'h_4_ldh',    label: '4" LDH' },
+  { id: 'h_5_ldh',    label: '5" LDH' }
+];
+
+const WILDLAND_HOSES = [
+  { id: 'h_w_1',      label: '1" wildland' },
+  { id: 'h_w_15',     label: '1 1/2" wildland' },
+  { id: 'h_booster_1',label: '1" booster' }
+];
+
+const LOW_FRICTION_ATTACK = [
+  { id: 'h_lf_175',   label: '1 3/4" low-friction' },
+  { id: 'h_lf_2',     label: '2" low-friction' },
+  { id: 'h_lf_25',    label: '2 1/2" low-friction' },
+  { id: 'h_lf_5',     label: '5" low-friction' }
+];
+
+function renderHoseSelector(container, dept) {
+  container.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.textContent = 'Select hose sizes your department carries.';
+  title.style.fontSize = '14px';
+  title.style.marginBottom = '8px';
+
+  const sub = document.createElement('div');
+  sub.textContent = 'These diameters drive friction loss (C values) in the main calculator and presets.';
+  sub.style.fontSize = '12px';
+  sub.style.opacity = '0.75';
+  sub.style.marginBottom = '8px';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex';
+  wrapper.style.flexDirection = 'column';
+  wrapper.style.gap = '10px';
+
+  const selected = new Set(
+    Array.isArray(dept.hoses)
+      ? dept.hoses.map(x => String(x))
+      : []
+  );
+
+  function makeGroup(label, items) {
+    const box = document.createElement('div');
+    box.style.border = '1px solid rgba(255,255,255,0.12)';
+    box.style.borderRadius = '8px';
+    box.style.padding = '6px 8px';
+
+    const header = document.createElement('div');
+    header.textContent = label;
+    header.style.fontSize = '13px';
+    header.style.fontWeight = '600';
+    header.style.marginBottom = '4px';
+
+    const list = document.createElement('div');
+    list.style.display = 'grid';
+    list.style.gridTemplateColumns = '1fr 1fr';
+    list.style.gap = '4px 8px';
+    list.style.fontSize = '12px';
+
+    items.forEach(item => {
+      const row = document.createElement('label');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.gap = '4px';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = item.id;
+      checkbox.checked = selected.has(item.id);
+
+      const span = document.createElement('span');
+      span.textContent = item.label;
+
+      row.appendChild(checkbox);
+      row.appendChild(span);
+
+      list.appendChild(row);
     });
-  } else if (type === 'standpipe') {
-    openStandpipePopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
-    });
-  } else if (type === 'sprinkler') {
-    openSprinklerPopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
-    });
-  } else if (type === 'foam') {
-    openFoamPopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
-    });
-  } else if (type === 'supply') {
-    openSupplyLinePopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
-    });
-  } else if (type === 'custom') {
-    openCustomBuilderPopup({
-      dept,
-      initial: initialPayload,
-      onSave: saveBack,
-    });
-  } else {
-    alert('Unknown preset type: ' + type + '. Try recreating this preset.');
+
+    box.appendChild(header);
+    box.appendChild(list);
+    return box;
   }
+
+  wrapper.appendChild(makeGroup('Attack lines', ATTACK_HOSES));
+  wrapper.appendChild(makeGroup('Supply lines', SUPPLY_HOSES));
+  wrapper.appendChild(makeGroup('Wildland / Booster', WILDLAND_HOSES));
+  wrapper.appendChild(makeGroup('Low-friction / high-flow', LOW_FRICTION_ATTACK));
+
+  const customBox = document.createElement('div');
+  customBox.style.border = '1px solid rgba(255,255,255,0.12)';
+  customBox.style.borderRadius = '8px';
+  customBox.style.padding = '6px 8px';
+
+  const customHeader = document.createElement('div');
+  customHeader.textContent = 'Custom hose sizes';
+  customHeader.style.fontSize = '13px';
+  customHeader.style.fontWeight = '600';
+  customHeader.style.marginBottom = '4px';
+
+  const customList = document.createElement('div');
+  customList.style.display = 'flex';
+  customList.style.flexDirection = 'column';
+  customList.style.gap = '4px';
+
+  function renderCustomHoseList() {
+    customList.innerHTML = '';
+    const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+    customs.forEach((h, idx) => {
+      if (!h) return;
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.gap = '4px';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '4px';
+
+      const id = h.id || `custom_hose_${idx}`;
+      const label = h.label || h.name || `Custom hose ${idx + 1}`;
+      const dia = (typeof h.diameter === 'number' ? h.diameter : null);
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = id;
+      checkbox.checked = selected.has(id);
+
+      const span = document.createElement('span');
+      span.textContent = dia
+        ? `${label} – ${dia}" hose`
+        : label;
+
+      left.appendChild(checkbox);
+      left.appendChild(span);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Del';
+      delBtn.style.fontSize = '11px';
+      delBtn.style.padding = '2px 6px';
+      delBtn.style.borderRadius = '6px';
+      delBtn.style.border = 'none';
+      delBtn.style.background = '#e74c3c';
+      delBtn.style.color = '#000';
+      delBtn.style.cursor = 'pointer';
+
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const arr = Array.isArray(dept.customHoses) ? dept.customHoses.slice() : [];
+        arr.splice(idx, 1);
+        dept.customHoses = arr;
+        saveDeptToStorage(dept);
+        renderCustomHoseList();
+      });
+
+      row.appendChild(left);
+      row.appendChild(delBtn);
+      customList.appendChild(row);
+    });
+
+    if (customList.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No custom hose sizes yet.';
+      empty.style.fontSize = '12px';
+      empty.style.opacity = '0.7';
+      customList.appendChild(empty);
+    }
+  }
+
+  renderCustomHoseList();
+
+  const addCustomBtn = document.createElement('button');
+  addCustomBtn.textContent = 'Add custom hose size';
+  addCustomBtn.style.marginTop = '6px';
+  addCustomBtn.style.padding = '4px 8px';
+  addCustomBtn.style.borderRadius = '999px';
+  addCustomBtn.style.border = 'none';
+  addCustomBtn.style.background = '#3498db';
+  addCustomBtn.style.color = '#000';
+  addCustomBtn.style.fontSize = '12px';
+  addCustomBtn.style.cursor = 'pointer';
+
+  addCustomBtn.addEventListener('click', () => {
+    const label = window.prompt('Label (e.g. "2 1/2\" combat 600")?', '');
+    if (!label) return;
+    const diaStr = window.prompt('Diameter in inches (e.g. 1.75, 2.5, 4, 5)?', '');
+    const dia = Number(diaStr);
+    if (!dia || !Number.isFinite(dia)) return;
+
+    const id = `custom_hose_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    const custom = {
+      id,
+      label,
+      diameter: dia
+    };
+
+    const arr = Array.isArray(dept.customHoses) ? dept.customHoses.slice() : [];
+    arr.push(custom);
+    dept.customHoses = arr;
+
+    const sel = new Set(
+      Array.isArray(dept.hoses)
+        ? dept.hoses.map(x => String(x))
+        : []
+    );
+    sel.add(id);
+    dept.hoses = Array.from(sel);
+
+    saveDeptToStorage(dept);
+    renderHoseSelector(container, dept);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save hoses';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.style.alignSelf = 'flex-end';
+  saveBtn.style.padding = '6px 10px';
+  saveBtn.style.borderRadius = '8px';
+  saveBtn.style.border = 'none';
+  saveBtn.style.background = '#2ecc71';
+  saveBtn.style.color = '#000';
+  saveBtn.style.cursor = 'pointer';
+  saveBtn.style.fontSize = '13px';
+
+  saveBtn.addEventListener('click', () => {
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const selectedIds = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedIds.push(cb.value);
+      }
+    });
+    dept.hoses = selectedIds;
+    saveDeptToStorage(dept);
+    alert('Hose selection saved.');
+  });
+
+  customBox.appendChild(customHeader);
+  customBox.appendChild(customList);
+  customBox.appendChild(addCustomBtn);
+
+  wrapper.appendChild(customBox);
+  wrapper.appendChild(saveBtn);
+
+  container.appendChild(title);
+  container.appendChild(sub);
+  container.appendChild(wrapper);
 }
-function handleDeletePreset(id) {
-  const presets = state.presets || [];
-  const idx = presets.findIndex(p => p.id === id);
-  if (idx === -1) return;
 
-  const target = presets[idx];
-  const name = target && target.name ? target.name : 'this preset';
-  if (!window.confirm(`Delete ${name}?`)) return;
+// ======================================
+// Accessories Selection (simplified)
+// ======================================
 
-  presets.splice(idx, 1);
-  state.presets = presets;
-  savePresetsToStorage();
+const ACCESSORY_ITEMS = [
+  { id: 'wye2_1_5', label: '2.5" to (2) 1.5" gated wye' },
+  { id: 'wye2_1_75', label: '2.5" to (2) 1.75" gated wye' },
+  { id: 'wye2_2', label: '2.5" to (2) 2" gated wye' },
+  { id: 'standpipe_pack', label: 'High-rise / standpipe pack' },
+  { id: 'foam_eductor', label: 'Foam eductor' },
+  { id: 'foam_portable', label: 'Portable foam unit' }
+];
+
+function renderAccessorySelector(container, dept) {
+  container.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.textContent = 'Accessories & special equipment.';
+  title.style.fontSize = '14px';
+  title.style.marginBottom = '8px';
+
+  const sub = document.createElement('div');
+  sub.textContent = 'These items can be referenced in presets and help match your department layout.';
+  sub.style.fontSize = '12px';
+  sub.style.opacity = '0.75';
+  sub.style.marginBottom = '8px';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex';
+  wrapper.style.flexDirection = 'column';
+  wrapper.style.gap = '10px';
+
+  const selected = new Set(
+    Array.isArray(dept.accessories)
+      ? dept.accessories.map(x => String(x))
+      : []
+  );
+
+  const builtInBox = document.createElement('div');
+  builtInBox.style.border = '1px solid rgba(255,255,255,0.12)';
+  builtInBox.style.borderRadius = '8px';
+  builtInBox.style.padding = '6px 8px';
+
+  const header = document.createElement('div');
+  header.textContent = 'Common accessories';
+  header.style.fontSize = '13px';
+  header.style.fontWeight = '600';
+  header.style.marginBottom = '4px';
+
+  const list = document.createElement('div');
+  list.style.display = 'grid';
+  list.style.gridTemplateColumns = '1fr 1fr';
+  list.style.gap = '4px 8px';
+  list.style.fontSize = '12px';
+
+  ACCESSORY_ITEMS.forEach(item => {
+    const row = document.createElement('label');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '4px';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = item.id;
+    checkbox.checked = selected.has(item.id);
+
+    const span = document.createElement('span');
+    span.textContent = item.label;
+
+    row.appendChild(checkbox);
+    row.appendChild(span);
+    list.appendChild(row);
+  });
+
+  builtInBox.appendChild(header);
+  builtInBox.appendChild(list);
+
+  wrapper.appendChild(builtInBox);
+
+  const customBox = document.createElement('div');
+  customBox.style.border = '1px solid rgba(255,255,255,0.12)';
+  customBox.style.borderRadius = '8px';
+  customBox.style.padding = '6px 8px';
+
+  const customHeader = document.createElement('div');
+  customHeader.textContent = 'Custom accessories';
+  customHeader.style.fontSize = '13px';
+  customHeader.style.fontWeight = '600';
+  customHeader.style.marginBottom = '4px';
+
+  const customList = document.createElement('div');
+  customList.style.display = 'flex';
+  customList.style.flexDirection = 'column';
+  customList.style.gap = '4px';
+
+  function renderCustomAccList() {
+    customList.innerHTML = '';
+    const customs = Array.isArray(dept.customAccessories) ? dept.customAccessories : [];
+    customs.forEach((a, idx) => {
+      if (!a) return;
+      const row = document.createElement('div');
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.justifyContent = 'space-between';
+      row.style.gap = '4px';
+
+      const left = document.createElement('div');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '4px';
+
+      const id = a.id || `custom_acc_${idx}`;
+      const label = a.label || a.name || `Custom accessory ${idx + 1}`;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = id;
+      checkbox.checked = selected.has(id);
+
+      const span = document.createElement('span');
+      span.textContent = label;
+
+      left.appendChild(checkbox);
+      left.appendChild(span);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Del';
+      delBtn.style.fontSize = '11px';
+      delBtn.style.padding = '2px 6px';
+      delBtn.style.borderRadius = '6px';
+      delBtn.style.border = 'none';
+      delBtn.style.background = '#e74c3c';
+      delBtn.style.color = '#000';
+      delBtn.style.cursor = 'pointer';
+
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const arr = Array.isArray(dept.customAccessories) ? dept.customAccessories.slice() : [];
+        arr.splice(idx, 1);
+        dept.customAccessories = arr;
+        saveDeptToStorage(dept);
+        renderCustomAccList();
+      });
+
+      row.appendChild(left);
+      row.appendChild(delBtn);
+      customList.appendChild(row);
+    });
+
+    if (customList.children.length === 0) {
+      const empty = document.createElement('div');
+      empty.textContent = 'No custom accessories yet.';
+      empty.style.fontSize = '12px';
+      empty.style.opacity = '0.7';
+      customList.appendChild(empty);
+    }
+  }
+
+  renderCustomAccList();
+
+  const addCustomBtn = document.createElement('button');
+  addCustomBtn.textContent = 'Add custom accessory';
+  addCustomBtn.style.marginTop = '6px';
+  addCustomBtn.style.padding = '4px 8px';
+  addCustomBtn.style.borderRadius = '999px';
+  addCustomBtn.style.border = 'none';
+  addCustomBtn.style.background = '#3498db';
+  addCustomBtn.style.color = '#000';
+  addCustomBtn.style.fontSize = '12px';
+  addCustomBtn.style.cursor = 'pointer';
+
+  addCustomBtn.addEventListener('click', () => {
+    const label = window.prompt('Accessory label?', '');
+    if (!label) return;
+
+    const id = `custom_acc_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+    const custom = {
+      id,
+      label
+    };
+
+    const arr = Array.isArray(dept.customAccessories) ? dept.customAccessories.slice() : [];
+    arr.push(custom);
+    dept.customAccessories = arr;
+
+    const sel = new Set(
+      Array.isArray(dept.accessories)
+        ? dept.accessories.map(x => String(x))
+        : []
+    );
+    sel.add(id);
+    dept.accessories = Array.from(sel);
+
+    saveDeptToStorage(dept);
+    renderAccessorySelector(container, dept);
+  });
+
+  const saveBtn = document.createElement('button');
+  saveBtn.textContent = 'Save accessories';
+  saveBtn.style.marginTop = '8px';
+  saveBtn.style.alignSelf = 'flex-end';
+  saveBtn.style.padding = '6px 10px';
+  saveBtn.style.borderRadius = '8px';
+  saveBtn.style.border = 'none';
+  saveBtn.style.background = '#2ecc71';
+  saveBtn.style.color = '#000';
+  saveBtn.style.cursor = 'pointer';
+  saveBtn.style.fontSize = '13px';
+
+  saveBtn.addEventListener('click', () => {
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const selectedIds = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        selectedIds.push(cb.value);
+      }
+    });
+    dept.accessories = selectedIds;
+    saveDeptToStorage(dept);
+    alert('Accessories saved.');
+  });
+
+  customBox.appendChild(customHeader);
+  customBox.appendChild(customList);
+  customBox.appendChild(addCustomBtn);
+
+  wrapper.appendChild(customBox);
+  wrapper.appendChild(saveBtn);
+
+  container.appendChild(title);
+  container.appendChild(sub);
+  container.appendChild(wrapper);
 }
-// Simple info panel for web-only mode (currently forwards to main menu)
-function openPresetInfoPanelWeb() {
-  openPresetMainMenu();
-}
 
-// === Public API ===================================================================
-
-
-export function getDeptLineDefaults() {
-  return state.lineDefaults || {};
-}
-
+// =====================================================
+// Mapping: Dept nozzle labels → internal hydraulic IDs
+// =====================================================
 
 const DEPT_NOZ_TO_CALC_NOZ = {
-  "sb_78_50_160": "sb7_8",
-  "sb_1516_50_185": "sb15_16",
-  "sb_1_50_210": "sb1",
-  "sb_1118_50_265": "sb1_1_8",
-  "sb_114_50_325": "sb1_1_4",
+  // Smooth bore labels
+  'Smooth 7/8" @ 50 psi': 'sb78_50',
+  'Smooth 15/16" @ 50 psi': 'sb1516_50',
+  'Smooth 1" @ 50 psi': 'sb1_50',
+  'Smooth 1 1/4" @ 50 psi': 'sb114_50',
+  'Smooth 1 3/8" @ 80 psi': 'sb138_80',
+  'Smooth 1 1/2" @ 80 psi': 'sb112_80',
+  'Smooth 1 3/4" @ 80 psi': 'sb134_80',
+  'Smooth 2" @ 80 psi': 'sb2_80',
 
-  "fog_175_75_150": "fog150_75",
-  "fog_175_100_150": "fog150_100",
+  // Fog labels
+  'Fog 150 gpm @ 75 psi': 'fog150_75',
+  'Fog 150 gpm @ 50 psi': 'fog150_50',
+  'Fog 175 gpm @ 75 psi': 'fog175_75',
+  'Fog 175 gpm @ 50 psi': 'fog175_50',
+  'Fog 185 gpm @ 75 psi': 'fog185_75',
+  'Fog 185 gpm @ 50 psi': 'fog185_50',
+  'Fog 200 gpm @ 75 psi': 'fog200_75',
+  'Fog 200 gpm @ 50 psi': 'fog200_50',
+
+  // Master stream labels
+  'Master 1 3/8" 500 gpm @ 80 psi': 'ms1_3_8_80',
+  'Master 1 1/2" 600 gpm @ 80 psi': 'ms1_1_2_80',
+  'Master 1 3/4" 800 gpm @ 80 psi': 'ms1_3_4_80',
+  'Master 2" 1000 gpm @ 80 psi': 'ms2_80',
+  'Master Fog 500 gpm': 'msfog500',
+  'Master Fog 750 gpm': 'msfog750',
+  'Master Fog 1000 gpm': 'msfog1000',
+  'Master Fog 1250 gpm': 'msfog1250',
+
+  // Specialty nozzle labels
+  'Piercing nozzle': 'piercing',
+  'Blitzfire / Ground monitor': 'blitz',
+  'Cellar / Bresnan': 'cellar',
+  'Water can / extinguisher': 'water_can',
 
   // Chief XD fog options – map to dedicated hydraulic IDs
-  "fog_xd_175_75_150": "fog150_75",       // 150 @ 75
-  "fog_xd_175_50_165": "chiefXD165_50",   // 165 @ 50
-  "fog_xd_175_50_185": "chief185_50",     // 185 @ 50
-  "fog_xd_25_50_265":  "chiefXD265",      // 2½" 265 @ 50
+  'Chief XD 165 gpm @ 50 psi': 'chiefXD165_50',
+  'Chief XD 185 gpm @ 50 psi': 'chief185_50',
+  'Chief XD 265 gpm @ 50 psi': 'chiefXD265',
 
-  "ms_tip_138_500": "ms1_3_8_80",
-  "ms_tip_112_600": "ms1_1_2_80",
-  "ms_tip_134_800": "ms1_3_4_80",
-  "ms_tip_2_1000": "ms2_80",
-  "ms_fog_500": "ms1_3_8_80",
-  "ms_fog_750": "ms1_1_2_80",
-  "ms_fog_1000": "ms2_80",
-  "ms_fog_1250": "ms2_80"
+  // Backwards-compat: older key formats
+  'fog_xd_175_75_150': 'fog150_75',
+  'fog_xd_175_50_165': 'chiefXD165_50',
+  'fog_xd_175_50_185': 'chief185_50',
+  'fog_xd_25_50_265': 'chiefXD265',
+
+  'ms_tip_138_500': 'ms1_3_8_80',
+  'ms_tip_112_600': 'ms1_1_2_80',
+  'ms_tip_134_800': 'ms1_3_4_80',
+  'ms_tip_2_1000': 'ms2_80',
+  'ms_fog_500': 'ms1_3_8_80',
+  'ms_fog_750': 'ms1_1_2_80',
+  'ms_fog_1000': 'ms2_80',
+  'ms_fog_1250': 'ms2_80'
 };
 
-
+// =====================================================
+// **UPDATED** Dept nozzle / hose helpers for calc view
+// =====================================================
 
 export function getDeptNozzleIds() {
   try {
@@ -1970,46 +1504,66 @@ export function getDeptNozzleIds() {
     const result = [];
     const seen = new Set();
 
+    // Normalize the raw selections list (what the user actually checked
+    // in the Department Setup → Nozzles screen).
+    const rawSelected = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+    const selectedSet = new Set(
+      rawSelected
+        .map(v => (v == null ? '' : String(v).trim()))
+        .filter(Boolean)
+    );
+
     // 1) Built-in department nozzles (checkbox list)
-    if (Array.isArray(dept.nozzles)) {
-      dept.nozzles.forEach(raw => {
-        if (raw == null) return;
-        const trimmed = String(raw).trim();
-        if (!trimmed) return;
+    rawSelected.forEach(raw => {
+      if (raw == null) return;
+      const trimmed = String(raw).trim();
+      if (!trimmed) return;
 
-        let mapped = null;
+      let mapped = null;
 
-        // New style: dept.nozzles stores internal nozzle IDs
-        // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
-        if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
-          mapped = trimmed;
-        } else {
-          // Legacy style: dept.nozzles stored a display label that
-          // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
-          const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
-          if (typeof viaMap === 'string' && viaMap) {
-            mapped = viaMap;
-          }
+      // New style: dept.nozzles stores internal nozzle IDs
+      // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
+      if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
+        mapped = trimmed;
+      } else {
+        // Legacy style: dept.nozzles stored a display label that
+        // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
+        const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
+        if (typeof viaMap === 'string' && viaMap) {
+          mapped = viaMap;
         }
+      }
 
-        if (mapped && !seen.has(mapped)) {
-          seen.add(mapped);
-          result.push(mapped);
-        }
-      });
-    }
+      if (mapped && !seen.has(mapped)) {
+        seen.add(mapped);
+        result.push(mapped);
+      }
+    });
 
-    // 2) Custom nozzles – treat every custom defined in Department Setup
-    //    as "selected" so they show up in calc + line editors.
-    if (Array.isArray(dept.customNozzles)) {
+    // 2) Custom nozzles
+    // Only include a custom nozzle if it is actually selected in dept.nozzles.
+    if (Array.isArray(dept.customNozzles) && selectedSet.size) {
       dept.customNozzles.forEach((n, idx) => {
         if (!n || typeof n !== 'object') return;
-        const id = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
-        const trimmedId = String(id).trim();
-        if (!trimmedId) return;
-        if (!seen.has(trimmedId)) {
-          seen.add(trimmedId);
-          result.push(trimmedId);
+
+        const rawId = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
+        const id = String(rawId).trim();
+        if (!id) return;
+
+        // In the current Department Setup, dept.nozzles stores the custom
+        // nozzle id when its checkbox is checked. For older saves we also
+        // check against the label in case that was stored instead.
+        const label = (n.label || n.name || n.desc || '').trim();
+
+        const isSelected =
+          selectedSet.has(id) ||
+          (label && selectedSet.has(label));
+
+        if (!isSelected) return;
+
+        if (!seen.has(id)) {
+          seen.add(id);
+          result.push(id);
         }
       });
     }
@@ -2025,6 +1579,7 @@ export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
+
     const outSet = new Set();
 
     // Map built-in hose IDs to diameters (in inches, as strings used by COEFF)
@@ -2047,20 +1602,40 @@ export function getDeptHoseDiameters() {
       'h_lf_5':     '5',
     };
 
-    // Built-in hose selections
-    if (Array.isArray(dept.hoses)) {
-      dept.hoses.forEach(id => {
-        if (typeof id !== 'string') return;
-        const key = id.trim();
-        const dia = HOSE_ID_TO_DIA[key];
-        if (dia) outSet.add(dia);
-      });
-    }
+    // Normalize the raw hose selections (what the user checked in
+    // Department Setup → Hoses).
+    const rawSelected = Array.isArray(dept.hoses) ? dept.hoses : [];
+    const selectedIds = new Set(
+      rawSelected
+        .map(v => (v == null ? '' : String(v).trim()))
+        .filter(Boolean)
+    );
 
-    // Custom hoses with explicit diameters
-    if (Array.isArray(dept.customHoses)) {
-      dept.customHoses.forEach(h => {
+    // 1) Built-in hose selections
+    rawSelected.forEach(id => {
+      if (id == null) return;
+      const key = String(id).trim();
+      if (!key) return;
+      const dia = HOSE_ID_TO_DIA[key];
+      if (dia) outSet.add(dia);
+    });
+
+    // 2) Custom hoses with explicit diameters
+    if (Array.isArray(dept.customHoses) && selectedIds.size) {
+      dept.customHoses.forEach((h, idx) => {
         if (!h) return;
+
+        const rawId = h.id || h.key || `custom_hose_${idx}`;
+        const id = String(rawId).trim();
+        const label = (h.label || h.name || '').trim();
+
+        // Only include if this custom hose was actually selected.
+        const isSelected =
+          (id && selectedIds.has(id)) ||
+          (label && selectedIds.has(label));
+
+        if (!isSelected) return;
+
         if (typeof h.diameter === 'number' && h.diameter > 0) {
           const dia = String(h.diameter);
           outSet.add(dia);
@@ -2068,12 +1643,16 @@ export function getDeptHoseDiameters() {
       });
     }
 
-    return Array.from(outSet).sort((a,b) => parseFloat(a) - parseFloat(b));
+    return Array.from(outSet).sort((a, b) => parseFloat(a) - parseFloat(b));
   } catch (e) {
     console.warn('getDeptHoseDiameters failed', e);
     return [];
   }
 }
+
+// ======================================
+// Presets setup + global hook
+// ======================================
 
 export function setupPresets(opts = {}) {
   state.isApp = !!opts.isApp;
@@ -2102,7 +1681,6 @@ export function setupPresets(opts = {}) {
     openPresetPanelApp();
   });
 }
-
 
 // Global hook so About → Department setup opens the Department wizard overlay
 if (typeof window !== 'undefined') {
@@ -2145,4 +1723,3 @@ export function getDeptCustomNozzlesForCalc() {
     return [];
   }
 }
-
