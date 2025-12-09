@@ -42,7 +42,11 @@ const PX_PER_50FT = 45;
 const BRANCH_LIFT = 10;
 
 // ---------- geometry helpers ----------
-function truckTopY(viewH){ return viewH - TRUCK_H; }
+function truckTopY(viewH){
+  const isWide = (typeof window !== 'undefined' && window.innerWidth >= 768);
+  const margin = isWide ? 80 : 0; // leave extra space at bottom on tablets/desktops
+  return viewH - TRUCK_H - margin;
+}
 function pumpXY(viewH){
   const top = truckTopY(viewH);
   return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 };
@@ -464,13 +468,13 @@ export function render(container) {
   function drawScenario(S){
     // clear layers
     for (const g of [G_hosesP, G_branchesP, G_labelsP, G_nozzlesP]) {
-      while(g.firstChild) g.removeChild(g.firstChild);
+      while (g.firstChild) g.removeChild(g.firstChild);
     }
     placedBoxes.length = 0;
     workEl.innerHTML = '';
 
     // --- responsive view size & scaling ---
-    const baseH = TRUCK_H + 20; // truck height plus a little padding
+    const baseH = TRUCK_H + 20; // truck height plus small padding
 
     // Work in "50 ft segments" so we can scale them on bigger screens.
     const segments =
@@ -480,13 +484,13 @@ export function render(container) {
         ? (Math.max(S.bnA.len, S.bnB.len) / 50)
         : (S.line1.len / 50); // master
 
-    // Default pixels-per-50ft tuned for phones.
+    // Default px-per-50ft tuned for phones.
     let pxPer50 = PX_PER_50FT;
 
     // On wider screens, cap the total stage height so the hose doesn't run
     // off the top and the truck doesn't get buried under the answer section.
-    const isWide = window.innerWidth >= 768; // iPad / desktop breakpoint
-    const maxViewH = isWide ? 380 : Infinity; // cap for larger displays
+    const isWide = (typeof window !== 'undefined' && window.innerWidth >= 768);
+    const maxViewH = isWide ? 380 : Infinity; // visual cap for larger displays
 
     let extra = segments * pxPer50 + BRANCH_LIFT + 20;
     let viewH = Math.ceil(baseH + extra);
@@ -506,48 +510,48 @@ export function render(container) {
     stageEl.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
-    if(S.type==='single' || S.type==='wye2'){
-      const totalPx = (S.mainLen/50)*pxPer50;
+    if (S.type === 'single' || S.type === 'wye2') {
+      const totalPx = (S.mainLen / 50) * pxPer50;
       const geom = mainCurve(totalPx, viewH);
 
       // main
-      const sh = document.createElementNS(ns,'path');
-      sh.setAttribute('class','hoseBase shadow');
+      const sh = document.createElementNS(ns, 'path');
+      sh.setAttribute('class', 'hoseBase shadow');
       sh.setAttribute('d', geom.d);
       G_hosesP.appendChild(sh);
 
-      const main = document.createElementNS(ns,'path');
-      main.setAttribute('class', `hoseBase ${S.mainSize==='2.5'?'hose25':'hose175'}`);
+      const main = document.createElementNS(ns, 'path');
+      main.setAttribute('class', `hoseBase ${S.mainSize === '2.5' ? 'hose25' : 'hose175'}`);
       main.setAttribute('d', geom.d);
       G_hosesP.appendChild(main);
 
-      // nozzle for single or for the wye junction head (we’ll put nozzles on branches for wye)
-      if (S.type==='single') {
-        drawNozzle(G_nozzlesP, geom.endX, geom.endY, S.mainSize, S.mainSize==='2.5' ? 1.1 : 1);
+      // nozzle for single; for wye, we put nozzles on branches
+      if (S.type === 'single') {
+        drawNozzle(G_nozzlesP, geom.endX, geom.endY, S.mainSize, S.mainSize === '2.5' ? 1.1 : 1);
       }
 
-      if(S.type==='wye2'){
+      if (S.type === 'wye2') {
         // A
-        const aPx = (S.bnA.len/50)*pxPer50;
+        const aPx = (S.bnA.len / 50) * pxPer50;
         const aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
-        const aSh = document.createElementNS(ns,'path');
-        aSh.setAttribute('class','hoseBase shadow');
+        const aSh = document.createElementNS(ns, 'path');
+        aSh.setAttribute('class', 'hoseBase shadow');
         aSh.setAttribute('d', aGeom.d);
         G_branchesP.appendChild(aSh);
-        const a = document.createElementNS(ns,'path');
-        a.setAttribute('class','hoseBase hose175');
+        const a = document.createElementNS(ns, 'path');
+        a.setAttribute('class', 'hoseBase hose175');
         a.setAttribute('d', aGeom.d);
         G_branchesP.appendChild(a);
 
         // B
-        const bPx = (S.bnB.len/50)*pxPer50;
+        const bPx = (S.bnB.len / 50) * pxPer50;
         const bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
-        const bSh = document.createElementNS(ns,'path');
-        bSh.setAttribute('class','hoseBase shadow');
+        const bSh = document.createElementNS(ns, 'path');
+        bSh.setAttribute('class', 'hoseBase shadow');
         bSh.setAttribute('d', bGeom.d);
         G_branchesP.appendChild(bSh);
-        const b = document.createElementNS(ns,'path');
-        b.setAttribute('class','hoseBase hose175');
+        const b = document.createElementNS(ns, 'path');
+        b.setAttribute('class', 'hoseBase hose175');
         b.setAttribute('d', bGeom.d);
         G_branchesP.appendChild(b);
 
@@ -555,43 +559,73 @@ export function render(container) {
         drawNozzle(G_nozzlesP, aGeom.endX, aGeom.endY, '1.75', 1);
         drawNozzle(G_nozzlesP, bGeom.endX, bGeom.endY, '1.75', 1);
 
-        // bubbles (non-overlap)
-        addBubble(G_labelsP, geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)}`, 'C');
-        addBubble(G_labelsP, aGeom.endX, Math.max(12, aGeom.endY - 12), `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'L');
-        addBubble(G_labelsP, bGeom.endX, Math.max(12, bGeom.endY - 12), `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'R');
+        // bubbles (non-overlap-ish)
+        addBubble(
+          G_labelsP,
+          geom.endX,
+          Math.max(12, geom.endY - 12),
+          `${S.mainLen}′ ${sizeLabel(S.mainSize)}`,
+          'C'
+        );
+        addBubble(
+          G_labelsP,
+          aGeom.endX,
+          Math.max(12, aGeom.endY - 12),
+          `A: ${S.bnA.len}′ 1¾″ — ${S.bnA.noz.gpm} gpm — NP ${S.bnA.noz.NP}${
+            S.elevFt ? ` — Elev ${S.elevFt}′` : ''
+          }`,
+          'L'
+        );
+        addBubble(
+          G_labelsP,
+          bGeom.endX,
+          Math.max(12, bGeom.endY - 12),
+          `B: ${S.bnB.len}′ 1¾″ — ${S.bnB.noz.gpm} gpm — NP ${S.bnB.noz.NP}${
+            S.elevFt ? ` — Elev ${S.elevFt}′` : ''
+          }`,
+          'R'
+        );
       } else {
-        addBubble(G_labelsP, geom.endX, Math.max(12, geom.endY - 12), `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
+        addBubble(
+          G_labelsP,
+          geom.endX,
+          Math.max(12, geom.endY - 12),
+          `${S.mainLen}′ ${sizeLabel(S.mainSize)} — ${S.flow} gpm — NP ${S.mainNoz.NP}${
+            S.elevFt ? ` — Elev ${S.elevFt}′` : ''
+          }`,
+          'C'
+        );
       }
       return;
     }
 
     // master
-    const {x:sx,y:sy} = pumpXY(viewH);
-    const outLeftX  = sx - 26;
+    const { x: sx, y: sy } = pumpXY(viewH);
+    const outLeftX = sx - 26;
     const outRightX = sx + 26;
     const outY = sy;
-    const junctionY = Math.max(12, sy - (S.line1.len/50)*pxPer50);
+    const junctionY = Math.max(12, sy - (S.line1.len / 50) * pxPer50);
     const junctionX = sx;
 
     // left
     const aPath = `M ${outLeftX},${outY} L ${outLeftX},${outY - BRANCH_LIFT} L ${outLeftX},${junctionY} L ${junctionX},${junctionY}`;
-    const aSh = document.createElementNS(ns,'path');
-    aSh.setAttribute('class','hoseBase shadow');
+    const aSh = document.createElementNS(ns, 'path');
+    aSh.setAttribute('class', 'hoseBase shadow');
     aSh.setAttribute('d', aPath);
     G_branchesP.appendChild(aSh);
-    const a = document.createElementNS(ns,'path');
-    a.setAttribute('class','hoseBase hose25');
+    const a = document.createElementNS(ns, 'path');
+    a.setAttribute('class', 'hoseBase hose25');
     a.setAttribute('d', aPath);
     G_branchesP.appendChild(a);
 
     // right
     const bPath = `M ${outRightX},${outY} L ${outRightX},${outY - BRANCH_LIFT} L ${outRightX},${junctionY} L ${junctionX},${junctionY}`;
-    const bSh = document.createElementNS(ns,'path');
-    bSh.setAttribute('class','hoseBase shadow');
+    const bSh = document.createElementNS(ns, 'path');
+    bSh.setAttribute('class', 'hoseBase shadow');
     bSh.setAttribute('d', bPath);
     G_branchesP.appendChild(bSh);
-    const b = document.createElementNS(ns,'path');
-    b.setAttribute('class','hoseBase hose25');
+    const b = document.createElementNS(ns, 'path');
+    b.setAttribute('class', 'hoseBase hose25');
     b.setAttribute('d', bPath);
     G_branchesP.appendChild(b);
 
@@ -599,9 +633,29 @@ export function render(container) {
     drawNozzle(G_nozzlesP, junctionX, junctionY, '2.5', 1.25);
 
     // junction bubble labels
-    addBubble(G_labelsP, outLeftX - 20, Math.max(12, junctionY - 12), `Line 1: ${S.line1.len}′ 2½″`, 'L');
-    addBubble(G_labelsP, outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`, 'R');
-    addBubble(G_labelsP, junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
+    addBubble(
+      G_labelsP,
+      outLeftX - 20,
+      Math.max(12, junctionY - 12),
+      `Line 1: ${S.line1.len}′ 2½″`,
+      'L'
+    );
+    addBubble(
+      G_labelsP,
+      outRightX + 20,
+      Math.max(12, junctionY - 12),
+      `Line 2: ${S.line2.len}′ 2½″`,
+      'R'
+    );
+    addBubble(
+      G_labelsP,
+      junctionX,
+      Math.max(12, junctionY - 26),
+      `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${
+        S.elevFt ? ` — Elev ${S.elevFt}′` : ''
+      }`,
+      'C'
+    );
   }
   // ---------- equations ----------
   function renderEquations(S){
