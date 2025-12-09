@@ -142,9 +142,7 @@ export async function render(container){
       <section class="wrapper card">
         <div class="stage" id="stage">
           <svg id="stageSvg" viewBox="0 0 ${TRUCK_W} ${TRUCK_H}" preserveAspectRatio="xMidYMax meet" aria-label="Visual stage">
-            <image id="truckImg" href="assets/engine181.png" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet"></image>
-              onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>
-            <g id="hoses"></g>
+            <image id="truckImg" href="assets/engine181.png" width="${TRUCK_W}" height="${TRUCK_H}" preserveAspectRatio="xMidYMax meet" onerror="this.setAttribute('href','https://fireopssim.com/pump/engine181.png')"></image>            <g id="hoses"></g>
             <g id="branches"></g>
             <g id="labels"></g>
             <g id="tips"></g>
