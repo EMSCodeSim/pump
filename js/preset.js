@@ -2016,9 +2016,6 @@ export function getDeptNozzleIds() {
         const id = String(rawId).trim();
         if (!id) return;
 
-        // In the current Department Setup, dept.nozzles stores the custom
-        // nozzle id when its checkbox is checked. For older saves we also
-        // check against the label in case that was stored instead.
         const label = (n.label || n.name || n.desc || '').trim();
 
         const isSelected =
@@ -2046,7 +2043,6 @@ export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
-
     const outSet = new Set();
 
     // Map built-in hose IDs to diameters (in inches, as strings used by COEFF)
@@ -2069,8 +2065,6 @@ export function getDeptHoseDiameters() {
       'h_lf_5':     '5',
     };
 
-    // Normalize the raw hose selections (what the user checked in
-    // Department Setup → Hoses).
     const rawSelected = Array.isArray(dept.hoses) ? dept.hoses : [];
     const selectedIds = new Set(
       rawSelected
@@ -2096,7 +2090,6 @@ export function getDeptHoseDiameters() {
         const id = String(rawId).trim();
         const label = (h.label || h.name || '').trim();
 
-        // Only include if this custom hose was actually selected.
         const isSelected =
           (id && selectedIds.has(id)) ||
           (label && selectedIds.has(label));
@@ -2110,13 +2103,13 @@ export function getDeptHoseDiameters() {
       });
     }
 
-    return Array.from(outSet).sort((a, b) => parseFloat(a) - parseFloat(b));
+    return Array.from(outSet).sort((a,b) => parseFloat(a) - parseFloat(b));
   } catch (e) {
     console.warn('getDeptHoseDiameters failed', e);
     return [];
   }
 }
-}
+
 
 export function setupPresets(opts = {}) {
   state.isApp = !!opts.isApp;
