@@ -460,6 +460,7 @@ export function render(container) {
   }
 
   // -------- draw --------
+
   function drawScenario(S){
     // clear layers
     for (const g of [G_hosesP, G_branchesP, G_labelsP, G_nozzlesP]) {
@@ -468,21 +469,45 @@ export function render(container) {
     placedBoxes.length = 0;
     workEl.innerHTML = '';
 
-    // view size
-    const baseH = TRUCK_H + 20;
-    const extra = Math.max(
-      S.type==='single' ? (S.mainLen/50)*PX_PER_50FT : 0,
-      S.type==='wye2'   ? (Math.max(S.bnA.len, S.bnB.len)/50)*PX_PER_50FT : 0,
-      S.type==='master' ? (S.line1.len/50)*PX_PER_50FT : 0
-    ) + BRANCH_LIFT + 20;
-    const viewH = Math.ceil(baseH + extra);
+    // --- responsive view size & scaling ---
+    const baseH = TRUCK_H + 20; // truck height plus a little padding
+
+    // Work in "50 ft segments" so we can scale them on bigger screens.
+    const segments =
+      S.type === 'single'
+        ? (S.mainLen / 50)
+        : S.type === 'wye2'
+        ? (Math.max(S.bnA.len, S.bnB.len) / 50)
+        : (S.line1.len / 50); // master
+
+    // Default pixels-per-50ft tuned for phones.
+    let pxPer50 = PX_PER_50FT;
+
+    // On wider screens, cap the total stage height so the hose doesn't run
+    // off the top and the truck doesn't get buried under the answer section.
+    const isWide = window.innerWidth >= 768; // iPad / desktop breakpoint
+    const maxViewH = isWide ? 380 : Infinity; // cap for larger displays
+
+    let extra = segments * pxPer50 + BRANCH_LIFT + 20;
+    let viewH = Math.ceil(baseH + extra);
+
+    if (isWide && viewH > maxViewH) {
+      const extraAvailable = Math.max(60, maxViewH - baseH - BRANCH_LIFT - 20);
+      const segs = Math.max(1, segments);
+      const pxPer50Cap = extraAvailable / segs;
+      // Don't crush it too much; keep hoses visually meaningful.
+      pxPer50 = Math.max(20, Math.min(PX_PER_50FT, pxPer50Cap));
+
+      extra = segs * pxPer50 + BRANCH_LIFT + 20;
+      viewH = Math.ceil(baseH + extra);
+    }
 
     svg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageEl.style.height = viewH + 'px';
     truckImg.setAttribute('y', String(truckTopY(viewH)));
 
     if(S.type==='single' || S.type==='wye2'){
-      const totalPx = (S.mainLen/50)*PX_PER_50FT;
+      const totalPx = (S.mainLen/50)*pxPer50;
       const geom = mainCurve(totalPx, viewH);
 
       // main
@@ -503,7 +528,7 @@ export function render(container) {
 
       if(S.type==='wye2'){
         // A
-        const aPx = (S.bnA.len/50)*PX_PER_50FT;
+        const aPx = (S.bnA.len/50)*pxPer50;
         const aGeom = straightBranch('L', geom.endX, geom.endY, aPx);
         const aSh = document.createElementNS(ns,'path');
         aSh.setAttribute('class','hoseBase shadow');
@@ -515,7 +540,7 @@ export function render(container) {
         G_branchesP.appendChild(a);
 
         // B
-        const bPx = (S.bnB.len/50)*PX_PER_50FT;
+        const bPx = (S.bnB.len/50)*pxPer50;
         const bGeom = straightBranch('R', geom.endX, geom.endY, bPx);
         const bSh = document.createElementNS(ns,'path');
         bSh.setAttribute('class','hoseBase shadow');
@@ -545,7 +570,7 @@ export function render(container) {
     const outLeftX  = sx - 26;
     const outRightX = sx + 26;
     const outY = sy;
-    const junctionY = Math.max(12, sy - (S.line1.len/50)*PX_PER_50FT);
+    const junctionY = Math.max(12, sy - (S.line1.len/50)*pxPer50);
     const junctionX = sx;
 
     // left
@@ -578,7 +603,6 @@ export function render(container) {
     addBubble(G_labelsP, outRightX + 20, Math.max(12, junctionY - 12), `Line 2: ${S.line2.len}′ 2½″`, 'R');
     addBubble(G_labelsP, junctionX, Math.max(12, junctionY - 26), `Master: ${S.ms.gpm} gpm — NP ${S.ms.NP} — App ${S.ms.appliance}${S.elevFt?` — Elev ${S.elevFt}′`:''}`, 'C');
   }
-
   // ---------- equations ----------
   function renderEquations(S){
     const base = `
