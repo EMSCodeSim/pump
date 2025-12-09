@@ -1970,46 +1970,66 @@ export function getDeptNozzleIds() {
     const result = [];
     const seen = new Set();
 
+    // Normalize the raw selections list (what the user actually checked
+    // in the Department Setup → Nozzles screen).
+    const rawSelected = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+    const selectedSet = new Set(
+      rawSelected
+        .map(v => (v == null ? '' : String(v).trim()))
+        .filter(Boolean)
+    );
+
     // 1) Built-in department nozzles (checkbox list)
-    if (Array.isArray(dept.nozzles)) {
-      dept.nozzles.forEach(raw => {
-        if (raw == null) return;
-        const trimmed = String(raw).trim();
-        if (!trimmed) return;
+    rawSelected.forEach(raw => {
+      if (raw == null) return;
+      const trimmed = String(raw).trim();
+      if (!trimmed) return;
 
-        let mapped = null;
+      let mapped = null;
 
-        // New style: dept.nozzles stores internal nozzle IDs
-        // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
-        if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
-          mapped = trimmed;
-        } else {
-          // Legacy style: dept.nozzles stored a display label that
-          // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
-          const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
-          if (typeof viaMap === 'string' && viaMap) {
-            mapped = viaMap;
-          }
+      // New style: dept.nozzles stores internal nozzle IDs
+      // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
+      if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
+        mapped = trimmed;
+      } else {
+        // Legacy style: dept.nozzles stored a display label that
+        // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
+        const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
+        if (typeof viaMap === 'string' && viaMap) {
+          mapped = viaMap;
         }
+      }
 
-        if (mapped && !seen.has(mapped)) {
-          seen.add(mapped);
-          result.push(mapped);
-        }
-      });
-    }
+      if (mapped && !seen.has(mapped)) {
+        seen.add(mapped);
+        result.push(mapped);
+      }
+    });
 
-    // 2) Custom nozzles – treat every custom defined in Department Setup
-    //    as "selected" so they show up in calc + line editors.
-    if (Array.isArray(dept.customNozzles)) {
+    // 2) Custom nozzles
+    // Only include a custom nozzle if it is actually selected in dept.nozzles.
+    if (Array.isArray(dept.customNozzles) && selectedSet.size) {
       dept.customNozzles.forEach((n, idx) => {
         if (!n || typeof n !== 'object') return;
-        const id = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
-        const trimmedId = String(id).trim();
-        if (!trimmedId) return;
-        if (!seen.has(trimmedId)) {
-          seen.add(trimmedId);
-          result.push(trimmedId);
+
+        const rawId = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
+        const id = String(rawId).trim();
+        if (!id) return;
+
+        // In the current Department Setup, dept.nozzles stores the custom
+        // nozzle id when its checkbox is checked. For older saves we also
+        // check against the label in case that was stored instead.
+        const label = (n.label || n.name || n.desc || '').trim();
+
+        const isSelected =
+          selectedSet.has(id) ||
+          (label && selectedSet.has(label));
+
+        if (!isSelected) return;
+
+        if (!seen.has(id)) {
+          seen.add(id);
+          result.push(id);
         }
       });
     }
@@ -2021,10 +2041,12 @@ export function getDeptNozzleIds() {
   }
 }
 
+
 export function getDeptHoseDiameters() {
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
+
     const outSet = new Set();
 
     // Map built-in hose IDs to diameters (in inches, as strings used by COEFF)
@@ -2047,20 +2069,40 @@ export function getDeptHoseDiameters() {
       'h_lf_5':     '5',
     };
 
-    // Built-in hose selections
-    if (Array.isArray(dept.hoses)) {
-      dept.hoses.forEach(id => {
-        if (typeof id !== 'string') return;
-        const key = id.trim();
-        const dia = HOSE_ID_TO_DIA[key];
-        if (dia) outSet.add(dia);
-      });
-    }
+    // Normalize the raw hose selections (what the user checked in
+    // Department Setup → Hoses).
+    const rawSelected = Array.isArray(dept.hoses) ? dept.hoses : [];
+    const selectedIds = new Set(
+      rawSelected
+        .map(v => (v == null ? '' : String(v).trim()))
+        .filter(Boolean)
+    );
 
-    // Custom hoses with explicit diameters
-    if (Array.isArray(dept.customHoses)) {
-      dept.customHoses.forEach(h => {
-        if (!h) return;
+    // 1) Built-in hose selections
+    rawSelected.forEach(id => {
+      if (id == null) return;
+      const key = String(id).trim();
+      if (!key) return;
+      const dia = HOSE_ID_TO_DIA[key];
+      if (dia) outSet.add(dia);
+    });
+
+    // 2) Custom hoses with explicit diameters
+    if (Array.isArray(dept.customHoses) && selectedIds.size) {
+      dept.customHoses.forEach((h, idx) => {
+        if (!h || typeof h !== 'object') return;
+
+        const rawId = (h.id || h.key || `custom_hose_${idx}`);
+        const id = String(rawId).trim();
+        const label = (h.label || h.name || '').trim();
+
+        // Only include if this custom hose was actually selected.
+        const isSelected =
+          (id && selectedIds.has(id)) ||
+          (label && selectedIds.has(label));
+
+        if (!isSelected) return;
+
         if (typeof h.diameter === 'number' && h.diameter > 0) {
           const dia = String(h.diameter);
           outSet.add(dia);
@@ -2068,11 +2110,12 @@ export function getDeptHoseDiameters() {
       });
     }
 
-    return Array.from(outSet).sort((a,b) => parseFloat(a) - parseFloat(b));
+    return Array.from(outSet).sort((a, b) => parseFloat(a) - parseFloat(b));
   } catch (e) {
     console.warn('getDeptHoseDiameters failed', e);
     return [];
   }
+}
 }
 
 export function setupPresets(opts = {}) {
