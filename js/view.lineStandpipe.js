@@ -1014,3 +1014,6 @@ export function openStandpipePopup({
     close();
   });
 }
+
+// === exports (same pattern as Standard line) ===
+export default openStandpipePopup;
