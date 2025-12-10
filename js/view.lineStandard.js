@@ -122,38 +122,85 @@ function prettifyNozzle(id, label, gpm, np) {
 
   // --- Smooth bores --------------------------------------------------------
   if (lowerId.startsWith('sb') || lowerLbl.includes('smooth')) {
-    // Keep the label very close to department wording.
-    // Just normalize capitalization a bit.
+    // Normalize label a bit so everything is consistent.
     if (!/smooth/i.test(lbl) && !/^sb\b/i.test(lbl)) {
       lbl = 'Smooth ' + lbl;
     }
 
-    // Pull gpm / psi from label if present
+    // Try to pull gpm/np out of the existing label text.
     let gFromLabel = parseGpmFromLabel(lbl);
     let pFromLabel = parseNpFromLabel(lbl);
-
     let tip = extractSmoothTipFromLabel(lbl);
 
-    if (!gFromLabel && tip && SMOOTH_TIP_GPM_MAP[tip]) {
-      gFromLabel = SMOOTH_TIP_GPM_MAP[tip];
+    // If the label doesn't contain something like "15/16", derive it from id.
+    if (!tip) {
+      const m = idStr.match(/^sb[_-]?(\d+)(?:[_-](\d+))?(?:[_-](\d+))?/i);
+      if (m) {
+        const boreCode = m[1];
+        switch (boreCode) {
+          case '78':
+            tip = '7/8';
+            break;
+          case '1516':
+            tip = '15/16';
+            break;
+          case '1':
+            tip = '1';
+            break;
+          case '1118':
+            tip = '1 1/8';
+            break;
+          case '114':
+            tip = '1 1/4';
+            break;
+          default:
+            break;
+        }
+        // m[2] is typically NP, m[3] is typically GPM for ids like sb_1516_50_185
+        if (!pFromLabel && m[2]) pFromLabel = Number(m[2]);
+        if (!gFromLabel && m[3]) gFromLabel = Number(m[3]);
+      }
     }
-    if (!pFromLabel) pFromLabel = 50; // default if needed
 
     if (!gpm && gFromLabel) gpm = gFromLabel;
-    if (!np && pFromLabel)  np  = pFromLabel;
+    if (!np && pFromLabel)  np  = pFromLabel || 50;
 
-    // Build a clean label if we have tip & numbers; otherwise use original.
+    // If we have a reasonable tip and numbers, make it match calc menu style.
     if (tip && gpm && np) {
-      // Use SB style like the calc screen
       lbl = `SB ${tip}" @ ${np}`;
     }
 
     return { label: lbl, gpm, np };
   }
 
-  // --- Fog and everything else --------------------------------------------
-  // If it already has gpm & psi words, just make sure numbers are filled and
-  // don't change the wording much.
+  // --- Custom handline nozzles (from Department Setup) ---------------------
+  if (lowerId.startsWith('custom_noz_')) {
+    // Try to pull gpm/np from label first.
+    let g = gpm || parseGpmFromLabel(lbl);
+    let p = np || parseNpFromLabel(lbl);
+
+    // Fallback: many custom ids end with _<gpm> or _<gpm>_<np>.
+    const m = idStr.match(/custom_noz_[^_]*_(\d+)_?(\d+)?$/i);
+    if (m) {
+      if (!g && m[1]) g = Number(m[1]);
+      if (!p && m[2]) p = Number(m[2]);
+    }
+
+    if (!p) p = 50;
+
+    if (g && p) {
+      lbl = `Custom nozzle ${g} gpm @ ${p} psi`;
+    } else if (g) {
+      lbl = `Custom nozzle ${g} gpm`;
+    } else {
+      lbl = 'Custom nozzle';
+    }
+
+    return { label: lbl, gpm: g || 0, np: p || 0 };
+  }
+
+  // --- Everything else -----------------------------------------------------
+  // If the label already has gpm/psi words, just parse numbers and keep text.
   if (hasGpmPsiWords) {
     const gFrom = parseGpmFromLabel(lbl);
     const pFrom = parseNpFromLabel(lbl);
@@ -162,7 +209,7 @@ function prettifyNozzle(id, label, gpm, np) {
     return { label: lbl, gpm, np };
   }
 
-  // FOG patterns based on id if available
+  // Fog patterns based on internal id if available.
   if (lowerId.includes('fog')) {
     const nums = idStr.match(/\d+/g) || [];
     if (nums.length >= 2) {
@@ -176,7 +223,6 @@ function prettifyNozzle(id, label, gpm, np) {
     if (!gpm && gFrom) gpm = gFrom;
     if (!np && pFrom)  np  = pFrom || 50;
 
-    // Use short “Fog 150 @ 100” style like calc
     if (gpm && np) {
       lbl = `Fog ${gpm} @ ${np}`;
     } else if (gpm) {
@@ -188,7 +234,7 @@ function prettifyNozzle(id, label, gpm, np) {
     return { label: lbl, gpm, np };
   }
 
-  // Generic: if we have numbers but no words, just format "XXX gpm @ YY psi"
+  // Generic/custom patterns: if we can see numbers but not the words, add them.
   if (!hasGpmPsiWords) {
     const gFrom = parseGpmFromLabel(lbl);
     const pFrom = parseNpFromLabel(lbl);
@@ -215,7 +261,7 @@ function getHoseListFromDept(dept) {
       const baseLabel = h.label || h.name || String(id);
       return {
         id,
-        label: baseLabel, // use department UI label as-is
+        label: formatHoseLabel(baseLabel), // normalize / prettify hose label
         c: typeof h.c === 'number' ? h.c : undefined,
       };
     }).filter(Boolean);
@@ -310,8 +356,8 @@ function getNozzleListFromDept(dept) {
       lowerLabel.includes('sb_') ||
       lowerLabel.includes('fog_');
 
-    if (looksInternal) {
-      // Internal/default ids: prettify to match Calc style.
+    if (looksInternal || lowerId.startsWith('custom_noz_')) {
+      // Internal/default ids and custom nozzles: prettify to match Calc style.
       const pretty = prettifyNozzle(idStr, label, gpm, np);
       finalLabel = pretty.label;
       finalGpm = pretty.gpm || 0;
