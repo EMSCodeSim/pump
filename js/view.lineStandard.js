@@ -4,10 +4,9 @@ import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, NOZ } from './store.js';
 // Standard attack line popup (with optional wye).
 // - Hoses and nozzles come from department UI (same logic as master stream).
 // - NO master-stream-only filter; all department nozzles are available.
-// - Fog nozzle IDs like "fog_xd_175_50_165" are converted to readable labels
-//   like "Fog 165 gpm @ 50 psi" and their GPM/NP are parsed so math updates.
-// - Smooth bores keep the exact department label text, but we make sure their
-//   GPM and NP are filled in correctly from that label (or a small tip map).
+// - For DEPT_UI_* we keep the label text exactly so it matches Calc dropdowns.
+// - Internal/default ids like "sb_78_50_160" / "fog_xd_175_50_165" are
+//   converted to readable labels and their GPM/NP are parsed so math updates.
 
 function parseGpmFromLabel(label) {
   const m = String(label || '').match(/(\d+)\s*gpm/i);
@@ -72,8 +71,8 @@ function formatHoseLabel(idOrLabel) {
 const DEFAULT_NOZZLES = [
   { id: 'fog150_50',   label: 'Fog 150 gpm @ 50 psi', gpm: 150, np: 50 },
   { id: 'fog185_50',   label: 'Fog 185 gpm @ 50 psi', gpm: 185, np: 50 },
-  { id: 'sb_15_16_50', label: '7/8" smooth bore 160 gpm @ 50 psi', gpm: 160, np: 50 },
-  { id: 'sb_1_1_8_50', label: '1 1/8" smooth bore 265 gpm @ 50 psi', gpm: 265, np: 50 },
+  { id: 'sb_7_8_50',   label: 'SB 7/8" @ 50',         gpm: 160, np: 50 },
+  { id: 'sb_1_1_8_50', label: 'SB 1 1/8" @ 50',       gpm: 265, np: 50 },
 ];
 
 const DEFAULT_HOSES = [
@@ -125,7 +124,7 @@ function prettifyNozzle(id, label, gpm, np) {
   if (lowerId.startsWith('sb') || lowerLbl.includes('smooth')) {
     // Keep the label very close to department wording.
     // Just normalize capitalization a bit.
-    if (!/smooth/i.test(lbl)) {
+    if (!/smooth/i.test(lbl) && !/^sb\b/i.test(lbl)) {
       lbl = 'Smooth ' + lbl;
     }
 
@@ -145,7 +144,8 @@ function prettifyNozzle(id, label, gpm, np) {
 
     // Build a clean label if we have tip & numbers; otherwise use original.
     if (tip && gpm && np) {
-      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
+      // Use SB style like the calc screen
+      lbl = `SB ${tip}" @ ${np}`;
     }
 
     return { label: lbl, gpm, np };
@@ -176,10 +176,11 @@ function prettifyNozzle(id, label, gpm, np) {
     if (!gpm && gFrom) gpm = gFrom;
     if (!np && pFrom)  np  = pFrom || 50;
 
+    // Use short “Fog 150 @ 100” style like calc
     if (gpm && np) {
-      lbl = `Fog ${gpm} gpm @ ${np} psi`;
+      lbl = `Fog ${gpm} @ ${np}`;
     } else if (gpm) {
-      lbl = `Fog ${gpm} gpm`;
+      lbl = `Fog ${gpm}`;
     } else {
       lbl = 'Fog nozzle';
     }
@@ -206,6 +207,7 @@ function prettifyNozzle(id, label, gpm, np) {
 
 // Department → hose list
 function getHoseListFromDept(dept) {
+  // For DEPT_UI_HOSES, keep the label exactly as configured so it matches Calc.
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
       if (!h) return null;
@@ -213,12 +215,13 @@ function getHoseListFromDept(dept) {
       const baseLabel = h.label || h.name || String(id);
       return {
         id,
-        label: formatHoseLabel(baseLabel),
+        label: baseLabel, // use department UI label as-is
         c: typeof h.c === 'number' ? h.c : undefined,
       };
     }).filter(Boolean);
   }
 
+  // Fallback to dept object hoses, with formatting help.
   if (dept && typeof dept === 'object') {
     const allRaw = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
     const raw = allRaw.length ? allRaw : (Array.isArray(dept.hoses) ? dept.hoses : []);
@@ -270,6 +273,7 @@ function getNozzleListFromDept(dept) {
     let np = 0;
 
     if (typeof n === 'string' || typeof n === 'number') {
+      // Internal id from NOZ catalog or defaults
       id = String(n);
       const fromCatalog = NOZ && NOZ[id] ? NOZ[id] : null;
       if (fromCatalog) {
@@ -282,6 +286,7 @@ function getNozzleListFromDept(dept) {
         np  = parseNpFromLabel(label);
       }
     } else {
+      // Object from DEPT_UI_NOZZLES or dept.nozzles
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
       if (typeof n.gpm === 'number') gpm = n.gpm;
@@ -291,12 +296,40 @@ function getNozzleListFromDept(dept) {
       if (typeof n.pressure === 'number' && !np) np = n.pressure;
     }
 
-    const pretty = prettifyNozzle(id, label, gpm, np);
+    const idStr = String(id || '');
+    const lowerId = idStr.toLowerCase();
+    const lowerLabel = String(label || '').toLowerCase();
+
+    let finalLabel = label;
+    let finalGpm = gpm;
+    let finalNp = np;
+
+    const looksInternal =
+      lowerId.startsWith('sb') ||
+      lowerId.includes('fog') ||
+      lowerLabel.includes('sb_') ||
+      lowerLabel.includes('fog_');
+
+    if (looksInternal) {
+      // Internal/default ids: prettify to match Calc style.
+      const pretty = prettifyNozzle(idStr, label, gpm, np);
+      finalLabel = pretty.label;
+      finalGpm = pretty.gpm || 0;
+      finalNp = pretty.np || 0;
+    } else {
+      // Department UI labels: keep as-is so dropdown text matches Calc,
+      // but still parse out gpm / np for math if missing.
+      const gFrom = parseGpmFromLabel(finalLabel);
+      const pFrom = parseNpFromLabel(finalLabel);
+      if (!finalGpm && gFrom) finalGpm = gFrom;
+      if (!finalNp && pFrom)  finalNp  = pFrom;
+    }
+
     return {
       id,
-      label: pretty.label,
-      gpm: pretty.gpm || 0,
-      np:  pretty.np  || 0,
+      label: finalLabel,
+      gpm: finalGpm || 0,
+      np:  finalNp  || 0,
     };
   }).filter(Boolean);
 
