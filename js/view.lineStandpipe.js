@@ -113,6 +113,7 @@ function extractSmoothTipFromLabel(label) {
   return '';
 }
 
+
 function prettifyNozzle(id, label, gpm, np) {
   const idStr = String(id || '');
   let lbl = label ? String(label) : idStr;
@@ -121,88 +122,155 @@ function prettifyNozzle(id, label, gpm, np) {
 
   const hasGpmPsiWords = /gpm/i.test(lbl) && /psi/i.test(lbl);
 
-  // --- Custom nozzles (built from user input) ------------------------------
-  // Expect ids like: custom_noz_<timestamp>_<gpm>_<np>
-  if (lowerId.startsWith('custom_noz_')) {
-    let g = gpm || 0;
-    let p = np || 0;
+  // --- Custom nozzles (user created) --------------------------------------
+  // If this looks like a custom nozzle with known flow/pressure, force a clean
+  // "Type 150 gpm @ 50 psi" style label so it is easy to read in every menu.
+  if (lowerId.startsWith('custom_noz_') || /custom/i.test(lowerLbl)) {
+    let g = typeof gpm === 'number' ? gpm : (parseGpmFromLabel(lbl) || 0);
+    let p = typeof np === 'number' ? np  : (parseNpFromLabel(lbl)  || 0);
 
-    const m = idStr.match(/(\d+)_([0-9]+)$/);
-    if (m) {
-      if (!g) g = Number(m[1]);
-      if (!p) p = Number(m[2]);
-    }
+    if (!p && g) p = 50;
 
-    let type = 'Custom nozzle';
-    if (lowerId.includes('fog') || /fog/i.test(lbl)) type = 'Fog';
-    else if (lowerId.includes('sb') || /smooth/i.test(lbl)) type = 'Smooth';
-    else if (lowerId.includes('ms_tip')) type = 'Master stream';
+    let type = 'Nozzle';
+    if (lowerId.includes('fog') || /fog/i.test(lowerLbl)) type = 'Fog';
+    else if (lowerId.includes('sb') || /smooth/i.test(lowerLbl)) type = 'Smooth';
+    else if (lowerId.includes('ms') || /master/i.test(lowerLbl)) type = 'Master stream';
 
     if (!g && !p) {
       return { label: lbl || type, gpm: 0, np: 0 };
     }
-    if (!p) p = 50;
 
-    const finalLabel = `${type} ${g} gpm @ ${p} psi`;
-    return { label: finalLabel, gpm: g, np: p };
+    const clean = type + ' ' + g + ' gpm @ ' + p + ' psi';
+    return { label: clean, gpm: g, np: p };
   }
 
-  // --- Smooth bores --------------------------------------------------------
+  // --- Smooth bores -------------------------------------------------------
   if (lowerId.startsWith('sb') || lowerLbl.includes('smooth')) {
-    if (!/smooth/i.test(lbl)) {
+    if (!/smooth/i.test(lbl) && !/^sb\b/i.test(lbl)) {
       lbl = 'Smooth ' + lbl;
     }
 
+    // Pull numbers from the label first
+    let gFromLabel = parseGpmFromLabel(lbl);
+    let pFromLabel = parseNpFromLabel(lbl);
+
+    // Try to find a nice tip size from the text
     let tip = extractSmoothTipFromLabel(lbl);
 
-    // If the label doesn't already contain a nice tip size, try to decode from id.
+    // If the label did not contain a good tip, try to decode from the id.
     // Example ids:
-    //   sb_78_50_160   ->  7/8"   160 gpm @ 50 psi
-    //   sb_1516_50_185 -> 15/16"  185 gpm @ 50 psi
-    //   sb_1118_50_265 -> 1 1/8"  265 gpm @ 50 psi
-    const idMatch = idStr.match(/^sb_([^_]+)_([^_]+)_([^_]+)/);
-    if (idMatch) {
-      const tipCode = idMatch[1];
-      const npId = Number(idMatch[2]);
-      const gId = Number(idMatch[3]);
-
-      if (!tip) {
-        if (tipCode === '78') tip = '7/8';
-        else if (tipCode === '1516') tip = '15/16';
-        else if (tipCode === '1') tip = '1';
-        else if (tipCode === '1118') tip = '1 1/8';
-        else if (tipCode === '114') tip = '1 1/4';
+    //   sb_78_50_160   -> 7/8
+    //   sb_1516_50_185 -> 15/16
+    //   sb_1_50_210    -> 1
+    //   sb_1118_50_265 -> 1 1/8
+    //   sb_114_80_325  -> 1 1/4
+    if (!tip) {
+      const m = idStr.match(/^sb_([^_]+)/);
+      if (m) {
+        const code = m[1];
+        if (code === '78') tip = '7/8';
+        else if (code === '1516') tip = '15/16';
+        else if (code === '1') tip = '1';
+        else if (code === '1118') tip = '1 1/8';
+        else if (code === '114') tip = '1 1/4';
       }
-      if (!gpm && gId) gpm = gId;
-      if (!np && npId) np = npId;
+      // Fallback: sometimes labels end up with 1516 instead of 15/16
+      if (!tip && /1516/.test(lbl)) {
+        tip = '15/16';
+      }
+      if (!tip && /78/.test(lbl)) {
+        tip = '7/8';
+      }
     }
 
-    const gFromLabel = parseGpmFromLabel(lbl);
-    const pFromLabel = parseNpFromLabel(lbl);
+    if (!gFromLabel && tip && SMOOTH_TIP_GPM_MAP[tip]) {
+      gFromLabel = SMOOTH_TIP_GPM_MAP[tip];
+    }
+    if (!pFromLabel) pFromLabel = 50; // default if needed
+
     if (!gpm && gFromLabel) gpm = gFromLabel;
     if (!np && pFromLabel)  np  = pFromLabel;
 
-    if (!tip) {
-      tip = extractSmoothTipFromLabel(lbl);
+    // Build a clean label if we have tip & numbers; otherwise use original.
+    if (tip && gpm && np) {
+      lbl = 'Smooth ' + tip + '" ' + gpm + ' gpm @ ' + np + ' psi';
     }
+
+    return { label: lbl, gpm, np };
+  }
+
+  // --- Fog and everything else --------------------------------------------
+  // If it already has gpm & psi words, just make sure numbers are filled and
+  // do not change the wording much.
+  if (hasGpmPsiWords) {
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom;
+    return { label: lbl, gpm, np };
+  }
+
+  // FOG patterns based on id if available
+  if (lowerId.includes('fog')) {
+    const nums = idStr.match(/\d+/g) || [];
+    if (nums.length >= 2) {
+      const g = Number(nums[nums.length - 1]);
+      const p = Number(nums[nums.length - 2]);
+      if (!gpm && g) gpm = g;
+      if (!np && p)  np  = p;
+    }
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom || 50;
+
+    if (gpm && np) {
+      lbl = 'Fog ' + gpm + ' gpm @ ' + np + ' psi';
+    } else if (gpm) {
+      lbl = 'Fog ' + gpm + ' gpm';
+    } else {
+      lbl = 'Fog nozzle';
+    }
+
+    return { label: lbl, gpm, np };
+  }
+
+  // Generic: if we have numbers but no words, just format "XXX gpm @ YY psi"
+  if (!hasGpmPsiWords) {
+    const gFrom = parseGpmFromLabel(lbl);
+    const pFrom = parseNpFromLabel(lbl);
+    if (!gpm && gFrom) gpm = gFrom;
+    if (!np && pFrom)  np  = pFrom;
+
+    if (gpm && np) {
+      lbl = lbl + ' ' + gpm + ' gpm @ ' + np + ' psi';
+    } else if (gpm) {
+      lbl = lbl + ' ' + gpm + ' gpm';
+    }
+  }
+
+  return { label: lbl, gpm, np };
+}
+
+
+    let gFromLabel = parseGpmFromLabel(lbl);
+    let pFromLabel = parseNpFromLabel(lbl);
+
+    let tip = extractSmoothTipFromLabel(lbl);
+
+    if (!gFromLabel && tip && SMOOTH_TIP_GPM_MAP[tip]) {
+      gFromLabel = SMOOTH_TIP_GPM_MAP[tip];
+    }
+    if (!pFromLabel) pFromLabel = 50; // default if needed
+
+    if (!gpm && gFromLabel) gpm = gFromLabel;
+    if (!np && pFromLabel)  np  = pFromLabel;
 
     if (tip && gpm && np) {
       lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
     }
 
     return { label: lbl, gpm, np };
-  }
-
-  // --- Master stream tips --------------------------------------------------
-  // Expect ids like: ms_tip_<npGuess?>_<gpm>
-  if (lowerId.startsWith('ms_tip')) {
-    const parts = idStr.split('_'); // e.g. ["ms","tip","134","800"]
-    const maybeGpm = Number(parts[parts.length - 1]);
-    if (!gpm && maybeGpm) gpm = maybeGpm;
-    if (!np) np = 80; // default NP for master stream tips if not stored
-
-    const finalLabel = `Master stream tip ${gpm || 0} gpm @ ${np} psi`;
-    return { label: finalLabel, gpm: gpm || 0, np: np || 0 };
   }
 
   // --- Fog and everything else --------------------------------------------
@@ -255,7 +323,8 @@ function prettifyNozzle(id, label, gpm, np) {
 
   return { label: lbl, gpm, np };
 }
- → hose list (same behavior as Standard line)
+
+// Department → hose list (same behavior as Standard line)
 function getHoseListFromDept(dept) {
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
