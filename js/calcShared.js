@@ -245,23 +245,26 @@ function addTip(G_tips, key, where, x, y){
 }
 function drawSegmentedPath(group, basePath, segs){
   const ns = 'http://www.w3.org/2000/svg';
-  const sh = document.createElementNS(ns,'path');
-  sh.setAttribute('class','hoseBase shadow'); sh.setAttribute('d', basePath.getAttribute('d')); group.appendChild(sh);
-  const total = basePath.getTotalLength(); let offset = 0;
-  const totalPx = (sumFt(segs)/50)*PX_PER_50FT || 1;
-  segs.forEach(seg=>{
-    const px = (seg.lengthFt/50)*PX_PER_50FT;
-    const portion = Math.min(total, (px/totalPx)*total);
+
+  // Removed black shadow path; draw only colored hose segments
+  const total = basePath.getTotalLength();
+  let offset = 0;
+  const totalPx = (sumFt(segs) / 50) * PX_PER_50FT || 1;
+
+  segs.forEach(seg => {
+    const px = (seg.lengthFt / 50) * PX_PER_50FT;
+    const portion = Math.min(total, (px / totalPx) * total);
+
     const p = document.createElementNS(ns,'path');
-    p.setAttribute('class', 'hoseBase '+clsFor(seg.size));
+    p.setAttribute('class', 'hoseBase ' + clsFor(seg.size));
     p.setAttribute('d', basePath.getAttribute('d'));
-    p.setAttribute('stroke-dasharray', portion+' '+total);
+    p.setAttribute('stroke-dasharray', portion + ' ' + total);
     p.setAttribute('stroke-dashoffset', -offset);
     group.appendChild(p);
+
     offset += portion;
   });
 }
-
 /* ========================================================================== */
 /*                         Hose bar visualization                             */
 /* ========================================================================== */
