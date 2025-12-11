@@ -104,7 +104,6 @@ export const NOZ = {
   piercing100_100:{ id:'piercing100_100', name:'Piercing 100 @ 100', gpm:100, NP:100 },
   cellar250_100:  { id:'cellar250_100',   name:'Cellar 250 @ 100',   gpm:250, NP:100 },
   breaker30_100:  { id:'breaker30_100',   name:'Breaker 30 @ 100',   gpm:30,  NP:100 },
-
 };
 
 export const NOZ_LIST = Object.values(NOZ);
@@ -217,7 +216,7 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export 
+export
 function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
   if(state.lines[key]) return state.lines[key];
@@ -283,6 +282,7 @@ function seedDefaultsForKey(key){
 
   return state.lines[key];
 }
+
 /* =========================
  * Wye helpers
  * ========================= */
@@ -387,12 +387,12 @@ export function savePresets(presetsObj){
   const norm = normalizePresets(presetsObj);
   state._presetsMem = norm;
   return writeStorage(norm);
-}/* =========================
+}
+
+/* =========================
  * Small utils
  * ========================= */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
-
-
 
 // === Department Defaults Persistence (added) ===
 const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
@@ -432,9 +432,54 @@ export function saveDeptDefaults(obj){
   return writeDeptStorage(obj);
 }
 
+/* =========================
+ * Simple Line 1/2/3 defaults (Line builder → nozzle override)
+ * ========================= */
+
+// These are stored by the Line 1/2/3 builder as lightweight objects under
+// one key, with numeric IDs "1", "2", "3":
+//   { "1": { hose, nozzle, length, elevation }, ... }
+const LINE_DEFAULTS_STORAGE_KEY = 'fireops_line_defaults_v1';
+
+function readSimpleLineDefaults() {
+  try {
+    const raw = localStorage.getItem(LINE_DEFAULTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function getSimpleLineDefaultsForKey(key) {
+  const map = { left: '1', back: '2', right: '3' };
+  const id = map[key];
+  if (!id) return null;
+
+  const all = readSimpleLineDefaults();
+  const simple = all[id];
+  return simple && typeof simple === 'object' ? simple : null;
+}
+
 export function getDeptLineDefault(key){
   const all = loadDeptDefaults();
-  return all[key] || null;
+  let base = all[key] || null;
+  if (!base) return null;
+
+  // Clone so we never mutate what’s actually stored
+  base = JSON.parse(JSON.stringify(base));
+
+  // If the simple line defaults include a nozzle for this line, override nozRight
+  const simple = getSimpleLineDefaultsForKey(key);
+  if (simple) {
+    const nozId = simple.nozzle || simple.nozzleId;
+    if (nozId && NOZ[nozId]) {
+      base.nozRight = NOZ[nozId];
+    }
+  }
+
+  return base;
 }
 
 export function setDeptLineDefault(key, data){
