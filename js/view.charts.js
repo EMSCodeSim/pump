@@ -6,7 +6,7 @@ import { COEFF } from './store.js';
 /**
  * Charts View
  * - Sections:
- *   1) Nozzles  (Smooth Bore | Fog)  ← SB first, default selected
+ *   1) Nozzles  (Smooth Bore | Fog | Specialty)  ← SB first, default selected
  *   2) Hose Friction Loss (horizontal hose-size buttons; FL per 100')
  *   3) Rules of Thumb
  * - Mobile polish: bigger tap targets, 16px inputs to prevent iOS zoom, responsive grids.
@@ -38,7 +38,7 @@ export async function render(container){
 
         <!-- Smooth Bore first -->
         <div id="nozzlesSB" class="nozzWrap" style="margin-top:10px"></div>
-        <!-- Fog second -->
+        <!-- Fog / Specialty second -->
         <div id="nozzlesFog" class="nozzWrap" style="margin-top:10px; display:none"></div>
       </section>
 
@@ -205,18 +205,68 @@ export async function render(container){
     { label:'Master Fog 1250@100', gpm:1250, NP:100, note:'Monitor/deck gun' },
   ];
 
-  // Rules of Thumb
+  // Specialty / special purpose nozzles
+  const SPECIALTY_NOZZLES = [
+    { label:'Piercing nozzle ~125 gpm', gpm:125, NP:100, note:'Penetrates roofs/walls; often 80–100 psi NP.' },
+    { label:'Bresnan cellar nozzle ~250 gpm', gpm:250, NP:50, note:'Rotating cellar/basement nozzle.' },
+    { label:'Water curtain nozzle', gpm:95, NP:50, note:'Exposure protection; check manufacturer specs.' },
+    { label:'Foam/air-aspirating nozzle', gpm:95, NP:100, note:'Used with Class A/B foam eductors.' },
+  ];
+
+  // Rules of Thumb (expanded)
   const RULES = [
+    // Existing appliance / elevation / standpipe / sprinkler / NP rules
     { tag:'Appliances',    title:'Add 10 psi over 350 gpm', text:'For appliance losses when total flow exceeds ~350 gpm, add 10 psi.' },
     { tag:'Master Stream', title:'Add 25 psi',              text:'Typical appliance loss for deck gun/monitor/master stream devices.' },
     { tag:'Standpipes',    title:'Add 25 psi + elevation',  text:'Add 25 psi for the system plus elevation (head) losses.' },
     { tag:'Sprinklers',    title:'Pump at 150 psi',         text:'A common starting point; follow FDC signage and SOGs.' },
-    { tag:'Elevation',     title:'±5 psi per 10 ft',        text:'Add going uphill; subtract going downhill.' },
+    { tag:'Elevation',     title:'±5 psi per 10 ft',        text:'Add going uphill; subtract going downhill or per floor (~10 ft).' },
     { tag:'Relay Pump',    title:'Residual 20–50 psi',      text:'Maintain 20–50 psi residual at the receiving engine.' },
     { tag:'Handline SB',   title:'NP 50 psi',               text:'Smooth-bore handline nozzle pressure.' },
     { tag:'Master SB',     title:'NP 80 psi',               text:'Smooth-bore master stream nozzle pressure.' },
-    { tag:'Piercing',      title:'NP 80 psi',               text:'Piercing nozzle nozzle pressure.' },
+    { tag:'Piercing',      title:'NP 80 psi',               text:'Piercing nozzle nozzle pressure (check local spec).' },
     { tag:'Cellar',        title:'NP 80 psi',               text:'Cellar nozzle nozzle pressure.' },
+
+    // Hydrant residual drop
+    { tag:'Hydrant',       title:'Residual drop rule',      text:'~10% drop = good; 15–20% = caution; 25%+ = system near max capacity.' },
+
+    // Supply line max efficient flow
+    { tag:'Supply',        title:'Supply line max flow',    text:'5″: ~1000–1500 gpm; 4″: ~800–1000 gpm; 2½″: ~300–350 gpm before FL becomes excessive.' },
+
+    // Standpipe high-rise fire
+    { tag:'Standpipes',    title:'High-rise starting PDP',  text:'Common starting point is 150 psi minimum unless SOPs/signage state otherwise.' },
+
+    // Attack line quick references
+    { tag:'Attack Line',   title:'1¾″ initial PDP',         text:'Many departments start around 150 psi depending on nozzle and hose layout.' },
+    { tag:'Attack Line',   title:'2½″ target flow',         text:'A common big-line target is ~250 gpm for large fire attack.' },
+
+    // Wildland rules category
+    { tag:'Wildland',      title:'Elevation in wildland',   text:'Add 5 psi per 10 ft elevation gain in progressive hose lays.' },
+    { tag:'Wildland',      title:'Progressive lay losses',  text:'Add 10–25 psi for gated wyes and appliances in a progressive lay.' },
+    { tag:'Wildland',      title:'Forestry line flows',     text:'1″ ≈ 30–60 gpm; 1½″ ≈ 60–125 gpm (confirm with local SOPs).' },
+    { tag:'Wildland',      title:'Pump-and-roll',           text:'Maintain roughly 50–100 psi at the pump, adjusted for terrain and nozzle.' },
+
+    // Master stream effective reach + water weight
+    { tag:'Master Stream', title:'Effective reach',         text:'Best reach at correct NP: 80 psi SB, 100 psi fog; avoid under-pumping master streams.' },
+    { tag:'Master Stream', title:'500 gpm = 1 ton/min',     text:'500 gpm is roughly 1 ton of water per minute (8.33 lb/gal, 60 gal/min per 500 gpm).' },
+
+    // Foam operations
+    { tag:'Foam',          title:'Class A vs Class B',      text:'Class A: ~0.1–1%; Class B: ~1–6% depending on product and fuel; always follow label/SOPs.' },
+    { tag:'Foam',          title:'Eductor pressure',        text:'Most inline eductors require ~200 psi at the inlet and proper pick-up height/length.' },
+
+    // Equations & quick tips
+    { tag:'Equations',     title:'Smooth bore GPM',         text:'GPM = 29.7 × d² × √NP (d in inches, NP in psi).' },
+    { tag:'Equations',     title:'1¾″ FL rule',             text:'For many mid-range flows, FL ≈ 2Q² per 100′ (Q = gpm/100); refine with full calc when needed.' },
+    { tag:'Equations',     title:'2½″ FL rule',             text:'For 2½″ hose, FL ≈ Q² per 100′ (Q = gpm/100) as a quick estimate.' },
+    { tag:'Equations',     title:'Water weight',            text:'1 gallon of water ≈ 8.33 lb; 1 cubic foot ≈ 7.48 gallons.' },
+
+    // Fire acronyms – structure
+    { tag:'Acronyms – Structure', title:'COAL WAS WEALTH',  text:'Construction, Occupancy, Area, Life hazard, Water supply, Auxiliary appliances, Street, Weather, Exposures, Apparatus & personnel, Location & extent, Time, Height.' },
+    { tag:'Acronyms – Structure', title:'RECEO-VS',         text:'Rescue, Exposures, Confinement, Extinguishment, Overhaul, Ventilation, Salvage.' },
+
+    // Fire acronyms – wildland
+    { tag:'Acronyms – Wildland',  title:'LCES',             text:'Lookouts, Communications, Escape routes, Safety zones.' },
+    { tag:'Acronyms – Wildland',  title:'10 & 18',          text:'Know the 10 Standard Firefighting Orders and 18 Watch Out Situations (NWCG).' },
   ];
 
   // Hose sizes to display — (3" removed)
@@ -319,6 +369,17 @@ export async function render(container){
         <div class="nozzCard">
           <div class="nozzTitle">${escapeHTML(n.label)}</div>
           <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b>${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}</div>
+        </div>
+      `).join('')}
+      <div class="groupHeader">Specialty / Special Purpose Nozzles</div>
+      ${SPECIALTY_NOZZLES.map(n=>`
+        <div class="nozzCard">
+          <div class="nozzTitle">${escapeHTML(n.label)}</div>
+          <div class="nozzSub">
+            ${n.gpm ? `Approx. GPM: <b>${n.gpm}</b> — ` : ''}
+            ${n.NP ? `NP: <b>${n.NP} psi</b>` : ''}
+            ${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}
+          </div>
         </div>
       `).join('')}
     `;
