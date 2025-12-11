@@ -25,9 +25,7 @@ workflows:
         script: |
           npm install
 
-      # 🔹 NEW: build your web assets into dist/ so Capacitor bundles
-      # the current FireOps Calc UI (fixes old header / black middle)
-      - name: Build web assets (copy FireOps Calc into dist/)
+      - name: Build web assets
         script: |
           npm run build
 
@@ -35,13 +33,10 @@ workflows:
         script: |
           npx cap sync android
 
-      # 🔐 Build & sign using same logic as your old config
-      - name: Build signed Android app (AAB & APK)
+      - name: Build signed Android App Bundle
         script: |
           cd android
-          ./gradlew \
-            bundleRelease \
-            assembleRelease \
+          ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=$CM_KEYSTORE_PATH \
             -Pandroid.injected.signing.store.password=$CM_KEYSTORE_PASSWORD \
             -Pandroid.injected.signing.key.alias=$CM_KEY_ALIAS \
