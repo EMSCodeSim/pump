@@ -12,8 +12,8 @@ import {
     getDeptHoses,
     getDeptNozzles,
     setLineDefaults,
-    getLineDefaults
-} from "./store.js";
+    getLineDefaults,
+    HOSES_MATCHING_CHARTS} from "./store.js";
 import { setDeptUiNozzles } from "./store.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
@@ -51,7 +51,7 @@ function saveDeptConfig(update) {
 // ------- Render Existing Lists -------
 function renderHoseSelector() {
     const wrapper = qs("#dept-hose-list");
-    const hoses = store.deptHoses;
+    const hoses = HOSES_MATCHING_CHARTS;
 
     wrapper.innerHTML = hoses.map(h => `
         <label class="dept-item">
