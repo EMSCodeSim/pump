@@ -269,8 +269,8 @@ export async function render(container){
     { tag:'Acronyms – Wildland',  title:'10 & 18',          text:'Know the 10 Standard Firefighting Orders and 18 Watch Out Situations (NWCG).' },
   ];
 
-  // Hose sizes to display — (3" removed)
-  const HOSE_ORDER = ['1.75','2.5','5'];
+  // Hose sizes to display — now includes 4"
+  const HOSE_ORDER = ['1.75','2.5','4','5'];
   const HOSE_LABEL = s =>
     s==='1.75' ? '1¾"' :
     s==='2.5'  ? '2½"' :
@@ -280,6 +280,7 @@ export async function render(container){
   const GPM_SETS = {
     '1.75': [95, 125, 150, 160, 175, 185, 200],
     '2.5':  [150, 185, 200, 250, 265, 300, 325, 400, 500, 600],
+    '4':    [400, 500, 600, 800, 1000],
     '5':    [500, 750, 800, 1000, 1250],
   };
 
@@ -287,6 +288,7 @@ export async function render(container){
   const LOW_C = {
     '1.75': 13,   // lower FL "combat-ready" style 1¾"
     '2.5':  1.5,
+    '4':    0.8,
     '5':    0.05,
   };
 
@@ -417,7 +419,7 @@ export async function render(container){
         btn.classList.toggle('on', btn.dataset.size === String(available[0]));
       });
     }else{
-      flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found for ${currentFLMode === 'low' ? 'low-friction' : 'standard'} mode (expected keys: 1.75, 2.5, 5).</div>`;
+      flTableWrap.innerHTML = `<div class="status alert">No hose coefficients found for ${currentFLMode === 'low' ? 'low-friction' : 'standard'} mode (expected keys: 1.75, 2.5, 4, 5).</div>`;
     }
   }
 
