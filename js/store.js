@@ -86,7 +86,19 @@ export const NOZ = {
 
   fog95_100:      { id:'fog95_100',     name:'Fog 95 @ 100',       gpm:95,   NP:100 },
   fog125_100:     { id:'fog125_100',    name:'Fog 125 @ 100',      gpm:125,  NP:100 },
-  fog150_100_alt: { id:'fog150_100_alt',name:'Fog 150 @ 100 (Alt)',gpm:150,  NP:100 },
+  fog175_100:     { id:'fog175_100',    name:'Fog 175 @ 100',      gpm:175,  NP:100 },
+  fog200_100:     { id:'fog200_100',    name:'Fog 200 @ 100',      gpm:200,  NP:100 },
+  fog250_100:     { id:'fog250_100',    name:'Fog 250 @ 100',      gpm:250,  NP:100 },
+
+  // Additional smooth-bore handline tips
+  sb12_50:        { id:'sb12_50',       name:'SB 1/2″ @ 50',       gpm:50,   NP:50 },
+  sb5_8_50:       { id:'sb5_8_50',      name:'SB 5/8″ @ 50',       gpm:80,   NP:50 },
+  sb3_4_50:       { id:'sb3_4_50',      name:'SB 3/4″ @ 50',       gpm:120,  NP:50 },
+
+  // Master stream fogs
+  fog500_100:     { id:'fog500_100',    name:'Master Fog 500 @ 100',  gpm:500,  NP:100 },
+  fog750_100:     { id:'fog750_100',    name:'Master Fog 750 @ 100',  gpm:750,  NP:100 },
+  fog1000_100:    { id:'fog1000_100',   name:'Master Fog 1000 @ 100', gpm:1000, NP:100 },
 };
 
 export const NOZ_LIST = Object.values(NOZ);
@@ -103,8 +115,6 @@ export function getDeptNozzles() {
 
 // Canonical hose list for Department Setup / line editors
 export function getDeptHoses() {
-  // 1) Department Setup UI-selected list, if any
-  // 2) Otherwise derive from DEPT_UI_HOSES or fall back to empty
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES;
   }
@@ -343,20 +353,17 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export 
-function seedDefaultsForKey(key){
-  if(!state.lines) seedInitialDefaults();
-
+export function seedDefaultsForKey(key){
+  if (!state.lines) seedInitialDefaults();
   const current = state.lines[key];
 
-  // For the three front-panel attack lines, prefer any Department Setup
-  // defaults (Line 1 / 2 / 3) as long as the line has not been made
-  // visible in this calc session. That way, editing Department Setup
-  // changes what you get the next time you pull Line 1–3, but it won't
-  // overwrite a line you've already been working with.
+  // For the three front-panel attack lines (Line 1 / Line 2 / Line 3),
+  // prefer Department Setup defaults the *first* time the line is pulled
+  // in this session. Once the user has worked the line (visible = true),
+  // we keep their edits until a full page reload.
   if (key === 'left' || key === 'back' || key === 'right') {
-    const shouldOverride = !current || !current.visible;
-    if (shouldOverride) {
+    const shouldUseDept = !current || !current.visible;
+    if (shouldUseDept) {
       const deptLine = getDeptLineDefault(key);
       if (deptLine && typeof deptLine === 'object') {
         // Clone so we don't mutate the stored template directly
@@ -366,38 +373,41 @@ function seedDefaultsForKey(key){
     }
   }
 
+  // If we already have a line object (and chose not to override it above),
+  // just return it.
   if (current) return current;
 
+  // Otherwise, fall back to built-in defaults that match the original app.
   const L1N = NOZ.chief185_50;
   const L3N = NOZ.chiefXD265;
 
-  if(key === 'left'){
+  if (key === 'left') {
     state.lines.left = {
       label: 'Line 1',
       visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsMain: [{ size: '1.75', lengthFt: 200 }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
       nozRight: L1N,
     };
-  } else if(key === 'back'){
+  } else if (key === 'back') {
     state.lines.back = {
       label: 'Line 2',
       visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsMain: [{ size: '1.75', lengthFt: 200 }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
       nozRight: L1N,
     };
-  } else if(key === 'right'){
+  } else if (key === 'right') {
     state.lines.right = {
       label: 'Line 3',
       visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
+      itemsMain: [{ size: '2.5', lengthFt: 250 }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
@@ -405,6 +415,7 @@ function seedDefaultsForKey(key){
       nozRight: L3N,
     };
   } else {
+    // Any other dynamic / custom line
     state.lines[key] = {
       label: key,
       visible: false,
@@ -570,9 +581,121 @@ export function saveDeptDefaults(obj){
   return writeDeptStorage(obj);
 }
 
+// Simple Line 1/2/3 defaults shared with deptState.js & preset.js.
+// These live in localStorage under 'fireops_line_defaults_v1' and
+// are a lightweight shape like:
+//   { "1": { hose, nozzle, length, elevation }, ... }
+// or, in older builds:
+//   { "1": { hoseDiameter, lengthFt, nozzleId, elevationFt }, ... }
+const LINE_DEFAULTS_STORAGE_KEY = 'fireops_line_defaults_v1';
+
+function readSimpleLineDefaults() {
+  try {
+    const raw = localStorage.getItem(LINE_DEFAULTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+// Build a full calc line object (itemsMain / elevFt / nozRight) from
+// the simple per-line defaults, falling back to the original hard-coded
+// defaults if any fields are missing.
+function buildDeptLineFromSimple(key) {
+  const map = { left: '1', back: '2', right: '3' };
+  const lineKey = map[key];
+  if (!lineKey) return null;
+
+  const all = readSimpleLineDefaults();
+  const simple = all[lineKey];
+  if (!simple || typeof simple !== 'object') return null;
+
+  // Support both the new shape ({hose,nozzle,length,elevation})
+  // and the older shape ({hoseDiameter,lengthFt,nozzleId,elevationFt}).
+  const rawHose =
+    simple.hose ??
+    simple.hoseId ??
+    simple.hoseDiameter;
+
+  const rawNozId =
+    simple.nozzle ??
+    simple.nozzleId;
+
+  const rawLen =
+    simple.length ??
+    simple.lengthFt;
+
+  const rawElev =
+    simple.elevation ??
+    simple.elevationFt;
+
+  const L1N = NOZ.chief185_50;
+  const L3N = NOZ.chiefXD265;
+
+  let base;
+  if (key === 'left' || key === 'back') {
+    base = {
+      label: key === 'left' ? 'Line 1' : 'Line 2',
+      visible: false,
+      itemsMain: [{ size: '1.75', lengthFt: 200 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L1N,
+    };
+  } else if (key === 'right') {
+    base = {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [{ size: '2.5', lengthFt: 250 }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: L3N,
+    };
+  } else {
+    return null;
+  }
+
+  const hoseId = rawHose != null && String(rawHose).trim() !== ''
+    ? String(rawHose).trim()
+    : base.itemsMain[0].size;
+
+  const lenVal = Number(rawLen);
+  const lengthFt = Number.isFinite(lenVal) && lenVal > 0
+    ? lenVal
+    : base.itemsMain[0].lengthFt;
+
+  const elevVal = Number(rawElev);
+  const elevFt = Number.isFinite(elevVal) ? elevVal : base.elevFt;
+
+  const nozObj = rawNozId && NOZ[rawNozId]
+    ? NOZ[rawNozId]
+    : base.nozRight;
+
+  const line = JSON.parse(JSON.stringify(base));
+  if (line.itemsMain && line.itemsMain[0]) {
+    line.itemsMain[0].size = hoseId;
+    line.itemsMain[0].lengthFt = lengthFt;
+  }
+  line.elevFt = elevFt;
+  line.nozRight = nozObj;
+
+  return line;
+}
+
 export function getDeptLineDefault(key){
+  // 1) Prefer the simple line defaults used by the new Department Setup.
+  const fromSimple = buildDeptLineFromSimple(key);
+  if (fromSimple) return fromSimple;
+
+  // 2) Fall back to the legacy full-line defaults stored by older builds.
   const all = loadDeptDefaults();
-  return all[key] || null;
+  return all && all[key] ? all[key] : null;
 }
 
 export function setDeptLineDefault(key, data){
