@@ -2198,13 +2198,32 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           null;
 
         if (src && typeof src === 'object') {
+          // Support BOTH legacy shape (hoseDiameter/lengthFt/nozzleId/elevationFt)
+          // and new Department Setup shape (hose/length/nozzle/elevation)
+          const hoseDiameter =
+            (src.hoseDiameter != null && src.hoseDiameter !== '')
+              ? src.hoseDiameter
+              : (src.hose != null && src.hose !== '' ? src.hose : null);
+
+          const lengthFt =
+            (typeof src.lengthFt === 'number')
+              ? src.lengthFt
+              : (typeof src.length === 'number' ? src.length : null);
+
+          const elevationFt =
+            (typeof src.elevationFt === 'number')
+              ? src.elevationFt
+              : (typeof src.elevation === 'number' ? src.elevation : null);
+
+          const nozzleId = src.nozzleId || src.nozzle || null;
+
           // Main hose
           const main = (L.itemsMain && L.itemsMain[0]) || {};
-          if (src.hoseDiameter != null) {
-            main.size = String(src.hoseDiameter);
+          if (hoseDiameter != null) {
+            main.size = String(hoseDiameter);
           }
-          if (typeof src.lengthFt === 'number') {
-            main.lengthFt = src.lengthFt;
+          if (lengthFt != null) {
+            main.lengthFt = lengthFt;
           }
           L.itemsMain = [main];
 
@@ -2214,15 +2233,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           L.itemsRight= [];
 
           // Elevation
-          if (typeof src.elevationFt === 'number') {
-            L.elevFt = src.elevationFt;
-          } else if (typeof src.elevation === 'number') {
-            L.elevFt = src.elevation;
+          if (elevationFt != null) {
+            L.elevFt = elevationFt;
           }
 
           // Nozzle
-          if (src.nozzleId && NOZ[src.nozzleId]) {
-            L.nozRight = NOZ[src.nozzleId];
+          if (nozzleId && NOZ[nozzleId]) {
+            L.nozRight = NOZ[nozzleId];
           }
         }
       }
@@ -2231,6 +2248,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       markDirty();
     });
   });
+
 
   /* --------------------------- Supply buttons ----------------------------- */
 
