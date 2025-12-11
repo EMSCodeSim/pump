@@ -33,13 +33,16 @@ export async function render(container){
           <div class="seg" role="tablist" aria-label="Nozzle type">
             <button class="segBtn segOn" data-type="sb" role="tab" aria-selected="true" type="button">Smooth Bore</button>
             <button class="segBtn" data-type="fog" role="tab" aria-selected="false" type="button">Fog</button>
+            <button class="segBtn" data-type="special" role="tab" aria-selected="false" type="button">Specialty</button>
           </div>
         </div>
 
-        <!-- Smooth Bore first -->
+        <!-- Smooth Bore -->
         <div id="nozzlesSB" class="nozzWrap" style="margin-top:10px"></div>
-        <!-- Fog / Specialty second -->
+        <!-- Fog -->
         <div id="nozzlesFog" class="nozzWrap" style="margin-top:10px; display:none"></div>
+        <!-- Specialty -->
+        <div id="nozzlesSpecial" class="nozzWrap" style="margin-top:10px; display:none"></div>
       </section>
 
       <!-- FL (hidden until pressed) -->
@@ -303,6 +306,7 @@ export async function render(container){
 
   const fogWrap = container.querySelector('#nozzlesFog');
   const sbWrap  = container.querySelector('#nozzlesSB');
+  const specialWrap = container.querySelector('#nozzlesSpecial');
   const hoseRow = container.querySelector('.hoseRow');
   const flTableWrap = container.querySelector('#flTableWrap');
   const rulesList = container.querySelector('#rulesList');
@@ -373,6 +377,11 @@ export async function render(container){
           <div class="nozzSub">GPM: <b>${n.gpm}</b> — NP: <b>${n.NP} psi</b>${n.note?`<div class="muted mini">${escapeHTML(n.note)}</div>`:''}</div>
         </div>
       `).join('')}
+    `;
+  }
+
+  function renderNozzlesSpecial(){
+    specialWrap.innerHTML = `
       <div class="groupHeader">Specialty / Special Purpose Nozzles</div>
       ${SPECIALTY_NOZZLES.map(n=>`
         <div class="nozzCard">
@@ -466,12 +475,15 @@ export async function render(container){
   btnShowNozzles.addEventListener('click', ()=>{
     renderNozzlesSB();
     renderNozzlesFog();
+    renderNozzlesSpecial();
     container.querySelectorAll('.segBtn[data-type]').forEach(b=>{
       const on = b.dataset.type==='sb';
       b.classList.toggle('segOn', on);
       b.setAttribute('aria-selected', on?'true':'false');
     });
-    sbWrap.style.display='grid'; fogWrap.style.display='none';
+    sbWrap.style.display='grid';
+    fogWrap.style.display='none';
+    specialWrap.style.display='none';
     showOnly(nozzCard);
   });
 
@@ -486,7 +498,7 @@ export async function render(container){
     showOnly(rulesCard);
   });
 
-  // Nozzle segmented control (SB | Fog)
+  // Nozzle segmented control (SB | Fog | Specialty)
   container.addEventListener('click', (e)=>{
     const t = e.target.closest('.segBtn'); if(!t) return;
     const type = t.dataset.type;
@@ -494,11 +506,24 @@ export async function render(container){
     if(!type) return;
 
     container.querySelectorAll('.segBtn[data-type]').forEach(b=>{
-      b.classList.toggle('segOn', b===t);
-      b.setAttribute('aria-selected', b===t?'true':'false');
+      const on = b === t;
+      b.classList.toggle('segOn', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    if(type==='sb'){ sbWrap.style.display='grid'; fogWrap.style.display='none'; }
-    else { sbWrap.style.display='none'; fogWrap.style.display='grid'; }
+
+    if(type === 'sb'){
+      sbWrap.style.display = 'grid';
+      fogWrap.style.display = 'none';
+      specialWrap.style.display = 'none';
+    } else if(type === 'fog'){
+      sbWrap.style.display = 'none';
+      fogWrap.style.display = 'grid';
+      specialWrap.style.display = 'none';
+    } else if(type === 'special'){
+      sbWrap.style.display = 'none';
+      fogWrap.style.display = 'none';
+      specialWrap.style.display = 'grid';
+    }
   });
 
   // FL mode segmented control (standard | low-friction)
