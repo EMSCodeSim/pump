@@ -55,31 +55,38 @@ export const NOZ = {
   // Chief XD fogs (expanded)
   chiefXD165_50:  { id:'chiefXD165_50', name:'Chief XD 1¾″ 165 gpm @ 50 psi', gpm:165, NP:50 },
   chief185_50:    { id:'chief185_50',   name:'Chief XD 1¾″ 185 gpm @ 50 psi', gpm:185, NP:50 },
-  chiefXD265:     { id:'chiefXD265',    name:'Chief XD 2½″ 265 gpm @ 50 psi', gpm:265, NP:50 },
+  chiefXD:        { id:'chiefXD',       name:'Chief XD 1¾″ 185 gpm @ 50 psi', gpm:185, NP:50 },
+  chiefXD200_75:  { id:'chiefXD200_75', name:'Chief XD 1¾″ 200 gpm @ 75 psi', gpm:200,  NP:75 },
+  chiefXD265:     { id:'chiefXD265',    name:'Chief XD 2½″ 265 gpm @ 50 psi', gpm:265,  NP:50 },
 
-  // Smooth-bore tips (1.75″)
-  sb7_8_50:       { id:'sb7_8_50',      name:'Smooth 7/8 @ 50',    gpm:160,  NP:50 },
-  sb15_16_50:     { id:'sb15_16_50',    name:'Smooth 15/16 @ 50',  gpm:185,  NP:50 },
+  // 2½″ fog nozzles
+  fog250_50:      { id:'fog250_50',     name:'2½″ Fog 250 @ 50',   gpm:250,  NP:50 },
+  fog250_75:      { id:'fog250_75',     name:'2½″ Fog 250 @ 75',   gpm:250,  NP:75 },
 
-  // Smooth-bore tips (2.5″)
-  sb1_50:         { id:'sb1_50',        name:'Smooth 1\" @ 50',     gpm:210,  NP:50 },
-  sb1_1_8_50:     { id:'sb1_1_8_50',    name:'Smooth 1 1/8\" @ 50', gpm:265,  NP:50 },
-  sb1_1_4_50:     { id:'sb1_1_4_50',    name:'Smooth 1 1/4\" @ 50', gpm:325,  NP:50 },
+  // Smooth-bores (handline)
+  sb7_8:          { id:'sb7_8',         name:'SB 7/8″ @ 50',       gpm:160,  NP:50 },
+  sb15_16:        { id:'sb15_16',       name:'SB 15/16″ @ 50',     gpm:185,  NP:50 },
 
-  // Master stream fogs
-  ms500_80:       { id:'ms500_80',      name:'Master Fog 500 @ 80', gpm:500, NP:80 },
-  ms750_80:       { id:'ms750_80',      name:'Master Fog 750 @ 80', gpm:750, NP:80 },
-  ms1000_80:      { id:'ms1000_80',     name:'Master Fog 1000 @ 80',gpm:1000,NP:80 },
+  // 2½″ smooth-bore
+  sb1:            { id:'sb1',           name:'SB 1″ @ 50',         gpm:210,  NP:50 },
+  sb1_1_8:        { id:'sb1_1_8',       name:'SB 1 1/8″ @ 50',     gpm:265,  NP:50 },
+  sb1_1_4:        { id:'sb1_1_4',       name:'SB 1 1/4″ @ 50',     gpm:325,  NP:50 },
 
-  // Master stream smooth tips
-  ms1_3_8_80:     { id:'ms1_3_8_80',    name:'Master Smooth 1 3/8 @ 80', gpm:500, NP:80 },
-  ms1_1_2_80:     { id:'ms1_1_2_80',    name:'Master Smooth 1 1/2 @ 80', gpm:600, NP:80 },
-  ms1_3_4_80:     { id:'ms1_3_4_80',    name:'Master Smooth 1 3/4 @ 80', gpm:800, NP:80 },
+  // Master stream smooth-bore (deck gun) @ 80 psi
+  ms1_3_8_80:     { id:'ms1_3_8_80',    name:'MS 1 3/8″ @ 80',     gpm:500,  NP:80 },
+  ms1_1_2_80:     { id:'ms1_1_2_80',    name:'MS 1 1/2″ @ 80',     gpm:600,  NP:80 },
+  ms1_3_4_80:     { id:'ms1_3_4_80',    name:'MS 1 3/4″ @ 80',     gpm:800,  NP:80 },
+  ms2_80:         { id:'ms2_80',        name:'MS 2″ @ 80',         gpm:1000, NP:80 },
 
-  // Specialty / low flows
-  fog30_100:      { id:'fog30_100',     name:'Fog 30 @ 100',       gpm:30,  NP:100 },
-  fog60_100:      { id:'fog60_100',     name:'Fog 60 @ 100',       gpm:60,  NP:100 },
-  breaker30_100:  { id:'breaker30_100', name:'Breaker 30 @ 100',   gpm:30,  NP:100 },
+  // Added to align with DEPT_NOZZLE_LIBRARY
+  fog175_50:      { id:'fog175_50',     name:'Fog 175 @ 50',       gpm:175,  NP:50 },
+  fog185_50:      { id:'fog185_50',     name:'Fog 185 @ 50',       gpm:185,  NP:50 },
+  fog200_50:      { id:'fog200_50',     name:'Fog 200 @ 50',       gpm:200,  NP:50 },
+  fog265_50:      { id:'fog265_50',     name:'Fog 265 @ 50',       gpm:265,  NP:50 },
+
+  fog95_100:      { id:'fog95_100',     name:'Fog 95 @ 100',       gpm:95,   NP:100 },
+  fog125_100:     { id:'fog125_100',    name:'Fog 125 @ 100',      gpm:125,  NP:100 },
+  fog150_100_alt: { id:'fog150_100_alt',name:'Fog 150 @ 100 (Alt)',gpm:150,  NP:100 },
 };
 
 export const NOZ_LIST = Object.values(NOZ);
@@ -116,6 +123,14 @@ export const COEFF = {
   '4':    0.2,
   '5':    0.08,
 };
+
+export function sizeLabel(v){
+  return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
+}
+
+/* =========================
+ * Hydraulics helpers
+ * ========================= */
 
 export const PSI_PER_FT = 0.5;
 
@@ -284,183 +299,10 @@ export function addTip(group, key, where, clsExtra){
   return g;
 }
 
-// === Department Defaults Persistence (legacy) ===
-const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
-
-function readDeptStorage(){
-  try {
-    const raw = localStorage.getItem(DEPT_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch(e){
-    return null;
-  }
-}
-
-function writeDeptStorage(obj){
-  try {
-    localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(obj));
-    return true;
-  } catch(e){
-    return false;
-  }
-}
-
-// === New Line 1/2/3 simple defaults (Department Setup UI) ===
-const LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
-
-function readLineDefaultsStorage(){
-  try {
-    const raw = localStorage.getItem(LINE_DEFAULTS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return (parsed && typeof parsed === 'object') ? parsed : {};
-  } catch(e){
-    return {};
-  }
-}
-
-function writeLineDefaultsStorage(obj){
-  try {
-    if (!obj || typeof obj !== 'object') {
-      localStorage.removeItem(LINE_DEFAULTS_KEY);
-    } else {
-      localStorage.setItem(LINE_DEFAULTS_KEY, JSON.stringify(obj));
-    }
-  } catch(e){
-    // best-effort; ignore
-  }
-}
-
-// Simple Line 1/2/3 defaults as used by Department Setup UI.
-// id is "line1" | "line2" | "line3"
-export function getLineDefaults(id){
-  const all = readLineDefaultsStorage();
-  const num = String(id).replace('line','');
-  const val = all[num];
-  if (!val || typeof val !== 'object') {
-    return { hose:'', nozzle:'', length:0, elevation:0 };
-  }
-  return {
-    hose: String(val.hose ?? ''),
-    nozzle: String(val.nozzle ?? ''),
-    length: Number(val.length ?? 0),
-    elevation: Number(val.elevation ?? 0),
-  };
-}
-
-export function setLineDefaults(id, data){
-  if (!data || typeof data !== 'object') return;
-  const num = String(id).replace('line','');
-  if (!num) return;
-  const all = readLineDefaultsStorage();
-  all[num] = {
-    hose: String(data.hose ?? ''),
-    nozzle: String(data.nozzle ?? ''),
-    length: Number(data.length ?? 0),
-    elevation: Number(data.elevation ?? 0),
-  };
-  writeLineDefaultsStorage(all);
-}
-
-export function loadDeptDefaults(){
-  const from = readDeptStorage();
-  if(from) return from;
-
-  // If none found, seed from initial lines in memory
-  return {
-    left:  JSON.parse(JSON.stringify(state.lines.left)),
-    back:  JSON.parse(JSON.stringify(state.lines.back)),
-    right: JSON.parse(JSON.stringify(state.lines.right)),
-  };
-}
-
-export function saveDeptDefaults(obj){
-  if(!obj) return false;
-  return writeDeptStorage(obj);
-}
-
-// Build a full line object for left/back/right from the simple line defaults
-// saved by Department Setup (Line 1/2/3).
-function buildDeptLineFromSimple(key){
-  // Map our front-panel keys to numeric line defaults: 1, 2, 3
-  const map = { left:'1', back:'2', right:'3' };
-  const num = map[key];
-  if (!num) return null;
-
-  const all = readLineDefaultsStorage();
-  const simple = all[num];
-  if (!simple || typeof simple !== 'object') return null;
-
-  // Base templates match seedInitialDefaults
-  let base;
-  if (key === 'left' || key === 'back') {
-    base = {
-      label: key === 'left' ? 'Line 1' : 'Line 2',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: NOZ.chief185_50,
-    };
-  } else if (key === 'right') {
-    base = {
-      label: 'Line 3',
-      visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: NOZ.chiefXD265,
-    };
-  } else {
-    return null;
-  }
-
-  const hoseSize = simple.hose && String(simple.hose).trim()
-    ? String(simple.hose).trim()
-    : base.itemsMain[0].size;
-
-  const lengthFtRaw = (simple.length != null) ? Number(simple.length) : base.itemsMain[0].lengthFt;
-  const lengthFt = Number.isFinite(lengthFtRaw) && lengthFtRaw > 0 ? lengthFtRaw : base.itemsMain[0].lengthFt;
-
-  const elevRaw = (simple.elevation != null) ? Number(simple.elevation) : base.elevFt;
-  const elevFt = Number.isFinite(elevRaw) ? elevRaw : 0;
-
-  const nozzleId = simple.nozzle && String(simple.nozzle).trim();
-  const nozzle = nozzleId && NOZ[nozzleId] ? NOZ[nozzleId] : base.nozRight;
-
-  const line = JSON.parse(JSON.stringify(base));
-  if (line.itemsMain && line.itemsMain[0]) {
-    line.itemsMain[0].size = hoseSize;
-    line.itemsMain[0].lengthFt = lengthFt;
-  }
-  line.elevFt = elevFt;
-  line.nozRight = nozzle;
-  return line;
-}
-
-export function getDeptLineDefault(key){
-  // Prefer new per-line defaults from Department Setup (Line 1/2/3)
-  const fromSimple = buildDeptLineFromSimple(key);
-  if (fromSimple) return fromSimple;
-
-  // Fallback: legacy storage used by older builds
-  const all = loadDeptDefaults();
-  return (all && all[key]) ? all[key] : null;
-}
-
-export function setDeptLineDefault(key, data){
-  const all = loadDeptDefaults();
-  all[key] = data;
-  saveDeptDefaults(all);
-}
-
 /* =========================
  * Line seeding / defaults
  * ========================= */
+
 function seedInitialDefaults(){
   if (state.lines) return;
   const L1N = NOZ.chief185_50;
@@ -505,12 +347,14 @@ export
 function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
-  // Prefer department-saved defaults for the three front-panel attack lines.
-  // If the line has not been made visible yet in this session, we treat the
-  // Department Setup values as the "starting point." Once the user has
-  // pulled a line and edited it, we keep their edits.
+  const current = state.lines[key];
+
+  // For the three front-panel attack lines, prefer any Department Setup
+  // defaults (Line 1 / 2 / 3) as long as the line has not been made
+  // visible in this calc session. That way, editing Department Setup
+  // changes what you get the next time you pull Line 1–3, but it won't
+  // overwrite a line you've already been working with.
   if (key === 'left' || key === 'back' || key === 'right') {
-    const current = state.lines[key];
     const shouldOverride = !current || !current.visible;
     if (shouldOverride) {
       const deptLine = getDeptLineDefault(key);
@@ -522,7 +366,7 @@ function seedDefaultsForKey(key){
     }
   }
 
-  if(state.lines[key]) return state.lines[key];
+  if (current) return current;
 
   const L1N = NOZ.chief185_50;
   const L3N = NOZ.chiefXD265;
@@ -569,20 +413,170 @@ function seedDefaultsForKey(key){
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: L1N,
+      nozRight: null,
     };
   }
+
   return state.lines[key];
 }
 
-// === Tiny helpers used elsewhere (dom-only) =================
-export const show = (elm, disp='') => { if (elm) elm.style.display = disp; };
-export const hide = (elm) => { if (elm) elm.style.display = 'none'; };
+/* =========================
+ * Wye helpers
+ * ========================= */
+export function isSingleWye(L){
+  if(!L || !L.hasWye) return false;
+  const leftLen  = sumFt(L.itemsLeft || []);
+  const rightLen = sumFt(L.itemsRight || []);
+  const leftOn   = leftLen > 0 || !!L.nozLeft;
+  const rightOn  = rightLen > 0 || !!L.nozRight;
+  return (leftOn && !rightOn) || (!leftOn && rightOn);
+}
 
-export function injectStyle(id, css) {
-  if (document.getElementById(id)) return;
-  const s = document.createElement('style');
-  s.id = id;
-  s.textContent = css;
-  document.head.appendChild(s);
+export function activeSide(L){
+  if(!L) return 'R';
+  const l = sumFt(L.itemsLeft || []);
+  const r = sumFt(L.itemsRight || []);
+  if(l > 0 && r <= 0) return 'L';
+  if(r > 0 && l <= 0) return 'R';
+  return 'R';
+}
+
+export function activeNozzle(L){
+  if(!L) return null;
+  if(isSingleWye(L)){
+    return activeSide(L) === 'L'
+      ? (L.nozLeft || L.nozRight)
+      : (L.nozRight || L.nozLeft);
+  }
+  return L.nozRight || L.nozLeft || null;
+}
+
+export function computeApplianceLoss(totalGpm){
+  return applianceLoss(totalGpm);
+}
+
+/* =========================
+ * Line presets for Settings (Line 1/2/3 defaults)
+ * ========================= */
+const PRESET_STORAGE_KEY = 'fireops_line_presets_v1';
+
+function hasStorage(){
+  try {
+    return typeof window !== 'undefined'
+        && typeof window.localStorage !== 'undefined';
+  } catch { return false; }
+}
+
+function readStorage(){
+  if(!hasStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(PRESET_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function writeStorage(obj){
+  if(!hasStorage()) { state._presetsMem = obj; return true; }
+  try {
+    window.localStorage.setItem(PRESET_STORAGE_KEY, JSON.stringify(obj));
+    return true;
+  } catch { return false; }
+}
+
+// Default presets used by the Settings → Customize Presets panel.
+// These mirror the initial calc layout: Line 1/2 = 200' of 1¾″ @ 185 GPM,
+// Line 3 = 250' of 2½″ @ 265 GPM.
+function defaultPresets(){
+  return {
+    left:  { len: 200, size: '1.75', noz: 'chief185_50' },
+    back:  { len: 200, size: '1.75', noz: 'chief185_50' },
+    right: { len: 250, size: '2.5',  noz: 'chiefXD265'  },
+  };
+}
+
+// Make sure whatever we load looks like the structure Settings expects
+function normalizePresets(obj){
+  if (!obj || typeof obj !== 'object') return defaultPresets();
+  const hasShape =
+    obj.left  && typeof obj.left.len  === 'number' && obj.left.size  && obj.left.noz &&
+    obj.back  && typeof obj.back.len  === 'number' && obj.back.size  && obj.back.noz &&
+    obj.right && typeof obj.right.len === 'number' && obj.right.size && obj.right.noz;
+
+  if (hasShape) return obj;
+
+  // If the stored value is from an older version (standpipe/foam/etc),
+  // ignore it.
+  const def = defaultPresets();
+  try { writeStorage(def); } catch {}
+  return def;
+}
+
+export function loadPresets(){
+  const fromStore = readStorage();
+  if(fromStore) return normalizePresets(fromStore);
+  if(state._presetsMem) return normalizePresets(state._presetsMem);
+  const def = defaultPresets();
+  state._presetsMem = def;
+  return def;
+}
+
+export function savePresets(presetsObj){
+  if(!presetsObj || typeof presetsObj !== 'object') return false;
+  const norm = normalizePresets(presetsObj);
+  state._presetsMem = norm;
+  return writeStorage(norm);
+}
+
+/* =========================
+ * Small utils
+ * ========================= */
+export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
+
+// === Department Defaults Persistence (added) ===
+const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
+
+function readDeptStorage(){
+  try {
+    const raw = localStorage.getItem(DEPT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){
+    return null;
+  }
+}
+
+function writeDeptStorage(obj){
+  try {
+    localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(obj));
+    return true;
+  } catch(e){
+    return false;
+  }
+}
+
+export function loadDeptDefaults(){
+  const from = readDeptStorage();
+  if(from) return from;
+
+  // If none found, seed from initial lines in memory
+  return {
+    left:  JSON.parse(JSON.stringify(state.lines.left)),
+    back:  JSON.parse(JSON.stringify(state.lines.back)),
+    right: JSON.parse(JSON.stringify(state.lines.right)),
+  };
+}
+
+export function saveDeptDefaults(obj){
+  if(!obj) return false;
+  return writeDeptStorage(obj);
+}
+
+export function getDeptLineDefault(key){
+  const all = loadDeptDefaults();
+  return all[key] || null;
+}
+
+export function setDeptLineDefault(key, data){
+  const all = loadDeptDefaults();
+  all[key] = data;
+  saveDeptDefaults(all);
 }
