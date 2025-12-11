@@ -451,3 +451,82 @@ export function setDeptLineDefault(key, data){
   all[key] = data;
   saveDeptDefaults(all);
 }
+
+
+// === Simple Line Defaults API for Department Setup =====================
+// Used by view.department.js for Line 1 / Line 2 / Line 3 panels.
+// Shape: { hose, nozzle, length, elevation } where:
+//   - hose: hose id / diameter string (e.g. "1.75", "2.5")
+//   - nozzle: internal nozzle id from NOZ (e.g. "fog150_50", "chiefXD165_50")
+//   - length: number of feet
+//   - elevation: elevation gain in feet
+export function getLineDefaults(id){
+  const key =
+    id === 'line1' ? 'left' :
+    id === 'line2' ? 'back' :
+    id === 'line3' ? 'right' :
+    null;
+
+  const blank = { hose:'', nozzle:'', length:0, elevation:0 };
+  if (!key) return blank;
+
+  // Prefer saved department defaults
+  const src = getDeptLineDefault(key);
+  const L = (src && typeof src === 'object')
+    ? src
+    : seedDefaultsForKey(key);
+
+  if (!L || typeof L !== 'object') return blank;
+
+  const main = Array.isArray(L.itemsMain) && L.itemsMain[0]
+    ? L.itemsMain[0]
+    : {};
+
+  return {
+    hose: String(main.size || ''),
+    nozzle: (L.nozRight && L.nozRight.id) || '',
+    length: Number(main.lengthFt || 0),
+    elevation: Number(L.elevFt || 0),
+  };
+}
+
+export function setLineDefaults(id, data){
+  const key =
+    id === 'line1' ? 'left' :
+    id === 'line2' ? 'back' :
+    id === 'line3' ? 'right' :
+    null;
+  if (!key || !data || typeof data !== 'object') return;
+
+  // Start from existing dept default or base engine default
+  let L = getDeptLineDefault(key);
+  if (!L || typeof L !== 'object') {
+    L = JSON.parse(JSON.stringify(seedDefaultsForKey(key)));
+  } else {
+    // clone so we don't mutate state.lines directly
+    L = JSON.parse(JSON.stringify(L));
+  }
+
+  const hoseId = data.hose != null ? String(data.hose) : '';
+  const len    = data.length != null ? Number(data.length) : 0;
+  const elev   = data.elevation != null ? Number(data.elevation) : 0;
+  const nozId  = data.nozzle != null ? String(data.nozzle) : '';
+
+  // Main attack line segment
+  if (!Array.isArray(L.itemsMain)) L.itemsMain = [];
+  if (!L.itemsMain[0]) L.itemsMain[0] = {};
+  if (hoseId) {
+    L.itemsMain[0].size = hoseId;
+  }
+  L.itemsMain[0].lengthFt = len;
+
+  // Elevation
+  L.elevFt = elev;
+
+  // Nozzle selection
+  if (nozId && NOZ && NOZ[nozId]) {
+    L.nozRight = NOZ[nozId];
+  }
+
+  setDeptLineDefault(key, L);
+}
