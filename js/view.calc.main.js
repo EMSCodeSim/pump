@@ -2249,8 +2249,11 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           }
 
           // Nozzle
-          if (nozzleId && NOZ[nozzleId]) {
-            L.nozRight = NOZ[nozzleId];
+          if (nozzleId) {
+            const resolved = resolveNozzleById(nozzleId);
+            if (resolved) {
+              L.nozRight = resolved;
+            }
           }
         }
       }
