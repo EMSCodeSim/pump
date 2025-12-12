@@ -442,8 +442,56 @@ export function saveDeptDefaults(obj){
 }
 
 export function getDeptLineDefault(key){
+  // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
-  return all[key] || null;
+  const candidate = all ? all[key] : null;
+  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
+    return candidate;
+  }
+
+  // 2) Compatibility: simple line defaults saved by deptState.js (fireops_line_defaults_v1)
+  //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
+  try{
+    const raw = localStorage.getItem('fireops_line_defaults_v1');
+    if (!raw) return candidate || null;
+    const parsed = JSON.parse(raw) || {};
+    const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
+    if (!map || !parsed[map]) return candidate || null;
+
+    const d = parsed[map] || {};
+    const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
+    const len  = Number(d.length ?? d.len ?? 200) || 200;
+    const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
+    const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
+
+    const nozObj =
+      (nozId && NOZ && NOZ[nozId]) ? NOZ[nozId]
+      : (nozId ? (NOZ_LIST||[]).find(n => n && String(n.id) === nozId) : null);
+
+    const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
+
+    const built = {
+      label,
+      visible: false,
+      itemsMain: [{ size: hose, lengthFt: len }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: elev,
+      nozRight: nozObj || null,
+    };
+
+    // Persist the converted full object so subsequent loads are consistent.
+    try{
+      const full = loadDeptDefaults() || {};
+      full[key] = built;
+      saveDeptDefaults(full);
+    }catch(_){/* ignore */}
+
+    return built;
+  }catch(e){
+    return candidate || null;
+  }
 }
 
 export function setDeptLineDefault(key, data){
