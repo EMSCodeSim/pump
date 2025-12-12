@@ -490,6 +490,50 @@ export function getLineDefaults(id){
   };
 }
 
+
+// Returns a calc-ready snapshot of department line defaults for Line 1/2/3.
+// Shape:
+// {
+//   line1: { hoseDiameter, nozzleId, lengthFt, elevationFt },
+//   line2: { ... },
+//   line3: { ... },
+// }
+export function getDeptLineDefaults(){
+  const l1 = getLineDefaults('line1') || {};
+  const l2 = getLineDefaults('line2') || {};
+  const l3 = getLineDefaults('line3') || {};
+
+  const fallback = {
+    line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
+    line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
+    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
+  };
+
+  function shape(src, key){
+    const base = fallback[key];
+    if (!src || typeof src !== 'object') return { ...base };
+    return {
+      hoseDiameter: src.hose || base.hoseDiameter,
+      nozzleId: src.nozzle || base.nozzleId,
+      lengthFt:
+        typeof src.length === 'number' && !Number.isNaN(src.length)
+          ? src.length
+          : base.lengthFt,
+      elevationFt:
+        typeof src.elevation === 'number' && !Number.isNaN(src.elevation)
+          ? src.elevation
+          : base.elevationFt,
+    };
+  }
+
+  return {
+    line1: shape(l1, 'line1'),
+    line2: shape(l2, 'line2'),
+    line3: shape(l3, 'line3'),
+  };
+}
+
+
 export function setLineDefaults(id, data){
   const key =
     id === 'line1' ? 'left' :
