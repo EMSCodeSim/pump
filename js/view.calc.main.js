@@ -18,58 +18,50 @@ document.addEventListener("click", (e) => {
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import {
   state,
-  NOZ,
-  COLORS,
-  FL,
-  FL_total,
-  sumFt,
-  splitIntoSections,
-  PSI_PER_FT,
-  isSingleWye,
-  activeNozzle,
-  activeSide,
-  sizeLabel,
-  sectionsFor,
-  FL_total_sections,
-  breakdownText,
-  PRACTICE_SAVE_KEY,
-  safeClone,
-  loadSaved,
-  saveNow,
-  markDirty,
-  startAutoSave,
-  stopAutoSave,
-  buildSnapshot,
-  restoreState,
-  TRUCK_W,
-  TRUCK_H,
-  PX_PER_50FT,
-  CURVE_PULL,
-  BRANCH_LIFT,
-  supplyHeight,
-  computeNeededHeightPx,
-  truckTopY,
-  pumpXY,
-  mainCurve,
-  straightBranch,
-  injectStyle,
-  clearGroup,
-  clsFor,
-  fmt,
-  escapeHTML,
-  addLabel,
-  addTip,
-  drawSegmentedPath,
-  drawHoseBar,
-  ppExplainHTML
+  NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey,
+  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST,
+  sectionsFor, FL_total_sections, breakdownText,
+  PRACTICE_SAVE_KEY, safeClone, loadSaved, saveNow, markDirty, startAutoSave, stopAutoSave,
+  buildSnapshot, restoreState,
+  TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
+  supplyHeight, computeNeededHeightPx, truckTopY, pumpXY, mainCurve, straightBranch,
+  injectStyle, clearGroup, clsFor, fmt, escapeHTML, addLabel, addTip, drawSegmentedPath,
+  findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
+  drawHoseBar, ppExplainHTML
 } from './calcShared.js';
-
-import { NOZ_LIST } from './store.js';
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
   if (!id) return null;
-  try{
+  
+  // Map legacy/alternate ids (from older Dept Setup / Presets lists) to store.NOZ ids
+  const canonicalNozzleId = (raw)=>{
+    const s = String(raw||'').trim();
+    if(!s) return s;
+    const map = {
+      // Smooth bore ids used in preset.js
+      'sb_78_50_160': 'sb7_8',
+      'sb_1516_50_185': 'sb15_16',
+      'sb_1_50_210': 'sb1',
+      'sb_1118_50_265': 'sb1_1_8',
+      'sb_114_50_325': 'sb1_1_4',
+
+      // Chief XD ids used in preset.js
+      'fog_xd_175_50_165': 'chiefXD165_50',
+      'fog_xd_175_50_185': 'chief185_50',
+      'fog_xd_25_50_265':  'chiefXD265',
+
+      // Common fog ids used in preset.js
+      'fog_175_100_150': 'fog150_100',
+      'fog_175_75_150':  'fog150_75',
+      'fog_15_100_95':   'fog95_100',
+      'fog_15_100_125':  'fog125_100',
+    };
+    return map[s] || s;
+  };
+
+  id = canonicalNozzleId(id);
+try{
     // 1) Built-in map
     if (typeof NOZ === 'object' && NOZ && NOZ[id]){
       return NOZ[id];
@@ -124,6 +116,7 @@ if (typeof window !== 'undefined') {
 }
 
 
+import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -131,18 +124,9 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import { setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses, getLineDefaults } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
 import './view.calc.enhance.js';
 
-
-// ---------------------------------------------------------------------------
-// DeptState-only mode: legacy helpers are intentionally disabled.
-// These shims prevent older code paths from silently overriding department setup.
-// ---------------------------------------------------------------------------
-const seedDefaultsForKey = () => null;
-const defaultNozzleIdForSize = () => null;
-const ensureDefaultNozzleFor = () => null;
-const setBranchBDefaultIfEmpty = () => null;
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -473,8 +457,7 @@ export async function render(container){
       width:100%; padding:10px 12px;
       border:1px solid rgba(255,255,255,.22);
 /* phone KPI single-line */
-try{(function(){const s=document.createElement("style");s.textContent="@media (max-width: 420px){.kpis{flex-wrap:nowrap}.kpi b{font-size:16px}.kpi{padding:6px 8px}}";document.head.appendChild(s);}())}catch(e){}
- border-radius:12px;
+  border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -2043,10 +2026,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       if (L.nozRight?.id && teNoz){
         teNoz.value = L.nozRight.id;
       } else {
-        // Do not auto-override department defaults. If none set, pick the first available option.
-        if (teNoz && teNoz.options && teNoz.options.length) {
-          teNoz.value = teNoz.options[0].value;
-        }
+        ensureDefaultNozzleFor(L, 'main', sizeMain);
+        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
 
       // If Department filtering removed the old nozzle id from the select,
@@ -2071,13 +2052,13 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
       // For a Wye, also make sure branches have their defaults seeded
       if (L.hasWye) {
-        // No automatic branch defaults; keep department/user selection.
-}
+        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
+      }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      // Do not auto-set defaults; keep existing selection if any.
-      if(teNoz && L.nozLeft?.id) teNoz.value = L.nozLeft.id;
+      ensureDefaultNozzleFor(L,'L',seg.size);
+      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
@@ -2234,47 +2215,46 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       L.visible = !L.visible;
       b.classList.toggle('active', L.visible);
 
-      
-// If the line has just been turned ON, seed from Department line defaults (deptState)
-if (!wasVisible && typeof getLineDefaults === 'function') {
-  const lineNum =
-    key === 'left'  ? '1' :
-    key === 'back'  ? '2' :
-    key === 'right' ? '3' :
-    null;
+      // If the line has just been turned ON, seed from Department line defaults
+      if (!wasVisible && typeof getDeptLineDefaults === 'function') {
+        const all = getDeptLineDefaults();
+        const src =
+          key === 'left'  ? all.line1 :
+          key === 'back'  ? all.line2 :
+          key === 'right' ? all.line3 :
+          null;
 
-  const src = lineNum ? getLineDefaults(lineNum) : null;
+        if (src && typeof src === 'object') {
+          // Main hose
+          const main = (L.itemsMain && L.itemsMain[0]) || {};
+          if (src.hoseDiameter != null) {
+            main.size = String(src.hoseDiameter);
+          }
+          if (typeof src.lengthFt === 'number') {
+            main.lengthFt = src.lengthFt;
+          }
+          L.itemsMain = [main];
 
-  if (src && typeof src === 'object') {
-    // Main hose segments (calc uses itemsMain[])
-    const main = (L.itemsMain && L.itemsMain[0]) || {};
-    if (src.hose != null) {
-      main.size = String(src.hose);
-    }
-    if (src.length != null) {
-      main.lengthFt = Number(src.length) || 0;
-    }
-    L.itemsMain = [main];
+          // Straight line, no wye branches
+          L.hasWye    = false;
+          L.itemsLeft = [];
+          L.itemsRight= [];
 
-    // Straight line defaults (no wye unless user turns it on)
-    L.hasWye    = false;
-    L.itemsLeft = [];
-    L.itemsRight= [];
+          // Elevation
+          if (typeof src.elevationFt === 'number') {
+            L.elevFt = src.elevationFt;
+          } else if (typeof src.elevation === 'number') {
+            L.elevFt = src.elevation;
+          }
 
-    // Elevation
-    if (src.elevation != null) {
-      L.elevFt = Number(src.elevation) || 0;
-    }
+          // Nozzle
+          if (src.nozzleId && NOZ[src.nozzleId]) {
+            L.nozRight = NOZ[src.nozzleId];
+          }
+        }
+      }
 
-    // Nozzle (store nozzle object on L.nozRight)
-    if (src.nozzle) {
-      const noz = resolveNozzleById(String(src.nozzle));
-      if (noz) L.nozRight = noz;
-    }
-  }
-}
-
-drawAll();
+      drawAll();
       markDirty();
     });
   });
@@ -2625,8 +2605,7 @@ drawAll();
       const mainFt = sumFt(L.itemsMain);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); // base path is used only for geometry; do not append (prevents black shadow line)
-      // G_hoses.appendChild(base);
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
@@ -2640,8 +2619,7 @@ drawAll();
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
           const gL = straightBranch('L', geom.endX, geom.endY, (sumFt(L.itemsLeft)/50)*PX_PER_50FT);
-          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); // base path is used only for geometry; do not append (prevents black shadow line)
-          // G_branches.appendChild(pathL);
+          const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           // Branch A info bubble
           const lenLeft = sumFt(L.itemsLeft||[]);
@@ -2654,8 +2632,7 @@ drawAll();
 
         if(sumFt(L.itemsRight)>0){
           const gR = straightBranch('R', geom.endX, geom.endY, (sumFt(L.itemsRight)/50)*PX_PER_50FT);
-          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); // base path is used only for geometry; do not append (prevents black shadow line)
-          // G_branches.appendChild(pathR);
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           // Branch B info bubble
           const lenRight = sumFt(L.itemsRight||[]);
