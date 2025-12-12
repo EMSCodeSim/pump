@@ -11,6 +11,9 @@ import {
     setSelectedNozzles,
     getDeptHoses,
     getDeptNozzles,
+    // Sync Line 1/2/3 defaults into the legacy left/back/right templates
+    // used by the calc screen seeding logic.
+    setLineDefaults as setLegacyLineDefaults,
     HOSES_MATCHING_CHARTS
 } from "./store.js";
 import { setDeptUiNozzles } from "./store.js";
@@ -321,22 +324,17 @@ function setupLineDefaultSaving() {
             const length = Number((document.querySelector(`#${id}-length`) || {}).value || 0);
             const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
 
+            // Save into deptState (canonical) under keys '1' | '2' | '3'
             setLineDefaults(num, { hose, nozzle, length, elevation });
-            alert(`${id} defaults saved`);
-        });
-    });
-}
 
-function setupLineDefaultSaving() {
-    ["line1", "line2", "line3"].forEach(id => {
-        qs(`#${id}-save`)?.addEventListener("click", () => {
-            const hose = qs(`#${id}-hose`).value;
-            const nozzle = qs(`#${id}-nozzle`).value;
-            const length = Number(qs(`#${id}-length`).value || 0);
-            const elevation = Number(qs(`#${id}-elevation`).value || 0);
-
-            setLineDefaults(id, { hose, nozzle, length, elevation });
-
+            // ALSO sync into legacy store templates (left/back/right) so
+            // calc seeding (seedDefaultsForKey) uses the department values.
+            // store.js expects ids 'line1' | 'line2' | 'line3'.
+            try {
+                setLegacyLineDefaults(id, { hose, nozzle, length, elevation });
+            } catch (e) {
+                console.warn('Legacy line default sync failed', e);
+            }
             alert(`${id} defaults saved`);
         });
     });
