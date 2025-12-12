@@ -188,95 +188,22 @@ export function splitIntoSections(items){
  * ========================= */
 function seedInitialDefaults(){
   if (state.lines) return;
-  const L1N = NOZ.chief185_50;
-  const L3N = NOZ.chiefXD265;
-
-  state.lines = {
-    left:  {
-      label: 'Line 1',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    },
-    back:  {
-      label: 'Line 2',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    },
-    right: {
-      label: 'Line 3',
-      visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L3N,
-    }
-  };
-}
-seedInitialDefaults();
-
-export 
-function seedDefaultsForKey(key){
-  if(!state.lines) seedInitialDefaults();
-  if(state.lines[key]) return state.lines[key];
-
-  // Prefer department-saved defaults for the three front-panel attack lines
   if (key === 'left' || key === 'back' || key === 'right') {
-    const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object') {
-      // Clone so we don't mutate the stored template directly
-      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
-      return state.lines[key];
-    }
+    // No built-in defaults anymore. These lines only get a default when the user saves one in Department Setup.
+    const label = key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : 'Line 3';
+    state.lines[key] = {
+      label,
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: null,
+    };
+    return state.lines[key];
   }
 
-  const L1N = NOZ.chief185_50;
-  const L3N = NOZ.chiefXD265;
-
-  if(key === 'left'){
-    state.lines.left = {
-      label: 'Line 1',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    };
-  } else if(key === 'back'){
-    state.lines.back = {
-      label: 'Line 2',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    };
-  } else if(key === 'right'){
-    state.lines.right = {
-      label: 'Line 3',
-      visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L3N,
-    };
   } else {
     state.lines[key] = {
       label: key,
@@ -597,15 +524,12 @@ export function setLineDefaults(id, data){
     key === 'right' ? 'Line 3' :
     '';
 
-  const main = {
-    size: hoseId || '1.75',
-    lengthFt: len || 200,
-  };
+  const main = (hoseId && len) ? { size: hoseId, lengthFt: len } : null;
 
   const L = {
     label,
     visible: false,
-    itemsMain: [main],
+    itemsMain: main ? [main] : [],
     itemsLeft: [],
     itemsRight: [],
     hasWye: false,
