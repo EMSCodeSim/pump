@@ -309,10 +309,27 @@ function renderLineDefaults() {
     });
 }
 
+
 function setupLineDefaultSaving() {
     ["line1","line2","line3"].forEach(id => {
+        const lineNum = id.replace('line',''); // '1'|'2'|'3'
 
-        if (!btn) return;
+        // Try a few likely save-button selectors (supports old/new HTML)
+        const btn =
+            qs(`#${id}-save`) ||
+            qs(`#${id}-save-btn`) ||
+            qs(`#save-${id}`) ||
+            qs(`#save-${lineNum}`) ||
+            document.querySelector(`[data-line-save="${id}"]`) ||
+            document.querySelector(`[data-line-save="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${id}"]`);
+
+        if (!btn) {
+            console.warn('Dept setup: save button not found for', id);
+            return;
+        }
+
         btn.onclick = () => {
             const hose = (qs(`#${id}-hose`) || document.querySelector(`#${id}-hose`))?.value || "";
             const nozzle = (qs(`#${id}-nozzle`) || document.querySelector(`#${id}-nozzle`))?.value || "";
@@ -322,10 +339,14 @@ function setupLineDefaultSaving() {
             // Persist into pump_dept_defaults_v1 via store.js so calc Line 1/2/3 deploy matches.
             setLineDefaults(id, { hose, nozzle, length, elevation });
 
+            // Re-render in case something got normalized during save.
+            renderLineDefaults();
+
             alert(`${id} defaults saved`);
         };
     });
 }
+
 
 // ===========================================================
 //         DROPDOWN DATA (Filtered from store.js)
