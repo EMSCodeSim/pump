@@ -326,17 +326,6 @@ function setupLineDefaultSaving() {
         };
     });
 }
--save`)?.addEventListener("click", () => {
-            const hose = qs(`#${id}-hose`).value;
-            const nozzle = qs(`#${id}-nozzle`).value;
-            const length = Number(qs(`#${id}-length`).value || 0);
-            const elevation = Number(qs(`#${id}-elevation`).value || 0);
-
-            setLineDefaults(id, { hose, nozzle, length, elevation });
-
-            alert(`${id} defaults saved`);
-        });
-    });
 }
 
 // ===========================================================
