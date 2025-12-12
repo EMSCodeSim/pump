@@ -498,35 +498,33 @@ export function setLineDefaults(id, data){
     null;
   if (!key || !data || typeof data !== 'object') return;
 
-  // Start from existing dept default or base engine default
-  let L = getDeptLineDefault(key);
-  if (!L || typeof L !== 'object') {
-    L = JSON.parse(JSON.stringify(seedDefaultsForKey(key)));
-  } else {
-    // clone so we don't mutate state.lines directly
-    L = JSON.parse(JSON.stringify(L));
-  }
-
   const hoseId = data.hose != null ? String(data.hose) : '';
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
   const nozId  = data.nozzle != null ? String(data.nozzle) : '';
 
-  // Main attack line segment
-  if (!Array.isArray(L.itemsMain)) L.itemsMain = [];
-  if (!L.itemsMain[0]) L.itemsMain[0] = {};
-  if (hoseId) {
-    L.itemsMain[0].size = hoseId;
-  }
-  L.itemsMain[0].lengthFt = len;
+  const label =
+    key === 'left'  ? 'Line 1' :
+    key === 'back'  ? 'Line 2' :
+    key === 'right' ? 'Line 3' :
+    '';
 
-  // Elevation
-  L.elevFt = elev;
+  const main = {
+    size: hoseId || '1.75',
+    lengthFt: len || 200,
+  };
 
-  // Nozzle selection
-  if (nozId && NOZ && NOZ[nozId]) {
-    L.nozRight = NOZ[nozId];
-  }
+  const L = {
+    label,
+    visible: false,
+    itemsMain: [main],
+    itemsLeft: [],
+    itemsRight: [],
+    hasWye: false,
+    elevFt: elev || 0,
+    nozRight: (nozId && typeof NOZ === 'object' && NOZ[nozId]) ? NOZ[nozId] : null,
+  };
 
   setDeptLineDefault(key, L);
 }
+
