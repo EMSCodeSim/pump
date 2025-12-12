@@ -17,7 +17,8 @@ import {
     HOSES_MATCHING_CHARTS
 } from "./store.js";
 import { setDeptUiNozzles } from "./store.js";
-import { getLineDefaults, setLineDefault as setLineDefaults } from "./deptState.js";
+import { getLineDefaults as getDeptLineDefaults, setLineDefault as setDeptLineDefault } from "./deptState.js";
+import { setLineDefaults as setLegacyLineDefaults } from "./store.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
 
@@ -298,7 +299,7 @@ function setupSaveButtons() {
 function renderLineDefaults() {
     ["line1", "line2", "line3"].forEach(id => {
         const num = id.replace("line", "");
-        const data = getLineDefaults(num) || {};
+        const data = getDeptLineDefaults(num) || {};
 
         const hoseEl = document.querySelector(`#${id}-hose`);
         const nozEl  = document.querySelector(`#${id}-nozzle`);
@@ -325,7 +326,7 @@ function setupLineDefaultSaving() {
             const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
 
             // Save into deptState (canonical) under keys '1' | '2' | '3'
-            setLineDefaults(num, { hose, nozzle, length, elevation });
+            setDeptLineDefault(num, { hose, nozzle, length, elevation });
 
             // ALSO sync into legacy store templates (left/back/right) so
             // calc seeding (seedDefaultsForKey) uses the department values.
