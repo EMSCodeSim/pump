@@ -45,6 +45,48 @@ export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
 
+
+/* =========================
+ * Hose ID → diameter normalization
+ * ========================= */
+const HOSE_ID_TO_DIA = {
+  'h_1':        '1',
+  'h_15':       '1.5',
+  'h_175':      '1.75',
+  'h_2':        '2.0',
+  'h_25':       '2.5',
+  'h_3':        '3',
+  'h_3_supply': '3',
+  'h_4_ldh':    '4',
+  'h_5_ldh':    '5',
+  'h_w_1':      '1',
+  'h_w_15':     '1.5',
+  'h_booster_1':'1',
+  'h_lf_175':   '1.75',
+  'h_lf_2':     '2.0',
+  'h_lf_25':    '2.5',
+  'h_lf_5':     '5',
+};
+
+function normalizeHoseDiameter(input){
+  if (input == null) return '';
+  const s = String(input).trim();
+  if (!s) return '';
+  const mapped = HOSE_ID_TO_DIA[s];
+  if (mapped) return mapped;
+
+  // already a diameter string
+  if (/^\d+(?:\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    if (!Number.isFinite(n)) return '';
+    // canonicalize 2" to '2.0' because COEFF uses that key
+    if (Math.abs(n - 2) < 1e-9) return '2.0';
+    // keep 1.75 / 2.5 / 4 / 5 etc as-is
+    return String(s);
+  }
+  return '';
+}
+
 /* =========================
  * Nozzle catalog (expanded)
  * ========================= */
@@ -500,7 +542,7 @@ export function getLineDefaults(id){
     : {};
 
   return {
-    hose: String(main.size || ''),
+    hose: normalizeHoseDiameter(main.size || ''),
     nozzle: (L.nozRight && L.nozRight.id) || '',
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
@@ -557,7 +599,8 @@ export function setLineDefaults(id, data){
     null;
   if (!key || !data || typeof data !== 'object') return;
 
-  const hoseId = data.hose != null ? String(data.hose) : '';
+  const hoseIdRaw = data.hose != null ? String(data.hose) : '';
+  const hoseId = normalizeHoseDiameter(hoseIdRaw) || hoseIdRaw;
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
   const nozId  = data.nozzle != null ? String(data.nozzle) : '';
@@ -569,7 +612,7 @@ export function setLineDefaults(id, data){
     '';
 
   const main = {
-    size: hoseId || '1.75',
+    size: normalizeHoseDiameter(hoseId) || '1.75',
     lengthFt: len || 200,
   };
 
