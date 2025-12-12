@@ -11,10 +11,10 @@ import {
     setSelectedNozzles,
     getDeptHoses,
     getDeptNozzles,
-    setLineDefaults,
-    getLineDefaults,
-    HOSES_MATCHING_CHARTS} from "./store.js";
+    HOSES_MATCHING_CHARTS
+} from "./store.js";
 import { setDeptUiNozzles } from "./store.js";
+import { getLineDefaults, setLineDefault as setLineDefaults } from "./deptState.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
 
@@ -294,12 +294,36 @@ function setupSaveButtons() {
 // ===========================================================
 function renderLineDefaults() {
     ["line1", "line2", "line3"].forEach(id => {
-        const data = getLineDefaults(id);
+        const num = id.replace("line", "");
+        const data = getLineDefaults(num) || {};
 
-        qs(`#${id}-hose`)?.value = data.hose || "";
-        qs(`#${id}-nozzle`)?.value = data.nozzle || "";
-        qs(`#${id}-length`)?.value = data.length || "";
-        qs(`#${id}-elevation`)?.value = data.elevation || "";
+        const hoseEl = document.querySelector(`#${id}-hose`);
+        const nozEl  = document.querySelector(`#${id}-nozzle`);
+        const lenEl  = document.querySelector(`#${id}-length`);
+        const elevEl = document.querySelector(`#${id}-elevation`);
+
+        if (hoseEl) hoseEl.value = data.hose || "";
+        if (nozEl)  nozEl.value  = data.nozzle || "";
+        if (lenEl)  lenEl.value  = data.length ?? "";
+        if (elevEl) elevEl.value = data.elevation ?? "";
+    });
+}
+
+function setupLineDefaultSaving() {
+    ["line1", "line2", "line3"].forEach(id => {
+        const num = id.replace("line", "");
+        const btn = document.querySelector(`#${id}-save`);
+        if (!btn) return;
+
+        btn.addEventListener("click", () => {
+            const hose = (document.querySelector(`#${id}-hose`) || {}).value || "";
+            const nozzle = (document.querySelector(`#${id}-nozzle`) || {}).value || "";
+            const length = Number((document.querySelector(`#${id}-length`) || {}).value || 0);
+            const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
+
+            setLineDefaults(num, { hose, nozzle, length, elevation });
+            alert(`${id} defaults saved`);
+        });
     });
 }
 
@@ -411,4 +435,3 @@ export function initDepartmentView() {
         console.warn('Failed to attach Restore Defaults button', e);
     }
 }
-
