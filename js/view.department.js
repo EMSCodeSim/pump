@@ -16,17 +16,13 @@ import {
     setLineDefaults as setLegacyLineDefaults,
     HOSES_MATCHING_CHARTS
 } from "./store.js";
-import { setDeptUiNozzles } from "./store.js";
-import { getLineDefaults as getDeptLineDefaults, setLineDefault as setDeptLineDefault } from "./deptState.js";
-import { setLineDefaults as setLegacyLineDefaults } from "./store.js";
+import { setDeptUiNozzles, getLineDefaults, setLineDefaults } from "./store.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
-
 
 // ------- DOM Helpers -------
 function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
-
 
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
@@ -91,7 +87,6 @@ function renderNozzleSelector() {
         </label>
     `).join("");
 }
-
 
 // ===========================================================
 //                ADD CUSTOM HOSE
@@ -296,53 +291,57 @@ function setupSaveButtons() {
 // ===========================================================
 //              LINE DEFAULTS (Line 1, 2, 3)
 // ===========================================================
+//
+// IMPORTANT:
+//  - The calc page deploy buttons (Line 1/2/3) seed from the legacy
+//    department defaults stored under pump_dept_defaults_v1 as left/back/right.
+//  - store.js already persists those via setLineDefaults('line1'|'line2'|'line3', ...)
+//    so Department Setup MUST use that API for consistency.
+//
+// Reading uses store.getLineDefaults('line1'|'line2'|'line3').
+// Writing uses store.setLineDefaults('line1'|'line2'|'line3').
+
 function renderLineDefaults() {
-    ["line1", "line2", "line3"].forEach(id => {
-        const num = id.replace("line", "");
-        const data = getDeptLineDefaults(num) || {};
+  ['line1', 'line2', 'line3'].forEach(id => {
+    const data = getLineDefaults(id) || {};
 
-        const hoseEl = document.querySelector(`#${id}-hose`);
-        const nozEl  = document.querySelector(`#${id}-nozzle`);
-        const lenEl  = document.querySelector(`#${id}-length`);
-        const elevEl = document.querySelector(`#${id}-elevation`);
+    const hoseEl = document.querySelector(`#${id}-hose`);
+    const nozEl  = document.querySelector(`#${id}-nozzle`);
+    const lenEl  = document.querySelector(`#${id}-length`);
+    const elevEl = document.querySelector(`#${id}-elevation`);
 
-        if (hoseEl) hoseEl.value = data.hose || "";
-        if (nozEl)  nozEl.value  = data.nozzle || "";
-        if (lenEl)  lenEl.value  = data.length ?? "";
-        if (elevEl) elevEl.value = data.elevation ?? "";
-    });
+    if (hoseEl) hoseEl.value = data.hose || '';
+    if (nozEl)  nozEl.value  = data.nozzle || '';
+    if (lenEl)  lenEl.value  = (data.length ?? '') === 0 ? '' : (data.length ?? '');
+    if (elevEl) elevEl.value = (data.elevation ?? '') === 0 ? '' : (data.elevation ?? '');
+  });
 }
 
 function setupLineDefaultSaving() {
-    ["line1", "line2", "line3"].forEach(id => {
-        const num = id.replace("line", "");
-        const btn = document.querySelector(`#${id}-save`);
-        if (!btn) return;
+  ['line1', 'line2', 'line3'].forEach(id => {
+    const btn = document.querySelector(`#${id}-save`);
+    if (!btn) return;
 
-        btn.addEventListener("click", () => {
-            const hose = (document.querySelector(`#${id}-hose`) || {}).value || "";
-            const nozzle = (document.querySelector(`#${id}-nozzle`) || {}).value || "";
-            const length = Number((document.querySelector(`#${id}-length`) || {}).value || 0);
-            const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
+    btn.addEventListener('click', () => {
+      const hose = (document.querySelector(`#${id}-hose`) || {}).value || '';
+      const nozzle = (document.querySelector(`#${id}-nozzle`) || {}).value || '';
+      const length = Number((document.querySelector(`#${id}-length`) || {}).value || 0);
+      const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
 
-            // Save into deptState (canonical) under keys '1' | '2' | '3'
-            setDeptLineDefault(num, { hose, nozzle, length, elevation });
+      // Persist in the same place Calc reads from (pump_dept_defaults_v1).
+      setLineDefaults(id, { hose, nozzle, length, elevation });
 
-            // ALSO sync into legacy store templates (left/back/right) so
-            // calc seeding (seedDefaultsForKey) uses the department values.
-            // store.js expects ids 'line1' | 'line2' | 'line3'.
-            try {
-                setLegacyLineDefaults(id, { hose, nozzle, length, elevation });
-            } catch (e) {
-                console.warn('Legacy line default sync failed', e);
-            }
-            alert(`${id} defaults saved`);
-        });
+      // Update the form (in case inputs were blank/0)
+      renderLineDefaults();
+
+      alert(`${id} defaults saved`);
     });
+  });
 }
 
 // ===========================================================
 //         DROPDOWN DATA (Filtered from store.js)
+ (Filtered from store.js)
 // ===========================================================
 function populateDropdowns() {
     const hoses = getDeptHoses();
