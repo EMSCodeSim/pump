@@ -94,11 +94,22 @@ import {
   setupPresets,
   getDeptNozzleIds,
   getDeptHoseDiameters,
-  getDeptLineDefaults,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
+import { getLineDefaults } from './store.js';
 import { setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
 import './view.calc.enhance.js';
+
+// Department line defaults bundle (Line 1/2/3) sourced from store.js.
+// This ensures the Calc screen uses the exact same Line 1/2/3 defaults
+// that are edited in Department Setup.
+function getDeptLineDefaults() {
+  return {
+    line1: getLineDefaults('line1'),
+    line2: getLineDefaults('line2'),
+    line3: getLineDefaults('line3'),
+  };
+}
 
 /*                                Main render                                 */
 /* ========================================================================== */
