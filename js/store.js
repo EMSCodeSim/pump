@@ -547,37 +547,33 @@ export function getLineDefaults(id){
 //   line3: { ... },
 // }
 export function getDeptLineDefaults(){
-  const l1 = getLineDefaults('line1') || {};
-  const l2 = getLineDefaults('line2') || {};
-  const l3 = getLineDefaults('line3') || {};
+  // Supports BOTH legacy keys ('line1','line2','line3') and deptState keys ('1','2','3').
+  // DeptState (preferred) stores lineDefaults under 'fireops_line_defaults_v1' with keys '1','2','3'.
+  const l1 = getLineDefaults('1') || getLineDefaults('line1') || {};
+  const l2 = getLineDefaults('2') || getLineDefaults('line2') || {};
+  const l3 = getLineDefaults('3') || getLineDefaults('line3') || {};
 
   const fallback = {
     line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
     line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
-    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
+    line3: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
   };
 
-  function shape(src, key){
-    const base = fallback[key];
-    if (!src || typeof src !== 'object') return { ...base };
+  // Normalize minimal shapes expected by view.calc.main.js
+  function norm(src, fb){
+    const o = (src && typeof src === 'object') ? src : {};
     return {
-      hoseDiameter: src.hose || base.hoseDiameter,
-      nozzleId: src.nozzle || base.nozzleId,
-      lengthFt:
-        typeof src.length === 'number' && !Number.isNaN(src.length)
-          ? src.length
-          : base.lengthFt,
-      elevationFt:
-        typeof src.elevation === 'number' && !Number.isNaN(src.elevation)
-          ? src.elevation
-          : base.elevationFt,
+      hoseDiameter: String(o.hoseDiameter ?? o.hose ?? fb.hoseDiameter),
+      nozzleId: String(o.nozzleId ?? o.nozzle ?? fb.nozzleId),
+      lengthFt: Number(o.lengthFt ?? o.length ?? fb.lengthFt) || fb.lengthFt,
+      elevationFt: Number(o.elevationFt ?? o.elevation ?? fb.elevationFt) || fb.elevationFt,
     };
   }
 
   return {
-    line1: shape(l1, 'line1'),
-    line2: shape(l2, 'line2'),
-    line3: shape(l3, 'line3'),
+    line1: norm(l1, fallback.line1),
+    line2: norm(l2, fallback.line2),
+    line3: norm(l3, fallback.line3),
   };
 }
 
