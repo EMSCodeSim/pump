@@ -186,39 +186,40 @@ export function splitIntoSections(items){
 /* =========================
  * Line defaults
  * ========================= */
-function seedInitialDefaults(){
-  if (state.lines) return;
-  if (key === 'left' || key === 'back' || key === 'right') {
-    // No built-in defaults anymore. These lines only get a default when the user saves one in Department Setup.
-    const label = key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : 'Line 3';
-    state.lines[key] = {
-      label,
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    };
-    return state.lines[key];
-  }
+/* =========================
+ * Line defaults / seeding
+ * =========================
+ * Rule: NO built-in Line 1/2/3 defaults.
+ * Lines only get hose/nozzle/length defaults when the user saves them in Department Setup.
+ */
+export function seedDefaultsForKey(key){
+  if (!state.lines || typeof state.lines !== 'object') state.lines = {};
 
-  } else {
-    state.lines[key] = {
-      label: key,
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    };
-  }
+  // If already seeded, return it.
+  if (state.lines[key]) return state.lines[key];
+
+  const label =
+    key === 'left'  ? 'Line 1' :
+    key === 'back'  ? 'Line 2' :
+    key === 'right' ? 'Line 3' :
+    String(key || 'Line');
+
+  // Minimal “blank line” shape expected by calc/draw code.
+  state.lines[key] = {
+    label,
+    visible: false,
+    itemsMain: [],
+    itemsLeft: [],
+    itemsRight: [],
+    hasWye: false,
+    elevFt: 0,
+    nozLeft: null,
+    nozRight: null,
+  };
 
   return state.lines[key];
 }
+
 /* =========================
  * Wye helpers
  * ========================= */
