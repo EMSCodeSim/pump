@@ -309,35 +309,44 @@ function renderLineDefaults() {
     });
 }
 
+
 function setupLineDefaultSaving() {
-  ['line1','line2','line3'].forEach((id) => {
-    const btn =
-      document.querySelector(`#${id} ||
-      document.querySelector(`#save-${id}`) ||
-      document.querySelector(`[data-save-line="${id}"]`);
+    ["line1","line2","line3"].forEach(id => {
+        const lineNum = id.replace('line',''); // '1'|'2'|'3'
 
-    if (!btn) {
-      console.warn('Dept setup: missing save button for', id);
-      return;
-    }
+        // Try a few likely save-button selectors (supports old/new HTML)
+        const btn =
+            qs(`#${id}-save`) ||
+            qs(`#${id}-save-btn`) ||
+            qs(`#save-${id}`) ||
+            qs(`#save-${lineNum}`) ||
+            document.querySelector(`[data-line-save="${id}"]`) ||
+            document.querySelector(`[data-line-save="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${id}"]`);
 
-    btn.onclick = () => {
-      const hose = (document.querySelector(`#${id}-hose`))?.value || '';
-      const nozzle = (document.querySelector(`#${id}-nozzle`))?.value || '';
-      const length = Number((document.querySelector(`#${id}-length`))?.value || 0);
-      const elevation = Number((document.querySelector(`#${id}-elevation`))?.value || 0);
+        if (!btn) {
+            console.warn('Dept setup: save button not found for', id);
+            return;
+        }
 
-      // No defaults until user saves. If any required field is missing, don't write a template.
-      if (!hose || !nozzle || !length) {
-        alert('Please choose hose, nozzle, and length before saving.');
-        return;
-      }
+        btn.onclick = () => {
+            const hose = (qs(`#${id}-hose`) || document.querySelector(`#${id}-hose`))?.value || "";
+            const nozzle = (qs(`#${id}-nozzle`) || document.querySelector(`#${id}-nozzle`))?.value || "";
+            const length = Number((qs(`#${id}-length`) || document.querySelector(`#${id}-length`))?.value || 0);
+            const elevation = Number((qs(`#${id}-elevation`) || document.querySelector(`#${id}-elevation`))?.value || 0);
 
-      setLineDefaults(id, { hose, nozzle, length, elevation });
-      alert(`${id} defaults saved`);
-    };
-  });
+            // Persist into pump_dept_defaults_v1 via store.js so calc Line 1/2/3 deploy matches.
+            setLineDefaults(id, { hose, nozzle, length, elevation });
+
+            // Re-render in case something got normalized during save.
+            renderLineDefaults();
+
+            alert(`${id} defaults saved`);
+        };
+    });
 }
+
 
 // ===========================================================
 //         DROPDOWN DATA (Filtered from store.js)
