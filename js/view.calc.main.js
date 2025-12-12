@@ -18,16 +18,50 @@ document.addEventListener("click", (e) => {
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import {
   state,
-  NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey,
-  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST,
-  sectionsFor, FL_total_sections, breakdownText,
-  PRACTICE_SAVE_KEY, safeClone, loadSaved, saveNow, markDirty, startAutoSave, stopAutoSave,
-  buildSnapshot, restoreState,
-  TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
-  supplyHeight, computeNeededHeightPx, truckTopY, pumpXY, mainCurve, straightBranch,
-  injectStyle, clearGroup, clsFor, fmt, escapeHTML, addLabel, addTip, drawSegmentedPath,
-  findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
-  drawHoseBar, ppExplainHTML
+  NOZ,
+  COLORS,
+  FL,
+  FL_total,
+  sumFt,
+  splitIntoSections,
+  PSI_PER_FT,
+  isSingleWye,
+  activeNozzle,
+  activeSide,
+  sizeLabel,
+  sectionsFor,
+  FL_total_sections,
+  breakdownText,
+  PRACTICE_SAVE_KEY,
+  safeClone,
+  loadSaved,
+  saveNow,
+  markDirty,
+  startAutoSave,
+  stopAutoSave,
+  buildSnapshot,
+  restoreState,
+  TRUCK_W,
+  TRUCK_H,
+  PX_PER_50FT,
+  CURVE_PULL,
+  BRANCH_LIFT,
+  supplyHeight,
+  computeNeededHeightPx,
+  truckTopY,
+  pumpXY,
+  mainCurve,
+  straightBranch,
+  injectStyle,
+  clearGroup,
+  clsFor,
+  fmt,
+  escapeHTML,
+  addLabel,
+  addTip,
+  drawSegmentedPath,
+  drawHoseBar,
+  ppExplainHTML
 } from './calcShared.js';
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
@@ -88,7 +122,6 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -96,9 +129,18 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
+import { setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses, getLineDefaults } from './deptState.js';
 import './view.calc.enhance.js';
 
+
+// ---------------------------------------------------------------------------
+// DeptState-only mode: legacy helpers are intentionally disabled.
+// These shims prevent older code paths from silently overriding department setup.
+// ---------------------------------------------------------------------------
+const seedDefaultsForKey = () => null;
+const defaultNozzleIdForSize = () => null;
+const ensureDefaultNozzleFor = () => null;
+const setBranchBDefaultIfEmpty = () => null;
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -1999,8 +2041,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       if (L.nozRight?.id && teNoz){
         teNoz.value = L.nozRight.id;
       } else {
-        ensureDefaultNozzleFor(L, 'main', sizeMain);
-        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
+        // Do not auto-override department defaults. If none set, pick the first available option.
+        if (teNoz && teNoz.options && teNoz.options.length) {
+          teNoz.value = teNoz.options[0].value;
+        }
       }
 
       // If Department filtering removed the old nozzle id from the select,
@@ -2025,13 +2069,13 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
       // For a Wye, also make sure branches have their defaults seeded
       if (L.hasWye) {
-        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
-      }
+        // No automatic branch defaults; keep department/user selection.
+}
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      ensureDefaultNozzleFor(L,'L',seg.size);
-      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
+      // Do not auto-set defaults; keep existing selection if any.
+      if(teNoz && L.nozLeft?.id) teNoz.value = L.nozLeft.id;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
@@ -2188,46 +2232,47 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       L.visible = !L.visible;
       b.classList.toggle('active', L.visible);
 
-      // If the line has just been turned ON, seed from Department line defaults
-      if (!wasVisible && typeof getDeptLineDefaults === 'function') {
-        const all = getDeptLineDefaults();
-        const src =
-          key === 'left'  ? all.line1 :
-          key === 'back'  ? all.line2 :
-          key === 'right' ? all.line3 :
-          null;
+      
+// If the line has just been turned ON, seed from Department line defaults (deptState)
+if (!wasVisible && typeof getLineDefaults === 'function') {
+  const lineNum =
+    key === 'left'  ? '1' :
+    key === 'back'  ? '2' :
+    key === 'right' ? '3' :
+    null;
 
-        if (src && typeof src === 'object') {
-          // Main hose
-          const main = (L.itemsMain && L.itemsMain[0]) || {};
-          if (src.hoseDiameter != null) {
-            main.size = String(src.hoseDiameter);
-          }
-          if (typeof src.lengthFt === 'number') {
-            main.lengthFt = src.lengthFt;
-          }
-          L.itemsMain = [main];
+  const src = lineNum ? getLineDefaults(lineNum) : null;
 
-          // Straight line, no wye branches
-          L.hasWye    = false;
-          L.itemsLeft = [];
-          L.itemsRight= [];
+  if (src && typeof src === 'object') {
+    // Main hose segments (calc uses itemsMain[])
+    const main = (L.itemsMain && L.itemsMain[0]) || {};
+    if (src.hose != null) {
+      main.size = String(src.hose);
+    }
+    if (src.length != null) {
+      main.lengthFt = Number(src.length) || 0;
+    }
+    L.itemsMain = [main];
 
-          // Elevation
-          if (typeof src.elevationFt === 'number') {
-            L.elevFt = src.elevationFt;
-          } else if (typeof src.elevation === 'number') {
-            L.elevFt = src.elevation;
-          }
+    // Straight line defaults (no wye unless user turns it on)
+    L.hasWye    = false;
+    L.itemsLeft = [];
+    L.itemsRight= [];
 
-          // Nozzle
-          if (src.nozzleId && NOZ[src.nozzleId]) {
-            L.nozRight = NOZ[src.nozzleId];
-          }
-        }
-      }
+    // Elevation
+    if (src.elevation != null) {
+      L.elevFt = Number(src.elevation) || 0;
+    }
 
-      drawAll();
+    // Nozzle (store nozzle object on L.nozRight)
+    if (src.nozzle) {
+      const noz = resolveNozzleById(String(src.nozzle));
+      if (noz) L.nozRight = noz;
+    }
+  }
+}
+
+drawAll();
       markDirty();
     });
   });
