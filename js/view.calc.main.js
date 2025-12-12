@@ -165,6 +165,10 @@ export async function render(container){
     }
 
     restoreState(s);
+
+  // Ensure Line 1/2/3 objects exist so drawAll and button handlers never crash
+  try{ seedDefaultsForKey("left"); seedDefaultsForKey("back"); seedDefaultsForKey("right"); }catch(e){ console.warn("seedDefaultsForKey init failed", e); }
+
   }
 
 
@@ -2609,6 +2613,11 @@ drawAll();
   /* -------------------------------- Draw --------------------------------- */
 
   function drawAll(){
+    // Safety: if state.lines was cleared by saved state or navigation, re-seed
+    if (!state.lines) {
+      try { seedDefaultsForKey("left"); seedDefaultsForKey("back"); seedDefaultsForKey("right"); } catch(e){ console.warn("drawAll: failed to seed lines", e); }
+    }
+
     const viewH = Math.ceil(computeNeededHeightPx());
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageSvg.style.height = viewH + 'px';
