@@ -96,20 +96,9 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import { getLineDefaults } from './store.js';
-import { setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
+import { setDeptEquipment, setDeptSelections, getUiNozzles, getDeptLineDefaults } from './deptState.js';
 import './view.calc.enhance.js';
 
-// Department line defaults bundle (Line 1/2/3) sourced from store.js.
-// This ensures the Calc screen uses the exact same Line 1/2/3 defaults
-// that are edited in Department Setup.
-function getDeptLineDefaults() {
-  return {
-    line1: getLineDefaults('line1'),
-    line2: getLineDefaults('line2'),
-    line3: getLineDefaults('line3'),
-  };
-}
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -2209,32 +2198,13 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           null;
 
         if (src && typeof src === 'object') {
-          // Support BOTH legacy shape (hoseDiameter/lengthFt/nozzleId/elevationFt)
-          // and new Department Setup shape (hose/length/nozzle/elevation)
-          const hoseDiameter =
-            (src.hoseDiameter != null && src.hoseDiameter !== '')
-              ? src.hoseDiameter
-              : (src.hose != null && src.hose !== '' ? src.hose : null);
-
-          const lengthFt =
-            (typeof src.lengthFt === 'number')
-              ? src.lengthFt
-              : (typeof src.length === 'number' ? src.length : null);
-
-          const elevationFt =
-            (typeof src.elevationFt === 'number')
-              ? src.elevationFt
-              : (typeof src.elevation === 'number' ? src.elevation : null);
-
-          const nozzleId = src.nozzleId || src.nozzle || null;
-
           // Main hose
           const main = (L.itemsMain && L.itemsMain[0]) || {};
-          if (hoseDiameter != null) {
-            main.size = String(hoseDiameter);
+          if (src.hoseDiameter != null) {
+            main.size = String(src.hoseDiameter);
           }
-          if (lengthFt != null) {
-            main.lengthFt = lengthFt;
+          if (typeof src.lengthFt === 'number') {
+            main.lengthFt = src.lengthFt;
           }
           L.itemsMain = [main];
 
@@ -2244,16 +2214,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           L.itemsRight= [];
 
           // Elevation
-          if (elevationFt != null) {
-            L.elevFt = elevationFt;
+          if (typeof src.elevationFt === 'number') {
+            L.elevFt = src.elevationFt;
+          } else if (typeof src.elevation === 'number') {
+            L.elevFt = src.elevation;
           }
 
           // Nozzle
-          if (nozzleId) {
-            const resolved = resolveNozzleById(nozzleId);
-            if (resolved) {
-              L.nozRight = resolved;
-            }
+          if (src.nozzleId && NOZ[src.nozzleId]) {
+            L.nozRight = NOZ[src.nozzleId];
           }
         }
       }
@@ -2262,7 +2231,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       markDirty();
     });
   });
-
 
   /* --------------------------- Supply buttons ----------------------------- */
 
