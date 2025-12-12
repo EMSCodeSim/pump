@@ -156,24 +156,38 @@ function defaultNozzleIdForSize(size){
 
 // Ensure a nozzle exists for a target (main/left/right) based on size
 function ensureDefaultNozzleFor(L, where, size){
+  // IMPORTANT: Do NOT override a nozzle that was chosen via Department Setup / presets.
+  // Only seed a default if the target nozzle is currently missing.
+  if (!L) return;
+
   const nozId = defaultNozzleIdForSize(size);
-  if (where==='main'){
-    L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
-  } else if (where==='L'){
-    L.nozLeft  = NOZ[nozId] || L.nozLeft  || NOZ_LIST.find(n=>n.id===nozId);
-  } else {
-    L.nozRight = NOZ[nozId] || L.nozRight || NOZ_LIST.find(n=>n.id===nozId);
+
+  if (where === 'main'){
+    if (L.nozRight) return;
+    L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    return;
   }
+
+  if (where === 'L'){
+    if (L.nozLeft) return;
+    L.nozLeft  = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    return;
+  }
+
+  if (L.nozRight) return;
+  L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
 }
 
 // Special helper: Branch B defaults to Fog 185 @ 50 (always when this helper is called)
 function setBranchBDefaultIfEmpty(L){
+  // Only seed if Branch B nozzle is empty (never override Dept Setup / presets)
   if(!L) return;
+  if (L.nozRight) return;
   try{
     const id = typeof findNozzleId==='function'
       ? findNozzleId({gpm:185, NP:50, preferFog:true})
       : null;
-    if(id && NOZ[id]){
+    if(id && NOZ && NOZ[id]){
       L.nozRight = NOZ[id];
       return;
     }
