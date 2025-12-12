@@ -13,6 +13,33 @@ export const state = {
   _presetsMem: null,   // in-memory fallback if localStorage not available
 };
 
+// Initialize line objects immediately so other modules (calcShared restoreState, etc.)
+// can safely iterate state.lines even before any deploy action.
+// We intentionally DO NOT set any hose/nozzle/length defaults here — those are only
+// populated when the user saves Line 1/2/3 defaults in Department Setup.
+function _blankLine(label){
+  return {
+    label,
+    visible: false,
+    itemsMain: [],    // [{ size:'1.75', lengthFt:200 }, ...]
+    itemsLeft: [],    // for wye branch A
+    itemsRight: [],   // for wye branch B
+    hasWye: false,
+    elevFt: 0,
+    // nozzle objects are stored on these keys in calc view
+    nozLeft: null,
+    nozRight: null,
+  };
+}
+
+if (!state.lines) {
+  state.lines = {
+    left:  _blankLine('Line 1'),
+    back:  _blankLine('Line 2'),
+    right: _blankLine('Line 3'),
+  };
+}
+
 /* =========================
  * Visual constants
  * ========================= */
