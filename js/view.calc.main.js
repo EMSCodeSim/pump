@@ -29,6 +29,7 @@ import {
   activeNozzle,
   activeSide,
   sizeLabel,
+  NOZ_LIST,
   sectionsFor,
   FL_total_sections,
   breakdownText,
