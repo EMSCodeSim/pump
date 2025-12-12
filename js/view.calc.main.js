@@ -165,10 +165,6 @@ export async function render(container){
     }
 
     restoreState(s);
-
-  // Ensure Line 1/2/3 objects exist so drawAll and button handlers never crash
-  try{ seedDefaultsForKey("left"); seedDefaultsForKey("back"); seedDefaultsForKey("right"); }catch(e){ console.warn("seedDefaultsForKey init failed", e); }
-
   }
 
 
@@ -2227,60 +2223,56 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* ---------------------------- Line toggles ------------------------------ */
 
-  container.querySelectorAll('.linebtn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const key = b.dataset.line;
-      const L   = seedDefaultsForKey(key);
+  // Line toggles (delegated). This survives any DOM re-render/injection.
+  if (!container.__lineBtnDelegated) {
+    container.__lineBtnDelegated = true;
+    container.addEventListener('click', (e) => {
+      const btn = e.target.closest('.linebtn[data-line]');
+      if (!btn) return;
+
+      const key = btn.dataset.line;
+      if (!key) return;
+
+      const L = seedDefaultsForKey(key);
       const wasVisible = !!L.visible;
 
       // Toggle visibility
       L.visible = !L.visible;
-      b.classList.toggle('active', L.visible);
+      btn.classList.toggle('active', L.visible);
 
-      
-// If the line has just been turned ON, seed from Department line defaults (deptState)
-if (!wasVisible && typeof getLineDefaults === 'function') {
-  const lineNum =
-    key === 'left'  ? '1' :
-    key === 'back'  ? '2' :
-    key === 'right' ? '3' :
-    null;
+      // If the line has just been turned ON, seed from Department line defaults (deptState)
+      if (!wasVisible && typeof getLineDefaults === 'function') {
+        const lineNum =
+          key === 'left'  ? '1' :
+          key === 'back'  ? '2' :
+          key === 'right' ? '3' :
+          null;
 
-  const src = lineNum ? getLineDefaults(lineNum) : null;
+        const src = lineNum ? getLineDefaults(lineNum) : null;
 
-  if (src && typeof src === 'object') {
-    // Main hose segments (calc uses itemsMain[])
-    const main = (L.itemsMain && L.itemsMain[0]) || {};
-    if (src.hose != null) {
-      main.size = String(src.hose);
-    }
-    if (src.length != null) {
-      main.lengthFt = Number(src.length) || 0;
-    }
-    L.itemsMain = [main];
+        if (src && typeof src === 'object') {
+          const main = (L.itemsMain && L.itemsMain[0]) || {};
+          if (src.hose != null) main.size = String(src.hose);
+          if (src.length != null) main.lengthFt = Number(src.length) || 0;
+          L.itemsMain = [main];
 
-    // Straight line defaults (no wye unless user turns it on)
-    L.hasWye    = false;
-    L.itemsLeft = [];
-    L.itemsRight= [];
+          L.hasWye     = false;
+          L.itemsLeft  = [];
+          L.itemsRight = [];
 
-    // Elevation
-    if (src.elevation != null) {
-      L.elevFt = Number(src.elevation) || 0;
-    }
+          if (src.elevation != null) L.elevFt = Number(src.elevation) || 0;
 
-    // Nozzle (store nozzle object on L.nozRight)
-    if (src.nozzle) {
-      const noz = resolveNozzleById(String(src.nozzle));
-      if (noz) L.nozRight = noz;
-    }
-  }
-}
+          if (src.nozzle) {
+            const noz = resolveNozzleById(String(src.nozzle));
+            if (noz) L.nozRight = noz;
+          }
+        }
+      }
 
-drawAll();
+      drawAll();
       markDirty();
     });
-  });
+  }
 
   /* --------------------------- Supply buttons ----------------------------- */
 
@@ -2613,11 +2605,6 @@ drawAll();
   /* -------------------------------- Draw --------------------------------- */
 
   function drawAll(){
-    // Safety: if state.lines was cleared by saved state or navigation, re-seed
-    if (!state.lines) {
-      try { seedDefaultsForKey("left"); seedDefaultsForKey("back"); seedDefaultsForKey("right"); } catch(e){ console.warn("drawAll: failed to seed lines", e); }
-    }
-
     const viewH = Math.ceil(computeNeededHeightPx());
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageSvg.style.height = viewH + 'px';
