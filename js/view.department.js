@@ -294,6 +294,7 @@ function setupSaveButtons() {
 // ===========================================================
 function renderLineDefaults() {
     ["line1", "line2", "line3"].forEach(id => {
+        const num = id.replace("line", "");
         const data = getLineDefaults(id) || {};
 
         const hoseEl = document.querySelector(`#${id}-hose`);
@@ -309,24 +310,34 @@ function renderLineDefaults() {
 }
 
 function setupLineDefaultSaving() {
-    ["line1", "line2", "line3"].forEach(id => {
-        const btn = document.querySelector(`#${id}-save`);
+    ["line1","line2","line3"].forEach(id => {
+        const btn = qs(`#${id}-save`) || document.querySelector(`#${id}-save`);
         if (!btn) return;
+        btn.onclick = () => {
+            const hose = (qs(`#${id}-hose`) || document.querySelector(`#${id}-hose`))?.value || "";
+            const nozzle = (qs(`#${id}-nozzle`) || document.querySelector(`#${id}-nozzle`))?.value || "";
+            const length = Number((qs(`#${id}-length`) || document.querySelector(`#${id}-length`))?.value || 0);
+            const elevation = Number((qs(`#${id}-elevation`) || document.querySelector(`#${id}-elevation`))?.value || 0);
 
-        btn.addEventListener("click", () => {const hose = (document.querySelector(`#${id}-hose`) || {}).value || "";
-            const nozzle = (document.querySelector(`#${id}-nozzle`) || {}).value || "";
-            const length = Number((document.querySelector(`#${id}-length`) || {}).value || 0);
-            const elevation = Number((document.querySelector(`#${id}-elevation`) || {}).value || 0);
+            // Persist into pump_dept_defaults_v1 via store.js so calc Line 1/2/3 deploy matches.
+            setLineDefaults(id, { hose, nozzle, length, elevation });
+
+            alert(`${id} defaults saved`);
+        };
+    });
+}
+-save`)?.addEventListener("click", () => {
+            const hose = qs(`#${id}-hose`).value;
+            const nozzle = qs(`#${id}-nozzle`).value;
+            const length = Number(qs(`#${id}-length`).value || 0);
+            const elevation = Number(qs(`#${id}-elevation`).value || 0);
 
             setLineDefaults(id, { hose, nozzle, length, elevation });
-            // Also persist into calc deploy templates (pump_dept_defaults_v1)
-            try { if (typeof window !== "undefined") localStorage.setItem("pump_dept_touch_v1", String(Date.now())); } catch {}alert(`${id} defaults saved`);
+
+            alert(`${id} defaults saved`);
         });
     });
 }
-
-
-// (removed duplicate setupLineDefaultSaving)
 
 // ===========================================================
 //         DROPDOWN DATA (Filtered from store.js)
