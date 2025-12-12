@@ -268,8 +268,7 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export
-function seedDefaultsForKey(key){
+export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
   // For the three front-panel attack lines, we may have a blank in-memory line
