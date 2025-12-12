@@ -18,57 +18,50 @@ document.addEventListener("click", (e) => {
 // Requires: ./store.js, ./waterSupply.js, and bottom-sheet-editor.js (optional; this file works without it).
 import {
   state,
-  NOZ,
-  COLORS,
-  FL,
-  FL_total,
-  sumFt,
-  splitIntoSections,
-  PSI_PER_FT,
-  isSingleWye,
-  activeNozzle,
-  activeSide,
-  sizeLabel,
-  NOZ_LIST,
-  sectionsFor,
-  FL_total_sections,
-  breakdownText,
-  PRACTICE_SAVE_KEY,
-  safeClone,
-  loadSaved,
-  saveNow,
-  markDirty,
-  startAutoSave,
-  stopAutoSave,
-  buildSnapshot,
-  restoreState,
-  TRUCK_W,
-  TRUCK_H,
-  PX_PER_50FT,
-  CURVE_PULL,
-  BRANCH_LIFT,
-  supplyHeight,
-  computeNeededHeightPx,
-  truckTopY,
-  pumpXY,
-  mainCurve,
-  straightBranch,
-  injectStyle,
-  clearGroup,
-  clsFor,
-  fmt,
-  escapeHTML,
-  addLabel,
-  addTip,
-  drawSegmentedPath,
-  drawHoseBar,
-  ppExplainHTML
+  NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey,
+  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST,
+  sectionsFor, FL_total_sections, breakdownText,
+  PRACTICE_SAVE_KEY, safeClone, loadSaved, saveNow, markDirty, startAutoSave, stopAutoSave,
+  buildSnapshot, restoreState,
+  TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
+  supplyHeight, computeNeededHeightPx, truckTopY, pumpXY, mainCurve, straightBranch,
+  injectStyle, clearGroup, clsFor, fmt, escapeHTML, addLabel, addTip, drawSegmentedPath,
+  findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
+  drawHoseBar, ppExplainHTML
 } from './calcShared.js';
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
   if (!id) return null;
-  try{
+  
+  // Map legacy/alternate ids (from older Dept Setup / Presets lists) to store.NOZ ids
+  const canonicalNozzleId = (raw)=>{
+    const s = String(raw||'').trim();
+    if(!s) return s;
+    const map = {
+      // Smooth bore ids used in preset.js
+      'sb_78_50_160': 'sb7_8',
+      'sb_1516_50_185': 'sb15_16',
+      'sb_1_50_210': 'sb1',
+      'sb_1118_50_265': 'sb1_1_8',
+      'sb_114_50_325': 'sb1_1_4',
+
+      // Chief XD ids used in preset.js
+      'fog_xd_175_50_165': 'chiefXD165_50',
+      'fog_xd_175_50_185': 'chief185_50',
+      'fog_xd_25_50_265':  'chiefXD265',
+
+      // Common fog ids used in preset.js
+      'fog_175_100_150': 'fog150_100',
+      'fog_175_75_150':  'fog150_75',
+      'fog_15_100_95':   'fog95_100',
+      'fog_15_100_125':  'fog125_100',
+    };
+    return map[s] || s;
+  };
+
+  id = canonicalNozzleId(id);
+try{
     // 1) Built-in map
     if (typeof NOZ === 'object' && NOZ && NOZ[id]){
       return NOZ[id];
@@ -123,6 +116,7 @@ if (typeof window !== 'undefined') {
 }
 
 
+import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -130,18 +124,9 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import { setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses, getLineDefaults } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
 import './view.calc.enhance.js';
 
-
-// ---------------------------------------------------------------------------
-// DeptState-only mode: legacy helpers are intentionally disabled.
-// These shims prevent older code paths from silently overriding department setup.
-// ---------------------------------------------------------------------------
-const seedDefaultsForKey = () => null;
-const defaultNozzleIdForSize = () => null;
-const ensureDefaultNozzleFor = () => null;
-const setBranchBDefaultIfEmpty = () => null;
 
 /*                                Main render                                 */
 /* ========================================================================== */
@@ -451,9 +436,7 @@ export async function render(container){
     :root, body { overflow-x: hidden; }
     [data-calc-root] { max-width: 100%; overflow-x: hidden; }
     .wrapper.card { max-width: 100%; overflow-x: hidden; }
-    .stage { width: 100%; overflow: hidden; position: relative; z-index: 1; }
-    /* Ensure controls always sit above the SVG stage (prevents click-blocking overlap on some mobile WebViews) */
-    .controlBlock { position: relative; z-index: 5; }
+    .stage { width: 100%; overflow: hidden; }
     #stageSvg { width: 100%; display: block; }  /* make SVG scale to container width */
 
     input, select, textarea, button { font-size:16px; }
@@ -473,7 +456,8 @@ export async function render(container){
     .field input[type="text"], .field input[type="number"], .field select, .field textarea {
       width:100%; padding:10px 12px;
       border:1px solid rgba(255,255,255,.22);
-border-radius:12px;
+/* phone KPI single-line */
+  border-radius:12px;
       background:#0b1420; color:#eaf2ff; outline:none;
     }
     .field input:focus, .field select:focus, .field textarea:focus {
@@ -2042,10 +2026,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       if (L.nozRight?.id && teNoz){
         teNoz.value = L.nozRight.id;
       } else {
-        // Do not auto-override department defaults. If none set, pick the first available option.
-        if (teNoz && teNoz.options && teNoz.options.length) {
-          teNoz.value = teNoz.options[0].value;
-        }
+        ensureDefaultNozzleFor(L, 'main', sizeMain);
+        if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
       }
 
       // If Department filtering removed the old nozzle id from the select,
@@ -2070,13 +2052,13 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
       // For a Wye, also make sure branches have their defaults seeded
       if (L.hasWye) {
-        // No automatic branch defaults; keep department/user selection.
-}
+        setBranchBDefaultIfEmpty(L); // ensure B default when wye on
+      }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
-      // Do not auto-set defaults; keep existing selection if any.
-      if(teNoz && L.nozLeft?.id) teNoz.value = L.nozLeft.id;
+      ensureDefaultNozzleFor(L,'L',seg.size);
+      if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
@@ -2223,117 +2205,58 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* ---------------------------- Line toggles ------------------------------ */
 
-  // NOTE (hardening): some builds/environments end up preventing the delegated
-  // .linebtn handler from firing (typically due to stopPropagation() elsewhere
-  // or a DOM swap). To make Line 1/2/3 bulletproof we attach BOTH:
-  //   1) a capture-phase delegated handler (runs even if bubble is stopped)
-  //   2) direct handlers on the three Line buttons
-  // This ensures Line 1/2/3 always toggle, even if other UI code interferes.
-
-  function __toggleLineKey(key, btnEl){
-    if (!key) return;
-
-    // Robust: never let a missing import break Line 1/2/3 toggles.
-    let L = null;
-    let wasVisible = false;
-    try {
-      if (typeof seedDefaultsForKey === 'function') {
-        L = seedDefaultsForKey(key);
-      } else {
-        // Fallback: ensure state.lines and the specific line object exist
-        if (!state.lines) state.lines = {};
-        if (!state.lines[key]) {
-          state.lines[key] = {
-            label: key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : key === 'right' ? 'Line 3' : key,
-            visible: false,
-            itemsMain: [{ size: '1.75', lengthFt: 200 }],
-            itemsLeft: [],
-            itemsRight: [],
-            hasWye: false,
-            elevFt: 0,
-            nozRight: null,
-          };
-        }
-        L = state.lines[key];
-      }
-      wasVisible = !!L.visible;
-    } catch (err) {
-      console.warn('Line toggle failed before toggle', err);
-      return;
-    }
-
-    // Toggle visibility
-    L.visible = !L.visible;
-    if (btnEl) btnEl.classList.toggle('active', L.visible);
-
-    // If the line has just been turned ON, seed from Department line defaults (deptState)
-    if (!wasVisible && typeof getLineDefaults === 'function') {
-      const lineNum =
-        key === 'left'  ? '1' :
-        key === 'back'  ? '2' :
-        key === 'right' ? '3' :
-        null;
-
-      const src = lineNum ? getLineDefaults(lineNum) : null;
-
-      if (src && typeof src === 'object') {
-        const main = (L.itemsMain && L.itemsMain[0]) || {};
-        if (src.hose != null) main.size = String(src.hose);
-        if (src.length != null) main.lengthFt = Number(src.length) || 0;
-        L.itemsMain = [main];
-
-        L.hasWye     = false;
-        L.itemsLeft  = [];
-        L.itemsRight = [];
-
-        if (src.elevation != null) L.elevFt = Number(src.elevation) || 0;
-
-        if (src.nozzle) {
-          const noz = resolveNozzleById(String(src.nozzle));
-          if (noz) L.nozRight = noz;
-        }
-      }
-    }
-
-    drawAll();
-    markDirty();
-  }
-
-  // Line toggles (delegated, CAPTURE). Runs even if bubble is stopped.
-  if (!container.__lineBtnDelegatedCapture) {
-    container.__lineBtnDelegatedCapture = true;
-    container.addEventListener('click', (e) => {
-      // Some templates don't include data-line on Line 1/2/3 buttons, and some
-      // builds re-render these buttons. Use robust detection + delegation.
-      const btn = e.target.closest('.linebtn');
-      if (!btn) return;
-
-      e.preventDefault();
-
-      let key = btn.dataset.line || btn.dataset.key || '';
-      if (!key) {
-        const id = (btn.id || '').toLowerCase();
-        const txt = (btn.textContent || '').toLowerCase();
-        if (id.includes('line1') || txt.includes('line 1')) key = 'left';
-        else if (id.includes('line2') || txt.includes('line 2')) key = 'back';
-        else if (id.includes('line3') || txt.includes('line 3')) key = 'right';
-      }
-      if (!key) return;
-
-      __toggleLineKey(key, btn);
-    }, true);
-  }
-
-  // Direct handlers on Line 1/2/3 buttons (extra bulletproofing).
-  // These will work even if delegation is prevented by unexpected DOM/event changes.
-  container.querySelectorAll('.linebtn[data-line]').forEach((b)=>{
-    if (b.__boundLineToggle) return;
-    b.__boundLineToggle = true;
-    b.addEventListener('click', (e)=>{
-      e.preventDefault();
+  container.querySelectorAll('.linebtn').forEach(b=>{
+    b.addEventListener('click', ()=>{
       const key = b.dataset.line;
-      __toggleLineKey(key, b);
-    }, true);
+      const L   = seedDefaultsForKey(key);
+      const wasVisible = !!L.visible;
+
+      // Toggle visibility
+      L.visible = !L.visible;
+      b.classList.toggle('active', L.visible);
+
+      // If the line has just been turned ON, seed from Department line defaults
+      if (!wasVisible && typeof getDeptLineDefaults === 'function') {
+        const all = getDeptLineDefaults();
+        const src =
+          key === 'left'  ? all.line1 :
+          key === 'back'  ? all.line2 :
+          key === 'right' ? all.line3 :
+          null;
+
+        if (src && typeof src === 'object') {
+          // Main hose
+          const main = (L.itemsMain && L.itemsMain[0]) || {};
+          if (src.hoseDiameter != null) {
+            main.size = String(src.hoseDiameter);
+          }
+          if (typeof src.lengthFt === 'number') {
+            main.lengthFt = src.lengthFt;
+          }
+          L.itemsMain = [main];
+
+          // Straight line, no wye branches
+          L.hasWye    = false;
+          L.itemsLeft = [];
+          L.itemsRight= [];
+
+          // Elevation
+          if (typeof src.elevationFt === 'number') {
+            L.elevFt = src.elevationFt;
+          } else if (typeof src.elevation === 'number') {
+            L.elevFt = src.elevation;
+          }
+
+          // Nozzle
+          if (src.nozzleId && NOZ[src.nozzleId]) {
+            L.nozRight = NOZ[src.nozzleId];
+          }
+        }
+      }
+
+      drawAll();
+      markDirty();
+    });
   });
 
   /* --------------------------- Supply buttons ----------------------------- */
