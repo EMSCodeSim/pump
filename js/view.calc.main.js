@@ -64,6 +64,8 @@ import {
   ppExplainHTML
 } from './calcShared.js';
 
+import { NOZ_LIST } from './store.js';
+
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
   if (!id) return null;
