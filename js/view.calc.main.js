@@ -2233,8 +2233,34 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const key = btn.dataset.line;
       if (!key) return;
 
-      const L = seedDefaultsForKey(key);
-      const wasVisible = !!L.visible;
+      // Robust: never let a missing import break Line 1/2/3 toggles.
+      let L = null;
+      let wasVisible = false;
+      try {
+        if (typeof seedDefaultsForKey === 'function') {
+          L = seedDefaultsForKey(key);
+        } else {
+          // Fallback: ensure state.lines and the specific line object exist
+          if (!state.lines) state.lines = {};
+          if (!state.lines[key]) {
+            state.lines[key] = {
+              label: key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : key === 'right' ? 'Line 3' : key,
+              visible: false,
+              itemsMain: [{ size: '1.75', lengthFt: 200 }],
+              itemsLeft: [],
+              itemsRight: [],
+              hasWye: false,
+              elevFt: 0,
+              nozRight: null,
+            };
+          }
+          L = state.lines[key];
+        }
+        wasVisible = !!L.visible;
+      } catch (err) {
+        console.warn('Line toggle failed before toggle', err);
+        return;
+      }
 
       // Toggle visibility
       L.visible = !L.visible;
