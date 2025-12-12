@@ -88,7 +88,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -96,7 +96,7 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import { setDeptEquipment, setDeptSelections, getUiNozzles, getDeptLineDefaults } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
 import './view.calc.enhance.js';
 
 
