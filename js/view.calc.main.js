@@ -451,7 +451,9 @@ export async function render(container){
     :root, body { overflow-x: hidden; }
     [data-calc-root] { max-width: 100%; overflow-x: hidden; }
     .wrapper.card { max-width: 100%; overflow-x: hidden; }
-    .stage { width: 100%; overflow: hidden; }
+    .stage { width: 100%; overflow: hidden; position: relative; z-index: 1; }
+    /* Ensure controls always sit above the SVG stage (prevents click-blocking overlap on some mobile WebViews) */
+    .controlBlock { position: relative; z-index: 5; }
     #stageSvg { width: 100%; display: block; }  /* make SVG scale to container width */
 
     input, select, textarea, button { font-size:16px; }
@@ -2223,9 +2225,85 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
   /* ---------------------------- Line toggles ------------------------------ */
 
-  // Line toggles (delegated). This survives any DOM re-render/injection.
-  if (!container.__lineBtnDelegated) {
-    container.__lineBtnDelegated = true;
+  // NOTE (hardening): some builds/environments end up preventing the delegated
+  // .linebtn handler from firing (typically due to stopPropagation() elsewhere
+  // or a DOM swap). To make Line 1/2/3 bulletproof we attach BOTH:
+  //   1) a capture-phase delegated handler (runs even if bubble is stopped)
+  //   2) direct handlers on the three Line buttons
+  // This ensures Line 1/2/3 always toggle, even if other UI code interferes.
+
+  function __toggleLineKey(key, btnEl){
+    if (!key) return;
+
+    // Robust: never let a missing import break Line 1/2/3 toggles.
+    let L = null;
+    let wasVisible = false;
+    try {
+      if (typeof seedDefaultsForKey === 'function') {
+        L = seedDefaultsForKey(key);
+      } else {
+        // Fallback: ensure state.lines and the specific line object exist
+        if (!state.lines) state.lines = {};
+        if (!state.lines[key]) {
+          state.lines[key] = {
+            label: key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : key === 'right' ? 'Line 3' : key,
+            visible: false,
+            itemsMain: [{ size: '1.75', lengthFt: 200 }],
+            itemsLeft: [],
+            itemsRight: [],
+            hasWye: false,
+            elevFt: 0,
+            nozRight: null,
+          };
+        }
+        L = state.lines[key];
+      }
+      wasVisible = !!L.visible;
+    } catch (err) {
+      console.warn('Line toggle failed before toggle', err);
+      return;
+    }
+
+    // Toggle visibility
+    L.visible = !L.visible;
+    if (btnEl) btnEl.classList.toggle('active', L.visible);
+
+    // If the line has just been turned ON, seed from Department line defaults (deptState)
+    if (!wasVisible && typeof getLineDefaults === 'function') {
+      const lineNum =
+        key === 'left'  ? '1' :
+        key === 'back'  ? '2' :
+        key === 'right' ? '3' :
+        null;
+
+      const src = lineNum ? getLineDefaults(lineNum) : null;
+
+      if (src && typeof src === 'object') {
+        const main = (L.itemsMain && L.itemsMain[0]) || {};
+        if (src.hose != null) main.size = String(src.hose);
+        if (src.length != null) main.lengthFt = Number(src.length) || 0;
+        L.itemsMain = [main];
+
+        L.hasWye     = false;
+        L.itemsLeft  = [];
+        L.itemsRight = [];
+
+        if (src.elevation != null) L.elevFt = Number(src.elevation) || 0;
+
+        if (src.nozzle) {
+          const noz = resolveNozzleById(String(src.nozzle));
+          if (noz) L.nozRight = noz;
+        }
+      }
+    }
+
+    drawAll();
+    markDirty();
+  }
+
+  // Line toggles (delegated, CAPTURE). Runs even if bubble is stopped.
+  if (!container.__lineBtnDelegatedCapture) {
+    container.__lineBtnDelegatedCapture = true;
     container.addEventListener('click', (e) => {
       // Some templates don't include data-line on Line 1/2/3 buttons, and some
       // builds re-render these buttons. Use robust detection + delegation.
@@ -2244,72 +2322,21 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       }
       if (!key) return;
 
-      // Robust: never let a missing import break Line 1/2/3 toggles.
-      let L = null;
-      let wasVisible = false;
-      try {
-        if (typeof seedDefaultsForKey === 'function') {
-          L = seedDefaultsForKey(key);
-        } else {
-          // Fallback: ensure state.lines and the specific line object exist
-          if (!state.lines) state.lines = {};
-          if (!state.lines[key]) {
-            state.lines[key] = {
-              label: key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : key === 'right' ? 'Line 3' : key,
-              visible: false,
-              itemsMain: [{ size: '1.75', lengthFt: 200 }],
-              itemsLeft: [],
-              itemsRight: [],
-              hasWye: false,
-              elevFt: 0,
-              nozRight: null,
-            };
-          }
-          L = state.lines[key];
-        }
-        wasVisible = !!L.visible;
-      } catch (err) {
-        console.warn('Line toggle failed before toggle', err);
-        return;
-      }
-
-      // Toggle visibility
-      L.visible = !L.visible;
-      btn.classList.toggle('active', L.visible);
-
-      // If the line has just been turned ON, seed from Department line defaults (deptState)
-      if (!wasVisible && typeof getLineDefaults === 'function') {
-        const lineNum =
-          key === 'left'  ? '1' :
-          key === 'back'  ? '2' :
-          key === 'right' ? '3' :
-          null;
-
-        const src = lineNum ? getLineDefaults(lineNum) : null;
-
-        if (src && typeof src === 'object') {
-          const main = (L.itemsMain && L.itemsMain[0]) || {};
-          if (src.hose != null) main.size = String(src.hose);
-          if (src.length != null) main.lengthFt = Number(src.length) || 0;
-          L.itemsMain = [main];
-
-          L.hasWye     = false;
-          L.itemsLeft  = [];
-          L.itemsRight = [];
-
-          if (src.elevation != null) L.elevFt = Number(src.elevation) || 0;
-
-          if (src.nozzle) {
-            const noz = resolveNozzleById(String(src.nozzle));
-            if (noz) L.nozRight = noz;
-          }
-        }
-      }
-
-      drawAll();
-      markDirty();
-    });
+      __toggleLineKey(key, btn);
+    }, true);
   }
+
+  // Direct handlers on Line 1/2/3 buttons (extra bulletproofing).
+  // These will work even if delegation is prevented by unexpected DOM/event changes.
+  container.querySelectorAll('.linebtn[data-line]').forEach((b)=>{
+    if (b.__boundLineToggle) return;
+    b.__boundLineToggle = true;
+    b.addEventListener('click', (e)=>{
+      e.preventDefault();
+      const key = b.dataset.line;
+      __toggleLineKey(key, b);
+    }, true);
+  });
 
   /* --------------------------- Supply buttons ----------------------------- */
 
