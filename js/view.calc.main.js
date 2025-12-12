@@ -94,59 +94,6 @@ try{
 }
 
 
-// --- Hose size normalization -------------------------------------------------
-// Department setup may store hose IDs like "h_25" while calc expects diameter strings like "2.5".
-// Normalize everywhere right before math/draw so 2½" never behaves like 1¾".
-function normalizeHoseSize(size){
-  if (size == null) return size;
-  let s = String(size).trim();
-  // common legacy IDs
-  const map = {
-    'h_175': '1.75',
-    'h_1_75': '1.75',
-    'h_25': '2.5',
-    'h_2_5': '2.5',
-    'h_4': '4',
-    'h_5': '5',
-  };
-  if (map[s]) return map[s];
-
-  // common label-ish inputs
-  s = s.replace(/″|"/g,'').replace(/\s+/g,' ').trim();
-  if (s === '1 3/4' || s === '1¾' || s === '1.75') return '1.75';
-  if (s === '2 1/2' || s === '2½' || s === '2.5' || s === '2.50') return '2.5';
-  if (s === '4' || s === '4.0') return '4';
-  if (s === '5' || s === '5.0') return '5';
-
-  return String(size).trim();
-}
-
-function normalizeLineHoseSizes(L){
-  if (!L || typeof L !== 'object') return;
-  // segmented hose arrays used by calc
-  for (const key of ['itemsMain','itemsLeft','itemsRight']){
-    const arr = L[key];
-    if (!Array.isArray(arr)) continue;
-    for (const seg of arr){
-      if (seg && 'size' in seg) seg.size = normalizeHoseSize(seg.size);
-    }
-  }
-  // some editors store size directly
-  if ('size' in L) L.size = normalizeHoseSize(L.size);
-}
-
-function normalizeAllLineHoseSizes(){
-  try{
-    if (!state || !state.lines) return;
-    for (const k of Object.keys(state.lines)){
-      normalizeLineHoseSizes(state.lines[k]);
-    }
-  }catch(e){
-    console.warn('normalizeAllLineHoseSizes failed', e);
-  }
-}
-
-
 
 // Use shared FL_total_sections helper directly.
 // C-values (including 1 3/4" standard hose at 15.5) are now handled in calcShared.js
@@ -2643,7 +2590,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   /* -------------------------------- Draw --------------------------------- */
 
   function drawAll(){
-    normalizeAllLineHoseSizes();
     const viewH = Math.ceil(computeNeededHeightPx());
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageSvg.style.height = viewH + 'px';
