@@ -145,36 +145,6 @@ export function sizeLabel(v){
   return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
 }
 
-
-// Normalize Department Setup hose IDs (e.g. 'h_25') into diameter strings used by COEFF/colors (e.g. '2.5').
-export function normalizeHoseSize(v){
-  const s = (v == null) ? '' : String(v).trim();
-  if(!s) return '';
-  // already a numeric diameter
-  if (COEFF[s] != null) return s;
-  const MAP = {
-    'h_1': '1',
-    'h_15': '1.5',
-    'h_175': '1.75',
-    'h_2': '2.0',
-    'h_25': '2.5',
-    'h_3': '3',
-    'h_3_supply': '3',
-    'h_4': '4',
-    'h_4_ldh': '4',
-    'h_5': '5',
-    'h_5_ldh': '5',
-    'h_lf_175': '1.75',
-    'h_lf_2': '2.0',
-    'h_lf_25': '2.5',
-    'h_lf_5': '5',
-    'h_w_1': '1',
-    'h_w_15': '1.5',
-    'h_booster_1': '1',
-  };
-  return MAP[s] || s; // fall back to original if unknown
-}
-
 /* =========================
  * Hydraulics helpers
  * ========================= */
@@ -218,39 +188,39 @@ export function splitIntoSections(items){
  * ========================= */
 function seedInitialDefaults(){
   if (state.lines) return;
-  const L1N = NOZ.chief185_50;
-  const L3N = NOZ.chiefXD265;
 
+  // No built-in attack line defaults anymore.
+  // Lines 1/2/3 become "blank" until the user saves them in Department Setup.
   state.lines = {
     left:  {
       label: 'Line 1',
       visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsMain: [],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: L1N,
+      nozRight: null,
     },
     back:  {
       label: 'Line 2',
       visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
+      itemsMain: [],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: L1N,
+      nozRight: null,
     },
     right: {
       label: 'Line 3',
       visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
+      itemsMain: [],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: L3N,
+      nozRight: null,
     }
   };
 }
@@ -271,42 +241,11 @@ function seedDefaultsForKey(key){
     }
   }
 
-  const L1N = NOZ.chief185_50;
-  const L3N = NOZ.chiefXD265;
+  // No built-in creation for left/back/right here.
+  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
 
-  if(key === 'left'){
-    state.lines.left = {
-      label: 'Line 1',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    };
-  } else if(key === 'back'){
-    state.lines.back = {
-      label: 'Line 2',
-      visible: false,
-      itemsMain: [{ size:'1.75', lengthFt:200 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L1N,
-    };
-  } else if(key === 'right'){
-    state.lines.right = {
-      label: 'Line 3',
-      visible: false,
-      itemsMain: [{ size:'2.5', lengthFt:250 }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: L3N,
-    };
+  if (key === 'left' || key === 'back' || key === 'right') {
+    return state.lines[key];
   } else {
     state.lines[key] = {
       label: key,
@@ -472,8 +411,56 @@ export function saveDeptDefaults(obj){
 }
 
 export function getDeptLineDefault(key){
+  // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
-  return all[key] || null;
+  const candidate = all ? all[key] : null;
+  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
+    return candidate;
+  }
+
+  // 2) Compatibility: simple line defaults saved by deptState.js (fireops_line_defaults_v1)
+  //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
+  try{
+    const raw = localStorage.getItem('fireops_line_defaults_v1');
+    if (!raw) return candidate || null;
+    const parsed = JSON.parse(raw) || {};
+    const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
+    if (!map || !parsed[map]) return candidate || null;
+
+    const d = parsed[map] || {};
+    const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
+    const len  = Number(d.length ?? d.len ?? 200) || 200;
+    const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
+    const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
+
+    const nozObj =
+      (nozId && NOZ && NOZ[nozId]) ? NOZ[nozId]
+      : (nozId ? (NOZ_LIST||[]).find(n => n && String(n.id) === nozId) : null);
+
+    const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
+
+    const built = {
+      label,
+      visible: false,
+      itemsMain: [{ size: hose, lengthFt: len }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: elev,
+      nozRight: nozObj || null,
+    };
+
+    // Persist the converted full object so subsequent loads are consistent.
+    try{
+      const full = loadDeptDefaults() || {};
+      full[key] = built;
+      saveDeptDefaults(full);
+    }catch(_){/* ignore */}
+
+    return built;
+  }catch(e){
+    return candidate || null;
+  }
 }
 
 export function setDeptLineDefault(key, data){
@@ -513,7 +500,7 @@ export function getLineDefaults(id){
     : {};
 
   return {
-    hose: normalizeHoseSize(String(main.size || '')),
+    hose: String(main.size || ''),
     nozzle: (L.nozRight && L.nozRight.id) || '',
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
@@ -529,6 +516,10 @@ export function getLineDefaults(id){
 //   line3: { ... },
 // }
 export function getDeptLineDefaults(){
+  // Calc deploy (seedDefaultsForKey) ultimately reads from pump_dept_defaults_v1 (left/back/right).
+  // These helpers expose that same data in a simple shape for view.calc.main.js.
+  //
+  // IMPORTANT: getLineDefaults() in this module expects 'line1'|'line2'|'line3' (not '1'|'2'|'3').
   const l1 = getLineDefaults('line1') || {};
   const l2 = getLineDefaults('line2') || {};
   const l3 = getLineDefaults('line3') || {};
@@ -536,30 +527,24 @@ export function getDeptLineDefaults(){
   const fallback = {
     line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
     line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
-    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
+    line3: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
   };
 
-  function shape(src, key){
-    const base = fallback[key];
-    if (!src || typeof src !== 'object') return { ...base };
+  // Normalize minimal shapes expected by view.calc.main.js
+  function norm(src, fb){
+    const o = (src && typeof src === 'object') ? src : {};
     return {
-      hoseDiameter: normalizeHoseSize(src.hose || base.hoseDiameter),
-      nozzleId: src.nozzle || base.nozzleId,
-      lengthFt:
-        typeof src.length === 'number' && !Number.isNaN(src.length)
-          ? src.length
-          : base.lengthFt,
-      elevationFt:
-        typeof src.elevation === 'number' && !Number.isNaN(src.elevation)
-          ? src.elevation
-          : base.elevationFt,
+      hoseDiameter: String(o.hoseDiameter ?? o.hose ?? fb.hoseDiameter),
+      nozzleId: String(o.nozzleId ?? o.nozzle ?? fb.nozzleId),
+      lengthFt: Number(o.lengthFt ?? o.length ?? fb.lengthFt) || fb.lengthFt,
+      elevationFt: Number(o.elevationFt ?? o.elevation ?? fb.elevationFt) || fb.elevationFt,
     };
   }
 
   return {
-    line1: shape(l1, 'line1'),
-    line2: shape(l2, 'line2'),
-    line3: shape(l3, 'line3'),
+    line1: norm(l1, fallback.line1),
+    line2: norm(l2, fallback.line2),
+    line3: norm(l3, fallback.line3),
   };
 }
 
@@ -572,7 +557,7 @@ export function setLineDefaults(id, data){
     null;
   if (!key || !data || typeof data !== 'object') return;
 
-  const hoseId = normalizeHoseSize(data.hose != null ? String(data.hose) : '');
+  const hoseId = data.hose != null ? String(data.hose) : '';
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
   const nozId  = data.nozzle != null ? String(data.nozzle) : '';
