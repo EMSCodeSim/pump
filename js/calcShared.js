@@ -148,52 +148,20 @@ function findNozzleId({ gpm, NP, preferFog=true }){
 //  - 1.75 → 185 @ 50 (Fog preferred)
 //  - 2.5  → 265 @ 50 (Fog preferred)
 function defaultNozzleIdForSize(size){
-  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
-  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
-  // For other sizes, keep “closest fog near 185 @ 50”
-  return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  // No built-in nozzle defaults. Only use what the user selected/saved.
+  return null;
 }
 
 // Ensure a nozzle exists for a target (main/left/right) based on size
 function ensureDefaultNozzleFor(L, where, size){
-  // IMPORTANT: Do NOT override a nozzle that was chosen via Department Setup / presets.
-  // Only seed a default if the target nozzle is currently missing.
-  if (!L) return;
-
-  const nozId = defaultNozzleIdForSize(size);
-
-  if (where === 'main'){
-    if (L.nozRight) return;
-    L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
-    return;
-  }
-
-  if (where === 'L'){
-    if (L.nozLeft) return;
-    L.nozLeft  = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
-    return;
-  }
-
-  if (L.nozRight) return;
-  L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+  // No built-in nozzle defaults.
+  return;
 }
 
 // Special helper: Branch B defaults to Fog 185 @ 50 (always when this helper is called)
 function setBranchBDefaultIfEmpty(L){
-  // Only seed if Branch B nozzle is empty (never override Dept Setup / presets)
-  if(!L) return;
-  if (L.nozRight) return;
-  try{
-    const id = typeof findNozzleId==='function'
-      ? findNozzleId({gpm:185, NP:50, preferFog:true})
-      : null;
-    if(id && NOZ && NOZ[id]){
-      L.nozRight = NOZ[id];
-      return;
-    }
-    const fallback = (NOZ_LIST||[]).find(n=>Number(n.gpm)===185 && Number(n.NP)===50);
-    if(fallback) L.nozRight = fallback;
-  }catch(_){/*ignore*/}
+  // No built-in nozzle defaults.
+  return;
 }
 
 /* ========================================================================== */
