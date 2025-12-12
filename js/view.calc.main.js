@@ -2227,10 +2227,21 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   if (!container.__lineBtnDelegated) {
     container.__lineBtnDelegated = true;
     container.addEventListener('click', (e) => {
-      const btn = e.target.closest('.linebtn[data-line]');
+      // Some templates don't include data-line on Line 1/2/3 buttons, and some
+      // builds re-render these buttons. Use robust detection + delegation.
+      const btn = e.target.closest('.linebtn');
       if (!btn) return;
 
-      const key = btn.dataset.line;
+      e.preventDefault();
+
+      let key = btn.dataset.line || btn.dataset.key || '';
+      if (!key) {
+        const id = (btn.id || '').toLowerCase();
+        const txt = (btn.textContent || '').toLowerCase();
+        if (id.includes('line1') || txt.includes('line 1')) key = 'left';
+        else if (id.includes('line2') || txt.includes('line 2')) key = 'back';
+        else if (id.includes('line3') || txt.includes('line 3')) key = 'right';
+      }
       if (!key) return;
 
       // Robust: never let a missing import break Line 1/2/3 toggles.
