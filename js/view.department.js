@@ -311,7 +311,7 @@ function renderLineDefaults() {
 
 function setupLineDefaultSaving() {
     ["line1","line2","line3"].forEach(id => {
-        const btn = qs(`#${id}-save`) || document.querySelector(`#${id}-save`);
+
         if (!btn) return;
         btn.onclick = () => {
             const hose = (qs(`#${id}-hose`) || document.querySelector(`#${id}-hose`))?.value || "";
