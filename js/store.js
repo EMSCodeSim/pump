@@ -188,11 +188,12 @@ export function splitIntoSections(items){
  * ========================= */
 function seedInitialDefaults(){
   if (state.lines) return;
-  if (key === 'left' || key === 'back' || key === 'right') {
-    // No built-in defaults anymore. These lines only get a default when the user saves one in Department Setup.
-    const label = key === 'left' ? 'Line 1' : key === 'back' ? 'Line 2' : 'Line 3';
-    state.lines[key] = {
-      label,
+
+  // No built-in attack line defaults anymore.
+  // Lines 1/2/3 become "blank" until the user saves them in Department Setup.
+  state.lines = {
+    left:  {
+      label: 'Line 1',
       visible: false,
       itemsMain: [],
       itemsLeft: [],
@@ -200,10 +201,51 @@ function seedInitialDefaults(){
       hasWye: false,
       elevFt: 0,
       nozRight: null,
-    };
-    return state.lines[key];
+    },
+    back:  {
+      label: 'Line 2',
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: null,
+    },
+    right: {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: null,
+    }
+  };
+}
+seedInitialDefaults();
+
+export 
+function seedDefaultsForKey(key){
+  if(!state.lines) seedInitialDefaults();
+  if(state.lines[key]) return state.lines[key];
+
+  // Prefer department-saved defaults for the three front-panel attack lines
+  if (key === 'left' || key === 'back' || key === 'right') {
+    const deptLine = getDeptLineDefault(key);
+    if (deptLine && typeof deptLine === 'object') {
+      // Clone so we don't mutate the stored template directly
+      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+      return state.lines[key];
+    }
   }
 
+  // No built-in creation for left/back/right here.
+  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
+
+  if (key === 'left' || key === 'back' || key === 'right') {
+    return state.lines[key];
   } else {
     state.lines[key] = {
       label: key,
@@ -474,11 +516,13 @@ export function getLineDefaults(id){
 //   line3: { ... },
 // }
 export function getDeptLineDefaults(){
-  // Supports BOTH legacy keys ('line1','line2','line3') and deptState keys ('1','2','3').
-  // DeptState (preferred) stores lineDefaults under 'fireops_line_defaults_v1' with keys '1','2','3'.
-  const l1 = getLineDefaults('1') || getLineDefaults('line1') || {};
-  const l2 = getLineDefaults('2') || getLineDefaults('line2') || {};
-  const l3 = getLineDefaults('3') || getLineDefaults('line3') || {};
+  // Calc deploy (seedDefaultsForKey) ultimately reads from pump_dept_defaults_v1 (left/back/right).
+  // These helpers expose that same data in a simple shape for view.calc.main.js.
+  //
+  // IMPORTANT: getLineDefaults() in this module expects 'line1'|'line2'|'line3' (not '1'|'2'|'3').
+  const l1 = getLineDefaults('line1') || {};
+  const l2 = getLineDefaults('line2') || {};
+  const l3 = getLineDefaults('line3') || {};
 
   const fallback = {
     line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
@@ -524,12 +568,15 @@ export function setLineDefaults(id, data){
     key === 'right' ? 'Line 3' :
     '';
 
-  const main = (hoseId && len) ? { size: hoseId, lengthFt: len } : null;
+  const main = {
+    size: hoseId || '1.75',
+    lengthFt: len || 200,
+  };
 
   const L = {
     label,
     visible: false,
-    itemsMain: main ? [main] : [],
+    itemsMain: [main],
     itemsLeft: [],
     itemsRight: [],
     hasWye: false,
