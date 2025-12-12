@@ -88,6 +88,40 @@ function normalizeHoseDiameter(input){
 }
 
 /* =========================
+ * Nozzle ID normalization (compat)
+ * ========================= */
+
+// Legacy Department Setup nozzle IDs → internal NOZ ids
+const LEGACY_NOZ_ID_MAP = {
+  // smooth bores
+  'sb_78_50_160':   'sb7_8',
+  'sb_1516_50_185': 'sb15_16',
+  'sb_1_50_210':    'sb1',
+  'sb_1118_50_265': 'sb1_1_8',
+  'sb_114_50_325':  'sb1_1_4',
+
+  // fog (incl Chief XD legacy ids used by older dept equipment storage)
+  'fog_xd_175_50_165': 'chiefXD165_50',
+  'fog_xd_175_50_185': 'chief185_50',
+  'fog_xd_25_50_265':  'chiefXD265',
+};
+
+function canonicalNozzleId(raw){
+  const id = String(raw || '').trim();
+  if (!id) return '';
+  return LEGACY_NOZ_ID_MAP[id] || id;
+}
+
+function resolveNozzleById(raw){
+  const id = canonicalNozzleId(raw);
+  if (!id) return null;
+  if (NOZ && NOZ[id]) return NOZ[id];
+  // Safety fallback: search list (covers future catalog shapes)
+  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
+}
+
+
+/* =========================
  * Nozzle catalog (expanded)
  * ========================= */
 export const NOZ = {
@@ -475,9 +509,7 @@ export function getDeptLineDefault(key){
     const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
     const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
 
-    const nozObj =
-      (nozId && NOZ && NOZ[nozId]) ? NOZ[nozId]
-      : (nozId ? (NOZ_LIST||[]).find(n => n && String(n.id) === nozId) : null);
+    const nozObj = resolveNozzleById(nozId);
 
     const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
 
@@ -624,7 +656,7 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
-    nozRight: (nozId && typeof NOZ === 'object' && NOZ[nozId]) ? NOZ[nozId] : null,
+    nozRight: resolveNozzleById(nozId),
   };
 
   setDeptLineDefault(key, L);
