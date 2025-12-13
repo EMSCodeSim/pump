@@ -302,38 +302,47 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export 
-function seedDefaultsForKey(key){
+export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
-  if(state.lines[key]) return state.lines[key];
+
+  // If a line object already exists, we still may want to replace it with
+  // Department Setup defaults if it's just an empty placeholder.
+  const existing = state.lines[key];
+
+  const isPlaceholder = (L) => {
+    if(!L || typeof L !== 'object') return true;
+    const mainEmpty = !Array.isArray(L.itemsMain) || L.itemsMain.length === 0 || !L.itemsMain[0] || !L.itemsMain[0].size;
+    const nozEmpty  = !L.nozRight && !L.nozLeft;
+    const elevEmpty = !L.elevFt || Number(L.elevFt) === 0;
+    const noWye     = !L.hasWye;
+    // A placeholder is basically: no main hose, no nozzle, no elevation, no wye.
+    return mainEmpty && nozEmpty && elevEmpty && noWye;
+  };
 
   // Prefer department-saved defaults for the three front-panel attack lines
   if (key === 'left' || key === 'back' || key === 'right') {
     const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object') {
+    if (deptLine && typeof deptLine === 'object' && (!existing || isPlaceholder(existing))) {
       // Clone so we don't mutate the stored template directly
       state.lines[key] = JSON.parse(JSON.stringify(deptLine));
       return state.lines[key];
     }
   }
 
-  // No built-in creation for left/back/right here.
-  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
+  // If it's not a placeholder, keep the existing object.
+  if(existing) return existing;
 
-  if (key === 'left' || key === 'back' || key === 'right') {
-    return state.lines[key];
-  } else {
-    state.lines[key] = {
-      label: key,
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    };
-  }
+  // For any other dynamically-created line, create a blank template.
+  state.lines[key] = {
+    label: key,
+    visible: false,
+    itemsMain: [],
+    itemsLeft: [],
+    itemsRight: [],
+    hasWye: false,
+    elevFt: 0,
+    nozRight: null,
+  };
 
   return state.lines[key];
 }
