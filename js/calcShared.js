@@ -84,18 +84,49 @@ function buildSnapshot(waterSnapshot){
 }
 
 // Applies saved.state into live state (preserving object identities)
+function hasDeptLineDefaults(){
+  // If dept line defaults exist, do NOT let practice/session restores overwrite Line 1/2/3.
+  try{
+    const raw = localStorage.getItem('fireops_line_defaults_v1');
+    if(raw){
+      const o = JSON.parse(raw);
+      if(o && typeof o === 'object' && Object.keys(o).length) return true;
+    }
+  }catch(_){}
+  try{
+    const raw2 = localStorage.getItem('pump_dept_defaults_v1');
+    if(raw2){
+      const o2 = JSON.parse(raw2);
+      if(o2 && typeof o2 === 'object' && (o2.left || o2.back || o2.right)) return true;
+    }
+  }catch(_){}
+  return false;
+}
+
+// Applies saved.state into live state (preserving object identities)
 function restoreState(savedState){
   if (!savedState) return;
+
   if (savedState.supply) state.supply = savedState.supply;
-  if (savedState.lines) {
+
+  // IMPORTANT:
+  // - Practice/session restores should not overwrite Dept Setup Line 1/2/3 templates.
+  // - If a caller truly wants to restore lines (e.g., Practice mode), it can set:
+  //     savedState.__forceRestoreLines = true
+  const allowRestoreLines = !!savedState.__forceRestoreLines || !hasDeptLineDefaults();
+
+  if (savedState.lines && allowRestoreLines) {
     for (const k of Object.keys(state.lines)){
       if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
     }
   }
+
   // If water/tenders/shuttle live on state, they’ll be set during water restore (below)
 }
 
-/* ========================================================================== */
+
+
+/* ========================================================================== */ */
 /*                           Geometry & draw constants                        */
 /* ========================================================================== */
 
