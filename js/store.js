@@ -320,9 +320,15 @@ export function seedDefaultsForKey(key){
 
   if (key === 'left' || key === 'back' || key === 'right') {
     const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object') {
+
+    // Only seed from department defaults when the existing line is missing or still blank/placeholder.
+    // This prevents overwriting live state (e.g., retracting a line or changing settings on calc screen).
+    if (deptLine && typeof deptLine === 'object' && (!existing || isPlaceholder(existing))) {
       // Clone so we don't mutate the stored template directly
-      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+      const seeded = JSON.parse(JSON.stringify(deptLine));
+      // Preserve current visibility if we had an existing line object
+      if (existing && typeof existing.visible === 'boolean') seeded.visible = existing.visible;
+      state.lines[key] = seeded;
       return state.lines[key];
     }
   }
