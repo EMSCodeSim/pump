@@ -216,7 +216,7 @@ function setupSaveButtons() {
                     .map(n => ({
                         id: n.id,
                         label: n.label,
-                        name: n.label,
+                        name: n.name || n.label,
                         gpm: n.gpm,
                         NP: n.NP
                     }))
@@ -269,7 +269,7 @@ function setupSaveButtons() {
                     ? DEPT_NOZZLE_LIBRARY.map(n => ({
                         id: n.id,
                         label: n.label,
-                        name: n.label,
+                        name: n.name || n.label,
                         gpm: n.gpm,
                         NP: n.NP
                     }))
@@ -373,7 +373,7 @@ function populateDropdowns() {
 
         if (nozSel) {
             nozSel.innerHTML = nozzles.map(n => `
-                <option value="${n.id}">${n.label || n.name || n.id}</option>
+                <option value="${n.id}">${n.label}</option>
             `).join("");
         }
     });
