@@ -1,5 +1,21 @@
 ;
 
+// --- legacy nozzle id normalization (keeps nozzle dropdown from "sticking") ---
+function _normNozId(id){
+  const s = String(id ?? '').trim();
+  if (!s) return '';
+  if (s === 'sb_78_50_160' || s === 'sb_7_8' || s === 'sb78' || s === 'sb_78') return 'sb7_8';
+  if (s === 'sb_1516_50_185' || s === 'sb_15_16' || s === 'sb1516' || s === 'sb_1516') return 'sb15_16';
+  if (s === 'sb_1_50_210') return 'sb1';
+  if (s === 'sb_1_1_8_50_265') return 'sb1_1_8';
+  if (s === 'sb_1_1_4_50_328') return 'sb1_1_4';
+  if (s === 'chiefXD165' || s === 'chiefXD165_50') return 'chiefXD165_50';
+  if (s === 'chiefXD200' || s === 'chiefXD200_75') return 'chiefXD200_75';
+  if (s === 'chiefXD256' || s === 'chiefXD256_50' || s === 'chiefXD265_50') return 'chiefXD265';
+  return s;
+}
+
+
 // GLOBAL DELEGATED HANDLER FOR + BUTTONS
 document.addEventListener("click", (e) => {
   const tip = e.target.closest(".hose-end, .plus-hit, .plus-circle, .plus-sign");
@@ -2248,8 +2264,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           }
 
           // Nozzle
-          if (src.nozzleId && NOZ[src.nozzleId]) {
-            L.nozRight = NOZ[src.nozzleId];
+          const _nid = _normNozId(src.nozzleId);
+          if (_nid && NOZ[_nid]) {
+            L.nozRight = NOZ[_nid];
           }
         }
       }
@@ -2411,9 +2428,10 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       }
 
       // Nozzle
-      if (src.nozzleId && NOZ[src.nozzleId]) {
-        L.nozRight = NOZ[src.nozzleId];
-      }
+          const _nid = _normNozId(src.nozzleId);
+          if (_nid && NOZ[_nid]) {
+            L.nozRight = NOZ[_nid];
+          }
 
       // Make sure line is visible & button looks active
       L.visible = true;
@@ -2605,12 +2623,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const mainFt = sumFt(L.itemsMain);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
-      const base = document.createElementNS('http://www.w3.org/2000/svg','path');
-      base.setAttribute('d', geom.d);
-      // Ensure the helper path never renders (prevents a "black shadow" artifact if it lingers)
-      base.setAttribute('fill','none');
-      base.setAttribute('stroke','none');
-      G_hoses.appendChild(base);
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
@@ -2817,37 +2830,21 @@ function initPlusMenus(root){
       console.warn('Dept custom nozzles load failed', e);
     }
 
-    
-// If department selected specific nozzles, filter to that set.
-// IMPORTANT: Prefer deptState's UI list (fireops_dept_state_v1) because the older
-// preset.js storage key (fireops_dept_equipment_v1) may contain stale legacy selections
-// that can incorrectly collapse the dropdown to a single nozzle (e.g., SB 7/8).
-try {
-  let allowedIds = null;
-
-  // 1) Primary: deptState UI list (already filtered to the department's selected set)
-  if (typeof getUiNozzles === 'function') {
-    const ui = getUiNozzles() || [];
-    if (Array.isArray(ui) && ui.length) {
-      allowedIds = new Set(ui.map(n => String(n.id)));
+    // If department selected specific nozzles, filter to that set
+    try {
+      if (typeof getDeptNozzleIds === 'function') {
+        const ids = getDeptNozzleIds() || [];
+        if (Array.isArray(ids) && ids.length) {
+          const allowed = new Set(ids.map(id => String(id)));
+          const filtered = list.filter(n => n && allowed.has(String(n.id)));
+          if (filtered.length) {
+            list = filtered;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Dept nozzle filter failed', e);
     }
-  }
-
-  // 2) Fallback: legacy department selections from preset.js
-  if (!allowedIds && typeof getDeptNozzleIds === 'function') {
-    const ids = getDeptNozzleIds() || [];
-    if (Array.isArray(ids) && ids.length) {
-      allowedIds = new Set(ids.map(id => String(id)));
-    }
-  }
-
-  if (allowedIds && allowedIds.size) {
-    const filtered = list.filter(n => n && allowedIds.has(String(n.id)));
-    if (filtered.length) list = filtered;
-  }
-} catch (e) {
-  console.warn('Dept nozzle filter failed', e);
-}
 
     // Overlay labels from deptState's UI list so ChiefXD tips keep their Department label
     let uiById = null;
