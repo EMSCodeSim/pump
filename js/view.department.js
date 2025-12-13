@@ -215,7 +215,10 @@ function setupSaveButtons() {
                     .filter(n => selectedIds.includes(String(n.id)))
                     .map(n => ({
                         id: n.id,
-                        label: n.label
+                        label: n.label,
+                        name: n.label,
+                        gpm: n.gpm,
+                        NP: n.NP
                     }))
                 : [];
 
@@ -265,7 +268,10 @@ function setupSaveButtons() {
                 const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
                     ? DEPT_NOZZLE_LIBRARY.map(n => ({
                         id: n.id,
-                        label: n.label
+                        label: n.label,
+                        name: n.label,
+                        gpm: n.gpm,
+                        NP: n.NP
                     }))
                     : [];
 
@@ -367,7 +373,7 @@ function populateDropdowns() {
 
         if (nozSel) {
             nozSel.innerHTML = nozzles.map(n => `
-                <option value="${n.id}">${n.label}</option>
+                <option value="${n.id}">${n.label || n.name || n.id}</option>
             `).join("");
         }
     });
