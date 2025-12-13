@@ -1802,7 +1802,7 @@ function openPresetLineActions(id){
       const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
       const single = L.hasWye && isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
+      const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
 
       const head = document.createElement('div'); head.className='lineHeader'; head.innerHTML = `
         <span class="title">${L.label}</span>
@@ -2268,6 +2268,22 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           if (_nid && NOZ[_nid]) {
             L.nozRight = NOZ[_nid];
           }
+        }
+      }
+
+      // Safety: ensure hose + nozzle objects exist so rendering can't crash
+      if (L.visible) {
+        if (!Array.isArray(L.itemsMain) || !L.itemsMain[0]) {
+          L.itemsMain = [{ size: '1.75', lengthFt: 200 }];
+        } else {
+          if (!('size' in L.itemsMain[0]) || L.itemsMain[0].size == null) L.itemsMain[0].size = '1.75';
+          if (!('lengthFt' in L.itemsMain[0]) || L.itemsMain[0].lengthFt == null) L.itemsMain[0].lengthFt = 200;
+        }
+        const _sz = String(L.itemsMain[0].size || '1.75');
+        ensureDefaultNozzleFor(L, 'main', _sz);
+        if (L.hasWye) {
+          ensureDefaultNozzleFor(L, 'L', _sz);
+          ensureDefaultNozzleFor(L, 'main', _sz); // nozRight for Branch A (right) if missing
         }
       }
 
