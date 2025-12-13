@@ -268,65 +268,51 @@ function seedInitialDefaults(){
 }
 seedInitialDefaults();
 
-export function seedDefaultsForKey(key){
+export
+function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
-  // For the three front-panel attack lines, prefer Department Setup templates
-  // even if a blank placeholder object already exists in memory.
+  // For the three front-panel attack lines, we may have a blank in-memory line
+  // seeded at startup. If we do, and department defaults exist, replace it.
   const isBlankTemplate = (L) => {
-    if (!L || typeof L !== 'object') return true;
-    const mainEmpty  = !Array.isArray(L.itemsMain)  || L.itemsMain.length  === 0;
-    const leftEmpty  = !Array.isArray(L.itemsLeft)  || L.itemsLeft.length  === 0;
-    const rightEmpty = !Array.isArray(L.itemsRight) || L.itemsRight.length === 0;
+    if(!L || typeof L !== 'object') return true;
+    const mainEmpty = !Array.isArray(L.itemsMain) || L.itemsMain.length === 0;
+    const leftEmpty = !Array.isArray(L.itemsLeft) || L.itemsLeft.length === 0;
+    const rightEmpty= !Array.isArray(L.itemsRight)|| L.itemsRight.length=== 0;
     const noNoz = !L.nozLeft && !L.nozRight;
-    const noElev = (Number(L.elevFt)||0) === 0;
     const noWye = !L.hasWye;
-    return mainEmpty && leftEmpty && rightEmpty && noNoz && noElev && noWye;
+    const elev0 = Number(L.elevFt||0) === 0;
+    return mainEmpty && leftEmpty && rightEmpty && noNoz && noWye && elev0;
   };
 
   if (key === 'left' || key === 'back' || key === 'right') {
     const existing = state.lines[key];
     const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object' && Array.isArray(deptLine.itemsMain)) {
-      if (!existing || isBlankTemplate(existing)) {
-        state.lines[key] = JSON.parse(JSON.stringify(deptLine));
-      }
-      return state.lines[key];
-    }
-    // If no dept default exists, fall through to return existing placeholder or create it.
-  }
-
-  if (state.lines[key]) return state.lines[key];
-
-  // No built-in creation for left/back/right here.
-  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
- for the three front-panel attack lines
-  if (key === 'left' || key === 'back' || key === 'right') {
-    const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object') {
-      // Clone so we don't mutate the stored template directly
+    if (deptLine && typeof deptLine === 'object' && (isBlankTemplate(existing) || !existing)) {
       state.lines[key] = JSON.parse(JSON.stringify(deptLine));
       return state.lines[key];
     }
-  }
+    // If we already have a non-blank line in memory, keep it.
+    if (existing) return existing;
 
-  // No built-in creation for left/back/right here.
-  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
-
-  if (key === 'left' || key === 'back' || key === 'right') {
+    // No built-in creation for left/back/right here.
+    // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
     return state.lines[key];
-  } else {
-    state.lines[key] = {
-      label: key,
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    };
   }
+
+  // Other dynamic lines
+  if(state.lines[key]) return state.lines[key];
+
+  state.lines[key] = {
+    label: key,
+    visible: false,
+    itemsMain: [],
+    itemsLeft: [],
+    itemsRight: [],
+    hasWye: false,
+    elevFt: 0,
+    nozRight: null,
+  };
 
   return state.lines[key];
 }
@@ -463,15 +449,11 @@ function writeDeptStorage(obj){
 }
 
 export function loadDeptDefaults(){
+  // Only return persisted department defaults.
+  // IMPORTANT: do NOT seed from blank in-memory lines here, or it blocks
+  // compatibility loading from older deptState storage on first run.
   const from = readDeptStorage();
-  if(from) return from;
-
-  // If none found, seed from initial lines in memory
-  return {
-    left:  JSON.parse(JSON.stringify(state.lines.left)),
-    back:  JSON.parse(JSON.stringify(state.lines.back)),
-    right: JSON.parse(JSON.stringify(state.lines.right)),
-  };
+  return from || null;
 }
 
 export function saveDeptDefaults(obj){
@@ -483,26 +465,63 @@ export function getDeptLineDefault(key){
   // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
   const candidate = all ? all[key] : null;
-  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
+
+  const isPopulated = (L) => {
+    if(!L || typeof L !== 'object') return false;
+    const hasMain = Array.isArray(L.itemsMain) && L.itemsMain.length > 0;
+    const hasNoz  = !!(L.nozLeft || L.nozRight);
+    const hasWye  = !!L.hasWye;
+    const hasElev = Math.abs(Number(L.elevFt||0)) > 0;
+    return hasMain || hasNoz || hasWye || hasElev;
+  };
+
+  if (isPopulated(candidate)) {
     return candidate;
   }
+
+  // Helper: normalize common legacy nozzle ids into current NOZ ids
+  const normalizeNozzleId = (raw) => {
+    const s = String(raw || '').trim();
+    if(!s) return '';
+    // Common legacy smooth bore encodings
+    const map = {
+      'sb_78_50_160': 'sb7_8',
+      'sb_7_8_50_160': 'sb7_8',
+      'sb78': 'sb7_8',
+      'sb_78': 'sb7_8',
+      'sb7/8': 'sb7_8',
+      'sb_1516_50_185': 'sb15_16',
+      'sb_15_16_50_185': 'sb15_16',
+      'sb1516': 'sb15_16',
+      'sb_1516': 'sb15_16',
+      'sb15/16': 'sb15_16',
+      'sb_1_0_50_210': 'sb1',
+      'sb_1_50_210': 'sb1',
+    };
+    if(map[s]) return map[s];
+
+    // If it's already a known NOZ id, keep it
+    if (NOZ && NOZ[s]) return s;
+
+    return s;
+  };
 
   // 2) Compatibility: simple line defaults saved by deptState.js (fireops_line_defaults_v1)
   //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
   try{
     const raw = localStorage.getItem('fireops_line_defaults_v1');
-    if (!raw) return candidate || null;
+    if (!raw) return null;
     const parsed = JSON.parse(raw) || {};
     const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
-    if (!map || !parsed[map]) return candidate || null;
+    if (!map || !parsed[map]) return null;
 
     const d = parsed[map] || {};
-    const hoseRaw = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
-    const hose = normalizeHoseDiameter(hoseRaw) || '1.75';
+    const hose = normalizeHoseDiameter(d.hose ?? d.size ?? d.diameter ?? '1.75') || '1.75';
     const len  = Number(d.length ?? d.len ?? 200) || 200;
     const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
-    const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
 
+    const nozIdRaw = d.nozzle ?? d.noz ?? d.nozId ?? '';
+    const nozId = normalizeNozzleId(nozIdRaw);
     const nozObj = (nozId && NOZ && NOZ[nozId]) ? NOZ[nozId] : null;
 
     const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
@@ -527,11 +546,12 @@ export function getDeptLineDefault(key){
 
     return built;
   }catch(e){
-    return candidate || null;
+    return null;
   }
 }
 
 export function setDeptLineDefault(key, data){
+(key, data){
   const all = loadDeptDefaults();
   all[key] = data;
   saveDeptDefaults(all);
