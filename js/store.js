@@ -88,63 +88,6 @@ function normalizeHoseDiameter(input){
 }
 
 /* =========================
- * Nozzle ID normalization (compat)
- * ========================= */
-
-// Legacy Department Setup nozzle IDs → internal NOZ ids
-const LEGACY_NOZ_ID_MAP = {
-  // smooth bores
-  'sb_78_50_160':   'sb7_8',
-  'sb_1516_50_185': 'sb15_16',
-  'sb_1_50_210':    'sb1',
-  'sb_1118_50_265': 'sb1_1_8',
-  'sb_114_50_325':  'sb1_1_4',
-
-  // fog (incl Chief XD legacy ids used by older dept equipment storage)
-  'fog_xd_175_50_165': 'chiefXD165_50',
-  'fog_xd_175_50_185': 'chief185_50',
-  'fog_xd_25_50_265':  'chiefXD265_50',
-};
-
-function canonicalNozzleId(raw){
-  const id = String(raw || '').trim();
-  if (!id) return '';
-  return LEGACY_NOZ_ID_MAP[id] || id;
-}
-
-function resolveNozzleById(raw){
-  const id0 = canonicalNozzleId(raw);
-  if (!id0) return null;
-
-  // Try exact id first
-  if (NOZ && NOZ[id0]) return NOZ[id0];
-
-  // Try common variants (older saves sometimes omit the pressure suffix)
-  const variants = [];
-  if (!String(id0).includes('_')) variants.push(id0 + '_50');
-  variants.push(String(id0).replace(/_\d+$/,''));
-  variants.push(String(id0).replace(/_\d+$/,'') + '_50');
-
-  for (const vid of variants){
-    if (vid && NOZ && NOZ[vid]) return NOZ[vid];
-  }
-
-  // Last resort: scan the catalog object (no NOZ_LIST dependency)
-  if (NOZ && typeof NOZ === 'object'){
-    const vals = Object.values(NOZ);
-    for (const n of vals){
-      if (n && String(n.id) === id0) return n;
-      for (const vid of variants){
-        if (n && vid && String(n.id) === vid) return n;
-      }
-    }
-  }
-
-  return null;
-}
-
-
-/* =========================
  * Nozzle catalog (expanded)
  * ========================= */
 export const NOZ = {
@@ -327,33 +270,22 @@ seedInitialDefaults();
 
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
+  if(state.lines[key]) return state.lines[key];
 
-  const existing = state.lines ? state.lines[key] : null;
-  const isAttack = (key === 'left' || key === 'back' || key === 'right');
-
-  // Detect the "blank placeholder" lines seeded at boot (these should be replaced by dept templates)
-  const isBlankPlaceholder = !!(existing && typeof existing === 'object'
-    && Array.isArray(existing.itemsMain) && existing.itemsMain.length === 0
-    && (!existing.itemsLeft || existing.itemsLeft.length === 0)
-    && (!existing.itemsRight || existing.itemsRight.length === 0)
-    && !existing.nozLeft && !existing.nozRight
-    && !existing.hasWye);
-
-  // Prefer department-saved defaults for attack lines
-  if (isAttack) {
+  // Prefer department-saved defaults for the three front-panel attack lines
+  if (key === 'left' || key === 'back' || key === 'right') {
     const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object' && (!existing || isBlankPlaceholder)) {
+    if (deptLine && typeof deptLine === 'object') {
       // Clone so we don't mutate the stored template directly
       state.lines[key] = JSON.parse(JSON.stringify(deptLine));
       return state.lines[key];
     }
   }
 
-  if(existing) return existing;
-
   // No built-in creation for left/back/right here.
   // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
-  if (isAttack) {
+
+  if (key === 'left' || key === 'back' || key === 'right') {
     return state.lines[key];
   } else {
     state.lines[key] = {
@@ -440,7 +372,7 @@ function defaultPresets(){
   return {
     left:  { len: 200, size: '1.75', noz: 'chief185_50' },
     back:  { len: 200, size: '1.75', noz: 'chief185_50' },
-    right: { len: 250, size: '2.5',  noz: 'chiefXD265_50'  },
+    right: { len: 250, size: '2.5',  noz: 'chiefXD265'  },
   };
 }
 
@@ -519,11 +451,55 @@ export function saveDeptDefaults(obj){
   return writeDeptStorage(obj);
 }
 
+
+// --- Legacy normalization helpers (for older saved dept defaults) ---
+function normalizeHoseId(raw){
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  // common legacy: h_25, h_175
+  if (s === 'h_25' || s === '2 1/2' || s === '2.5"' || s === '2½') return '2.5';
+  if (s === 'h_175' || s === '1 3/4' || s === '1.75"' || s === '1¾') return '1.75';
+  if (s === 'h_4' || s === '4"' ) return '4';
+  if (s === 'h_5' || s === '5"' ) return '5';
+  // if already numeric-ish, keep
+  if (/^\d+(?:\.\d+)?$/.test(s)) return s;
+  return s;
+}
+
+function normalizeNozzleId(raw){
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  // smooth bore legacy patterns
+  if (s === 'sb_78_50_160' || s === 'sb78' || s === 'sb_7_8' || s === 'sb7/8' || s === 'sb_78') return 'sb7_8';
+  if (s === 'sb_1516_50_185' || s === 'sb1516' || s === 'sb_15_16' || s === 'sb15/16' || s === 'sb_1516') return 'sb15_16';
+  if (s === 'sb_1_50_210' || s === 'sb1') return 'sb1';
+  if (s === 'sb_1_1_8_50_265' || s === 'sb118' || s === 'sb1_1_8') return 'sb1_1_8';
+  if (s === 'sb_1_1_4_50_328' || s === 'sb114' || s === 'sb1_1_4') return 'sb1_1_4';
+  // chief XD legacy: some saves include _50 suffix, some don't
+  if (s === 'chiefXD165' || s === 'chiefXD165_50') return 'chiefXD165_50';
+  if (s === 'chiefXD185' || s === 'chief185_50') return 'chief185_50';
+  if (s === 'chiefXD265' || s === 'chiefXD265_50' || s === 'chiefXD256_50' || s === 'chiefXD256') return 'chiefXD265';
+  if (s === 'chiefXD200' || s === 'chiefXD200_75') return 'chiefXD200_75';
+  return s;
+}
+
+function resolveNozzleObj(nozId){
+  const id = normalizeNozzleId(nozId);
+  if (id && NOZ && NOZ[id]) return NOZ[id];
+  // fallback: search all NOZ entries by id equality
+  try{
+    const all = Object.values(NOZ||{});
+    return all.find(n => n && (String(n.id)===id || String(n.id)===String(nozId))) || null;
+  }catch(e){
+    return null;
+  }
+}
+
 export function getDeptLineDefault(key){
   // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
   const candidate = all ? all[key] : null;
-  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
+  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain) && candidate.itemsMain.length > 0) {
     return candidate;
   }
 
@@ -537,12 +513,12 @@ export function getDeptLineDefault(key){
     if (!map || !parsed[map]) return candidate || null;
 
     const d = parsed[map] || {};
-    const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
+    const hose = normalizeHoseId(d.hose ?? d.size ?? d.diameter ?? '1.75') || '1.75';
     const len  = Number(d.length ?? d.len ?? 200) || 200;
     const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
-    const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
+    const nozId = normalizeNozzleId(d.nozzle ?? d.noz ?? d.nozId ?? '');
 
-    const nozObj = resolveNozzleById(nozId);
+    const nozObj = resolveNozzleObj(nozId);
 
     const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
 
@@ -689,7 +665,7 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
-    nozRight: resolveNozzleById(nozId),
+    nozRight: (nozId && typeof NOZ === 'object' && NOZ[nozId]) ? NOZ[nozId] : null,
   };
 
   setDeptLineDefault(key, L);
