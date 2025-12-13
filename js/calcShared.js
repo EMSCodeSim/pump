@@ -40,9 +40,9 @@ function breakdownText(items){
 }
 
 
-/* ========================================================================== */
-/*             Practice state persistence (incl. Tender Shuttle)              */
-/* ========================================================================== */
+
+
+
 
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
@@ -84,51 +84,31 @@ function buildSnapshot(waterSnapshot){
 }
 
 // Applies saved.state into live state (preserving object identities)
-function hasDeptLineDefaults(){
-  // If dept line defaults exist, do NOT let practice/session restores overwrite Line 1/2/3.
-  try{
-    const raw = localStorage.getItem('fireops_line_defaults_v1');
-    if(raw){
-      const o = JSON.parse(raw);
-      if(o && typeof o === 'object' && Object.keys(o).length) return true;
-    }
-  }catch(_){}
-  try{
-    const raw2 = localStorage.getItem('pump_dept_defaults_v1');
-    if(raw2){
-      const o2 = JSON.parse(raw2);
-      if(o2 && typeof o2 === 'object' && (o2.left || o2.back || o2.right)) return true;
-    }
-  }catch(_){}
-  return false;
-}
-
-// Applies saved.state into live state (preserving object identities)
 function restoreState(savedState){
   if (!savedState) return;
 
   if (savedState.supply) state.supply = savedState.supply;
 
-  // IMPORTANT:
-  // - Practice/session restores should not overwrite Dept Setup Line 1/2/3 templates.
-  // - If a caller truly wants to restore lines (e.g., Practice mode), it can set:
-  //     savedState.__forceRestoreLines = true
-  const allowRestoreLines = !!savedState.__forceRestoreLines || !hasDeptLineDefaults();
-
-  if (savedState.lines && allowRestoreLines) {
-    for (const k of Object.keys(state.lines)){
+  // Apply saved line edits (practice mode), but DO NOT let them permanently override
+  // department defaults for Line 1/2/3 in Calc mode.
+  if (savedState.lines && state.lines) {
+    for (const k of Object.keys(state.lines)) {
       if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
     }
   }
 
-  // If water/tenders/shuttle live on state, they’ll be set during water restore (below)
+  // If department defaults exist, re-seed left/back/right from dept templates.
+  // This prevents the 'pump.practice.v3' snapshot from freezing nozzle + only showing 1–2 lines.
+  try {
+    seedDefaultsForKey('left');
+    seedDefaultsForKey('back');
+    seedDefaultsForKey('right');
+  } catch(e) {}
 }
 
 
 
-/* ========================================================================== */ */
-/*                           Geometry & draw constants                        */
-/* ========================================================================== */
+
 
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -136,9 +116,9 @@ const PX_PER_50FT = 45;
 const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
-/* ========================================================================== */
-/*                               Small utilities                              */
-/* ========================================================================== */
+
+
+
 
 function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
@@ -147,7 +127,7 @@ function fmt(n){ return Math.round(n); }
 
 function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
-/* ---------- Nozzle finders & defaults ---------- */
+
 
 // Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
@@ -224,12 +204,12 @@ function setBranchBDefaultIfEmpty(L){
     }
     const fallback = (NOZ_LIST||[]).find(n=>Number(n.gpm)===185 && Number(n.NP)===50);
     if(fallback) L.nozRight = fallback;
-  }catch(_){/*ignore*/}
+  }catch(_){}
 }
 
-/* ========================================================================== */
-/*                         Vertical sizing & geometry                          */
-/* ========================================================================== */
+
+
+
 
 function supplyHeight(){
   return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
@@ -310,9 +290,9 @@ function drawSegmentedPath(group, basePath, segs){
     offset += portion;
   });
 }
-/* ========================================================================== */
-/*                         Hose bar visualization                             */
-/* ========================================================================== */
+
+
+
 
 function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
   const totalLen = sumFt(sections);
@@ -382,9 +362,9 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
   containerEl.appendChild(svg);
 }
 
-/* ========================================================================== */
-/*                         “Why?” explanation HTML                             */
-/* ========================================================================== */
+
+
+
 
 function ppExplainHTML(L){
   const single = isSingleWye(L);
@@ -456,7 +436,7 @@ function ppExplainHTML(L){
   }
 }
 
-/* ========================================================================== */
+
 
 export {
   state,
