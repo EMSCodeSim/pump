@@ -103,7 +103,7 @@ const LEGACY_NOZ_ID_MAP = {
   // fog (incl Chief XD legacy ids used by older dept equipment storage)
   'fog_xd_175_50_165': 'chiefXD165_50',
   'fog_xd_175_50_185': 'chief185_50',
-  'fog_xd_25_50_265':  'chiefXD265',
+  'fog_xd_25_50_265':  'chiefXD265_50',
 };
 
 function canonicalNozzleId(raw){
@@ -113,11 +113,34 @@ function canonicalNozzleId(raw){
 }
 
 function resolveNozzleById(raw){
-  const id = canonicalNozzleId(raw);
-  if (!id) return null;
-  if (NOZ && NOZ[id]) return NOZ[id];
-  // Safety fallback: search list (covers future catalog shapes)
-  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
+  const id0 = canonicalNozzleId(raw);
+  if (!id0) return null;
+
+  // Try exact id first
+  if (NOZ && NOZ[id0]) return NOZ[id0];
+
+  // Try common variants (older saves sometimes omit the pressure suffix)
+  const variants = [];
+  if (!String(id0).includes('_')) variants.push(id0 + '_50');
+  variants.push(String(id0).replace(/_\d+$/,''));
+  variants.push(String(id0).replace(/_\d+$/,'') + '_50');
+
+  for (const vid of variants){
+    if (vid && NOZ && NOZ[vid]) return NOZ[vid];
+  }
+
+  // Last resort: scan the catalog object (no NOZ_LIST dependency)
+  if (NOZ && typeof NOZ === 'object'){
+    const vals = Object.values(NOZ);
+    for (const n of vals){
+      if (n && String(n.id) === id0) return n;
+      for (const vid of variants){
+        if (n && vid && String(n.id) === vid) return n;
+      }
+    }
+  }
+
+  return null;
 }
 
 
@@ -305,44 +328,45 @@ seedInitialDefaults();
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
-  // If a line object already exists, we still may want to replace it with
-  // Department Setup defaults if it's just an empty placeholder.
-  const existing = state.lines[key];
+  const existing = state.lines ? state.lines[key] : null;
+  const isAttack = (key === 'left' || key === 'back' || key === 'right');
 
-  const isPlaceholder = (L) => {
-    if(!L || typeof L !== 'object') return true;
-    const mainEmpty = !Array.isArray(L.itemsMain) || L.itemsMain.length === 0 || !L.itemsMain[0] || !L.itemsMain[0].size;
-    const nozEmpty  = !L.nozRight && !L.nozLeft;
-    const elevEmpty = !L.elevFt || Number(L.elevFt) === 0;
-    const noWye     = !L.hasWye;
-    // A placeholder is basically: no main hose, no nozzle, no elevation, no wye.
-    return mainEmpty && nozEmpty && elevEmpty && noWye;
-  };
+  // Detect the "blank placeholder" lines seeded at boot (these should be replaced by dept templates)
+  const isBlankPlaceholder = !!(existing && typeof existing === 'object'
+    && Array.isArray(existing.itemsMain) && existing.itemsMain.length === 0
+    && (!existing.itemsLeft || existing.itemsLeft.length === 0)
+    && (!existing.itemsRight || existing.itemsRight.length === 0)
+    && !existing.nozLeft && !existing.nozRight
+    && !existing.hasWye);
 
-  // Prefer department-saved defaults for the three front-panel attack lines
-  if (key === 'left' || key === 'back' || key === 'right') {
+  // Prefer department-saved defaults for attack lines
+  if (isAttack) {
     const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object' && (!existing || isPlaceholder(existing))) {
+    if (deptLine && typeof deptLine === 'object' && (!existing || isBlankPlaceholder)) {
       // Clone so we don't mutate the stored template directly
       state.lines[key] = JSON.parse(JSON.stringify(deptLine));
       return state.lines[key];
     }
   }
 
-  // If it's not a placeholder, keep the existing object.
   if(existing) return existing;
 
-  // For any other dynamically-created line, create a blank template.
-  state.lines[key] = {
-    label: key,
-    visible: false,
-    itemsMain: [],
-    itemsLeft: [],
-    itemsRight: [],
-    hasWye: false,
-    elevFt: 0,
-    nozRight: null,
-  };
+  // No built-in creation for left/back/right here.
+  // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
+  if (isAttack) {
+    return state.lines[key];
+  } else {
+    state.lines[key] = {
+      label: key,
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: null,
+    };
+  }
 
   return state.lines[key];
 }
@@ -416,7 +440,7 @@ function defaultPresets(){
   return {
     left:  { len: 200, size: '1.75', noz: 'chief185_50' },
     back:  { len: 200, size: '1.75', noz: 'chief185_50' },
-    right: { len: 250, size: '2.5',  noz: 'chiefXD265'  },
+    right: { len: 250, size: '2.5',  noz: 'chiefXD265_50'  },
   };
 }
 
