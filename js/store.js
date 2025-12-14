@@ -115,20 +115,10 @@ function canonicalNozzleId(raw){
 function resolveNozzleById(raw){
   const id = canonicalNozzleId(raw);
   if (!id) return null;
-
-  // 1) direct match
   if (NOZ && NOZ[id]) return NOZ[id];
-
-  // 2) common legacy: ids saved without NP suffix (e.g. 'chiefXD265' vs 'chiefXD265_50')
+  // Common legacy: ids saved without NP suffix (e.g. 'chiefXD265' instead of 'chiefXD265')
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
-
-  // 3) other legacy direction: ids saved *with* suffix but catalog key has no suffix
-  if (/_50$/.test(id)) {
-    const base = id.replace(/_50$/, '');
-    if (NOZ && NOZ[base]) return NOZ[base];
-  }
-
-  // 4) Safety fallback: search list (covers future catalog shapes)
+  // Safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
 
@@ -550,7 +540,6 @@ export function getDeptLineDefault(key){
       hasWye: false,
       elevFt: elev,
       nozRight: nozObj || null,
-      _nozId: nozId,
     };
 
     // Persist the converted full object so subsequent loads are consistent.
@@ -603,8 +592,8 @@ export function getLineDefaults(id){
     : {};
 
   return {
-    hose: normalizeHoseDiameter(main.size || ''),
-    nozzle: (L.nozRight && L.nozRight.id) || L._nozId || '',
+    hose: normalizeHoseDiameter(main.size || '') || normalizeHoseDiameter(L._hoseId || ''),
+    nozzle: (L.nozRight && L.nozRight.id) || (L._nozId || ''),
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
   };
@@ -685,13 +674,25 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
-    nozRight: resolveNozzleById(nozId),
-    _nozId: nozId, // keep raw id so Department Setup can re-select even if catalog changes
-
+    _hoseId: hoseIdRaw,
+    _nozId: nozId,
+    nozRight: resolveNozzleById(nozId) || resolveNozzleById(String(nozId).replace(/_50$/,'')),
   };
 
   setDeptLineDefault(key, L);
+
+  // Also keep the simple Department Setup defaults in sync (compat + UI persistence)
+  try {
+    const mapKey = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
+    if (mapKey) {
+      const raw = localStorage.getItem('fireops_line_defaults_v1');
+      const obj = raw ? (JSON.parse(raw) || {}) : {};
+      obj[mapKey] = { hose: hoseIdRaw, nozzle: nozId, length: Number(len || 0), elevation: Number(elev || 0) };
+      localStorage.setItem('fireops_line_defaults_v1', JSON.stringify(obj));
+    }
+  } catch (e) { /* ignore */ }
 }
+
 
 
 
