@@ -30,6 +30,84 @@ export const HOSES_MATCHING_CHARTS = [
   { id: '5',    label: '5"'  },
 ];
 
+/* =========================
+ * Persisted "store" object (used by Department Setup UI)
+ * ========================= */
+const STORE_KEY = 'fireops_store_v1';
+
+function loadPersistedStore(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : null;
+  }catch(_){ return null; }
+}
+
+export const store = (() => {
+  const from = loadPersistedStore() || {};
+  return {
+    // department equipment selections
+    deptSelectedHoses: Array.isArray(from.deptSelectedHoses) ? from.deptSelectedHoses.map(String) : [],
+    deptSelectedNozzles: Array.isArray(from.deptSelectedNozzles) ? from.deptSelectedNozzles.map(String) : [],
+    // custom items (best-effort; catalog is still NOZ for calculations)
+    customHoses: Array.isArray(from.customHoses) ? from.customHoses : [],
+    customNozzles: Array.isArray(from.customNozzles) ? from.customNozzles : [],
+    // department hose "catalog" shown in Dept Setup
+    deptHoses: HOSES_MATCHING_CHARTS.slice(),
+  };
+})();
+
+export function saveStore(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      deptSelectedHoses: store.deptSelectedHoses,
+      deptSelectedNozzles: store.deptSelectedNozzles,
+      customHoses: store.customHoses,
+      customNozzles: store.customNozzles,
+    }));
+    return true;
+  }catch(_){ return false; }
+}
+
+export function setSelectedHoses(ids){
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  // Dept UI hoses are a simple list used by dropdowns
+  setDeptUiHoses(getDeptHoses());
+  saveStore();
+}
+
+export function setSelectedNozzles(ids){
+  store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
+  // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
+  setDeptUiNozzles(store.deptSelectedNozzles);
+  saveStore();
+}
+
+// Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
+export function addCustomHose(label, diameter, cValue){
+  const id = `custom_hose_${Date.now()}`;
+  const hose = { id, label:String(label||'Custom hose'), diameter:String(diameter||''), c:Number(cValue||0) };
+  store.customHoses.push(hose);
+  saveStore();
+  return hose;
+}
+
+export function addCustomNozzle(label, gpm, np){
+  const id = `custom_noz_${Date.now()}`;
+  const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
+  store.customNozzles.push(noz);
+  saveStore();
+  return noz;
+}
+
+export function getDeptHoses(){
+  // Use Dept UI list if present; otherwise show chart-matching hoses.
+  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
+  return HOSES_MATCHING_CHARTS.slice();
+}
+
+
 
 // Department-scoped UI lists for hoses and nozzles.
 // These are populated when Department Setup is saved, and
@@ -103,11 +181,7 @@ const LEGACY_NOZ_ID_MAP = {
   // fog (incl Chief XD legacy ids used by older dept equipment storage)
   'fog_xd_175_50_165': 'chiefXD165_50',
   'fog_xd_175_50_185': 'chief185_50',
-  'fog_xd_25_50_265':  'chiefXD265',
-  // sometimes saved with NP suffix
-  'chiefXD265_50':     'chiefXD265',
-  'chiefXD256_50':     'chiefXD265',
-  'chiefXD256':        'chiefXD265',
+  'fog_xd_25_50_265':  'chiefXD265_50',
 };
 
 function canonicalNozzleId(raw){
@@ -201,13 +275,64 @@ export const NOZ = {
 export const NOZ_LIST = Object.values(NOZ);
 
 export function getDeptNozzles() {
-  // Canonical nozzle list for all UIs:
-  // 1) Department Setup UI-selected list, if any
-  // 2) Otherwise full catalog so dropdowns are never empty.
-  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
-    return DEPT_UI_NOZZLES;
+  // Canonical nozzle list for all UIs.
+  // DEPT_UI_NOZZLES can contain:
+  //  - ids (strings), or
+  //  - small UI objects {id,label} from Department Setup.
+  // We always resolve to full calc-ready nozzle objects from NOZ (plus any stored customNozzles).
+  const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+  const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+
+  function toFull(item){
+    if (!item) return null;
+    if (typeof item === 'string') item = { id: item };
+    const rawId = String(item.id || '').trim();
+    if (!rawId) return null;
+
+    // 1) resolve against built-in catalog
+    const built = resolveNozzleById(rawId);
+    if (built) {
+      return {
+        id: built.id,
+        label: item.label || item.name || built.name || built.label || built.id,
+        gpm: Number(built.gpm ?? built.GPM ?? 0),
+        NP:  Number(built.NP ?? built.np ?? 0),
+      };
+    }
+
+    // 2) resolve against stored custom nozzles (UI only)
+    const c = custom.find(n => n && String(n.id) === rawId);
+    if (c) {
+      return {
+        id: c.id,
+        label: c.label || c.name || c.id,
+        gpm: Number(c.gpm ?? 0),
+        NP:  Number(c.NP ?? c.np ?? 0),
+      };
+    }
+    return null;
   }
-  return Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+
+  // Prefer department-selected list (ids or objects)
+  if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
+    const resolved = DEPT_UI_NOZZLES.map(toFull).filter(Boolean);
+    if (resolved.length) return resolved;
+  }
+
+  // Otherwise show full catalog + custom (so dropdowns are never empty)
+  const base = catalog.map(n => ({
+    id: n.id,
+    label: n.label || n.name || n.id,
+    gpm: Number(n.gpm ?? n.GPM ?? 0),
+    NP:  Number(n.NP ?? n.np ?? 0),
+  }));
+  const extra = custom.map(n => ({
+    id: n.id,
+    label: n.label || n.name || n.id,
+    gpm: Number(n.gpm ?? 0),
+    NP:  Number(n.NP ?? n.np ?? 0),
+  }));
+  return base.concat(extra);
 }
 
 /* =========================
@@ -324,15 +449,9 @@ export function seedDefaultsForKey(key){
 
   if (key === 'left' || key === 'back' || key === 'right') {
     const deptLine = getDeptLineDefault(key);
-
-    // Only seed from department defaults when the existing line is missing or still blank/placeholder.
-    // This prevents overwriting live state (e.g., retracting a line or changing settings on calc screen).
-    if (deptLine && typeof deptLine === 'object' && (!existing || isPlaceholder(existing))) {
+    if (deptLine && typeof deptLine === 'object') {
       // Clone so we don't mutate the stored template directly
-      const seeded = JSON.parse(JSON.stringify(deptLine));
-      // Preserve current visibility if we had an existing line object
-      if (existing && typeof existing.visible === 'boolean') seeded.visible = existing.visible;
-      state.lines[key] = seeded;
+      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
       return state.lines[key];
     }
   }
@@ -683,6 +802,4 @@ export function setLineDefaults(id, data){
 
   setDeptLineDefault(key, L);
 }
-
-
 
