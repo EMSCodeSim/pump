@@ -184,7 +184,7 @@ const LEGACY_NOZ_ID_MAP = {
   'fog_xd_25_50_265':  'chiefXD265_50',
 };
 
-function canonicalNozzleId(raw){
+export function canonicalNozzleId(raw){
   const id = String(raw || '').trim();
   if (!id) return '';
   return LEGACY_NOZ_ID_MAP[id] || id;
@@ -196,20 +196,25 @@ function resolveNozzleById(raw){
 
   // 1) built-in catalog
   if (NOZ && NOZ[id]) return NOZ[id];
-
-  // Common legacy: ids saved without NP suffix (e.g. 'chiefXD265' instead of 'chiefXD265_50')
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
 
-  // 2) user custom nozzles (created in Department Setup)
-  try {
-    const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
-    const hit = custom.find(n => n && String(n.id) === String(id));
-    if (hit) return hit;
-  } catch(e){ /* ignore */ }
+  // 2) custom nozzles created by user (stored in store.customNozzles)
+  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
+  const c = custom.find(n => n && String(n.id) === id);
+  if (c) {
+    // Normalize to the same shape calc expects
+    return {
+      id: String(c.id),
+      name: String(c.name || c.label || c.id),
+      gpm: Number(c.gpm ?? c.GPM ?? 0),
+      NP:  Number(c.NP ?? c.np ?? 0),
+      label: c.label || c.name || c.id,
+    };
+  }
 
-  // 3) Safety fallback: search list (covers future catalog shapes)
-  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : [])
-    .find(n => n && String(n.id) === String(id)) || null;
+  // 3) safety fallback: search list (covers future catalog shapes)
+  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
+}
 }
 
 
@@ -727,8 +732,8 @@ export function getLineDefaults(id){
     : {};
 
   return {
-    hose: normalizeHoseDiameter(main.size || ''),
-    nozzle: (L.nozRight && L.nozRight.id) || '',
+    hose: normalizeHoseDiameter(main.size || '') || normalizeHoseDiameter(L._hoseId || ''),
+    nozzle: (L._nozId || (L.nozRight && L.nozRight.id) || ''),
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
   };
@@ -809,6 +814,8 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
+    _hoseId: hoseIdRaw,
+    _nozId: nozId,
     nozRight: resolveNozzleById(nozId),
   };
 
