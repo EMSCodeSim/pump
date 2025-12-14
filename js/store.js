@@ -181,7 +181,7 @@ const LEGACY_NOZ_ID_MAP = {
   // fog (incl Chief XD legacy ids used by older dept equipment storage)
   'fog_xd_175_50_165': 'chiefXD165_50',
   'fog_xd_175_50_185': 'chief185_50',
-  'fog_xd_25_50_265':  'chiefXD265_50',
+  'fog_xd_25_50_265':  'chiefXD265',
 };
 
 export function canonicalNozzleId(raw){
@@ -214,7 +214,6 @@ function resolveNozzleById(raw){
 
   // 3) safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
-}
 }
 
 
