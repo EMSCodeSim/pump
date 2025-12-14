@@ -196,29 +196,6 @@ export const NOZ = {
 
 export const NOZ_LIST = Object.values(NOZ);
 
-// --- Rehydrate Department-selected nozzle list on app load ---
-// Department Setup persists selected nozzle IDs in localStorage under:
-//   fireops_dept_equipment_v1 => { nozzles: [<NOZ id strings>] }
-// We rebuild DEPT_UI_NOZZLES from the NOZ catalog so Calc dropdowns and
-// line-default selectors always reflect Department selection after refresh.
-(function hydrateDeptUiNozzlesOnLoad(){
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    const raw = window.localStorage.getItem('fireops_dept_equipment_v1');
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    const ids = Array.isArray(parsed?.nozzles) ? parsed.nozzles.map(String) : [];
-    if (!ids.length) return;
-    const list = ids.map(id => NOZ[id]).filter(Boolean);
-    if (list.length) {
-      DEPT_UI_NOZZLES = list;
-    }
-  } catch (e) {
-    // ignore
-  }
-})();
-
-
 export function getDeptNozzles() {
   // Canonical nozzle list for all UIs:
   // 1) Department Setup UI-selected list, if any
@@ -616,7 +593,7 @@ export function getLineDefaults(id){
 
   return {
     hose: normalizeHoseDiameter(main.size || ''),
-    nozzle: (L.nozRight && L.nozRight.id) || '',
+    nozzle: (L.nozRight && L.nozRight.id) || L.nozRightId || '',
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
   };
@@ -676,7 +653,8 @@ export function setLineDefaults(id, data){
   const hoseId = normalizeHoseDiameter(hoseIdRaw) || hoseIdRaw;
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
-  const nozId  = data.nozzle != null ? String(data.nozzle) : '';
+  const nozIdRaw  = data.nozzle != null ? String(data.nozzle) : '';
+  const nozId = canonicalNozzleId(nozIdRaw);
 
   const label =
     key === 'left'  ? 'Line 1' :
@@ -684,10 +662,13 @@ export function setLineDefaults(id, data){
     key === 'right' ? 'Line 3' :
     '';
 
+  // Build the stored full line object (used by calc deploy).
   const main = {
     size: normalizeHoseDiameter(hoseId) || '1.75',
     lengthFt: len || 200,
   };
+
+  const nozObj = resolveNozzleById(nozId);
 
   const L = {
     label,
@@ -697,10 +678,33 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
-    nozRight: resolveNozzleById(nozId),
+
+    // Use the resolved nozzle object when possible (for correct GPM/NP),
+    // but ALSO persist the id so the UI can still reflect the user's choice
+    // even if catalogs change.
+    nozRight: nozObj || null,
+    nozRightId: nozId || '',
   };
 
   setDeptLineDefault(key, L);
+
+  // Redundant/simple persistence for maximum compatibility.
+  // This prevents the "dropdown snaps back to first nozzle" bug if the
+  // full object storage is missing/older/overwritten.
+  try{
+    const raw = localStorage.getItem('fireops_line_defaults_v1');
+    const parsed = raw ? (JSON.parse(raw) || {}) : {};
+    const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
+    if (map){
+      parsed[map] = {
+        hose: normalizeHoseDiameter(hoseId) || '1.75',
+        nozzle: nozId || '',
+        length: (len || 200),
+        elevation: (elev || 0),
+      };
+      localStorage.setItem('fireops_line_defaults_v1', JSON.stringify(parsed));
+    }
+  }catch(_){/* ignore */}
 }
 
 
