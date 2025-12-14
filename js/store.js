@@ -103,7 +103,7 @@ const LEGACY_NOZ_ID_MAP = {
   // fog (incl Chief XD legacy ids used by older dept equipment storage)
   'fog_xd_175_50_165': 'chiefXD165_50',
   'fog_xd_175_50_185': 'chief185_50',
-  'fog_xd_25_50_265':  'chiefXD265_50',
+  'fog_xd_25_50_265':  'chiefXD265',
 };
 
 function canonicalNozzleId(raw){
@@ -115,10 +115,20 @@ function canonicalNozzleId(raw){
 function resolveNozzleById(raw){
   const id = canonicalNozzleId(raw);
   if (!id) return null;
+
+  // 1) direct match
   if (NOZ && NOZ[id]) return NOZ[id];
-  // Common legacy: ids saved without NP suffix (e.g. 'chiefXD265' instead of 'chiefXD265_50')
+
+  // 2) common legacy: ids saved without NP suffix (e.g. 'chiefXD265' vs 'chiefXD265_50')
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
-  // Safety fallback: search list (covers future catalog shapes)
+
+  // 3) other legacy direction: ids saved *with* suffix but catalog key has no suffix
+  if (/_50$/.test(id)) {
+    const base = id.replace(/_50$/, '');
+    if (NOZ && NOZ[base]) return NOZ[base];
+  }
+
+  // 4) Safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
 
@@ -540,6 +550,7 @@ export function getDeptLineDefault(key){
       hasWye: false,
       elevFt: elev,
       nozRight: nozObj || null,
+      _nozId: nozId,
     };
 
     // Persist the converted full object so subsequent loads are consistent.
@@ -593,7 +604,7 @@ export function getLineDefaults(id){
 
   return {
     hose: normalizeHoseDiameter(main.size || ''),
-    nozzle: (L.nozRight && L.nozRight.id) || L.nozRightId || '',
+    nozzle: (L.nozRight && L.nozRight.id) || L._nozId || '',
     length: Number(main.lengthFt || 0),
     elevation: Number(L.elevFt || 0),
   };
@@ -653,8 +664,7 @@ export function setLineDefaults(id, data){
   const hoseId = normalizeHoseDiameter(hoseIdRaw) || hoseIdRaw;
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
-  const nozIdRaw  = data.nozzle != null ? String(data.nozzle) : '';
-  const nozId = canonicalNozzleId(nozIdRaw);
+  const nozId  = data.nozzle != null ? String(data.nozzle) : '';
 
   const label =
     key === 'left'  ? 'Line 1' :
@@ -662,13 +672,10 @@ export function setLineDefaults(id, data){
     key === 'right' ? 'Line 3' :
     '';
 
-  // Build the stored full line object (used by calc deploy).
   const main = {
     size: normalizeHoseDiameter(hoseId) || '1.75',
     lengthFt: len || 200,
   };
-
-  const nozObj = resolveNozzleById(nozId);
 
   const L = {
     label,
@@ -678,33 +685,12 @@ export function setLineDefaults(id, data){
     itemsRight: [],
     hasWye: false,
     elevFt: elev || 0,
+    nozRight: resolveNozzleById(nozId),
+    _nozId: nozId, // keep raw id so Department Setup can re-select even if catalog changes
 
-    // Use the resolved nozzle object when possible (for correct GPM/NP),
-    // but ALSO persist the id so the UI can still reflect the user's choice
-    // even if catalogs change.
-    nozRight: nozObj || null,
-    nozRightId: nozId || '',
   };
 
   setDeptLineDefault(key, L);
-
-  // Redundant/simple persistence for maximum compatibility.
-  // This prevents the "dropdown snaps back to first nozzle" bug if the
-  // full object storage is missing/older/overwritten.
-  try{
-    const raw = localStorage.getItem('fireops_line_defaults_v1');
-    const parsed = raw ? (JSON.parse(raw) || {}) : {};
-    const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
-    if (map){
-      parsed[map] = {
-        hose: normalizeHoseDiameter(hoseId) || '1.75',
-        nozzle: nozId || '',
-        length: (len || 200),
-        elevation: (elev || 0),
-      };
-      localStorage.setItem('fireops_line_defaults_v1', JSON.stringify(parsed));
-    }
-  }catch(_){/* ignore */}
 }
 
 
