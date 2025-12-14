@@ -452,26 +452,31 @@ seedInitialDefaults();
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
-  // If we already have a real (non-placeholder) line, keep it.
   const existing = state.lines ? state.lines[key] : null;
-  const isPlaceholder = (L) => !!L && Array.isArray(L.itemsMain) && L.itemsMain.length === 0
+
+  // A placeholder is a blank line with no hose + no nozzle set yet.
+  const isPlaceholder = (L) => !!L
+    && Array.isArray(L.itemsMain) && L.itemsMain.length === 0
     && Array.isArray(L.itemsLeft) && L.itemsLeft.length === 0
     && Array.isArray(L.itemsRight) && L.itemsRight.length === 0
     && !L.nozRight && !L.nozLeft
     && !L.hasWye;
 
-  // Prefer department-saved defaults
-  // (and replace blank placeholders with the dept template).
-
+  // IMPORTANT:
+  // Only pull from saved Department defaults when the current in-memory line
+  // is missing or still a blank placeholder. If we overwrite every click,
+  // calc can never retract a line (it keeps getting re-seeded).
   if (key === 'left' || key === 'back' || key === 'right') {
-    const deptLine = getDeptLineDefault(key);
-    if (deptLine && typeof deptLine === 'object') {
-      // Clone so we don't mutate the stored template directly
-      state.lines[key] = JSON.parse(JSON.stringify(deptLine));
-      return state.lines[key];
+    if (!existing || isPlaceholder(existing)) {
+      const deptLine = getDeptLineDefault(key);
+      if (deptLine && typeof deptLine === 'object') {
+        state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+        return state.lines[key];
+      }
     }
+    // If we already have a real line object, return it as-is.
+    if (existing) return existing;
   }
-  if (existing && !isPlaceholder(existing)) return existing;
 
 
   // No built-in creation for left/back/right here.
