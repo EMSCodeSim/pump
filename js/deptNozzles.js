@@ -1,12 +1,14 @@
+// ===========================================================
 // deptNozzles.js
-// Single source of truth for Department Setup nozzle checklist.
-//
-// We export a function so it always reflects the latest catalog
-// (including any custom nozzles added during this session).
+// Compatibility shim.
+// The SINGLE nozzle source of truth is store.js (NOZ / NOZ_LIST + custom nozzles).
+// Department Setup should NOT define its own nozzle catalog here.
+// ===========================================================
 
-import { getDeptNozzles } from './store.js';
+import { NOZ_LIST } from './store.js';
 
-export function getDeptNozzleLibrary(){
-  const list = getDeptNozzles() || [];
-  return list.map(n => ({ id: n.id, label: n.label || n.name || n.id }));
-}
+// Keep the old export name so existing imports won't crash.
+// This is intentionally derived from NOZ_LIST to guarantee consistent IDs + labels.
+export const DEPT_NOZZLE_LIBRARY = (Array.isArray(NOZ_LIST) ? NOZ_LIST : [])
+  .filter(n => n && n.id)
+  .map(n => ({ id: String(n.id), label: String(n.label || n.name || n.id) }));
