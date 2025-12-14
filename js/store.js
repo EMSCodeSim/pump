@@ -193,11 +193,23 @@ function canonicalNozzleId(raw){
 function resolveNozzleById(raw){
   const id = canonicalNozzleId(raw);
   if (!id) return null;
+
+  // 1) built-in catalog
   if (NOZ && NOZ[id]) return NOZ[id];
+
   // Common legacy: ids saved without NP suffix (e.g. 'chiefXD265' instead of 'chiefXD265_50')
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
-  // Safety fallback: search list (covers future catalog shapes)
-  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
+
+  // 2) user custom nozzles (created in Department Setup)
+  try {
+    const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+    const hit = custom.find(n => n && String(n.id) === String(id));
+    if (hit) return hit;
+  } catch(e){ /* ignore */ }
+
+  // 3) Safety fallback: search list (covers future catalog shapes)
+  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : [])
+    .find(n => n && String(n.id) === String(id)) || null;
 }
 
 
