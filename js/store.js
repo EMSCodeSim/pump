@@ -196,6 +196,29 @@ export const NOZ = {
 
 export const NOZ_LIST = Object.values(NOZ);
 
+// --- Rehydrate Department-selected nozzle list on app load ---
+// Department Setup persists selected nozzle IDs in localStorage under:
+//   fireops_dept_equipment_v1 => { nozzles: [<NOZ id strings>] }
+// We rebuild DEPT_UI_NOZZLES from the NOZ catalog so Calc dropdowns and
+// line-default selectors always reflect Department selection after refresh.
+(function hydrateDeptUiNozzlesOnLoad(){
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    const raw = window.localStorage.getItem('fireops_dept_equipment_v1');
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const ids = Array.isArray(parsed?.nozzles) ? parsed.nozzles.map(String) : [];
+    if (!ids.length) return;
+    const list = ids.map(id => NOZ[id]).filter(Boolean);
+    if (list.length) {
+      DEPT_UI_NOZZLES = list;
+    }
+  } catch (e) {
+    // ignore
+  }
+})();
+
+
 export function getDeptNozzles() {
   // Canonical nozzle list for all UIs:
   // 1) Department Setup UI-selected list, if any
