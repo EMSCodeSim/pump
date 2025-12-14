@@ -11,8 +11,10 @@ import {
     setSelectedNozzles,
     getDeptHoses,
     getDeptNozzles,
-    HOSES_MATCHING_CHARTS
+    HOSES_MATCHING_CHARTS,
+    NOZ_LIST
 } from "./store.js";
+import { setDeptEquipment, setDeptSelections } from "./deptState.js";
 import { setDeptUiNozzles } from "./store.js";
 import { getLineDefaults, setLineDefaults } from "./store.js";
 
@@ -22,7 +24,7 @@ function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
 
 
-const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
+const STORAGE_DEPT_KEY = 'fireops_dept_state_v1'; // unified with calc/deptState
 
 function loadDeptConfig() {
     try {
@@ -46,6 +48,21 @@ function saveDeptConfig(update) {
     }
 }
 
+
+function loadDeptStateSelection(){
+  try{
+    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return {
+      selectedNozzleIds: Array.isArray(obj.selectedNozzleIds) ? obj.selectedNozzleIds.map(String) : [],
+      selectedHoseIds: Array.isArray(obj.selectedHoseIds) ? obj.selectedHoseIds.map(String) : [],
+    };
+  }catch(e){
+    return { selectedNozzleIds: [], selectedHoseIds: [] };
+  }
+}
+
+
 // ------- Render Existing Lists -------
 function renderHoseSelector() {
     const wrapper = qs("#dept-hose-list");
@@ -67,21 +84,22 @@ function renderNozzleSelector() {
     const wrapper = qs("#dept-nozzle-list");
     if (!wrapper) return;
 
-    const dept = loadDeptConfig();
-    const selectedIds = new Set(
-        Array.isArray(dept.nozzles) ? dept.nozzles.map(String) : []
-    );
+    // Build the FULL nozzle list from the canonical catalog + custom nozzles.
+    const builtIn = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    const custom  = Array.isArray(store.customNozzles) ? store.customNozzles : [];
+    const all = builtIn.concat(custom).filter(n => n && n.id);
 
-    const nozzles = getDeptNozzleLibrary();
+    const selState = loadDeptStateSelection();
+    const selected = new Set(selState.selectedNozzleIds || []);
 
-    wrapper.innerHTML = nozzles.map(n => `
+    wrapper.innerHTML = all.map(n => `
         <label class="dept-item">
-            <input 
-                type="checkbox" 
-                class="dept-nozzle-check" 
-                value="${n.id}" 
-                ${selectedIds.has(String(n.id)) ? "checked" : ""} >
-            ${n.label}
+            <input
+                type="checkbox"
+                class="dept-nozzle-check"
+                value="${n.id}"
+                ${selected.has(String(n.id)) ? "checked" : ""} >
+            ${n.label || n.name || n.id}
         </label>
     `).join("");
 }
@@ -202,10 +220,26 @@ function setupSaveButtons() {
         saveNozzlesBtn.onclick = () => {
             const selectedIds = qsa(".dept-nozzle-check")
                 .filter(el => el.checked)
-                .map(el => el.value);
+                .map(el => String(el.value));
 
-            // Persist to shared department config used by presets / calc
-            saveDeptConfig({ nozzles: selectedIds });
+            // Unify with calc: persist via deptState (fireops_dept_state_v1) and sync DEPT_UI_NOZZLES
+            try {
+                const builtIn = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+                const custom  = Array.isArray(store.customNozzles) ? store.customNozzles : [];
+                const all = builtIn.concat(custom).filter(n => n && n.id);
+
+                // Ensure deptState knows the full catalog (includes custom)
+                setDeptEquipment({
+                    nozzlesAll: all,
+                    hosesAll: HOSES_MATCHING_CHARTS,
+                    accessoriesAll: []
+                });
+
+                // Persist selections (this will also sync UI lists via deptState)
+                setDeptSelections({ nozzleIds: selectedIds });
+            } catch (e) {
+                console.warn("deptState nozzle save failed", e);
+            }
 
             // Keep store.js Dept UI list in sync (store.getDeptNozzles() resolves ids to full objects)
             try {
@@ -225,7 +259,13 @@ function setupSaveButtons() {
                 console.warn("setSelectedNozzles failed", e);
             }
 
-            alert("Department nozzle selection saved!");
+            // Refresh Line 1/2/3 dropdowns so they reflect the unified list immediately
+            try {
+                populateDropdowns();
+                renderLineDefaults();
+            } catch (e) {}
+
+            alert("Department nozzle selection saved");
         };
     }
 
