@@ -373,14 +373,16 @@ const NOZZLES_FOG = [
 ];
 
 const NOZZLES_MASTER = [
-  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
-  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
-  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
-  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
-  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
-  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
-  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
-  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
+  // These IDs are the *canonical* nozzle IDs used by store.js / calc dropdowns.
+  { id: 'ms1_3_8_80',  label: 'MS 1 3/8" @ 80' },
+  { id: 'ms1_1_2_80',  label: 'MS 1 1/2" @ 80' },
+  { id: 'ms1_3_4_80',  label: 'MS 1 3/4" @ 80' },
+  { id: 'ms2_80',      label: 'MS 2" @ 80' },
+
+  // Master stream fog nozzles (canonical IDs)
+  { id: 'fog500_100',  label: 'Fog 500 @ 100' },
+  { id: 'fog750_100',  label: 'Fog 750 @ 100' },
+  { id: 'fog1000_100', label: 'Fog 1000 @ 100' },
 ];
 
 const NOZZLES_SPECIAL = [
@@ -861,7 +863,7 @@ function renderNozzleSelectionScreen() {
       if (psi > 0) labelParts.push('@ ' + psi + ' psi');
       const fullLabel = labelParts.join(' ');
 
-      const custom = { id, label: fullLabel, type, gpm, psi };
+      const custom = { id, label: fullLabel, type, gpm, NP: psi, psi };
       if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
       state.customNozzles.push(custom);
 
@@ -1978,90 +1980,76 @@ export function getDeptNozzleIds() {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
 
-    const raw = Array.isArray(dept.nozzles) ? dept.nozzles : [];
-    const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    const result = [];
+    const seen = new Set();
 
-    // Build lookup tables for custom nozzles (id + label)
-    const customIdSet = new Set();
-    const customLabelToId = new Map();
-    customs.forEach((n, idx) => {
-      if (!n || typeof n !== 'object') return;
-      const id = String(n.id || n.calcId || n.key || `custom_noz_${idx}`).trim();
-      if (!id) return;
-      customIdSet.add(id);
-      const label = String(n.label || n.name || n.desc || '').trim();
-      if (label) customLabelToId.set(label, id);
+    // Normalize the raw selections list (what the user actually checked
+    // in the Department Setup → Nozzles screen).
+    const rawSelected = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+    const selectedSet = new Set(
+      rawSelected
+        .map(v => (v == null ? '' : String(v).trim()))
+        .filter(Boolean)
+    );
+
+    // 1) Built-in department nozzles (checkbox list)
+    rawSelected.forEach(raw => {
+      if (raw == null) return;
+      const trimmed = String(raw).trim();
+      if (!trimmed) return;
+
+      let mapped = null;
+
+      // New style: dept.nozzles stores internal nozzle IDs
+      // that already exist in NOZ (e.g. 'fog185_50', 'sb1516_50', etc.).
+      if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, trimmed)) {
+        mapped = trimmed;
+      } else {
+        // Legacy style: dept.nozzles stored a display label that
+        // must be mapped via DEPT_NOZ_TO_CALC_NOZ.
+        const viaMap = DEPT_NOZ_TO_CALC_NOZ[trimmed];
+        if (typeof viaMap === 'string' && viaMap) {
+          mapped = viaMap;
+        }
+      }
+
+      if (mapped && !seen.has(mapped)) {
+        seen.add(mapped);
+        result.push(mapped);
+      }
     });
 
-    function canonicalize(rawVal) {
-      if (rawVal == null) return null;
-      const v = String(rawVal).trim();
-      if (!v) return null;
+    // 2) Custom nozzles
+    // Only include a custom nozzle if it is actually selected in dept.nozzles.
+    if (Array.isArray(dept.customNozzles) && selectedSet.size) {
+      dept.customNozzles.forEach((n, idx) => {
+        if (!n || typeof n !== 'object') return;
 
-      // 1) Custom nozzle by id
-      if (customIdSet.has(v)) return v;
+        const rawId = (n.id || n.calcId || n.key || `custom_noz_${idx}`);
+        const id = String(rawId).trim();
+        if (!id) return;
 
-      // 2) Custom nozzle by label (legacy saves)
-      const byLabel = customLabelToId.get(v);
-      if (byLabel) return byLabel;
+        const label = (n.label || n.name || n.desc || '').trim();
 
-      // 3) Built-in nozzle id
-      if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, v)) return v;
+        const isSelected =
+          selectedSet.has(id) ||
+          (label && selectedSet.has(label));
 
-      // 4) Legacy mapping table
-      const mapped = DEPT_NOZ_TO_CALC_NOZ[v];
-      if (mapped && NOZ && Object.prototype.hasOwnProperty.call(NOZ, mapped)) return mapped;
+        if (!isSelected) return;
 
-      // 5) Suffix normalization: allow _50 and non-_50 variants
-      if (v.endsWith('_50')) {
-        const base = v.replace(/_50$/, '');
-        if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, base)) return base;
-      } else {
-        const with50 = `${v}_50`;
-        if (NOZ && Object.prototype.hasOwnProperty.call(NOZ, with50)) return with50;
-      }
-
-      return null;
+        if (!seen.has(id)) {
+          seen.add(id);
+          result.push(id);
+        }
+      });
     }
 
-    // Canonicalize selections
-    const out = [];
-    const seen = new Set();
-    for (const r of raw) {
-      const id = canonicalize(r);
-      if (!id) continue;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      out.push(id);
-    }
-
-    // IMPORTANT: persist canonical IDs back to storage so EVERY screen uses one system.
-    // This prevents "falls back to first option" and stops junk legacy ids from reappearing.
-    try {
-      const needsRewrite =
-        out.length !== raw.length ||
-        raw.some((v, i) => String(v ?? '').trim() !== String(out[i] ?? '').trim());
-
-      if (needsRewrite) {
-        dept.nozzles = out;
-        localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify({
-          nozzles: Array.isArray(dept.nozzles) ? dept.nozzles : [],
-          customNozzles: Array.isArray(dept.customNozzles) ? dept.customNozzles : [],
-          hoses: Array.isArray(dept.hoses) ? dept.hoses : [],
-          customHoses: Array.isArray(dept.customHoses) ? dept.customHoses : [],
-        }));
-      }
-    } catch (e) {
-      // ignore rewrite failures
-    }
-
-    return out;
+    return result;
   } catch (e) {
     console.warn('getDeptNozzleIds failed', e);
     return [];
   }
 }
-
 
 
 export function getDeptHoseDiameters() {
