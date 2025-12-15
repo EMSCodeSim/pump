@@ -1,5 +1,4 @@
 
-
 import { openPresetEditorPopup } from './view.presetEditor.js';
 import * as lineStandard from './view.lineStandard.js';
 import { openMasterStreamPopup }   from './view.lineMaster.js';
@@ -34,7 +33,6 @@ const openStandardLinePopup =
 
 const STORAGE_KEY = 'fireops_presets_v1';
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
-
 const STORAGE_DEPT_STATE_KEY = 'fireops_dept_state_v1';
 const STORAGE_LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
 
@@ -376,17 +374,14 @@ const NOZZLES_FOG = [
 ];
 
 const NOZZLES_MASTER = [
-  // Canonical IDs used by the calc nozzle catalog (store.js / NOZ_LIST)
-  { id: 'ms1_3_8_80',   label: 'MS 1 3/8" @ 80' },
-  { id: 'ms1_1_2_80',   label: 'MS 1 1/2" @ 80' },
-  { id: 'ms1_3_4_80',   label: 'MS 1 3/4" @ 80' },
-  { id: 'ms2_80',       label: 'MS 2" @ 80' },
-
-  // Master stream fog (canonical)
-  { id: 'fog500_100',   label: 'Master fog 500 gpm @ 100' },
-  { id: 'fog750_100',   label: 'Master fog 750 gpm @ 100' },
-  { id: 'fog1000_100',  label: 'Master fog 1000 gpm @ 100' },
-  { id: 'fog1250_100',  label: 'Master fog 1250 gpm @ 100' },
+  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
+  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
+  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
+  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
+  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
+  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
+  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
+  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
 ];
 
 const NOZZLES_SPECIAL = [
@@ -474,56 +469,86 @@ function savePresetsToStorage() {
   }
 }
 
-function loadDeptFromStorage() {
+function loadDeptStateFromStorage() {
   try {
-    const base = { ...STORAGE_DEPT_DEFAULT };
-
-    // Primary: equipment key (legacy + current in many builds)
-    const rawEquip = localStorage.getItem(STORAGE_DEPT_KEY);
-    let equip = null;
-    if (rawEquip) {
-      try { equip = JSON.parse(rawEquip); } catch (e) { equip = null; }
-    }
-
-    // Secondary: deptState key (used by the newer Calc UI pipeline)
-    const rawState = localStorage.getItem(STORAGE_DEPT_STATE_KEY);
-    let state = null;
-    if (rawState) {
-      try { state = JSON.parse(rawState); } catch (e) { state = null; }
-    }
-
-    const out = {
-      ...base,
-      ...(equip && typeof equip === 'object' ? equip : {})
-    };
-
-    // If the newer state object has nozzleIds, prefer it for the selected nozzle IDs
-    // so Dept Setup + Calc are always reading the same selection list.
-    if (state && typeof state === 'object') {
-      if (Array.isArray(state.nozzleIds) && state.nozzleIds.length) {
-        out.nozzles = state.nozzleIds;
-      } else if (Array.isArray(state.nozzles) && state.nozzles.length) {
-        out.nozzles = state.nozzles;
-      }
-      // keep customNozzles primarily from equipment store (where the custom builder saves)
-      if (Array.isArray(state.customNozzles) && state.customNozzles.length && (!Array.isArray(out.customNozzles) || !out.customNozzles.length)) {
-        out.customNozzles = state.customNozzles;
-      }
-    }
-
-    // Ensure arrays
-    out.nozzles = Array.isArray(out.nozzles) ? out.nozzles : [];
-    out.customNozzles = Array.isArray(out.customNozzles) ? out.customNozzles : [];
-    out.hoses = Array.isArray(out.hoses) ? out.hoses : [];
-    out.customHoses = Array.isArray(out.customHoses) ? out.customHoses : [];
-    out.accessories = Array.isArray(out.accessories) ? out.accessories : [];
-    out.customAccessories = Array.isArray(out.customAccessories) ? out.customAccessories : [];
-
-    return out;
+    const raw = localStorage.getItem(STORAGE_DEPT_STATE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
   } catch (e) {
-    console.warn('loadDeptFromStorage failed', e);
-    return { ...STORAGE_DEPT_DEFAULT };
+    console.warn('Dept state load failed', e);
+    return null;
   }
+}
+
+function loadDeptFromStorage() {
+  // Legacy dept equipment store (fireops_dept_equipment_v1)
+  let legacy = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') legacy = parsed;
+    }
+  } catch (e) {
+    console.warn('Dept load failed', e);
+  }
+
+  // New dept state store (fireops_dept_state_v1)
+  const state = loadDeptStateFromStorage();
+
+  // Start from defaults
+  const out = {
+    ...STORAGE_DEPT_DEFAULT,
+    nozzles: [],
+    customNozzles: [],
+    hoses: [],
+    customHoses: [],
+    accessories: [],
+    customAccessories: [],
+  };
+
+  // Apply legacy fields
+  if (legacy && typeof legacy === 'object') {
+    out.nozzles = Array.isArray(legacy.nozzles) ? legacy.nozzles : [];
+    out.customNozzles = Array.isArray(legacy.customNozzles) ? legacy.customNozzles : [];
+    out.hoses = Array.isArray(legacy.hoses) ? legacy.hoses : [];
+    out.customHoses = Array.isArray(legacy.customHoses) ? legacy.customHoses : [];
+    out.accessories = Array.isArray(legacy.accessories) ? legacy.accessories : [];
+    out.customAccessories = Array.isArray(legacy.customAccessories) ? legacy.customAccessories : [];
+  }
+
+  // If state store has selectedNozzleIds, treat that as authoritative selection list
+  if (state && Array.isArray(state.selectedNozzleIds) && state.selectedNozzleIds.length) {
+    out.nozzles = state.selectedNozzleIds.map(String);
+  }
+
+  // Merge custom nozzles from deptState.nozzlesAll when present
+  // deptState already normalizes objects to {id,label,gpm,np}
+  if (state && Array.isArray(state.nozzlesAll) && state.nozzlesAll.length) {
+    const stateCustoms = state.nozzlesAll
+      .filter(n => n && typeof n === 'object')
+      .filter(n => {
+        const id = String(n.id ?? '');
+        // consider it "custom" if it is not in NOZ catalog OR has explicit gpm/np fields
+        const inCatalog = !!(NOZ && id && NOZ[id]);
+        const hasNums = typeof n.gpm === 'number' || typeof n.np === 'number' || typeof n.NP === 'number';
+        return !inCatalog || hasNums;
+      })
+      .map((n, idx) => ({
+        id: String(n.id ?? `custom_noz_${idx}`),
+        label: String(n.label || n.name || n.desc || n.id || `Custom nozzle ${idx+1}`),
+        gpm: typeof n.gpm === 'number' ? n.gpm : (typeof n.flow === 'number' ? n.flow : 0),
+        psi: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
+        NP: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
+        np: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
+        name: String(n.label || n.name || n.desc || n.id || `Custom nozzle ${idx+1}`),
+      }));
+    // Prefer state customs if any exist, else keep legacy customs
+    if (stateCustoms.length) out.customNozzles = stateCustoms;
+  }
+
+  return out;
 }
 
 function saveDeptToStorage() {
@@ -2003,15 +2028,26 @@ const DEPT_NOZ_TO_CALC_NOZ = {
   "ms_tip_112_600": "ms1_1_2_80",
   "ms_tip_134_800": "ms1_3_4_80",
   "ms_tip_2_1000": "ms2_80",
-  "ms_fog_500": "fog500_100",
-  "ms_fog_750": "fog750_100",
-  "ms_fog_1000": "fog1000_100",
-  "ms_fog_1250": "fog1250_100"
+  "ms_fog_500": "ms1_3_8_80",
+  "ms_fog_750": "ms1_1_2_80",
+  "ms_fog_1000": "ms2_80",
+  "ms_fog_1250": "ms2_80"
 };
 
 
 
 export function getDeptNozzleIds() {
+  // Prefer new deptState selections if present
+  try {
+    const state = loadDeptStateFromStorage();
+    if (state && Array.isArray(state.selectedNozzleIds) && state.selectedNozzleIds.length) {
+      const ids = state.selectedNozzleIds.map(String);
+      // keep only ids that are in NOZ catalog OR exist in custom nozzle list
+      const customs = getDeptCustomNozzlesForCalc().map(n => String(n.id));
+      const customSet = new Set(customs);
+      return ids.filter(id => (NOZ && NOZ[id]) || customSet.has(id));
+    }
+  } catch (e) {}
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
@@ -2210,54 +2246,40 @@ if (typeof window !== 'undefined') {
 export function getDeptCustomNozzlesForCalc() {
   try {
     const dept = loadDeptFromStorage();
-    if (!dept || typeof dept !== 'object') return [];
-
     const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    return customs.map((n, idx) => {
+      if (!n || typeof n !== 'object') return null;
 
-    // Normalize into canonical calc nozzle objects:
-    // { id, label, name, gpm, NP, np, psi }
-    return customs
-      .map((n, idx) => {
-        if (!n || typeof n !== 'object') return null;
+      const id =
+        n.id != null ? String(n.id).trim() :
+        n.key != null ? String(n.key).trim() :
+        `custom_noz_${idx}`;
 
-        const idRaw =
-          n.id != null ? String(n.id).trim() :
-          n.key != null ? String(n.key).trim() :
-          `custom_noz_${idx}`;
+      const labelRaw = String(n.label || n.name || n.title || id).trim();
 
-        const id = idRaw || `custom_noz_${idx}`;
+      const gpmNum =
+        typeof n.gpm === 'number' ? n.gpm :
+        typeof n.flow === 'number' ? n.flow :
+        typeof n.gpm === 'string' ? Number(n.gpm) :
+        typeof n.flow === 'string' ? Number(n.flow) : NaN;
 
-        const labelRaw =
-          (n.label != null ? String(n.label) :
-          n.name != null ? String(n.name) :
-          n.title != null ? String(n.title) : '').trim();
+      const psiNum =
+        typeof n.NP === 'number' ? n.NP :
+        typeof n.np === 'number' ? n.np :
+        typeof n.psi === 'number' ? n.psi :
+        typeof n.pressure === 'number' ? n.pressure :
+        typeof n.NP === 'string' ? Number(n.NP) :
+        typeof n.np === 'string' ? Number(n.np) :
+        typeof n.psi === 'string' ? Number(n.psi) :
+        typeof n.pressure === 'string' ? Number(n.pressure) : NaN;
 
-        // Accept numeric or string inputs for flow/pressure
-        const gpmNum =
-          (typeof n.gpm === 'number' ? n.gpm :
-          typeof n.flow === 'number' ? n.flow :
-          typeof n.gpm === 'string' ? Number(n.gpm) :
-          typeof n.flow === 'string' ? Number(n.flow) : NaN);
+      const gpm = Number.isFinite(gpmNum) ? gpmNum : 0;
+      const NP = Number.isFinite(psiNum) ? psiNum : 0;
 
-        const psiNum =
-          (typeof n.NP === 'number' ? n.NP :
-          typeof n.np === 'number' ? n.np :
-          typeof n.psi === 'number' ? n.psi :
-          typeof n.pressure === 'number' ? n.pressure :
-          typeof n.NP === 'string' ? Number(n.NP) :
-          typeof n.np === 'string' ? Number(n.np) :
-          typeof n.psi === 'string' ? Number(n.psi) :
-          typeof n.pressure === 'string' ? Number(n.pressure) : NaN);
+      const label = labelRaw || `Custom nozzle ${gpm} gpm @ ${NP} psi`;
 
-        const gpm = Number.isFinite(gpmNum) ? gpmNum : 0;
-        const NP = Number.isFinite(psiNum) ? psiNum : 0;
-
-        // If no custom label was stored, build one that matches the calc dropdown style
-        const label = labelRaw || `Custom nozzle ${gpm} gpm @ ${NP} psi`;
-
-        return { id, label, name: label, gpm, NP, np: NP, psi: NP };
-      })
-      .filter(Boolean);
+      return { id, label, name: label, gpm, NP, np: NP, psi: NP };
+    }).filter(Boolean);
   } catch (e) {
     console.warn('getDeptCustomNozzlesForCalc failed', e);
     return [];
