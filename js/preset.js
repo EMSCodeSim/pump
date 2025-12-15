@@ -7,7 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ } from './store.js';
+import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -346,54 +346,41 @@ const STORAGE_DEPT_DEFAULT = {
   customAccessories: [],
 };
 
-// NOZZLES
-const NOZZLES_SMOOTH = [
-  { id: 'sb_78_50_160',   label: '7/8" smooth bore 160 gpm @ 50 psi' },
-  { id: 'sb_1516_50_185', label: '15/16" smooth bore 185 gpm @ 50 psi' },
-  { id: 'sb_1_50_210',    label: '1" smooth bore 210 gpm @ 50 psi' },
-  { id: 'sb_1118_50_265', label: '1 1/8" smooth bore 265 gpm @ 50 psi' },
-  { id: 'sb_114_50_325',  label: '1 1/4" smooth bore 325 gpm @ 50 psi' },
-];
+// NOZZLES (single source of truth – derived from store.js NOZ_LIST)
+// NOTE: We do NOT hardcode a second nozzle catalog in preset.js.
+// Everything here is built from the same list calc uses.
+function buildNozzleGroupsFromStore() {
+  const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+  const groups = { smooth: [], fog: [], master: [], special: [] };
 
-const NOZZLES_FOG = [
-  { id: 'fog_15_100_95',       label: '1½" fog 95 gpm @ 100 psi' },
-  { id: 'fog_15_100_125',      label: '1½" fog 125 gpm @ 100 psi' },
-  { id: 'fog_175_75_150',      label: '1¾" fog 150 gpm @ 75 psi' },
-  { id: 'fog_175_100_150',     label: '1¾" fog 150 gpm @ 100 psi' },
+  for (const n of list) {
+    if (!n) continue;
+    const id = String(n.id ?? '').trim();
+    if (!id) continue;
+    const label = String(n.label || n.name || id);
 
-  // Chief XD options
-  { id: 'fog_xd_175_75_150',   label: 'Chief XD 1¾" 150 gpm @ 75 psi' },
-  { id: 'fog_xd_175_75_185',   label: 'Chief XD 1¾" 185 gpm @ 75 psi' },
-  { id: 'fog_xd_175_50_165',   label: 'Chief XD 1¾" 165 gpm @ 50 psi' },
-  { id: 'fog_xd_175_50_185',   label: 'Chief XD 1¾" 185 gpm @ 50 psi' },
-  { id: 'fog_xd_25_50_265',    label: 'Chief XD 2½" 265 gpm @ 50 psi' },
+    let bucket = 'special';
+    if (id.startsWith('sb')) bucket = 'smooth';
+    else if (id.startsWith('ms') || id.startsWith('fog500') || id.startsWith('fog750') || id.startsWith('fog1000')) bucket = 'master';
+    else if (id.startsWith('fog') || id.startsWith('chief')) bucket = 'fog';
+    else if (id.startsWith('sp_')) bucket = 'special';
 
-  { id: 'fog_25_100_250',      label: '2½" fog 250 gpm @ 100 psi' },
-  { id: 'fog_25_100_300',      label: '2½" fog 300 gpm @ 100 psi' },
-];
+    groups[bucket].push({ id, label });
+  }
 
-const NOZZLES_MASTER = [
-  // These IDs are the *canonical* nozzle IDs used by store.js / calc dropdowns.
-  { id: 'ms1_3_8_80',  label: 'MS 1 3/8" @ 80' },
-  { id: 'ms1_1_2_80',  label: 'MS 1 1/2" @ 80' },
-  { id: 'ms1_3_4_80',  label: 'MS 1 3/4" @ 80' },
-  { id: 'ms2_80',      label: 'MS 2" @ 80' },
+  // Keep UI stable (alphabetical labels)
+  for (const k of Object.keys(groups)) {
+    groups[k].sort((a,b) => String(a.label).localeCompare(String(b.label)));
+  }
 
-  // Master stream fog nozzles (canonical IDs)
-  { id: 'fog500_100',  label: 'Fog 500 @ 100' },
-  { id: 'fog750_100',  label: 'Fog 750 @ 100' },
-  { id: 'fog1000_100', label: 'Fog 1000 @ 100' },
-];
+  return groups;
+}
 
-const NOZZLES_SPECIAL = [
-  { id: 'sp_celler',        label: 'Celler nozzle' },
-  { id: 'sp_piercing',      label: 'Piercing nozzle (pike pole)' },
-  { id: 'sp_bresnan',       label: 'Bresnan distributor' },
-  { id: 'sp_distributor',   label: 'Rotary distributor nozzle' },
-  { id: 'sp_foammaster',    label: 'High expansion foam nozzle' },
-  { id: 'sp_forestry',      label: 'Forestry nozzle (1")' },
-  { id: 'sp_wildland_gated',label: 'Wildland gated wye / nozzle set' },
-];
+const __NOZ_GROUPS = buildNozzleGroupsFromStore();
+const NOZZLES_SMOOTH  = __NOZ_GROUPS.smooth;
+const NOZZLES_FOG     = __NOZ_GROUPS.fog;
+const NOZZLES_MASTER  = __NOZ_GROUPS.master;
+const NOZZLES_SPECIAL = __NOZ_GROUPS.special;
 
 // HOSES
 const HOSES_ATTACK = [
