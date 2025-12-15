@@ -516,12 +516,7 @@ function normalizeDeptItem(item, fallbackPrefix, index) {
       ? String(item.id)
       : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
     const label = item.label || item.name || String(id);
-    const out = { id, label, ...item };
-// Back-compat: some custom nozzles store pressure as `psi`
-if ((out.NP == null && out.np == null && out.pressure == null) && out.psi != null) out.NP = out.psi;
-// Back-compat: some store flow as `flow`
-if (out.gpm == null && out.flow != null) out.gpm = out.flow;
-return out;
+    return { id, label, ...item };
   }
   const id = String(item);
   return { id, label: id, raw: item };
@@ -547,17 +542,12 @@ export function getDeptEquipment() {
 
   const {
     nozzles = [],
-    customNozzles = [],
     hoses = [],
     accessories = [],
   } = raw;
 
   const normNozzles = Array.isArray(nozzles)
     ? nozzles.map((n, i) => normalizeDeptItem(n, 'noz', i))
-    : [];
-
-  const normCustomNozzles = Array.isArray(customNozzles)
-    ? customNozzles.map((n, i) => normalizeDeptItem(n, 'custom_noz', i))
     : [];
 
   const normHoses = Array.isArray(hoses)
@@ -571,7 +561,6 @@ export function getDeptEquipment() {
   return {
     ...raw,
     nozzles: normNozzles,
-    customNozzles: normCustomNozzles,
     hoses: normHoses,
     accessories: normAccessories,
   };
@@ -583,10 +572,7 @@ export function getDeptEquipment() {
  */
 export function getDeptNozzleOptions() {
   const dept = getDeptEquipment();
-  const base = Array.isArray(dept.nozzles) ? dept.nozzles : [];
-  const custom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-  // Merge, preserving order (standard first, then custom)
-  return [...base, ...custom];
+  return Array.isArray(dept.nozzles) ? dept.nozzles : [];
 }
 
 /**
@@ -2186,20 +2172,47 @@ if (typeof window !== 'undefined') {
 export function getDeptCustomNozzlesForCalc() {
   try {
     const dept = loadDeptFromStorage();
-    if (!dept || typeof dept !== 'object') return [];
-    const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-    // Normalize into { id, label, gpm, np }
+    const customs = (dept && Array.isArray(dept.customNozzles)) ? dept.customNozzles : [];
+    if (!customs.length) return [];
+
     return customs.map((n, idx) => {
       if (!n || typeof n !== 'object') return null;
-      const id = n.id || n.calcId || n.key || `custom_noz_${idx}`;
-      const label = n.label || n.name || n.desc || id;
-      const gpm = typeof n.gpm === 'number'
-        ? n.gpm
-        : (typeof n.flow === 'number' ? n.flow : null);
-      const np = typeof n.np === 'number'
-        ? n.np
-        : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : null));
-      return { id, label, gpm, np };
+
+      const id = String(n.id || n.calcId || n.key || `custom_noz_${idx}`).trim();
+      if (!id) return null;
+
+      const name = String((n.name || n.title || '')).trim();
+
+      // Hydraulics
+      const gpm = Number(
+        (typeof n.gpm === 'number' ? n.gpm :
+         typeof n.flow === 'number' ? n.flow :
+         typeof n.GPM === 'number' ? n.GPM : NaN)
+      );
+      const NP = Number(
+        (typeof n.NP === 'number' ? n.NP :
+         typeof n.np === 'number' ? n.np :
+         typeof n.psi === 'number' ? n.psi :
+         typeof n.pressure === 'number' ? n.pressure : NaN)
+      );
+
+      const gpmOk = Number.isFinite(gpm) ? gpm : 0;
+      const npOk  = Number.isFinite(NP) ? NP : 0;
+
+      // Label: prefer explicit saved label; if missing, build a consistent one
+      let label = String((n.label || n.desc || '')).trim();
+      if (!label) {
+        label = name || 'Custom nozzle';
+        if (gpmOk) label += ` ${gpmOk} gpm`;
+        if (npOk)  label += ` @ ${npOk} psi`;
+      }
+
+      // Ensure label contains pressure when NP is non-standard (e.g., 33 psi)
+      if (npOk && !/\bpsi\b/i.test(label)) {
+        label += ` @ ${npOk} psi`;
+      }
+
+      return { id, name: name || label, label, gpm: gpmOk, NP: npOk, np: npOk };
     }).filter(Boolean);
   } catch (e) {
     console.warn('getDeptCustomNozzlesForCalc failed', e);
