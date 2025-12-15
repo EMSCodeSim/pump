@@ -7,7 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ } from './store.js';
+import { setDeptLineDefault, setSelectedNozzles, addCustomNozzle, canonicalNozzleId, NOZ_LIST, store, saveStore } from './store.js';
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -33,7 +33,6 @@ const openStandardLinePopup =
 
 const STORAGE_KEY = 'fireops_presets_v1';
 const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
-const STORAGE_DEPT_STATE_KEY = 'fireops_dept_state_v1';
 const STORAGE_LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
 
 let state = {
@@ -374,14 +373,16 @@ const NOZZLES_FOG = [
 ];
 
 const NOZZLES_MASTER = [
-  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
-  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
-  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
-  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
-  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
-  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
-  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
-  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
+  // These IDs are the *canonical* nozzle IDs used by store.js / calc dropdowns.
+  { id: 'ms1_3_8_80',  label: 'MS 1 3/8" @ 80' },
+  { id: 'ms1_1_2_80',  label: 'MS 1 1/2" @ 80' },
+  { id: 'ms1_3_4_80',  label: 'MS 1 3/4" @ 80' },
+  { id: 'ms2_80',      label: 'MS 2" @ 80' },
+
+  // Master stream fog nozzles (canonical IDs)
+  { id: 'fog500_100',  label: 'Fog 500 @ 100' },
+  { id: 'fog750_100',  label: 'Fog 750 @ 100' },
+  { id: 'fog1000_100', label: 'Fog 1000 @ 100' },
 ];
 
 const NOZZLES_SPECIAL = [
@@ -463,105 +464,38 @@ function loadPresetsFromStorage() {
 
 function savePresetsToStorage() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.presets || []));
-  } catch (e) {
-    console.warn('Preset save failed', e);
-  }
-}
-
-function loadDeptStateFromStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.presfunction loadDeptFromStorage() {
+  // Single source of truth: store.js persisted STORE_KEY (fireops_store_v1).
+  // We mirror the shape this module expects.
   try {
-    const raw = localStorage.getItem(STORAGE_DEPT_STATE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    return {
+      nozzles: Array.isArray(store?.deptSelectedNozzles) ? store.deptSelectedNozzles.map(String) : [],
+      customNozzles: Array.isArray(store?.customNozzles) ? store.customNozzles : [],
+      hoses: Array.isArray(store?.deptSelectedHoses) ? store.deptSelectedHoses.map(String) : [],
+      customHoses: Array.isArray(store?.customHoses) ? store.customHoses : [],
+      accessories: [],
+      customAccessories: [],
+    };
   } catch (e) {
-    console.warn('Dept state load failed', e);
-    return null;
+    console.warn('Dept load (store.js) failed', e);
+    return { ...STORAGE_DEPT_DEFAULT };
   }
-}
-
-function loadDeptFromStorage() {
-  // Legacy dept equipment store (fireops_dept_equipment_v1)
-  let legacy = null;
-  try {
-    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') legacy = parsed;
-    }
-  } catch (e) {
-    console.warn('Dept load failed', e);
-  }
-
-  // New dept state store (fireops_dept_state_v1)
-  const state = loadDeptStateFromStorage();
-
-  // Start from defaults
-  const out = {
-    ...STORAGE_DEPT_DEFAULT,
-    nozzles: [],
-    customNozzles: [],
-    hoses: [],
-    customHoses: [],
-    accessories: [],
-    customAccessories: [],
-  };
-
-  // Apply legacy fields
-  if (legacy && typeof legacy === 'object') {
-    out.nozzles = Array.isArray(legacy.nozzles) ? legacy.nozzles : [];
-    out.customNozzles = Array.isArray(legacy.customNozzles) ? legacy.customNozzles : [];
-    out.hoses = Array.isArray(legacy.hoses) ? legacy.hoses : [];
-    out.customHoses = Array.isArray(legacy.customHoses) ? legacy.customHoses : [];
-    out.accessories = Array.isArray(legacy.accessories) ? legacy.accessories : [];
-    out.customAccessories = Array.isArray(legacy.customAccessories) ? legacy.customAccessories : [];
-  }
-
-  // If state store has selectedNozzleIds, treat that as authoritative selection list
-  if (state && Array.isArray(state.selectedNozzleIds) && state.selectedNozzleIds.length) {
-    out.nozzles = state.selectedNozzleIds.map(String);
-  }
-
-  // Merge custom nozzles from deptState.nozzlesAll when present
-  // deptState already normalizes objects to {id,label,gpm,np}
-  if (state && Array.isArray(state.nozzlesAll) && state.nozzlesAll.length) {
-    const stateCustoms = state.nozzlesAll
-      .filter(n => n && typeof n === 'object')
-      .filter(n => {
-        const id = String(n.id ?? '');
-        // consider it "custom" if it is not in NOZ catalog OR has explicit gpm/np fields
-        const inCatalog = !!(NOZ && id && NOZ[id]);
-        const hasNums = typeof n.gpm === 'number' || typeof n.np === 'number' || typeof n.NP === 'number';
-        return !inCatalog || hasNums;
-      })
-      .map((n, idx) => ({
-        id: String(n.id ?? `custom_noz_${idx}`),
-        label: String(n.label || n.name || n.desc || n.id || `Custom nozzle ${idx+1}`),
-        gpm: typeof n.gpm === 'number' ? n.gpm : (typeof n.flow === 'number' ? n.flow : 0),
-        psi: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
-        NP: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
-        np: typeof n.np === 'number' ? n.np : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : 0)),
-        name: String(n.label || n.name || n.desc || n.id || `Custom nozzle ${idx+1}`),
-      }));
-    // Prefer state customs if any exist, else keep legacy customs
-    if (stateCustoms.length) out.customNozzles = stateCustoms;
-  }
-
-  return out;
 }
 
 function saveDeptToStorage() {
+  // Persist nozzle selections through store.js so Calc + Department Setup stay in sync.
   try {
-    const payload = {
-      nozzles: state.deptNozzles || [],
-      customNozzles: state.customNozzles || [],
-      hoses: state.deptHoses || [],
-      customHoses: state.customHoses || [],
-      accessories: state.deptAccessories || [],
-      customAccessories: state.customAccessories || [],
-    };
-    localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(payload));
+    if (Array.isArray(state.deptNozzles)) {
+      const ids = state.deptNozzles.map(id => canonicalNozzleId(id)).filter(Boolean);
+      setSelectedNozzles(ids);
+    }
+    // Custom nozzles are persisted by addCustomNozzle(); keep a best-effort save here too.
+    saveStore();
+  } catch (e) {
+    console.warn('Dept save (store.js) failed', e);
+  }
+}
+ingify(payload));
   } catch (e) {
     console.warn('Dept save failed', e);
   }
@@ -774,63 +708,79 @@ function renderNozzleSelectionScreen() {
 
   titleEl.textContent = 'Department nozzles';
 
-  const smoothHtml = NOZZLES_SMOOTH.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
+  // Build the library from the SAME catalog Calc uses.
+  const lib = (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).map(n => ({
+    id: String(n.id || ''),
+    label: String(n.name || n.label || n.id || ''),
+  })).filter(n => n.id && n.label);
 
-  const fogHtml = NOZZLES_FOG.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
+  const MASTER_IDS = new Set(['fog500_100','fog750_100','fog1000_100']);
 
-  const masterHtml = NOZZLES_MASTER.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
+  const groups = {
+    smooth: [],
+    fog: [],
+    master: [],
+    special: [],
+    custom: [],
+  };
 
-  const specialHtml = NOZZLES_SPECIAL.map(n => `
-    <label class="dept-option">
-      <input type="checkbox" data-noz-id="${n.id}">
-      <span>${n.label}</span>
-    </label>
-  `).join('');
+  for (const n of lib) {
+    if (n.id.startsWith('sb')) groups.smooth.push(n);
+    else if (n.id.startsWith('ms') || MASTER_IDS.has(n.id)) groups.master.push(n);
+    else if (n.id.startsWith('fog') || n.id.toLowerCase().includes('chief')) groups.fog.push(n);
+    else groups.special.push(n);
+  }
+
+  // Pull custom nozzles from store.js (already persisted via addCustomNozzle).
+  const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+  for (const c of custom) {
+    const id = String(c.id || '');
+    if (!id) continue;
+    const label = String(c.label || c.name || id);
+    groups.custom.push({ id, label });
+  }
+
+  function renderCheckboxList(items, dataAttr) {
+    return (items || []).map(n => `
+      <label class="dept-option">
+        <input type="checkbox" ${dataAttr}="${n.id}">
+        <span>${n.label}</span>
+      </label>
+    `).join('');
+  }
 
   bodyEl.innerHTML = `
     <p class="dept-intro">
-      Check the nozzles your department actually carries. These will be used in future
-      updates to shorten nozzle dropdowns and presets.
+      Check the nozzles your department actually carries. This list is built from the same nozzle catalog
+      used by the Calc page, so names and GPM/PSI match everywhere.
     </p>
 
     <div class="dept-columns">
       <div class="dept-column">
         <h3>Smooth bore</h3>
         <div class="dept-list" id="deptSmoothList">
-          ${smoothHtml}
+          ${renderCheckboxList(groups.smooth, 'data-noz-id')}
         </div>
       </div>
+
       <div class="dept-column">
         <h3>Fog / Combination</h3>
         <div class="dept-list" id="deptFogList">
-          ${fogHtml}
+          ${renderCheckboxList(groups.fog, 'data-noz-id')}
         </div>
       </div>
+
       <div class="dept-column">
         <h3>Master stream</h3>
         <div class="dept-list" id="deptMasterList">
-          ${masterHtml}
+          ${renderCheckboxList(groups.master, 'data-noz-id')}
         </div>
       </div>
+
       <div class="dept-column">
         <h3>Specialty</h3>
         <div class="dept-list" id="deptSpecialList">
-          ${specialHtml}
+          ${renderCheckboxList(groups.special, 'data-noz-id')}
         </div>
       </div>
     </div>
@@ -839,7 +789,7 @@ function renderNozzleSelectionScreen() {
       <h3>Custom nozzle</h3>
       <div class="dept-custom-row">
         <label>Name / label
-          <input type="text" id="customNozName" placeholder="Example: 1 3/4&quot; attack line 160 gpm @ 75 psi">
+          <input type="text" id="customNozName" placeholder="Example: Metro 1¾&quot; 160 gpm @ 75 psi">
         </label>
       </div>
       <div class="dept-custom-row">
@@ -849,18 +799,19 @@ function renderNozzleSelectionScreen() {
         <label>Nozzle PSI
           <input type="number" id="customNozPsi" inputmode="numeric" placeholder="75">
         </label>
-        <label>Type
-          <select id="customNozType">
-            <option value="smooth">Smooth bore</option>
-            <option value="fog">Fog / Combo</option>
-            <option value="master">Master stream</option>
-            <option value="special">Specialty</option>
-          </select>
-        </label>
       </div>
       <div class="dept-custom-row">
         <button type="button" class="btn-secondary" id="customNozAddBtn">Add custom nozzle</button>
       </div>
+
+      ${groups.custom.length ? `
+        <div style="margin-top:8px;">
+          <h3 style="margin:0 0 6px 0; font-size:0.8rem; color:#e5e7eb;">Custom nozzles (saved)</h3>
+          <div class="dept-list" id="deptCustomList">
+            ${renderCheckboxList(groups.custom, 'data-noz-id')}
+          </div>
+        </div>
+      ` : ''}
     </div>
   `;
 
@@ -869,34 +820,11 @@ function renderNozzleSelectionScreen() {
     <button type="button" class="btn-primary" id="deptNozSaveBtn">Save</button>
   `;
 
-  const smoothList = bodyEl.querySelector('#deptSmoothList');
-  const fogList    = bodyEl.querySelector('#deptFogList');
-  const masterList = bodyEl.querySelector('#deptMasterList');
-  const specialList= bodyEl.querySelector('#deptSpecialList');
-
-  // Render saved custom nozzles
-  const savedCustom = Array.isArray(state.customNozzles) ? state.customNozzles : [];
-  for (const cn of savedCustom) {
-    let host = null;
-    if (cn.type === 'smooth') host = smoothList;
-    else if (cn.type === 'fog') host = fogList;
-    else if (cn.type === 'master') host = masterList;
-    else host = specialList || fogList;
-    if (!host) continue;
-    const row = document.createElement('label');
-    row.className = 'dept-option';
-    row.innerHTML = `
-      <input type="checkbox" data-noz-id="${cn.id}">
-      <span>${cn.label}</span>
-    `;
-    host.appendChild(row);
-  }
-
-  // Pre-check based on state.deptNozzles
-  const selected = new Set(state.deptNozzles || []);
+  // Pre-check based on store selections (single source of truth)
+  const selected = new Set(Array.isArray(store?.deptSelectedNozzles) ? store.deptSelectedNozzles.map(String) : []);
   bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
     const id = cb.getAttribute('data-noz-id');
-    if (id && selected.has(id)) cb.checked = true;
+    if (id && selected.has(canonicalNozzleId(id))) cb.checked = true;
   });
 
   const addBtn = bodyEl.querySelector('#customNozAddBtn');
@@ -905,8 +833,7 @@ function renderNozzleSelectionScreen() {
       const nameEl = bodyEl.querySelector('#customNozName');
       const gpmEl  = bodyEl.querySelector('#customNozGpm');
       const psiEl  = bodyEl.querySelector('#customNozPsi');
-      const typeEl = bodyEl.querySelector('#customNozType');
-      if (!nameEl || !gpmEl || !psiEl || !typeEl) return;
+      if (!nameEl || !gpmEl || !psiEl) return;
 
       const name = String(nameEl.value || '').trim();
       if (!name) {
@@ -915,36 +842,25 @@ function renderNozzleSelectionScreen() {
       }
       const gpm = Number(gpmEl.value || 0);
       const psi = Number(psiEl.value || 0);
-      let type = String(typeEl.value || 'fog');
-      if (!['smooth','fog','master','special'].includes(type)) type = 'fog';
 
-      const id = 'custom_noz_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-      const labelParts = [name];
-      if (gpm > 0) labelParts.push(gpm + ' gpm');
-      if (psi > 0) labelParts.push('@ ' + psi + ' psi');
-      const fullLabel = labelParts.join(' ');
-
-      const custom = { id, label: fullLabel, type, gpm, psi };
-      if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
-      state.customNozzles.push(custom);
-
-      let host = null;
-      if (type === 'smooth') host = smoothList;
-      else if (type === 'fog') host = fogList;
-      else if (type === 'master') host = masterList;
-      else host = specialList || fogList;
-
-      if (host) {
-        const row = document.createElement('label');
-        row.className = 'dept-option';
-        row.innerHTML = `
-          <input type="checkbox" data-noz-id="${id}" checked>
-          <span>${fullLabel}</span>
-        `;
-        host.appendChild(row);
+      const created = addCustomNozzle(name, gpm, psi);
+      if (created && created.id) {
+        // Auto-check it in the UI
+        const host = bodyEl.querySelector('#deptCustomList');
+        if (host) {
+          const row = document.createElement('label');
+          row.className = 'dept-option';
+          row.innerHTML = `
+            <input type="checkbox" data-noz-id="${created.id}" checked>
+            <span>${created.label || created.name || created.id}</span>
+          `;
+          host.appendChild(row);
+        } else {
+          // If custom list section didn't exist yet, just re-render.
+          renderNozzleSelectionScreen();
+          return;
+        }
       }
-
-      saveDeptToStorage();
 
       nameEl.value = '';
       gpmEl.value = '';
@@ -962,11 +878,12 @@ function renderNozzleSelectionScreen() {
       bodyEl.querySelectorAll('input[data-noz-id]').forEach((cb) => {
         if (cb.checked) {
           const id = cb.getAttribute('data-noz-id');
-          if (id) chosen.push(id);
+          if (id) chosen.push(canonicalNozzleId(id));
         }
       });
       state.deptNozzles = chosen;
       saveDeptToStorage();
+
       const wrap2 = document.getElementById('deptPopupWrapper');
       if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
@@ -2037,17 +1954,6 @@ const DEPT_NOZ_TO_CALC_NOZ = {
 
 
 export function getDeptNozzleIds() {
-  // Prefer new deptState selections if present
-  try {
-    const state = loadDeptStateFromStorage();
-    if (state && Array.isArray(state.selectedNozzleIds) && state.selectedNozzleIds.length) {
-      const ids = state.selectedNozzleIds.map(String);
-      // keep only ids that are in NOZ catalog OR exist in custom nozzle list
-      const customs = getDeptCustomNozzlesForCalc().map(n => String(n.id));
-      const customSet = new Set(customs);
-      return ids.filter(id => (NOZ && NOZ[id]) || customSet.has(id));
-    }
-  } catch (e) {}
   try {
     const dept = loadDeptFromStorage();
     if (!dept || typeof dept !== 'object') return [];
@@ -2246,39 +2152,20 @@ if (typeof window !== 'undefined') {
 export function getDeptCustomNozzlesForCalc() {
   try {
     const dept = loadDeptFromStorage();
+    if (!dept || typeof dept !== 'object') return [];
     const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    // Normalize into { id, label, gpm, np }
     return customs.map((n, idx) => {
       if (!n || typeof n !== 'object') return null;
-
-      const id =
-        n.id != null ? String(n.id).trim() :
-        n.key != null ? String(n.key).trim() :
-        `custom_noz_${idx}`;
-
-      const labelRaw = String(n.label || n.name || n.title || id).trim();
-
-      const gpmNum =
-        typeof n.gpm === 'number' ? n.gpm :
-        typeof n.flow === 'number' ? n.flow :
-        typeof n.gpm === 'string' ? Number(n.gpm) :
-        typeof n.flow === 'string' ? Number(n.flow) : NaN;
-
-      const psiNum =
-        typeof n.NP === 'number' ? n.NP :
-        typeof n.np === 'number' ? n.np :
-        typeof n.psi === 'number' ? n.psi :
-        typeof n.pressure === 'number' ? n.pressure :
-        typeof n.NP === 'string' ? Number(n.NP) :
-        typeof n.np === 'string' ? Number(n.np) :
-        typeof n.psi === 'string' ? Number(n.psi) :
-        typeof n.pressure === 'string' ? Number(n.pressure) : NaN;
-
-      const gpm = Number.isFinite(gpmNum) ? gpmNum : 0;
-      const NP = Number.isFinite(psiNum) ? psiNum : 0;
-
-      const label = labelRaw || `Custom nozzle ${gpm} gpm @ ${NP} psi`;
-
-      return { id, label, name: label, gpm, NP, np: NP, psi: NP };
+      const id = n.id || n.calcId || n.key || `custom_noz_${idx}`;
+      const label = n.label || n.name || n.desc || id;
+      const gpm = typeof n.gpm === 'number'
+        ? n.gpm
+        : (typeof n.flow === 'number' ? n.flow : null);
+      const np = typeof n.np === 'number'
+        ? n.np
+        : (typeof n.NP === 'number' ? n.NP : (typeof n.pressure === 'number' ? n.pressure : null));
+      return { id, label, gpm, np };
     }).filter(Boolean);
   } catch (e) {
     console.warn('getDeptCustomNozzlesForCalc failed', e);
