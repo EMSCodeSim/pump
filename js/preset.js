@@ -373,18 +373,15 @@ const NOZZLES_FOG = [
 ];
 
 const NOZZLES_MASTER = [
-  // Canonical master-stream IDs from store.js (NOZ/NOZ_LIST)
-  { id: 'ms1_3_8_80',   label: 'MS 1 3/8" @ 80' },
-  { id: 'ms1_1_2_80',   label: 'MS 1 1/2" @ 80' },
-  { id: 'ms1_3_4_80',   label: 'MS 1 3/4" @ 80' },
-  { id: 'ms2_80',       label: 'MS 2" @ 80' },
-
-  // Canonical master fog IDs (100 psi)
-  { id: 'fog500_100',   label: 'Master Fog 500 @ 100' },
-  { id: 'fog750_100',   label: 'Master Fog 750 @ 100' },
-  { id: 'fog1000_100',  label: 'Master Fog 1000 @ 100' },
+  { id: 'ms_tip_138_500',  label: 'Master stream tip 1 3/8" – 500 gpm' },
+  { id: 'ms_tip_112_600',  label: 'Master stream tip 1½" – 600 gpm' },
+  { id: 'ms_tip_134_800',  label: 'Master stream tip 1¾" – 800 gpm' },
+  { id: 'ms_tip_2_1000',   label: 'Master stream tip 2" – 1000 gpm' },
+  { id: 'ms_fog_500',      label: 'Master fog nozzle 500 gpm' },
+  { id: 'ms_fog_750',      label: 'Master fog nozzle 750 gpm' },
+  { id: 'ms_fog_1000',     label: 'Master fog nozzle 1000 gpm' },
+  { id: 'ms_fog_1250',     label: 'Master fog nozzle 1250 gpm' },
 ];
-
 
 const NOZZLES_SPECIAL = [
   { id: 'sp_celler',        label: 'Celler nozzle' },
@@ -519,7 +516,12 @@ function normalizeDeptItem(item, fallbackPrefix, index) {
       ? String(item.id)
       : String(item.value ?? item.name ?? `${fallbackPrefix}_${index}`);
     const label = item.label || item.name || String(id);
-    return { id, label, ...item };
+    const out = { id, label, ...item };
+// Back-compat: some custom nozzles store pressure as `psi`
+if ((out.NP == null && out.np == null && out.pressure == null) && out.psi != null) out.NP = out.psi;
+// Back-compat: some store flow as `flow`
+if (out.gpm == null && out.flow != null) out.gpm = out.flow;
+return out;
   }
   const id = String(item);
   return { id, label: id, raw: item };
@@ -545,12 +547,17 @@ export function getDeptEquipment() {
 
   const {
     nozzles = [],
+    customNozzles = [],
     hoses = [],
     accessories = [],
   } = raw;
 
   const normNozzles = Array.isArray(nozzles)
     ? nozzles.map((n, i) => normalizeDeptItem(n, 'noz', i))
+    : [];
+
+  const normCustomNozzles = Array.isArray(customNozzles)
+    ? customNozzles.map((n, i) => normalizeDeptItem(n, 'custom_noz', i))
     : [];
 
   const normHoses = Array.isArray(hoses)
@@ -564,6 +571,7 @@ export function getDeptEquipment() {
   return {
     ...raw,
     nozzles: normNozzles,
+    customNozzles: normCustomNozzles,
     hoses: normHoses,
     accessories: normAccessories,
   };
@@ -575,7 +583,10 @@ export function getDeptEquipment() {
  */
 export function getDeptNozzleOptions() {
   const dept = getDeptEquipment();
-  return Array.isArray(dept.nozzles) ? dept.nozzles : [];
+  const base = Array.isArray(dept.nozzles) ? dept.nozzles : [];
+  const custom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+  // Merge, preserving order (standard first, then custom)
+  return [...base, ...custom];
 }
 
 /**
@@ -1966,13 +1977,12 @@ const DEPT_NOZ_TO_CALC_NOZ = {
 
   "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_112_600": "ms1_1_2_80",
-  "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_134_800": "ms1_3_4_80",
   "ms_tip_2_1000": "ms2_80",
-  "ms_fog_500": "fog500_100",
-  "ms_fog_750": "fog750_100",
-  "ms_fog_1000": "fog1000_100",
-  "ms_fog_1250": "fog1000_100"
+  "ms_fog_500": "ms1_3_8_80",
+  "ms_fog_750": "ms1_1_2_80",
+  "ms_fog_1000": "ms2_80",
+  "ms_fog_1250": "ms2_80"
 };
 
 
@@ -2180,9 +2190,6 @@ export function getDeptCustomNozzlesForCalc() {
     const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
     // Normalize into { id, label, gpm, np }
     return customs.map((n, idx) => {
-      // Legacy master-stream placeholders should never be treated as custom nozzles
-      const _rawId = (n && typeof n === 'object') ? (n.id || n.calcId || n.key) : null;
-      if (_rawId && typeof _rawId === 'string' && (_rawId.startsWith('ms_tip_') || _rawId.startsWith('ms_fog_'))) return null;
       if (!n || typeof n !== 'object') return null;
       const id = n.id || n.calcId || n.key || `custom_noz_${idx}`;
       const label = n.label || n.name || n.desc || id;
