@@ -373,17 +373,18 @@ const NOZZLES_FOG = [
 ];
 
 const NOZZLES_MASTER = [
-  // These IDs are the *canonical* nozzle IDs used by store.js / calc dropdowns.
-  { id: 'ms1_3_8_80',  label: 'MS 1 3/8" @ 80' },
-  { id: 'ms1_1_2_80',  label: 'MS 1 1/2" @ 80' },
-  { id: 'ms1_3_4_80',  label: 'MS 1 3/4" @ 80' },
-  { id: 'ms2_80',      label: 'MS 2" @ 80' },
+  // Canonical master-stream IDs from store.js (NOZ/NOZ_LIST)
+  { id: 'ms1_3_8_80',   label: 'MS 1 3/8" @ 80' },
+  { id: 'ms1_1_2_80',   label: 'MS 1 1/2" @ 80' },
+  { id: 'ms1_3_4_80',   label: 'MS 1 3/4" @ 80' },
+  { id: 'ms2_80',       label: 'MS 2" @ 80' },
 
-  // Master stream fog nozzles (canonical IDs)
-  { id: 'fog500_100',  label: 'Fog 500 @ 100' },
-  { id: 'fog750_100',  label: 'Fog 750 @ 100' },
-  { id: 'fog1000_100', label: 'Fog 1000 @ 100' },
+  // Canonical master fog IDs (100 psi)
+  { id: 'fog500_100',   label: 'Master Fog 500 @ 100' },
+  { id: 'fog750_100',   label: 'Master Fog 750 @ 100' },
+  { id: 'fog1000_100',  label: 'Master Fog 1000 @ 100' },
 ];
+
 
 const NOZZLES_SPECIAL = [
   { id: 'sp_celler',        label: 'Celler nozzle' },
@@ -863,7 +864,7 @@ function renderNozzleSelectionScreen() {
       if (psi > 0) labelParts.push('@ ' + psi + ' psi');
       const fullLabel = labelParts.join(' ');
 
-      const custom = { id, label: fullLabel, type, gpm, NP: psi, psi };
+      const custom = { id, label: fullLabel, type, gpm, psi };
       if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
       state.customNozzles.push(custom);
 
@@ -1965,12 +1966,13 @@ const DEPT_NOZ_TO_CALC_NOZ = {
 
   "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_112_600": "ms1_1_2_80",
+  "ms_tip_138_500": "ms1_3_8_80",
   "ms_tip_134_800": "ms1_3_4_80",
   "ms_tip_2_1000": "ms2_80",
-  "ms_fog_500": "ms1_3_8_80",
-  "ms_fog_750": "ms1_1_2_80",
-  "ms_fog_1000": "ms2_80",
-  "ms_fog_1250": "ms2_80"
+  "ms_fog_500": "fog500_100",
+  "ms_fog_750": "fog750_100",
+  "ms_fog_1000": "fog1000_100",
+  "ms_fog_1250": "fog1000_100"
 };
 
 
@@ -2178,6 +2180,9 @@ export function getDeptCustomNozzlesForCalc() {
     const customs = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
     // Normalize into { id, label, gpm, np }
     return customs.map((n, idx) => {
+      // Legacy master-stream placeholders should never be treated as custom nozzles
+      const _rawId = (n && typeof n === 'object') ? (n.id || n.calcId || n.key) : null;
+      if (_rawId && typeof _rawId === 'string' && (_rawId.startsWith('ms_tip_') || _rawId.startsWith('ms_fog_'))) return null;
       if (!n || typeof n !== 'object') return null;
       const id = n.id || n.calcId || n.key || `custom_noz_${idx}`;
       const label = n.label || n.name || n.desc || id;
