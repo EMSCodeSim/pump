@@ -7,7 +7,62 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, setLineDefaults, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
+import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
+
+// --- Custom nozzle resolution for Dept Line Defaults ---
+// Dept Setup can save custom nozzle ids like "custom_noz_*". When syncing Line 1/2/3 defaults
+// into calc-ready objects (left/back/right), we must resolve those ids into a nozzle object,
+// otherwise Calc will fall back to the first nozzle in the dropdown.
+function resolveNozzleForDefaults(rawId) {
+  const id = canonicalNozzleId(rawId);
+  if (!id) return { id:'', noz:null };
+
+  // 1) built-in catalog
+  if (NOZ && NOZ[id]) return { id, noz: NOZ[id] };
+  if (NOZ && NOZ[id + '_50']) return { id, noz: NOZ[id + '_50'] };
+
+  // 2) NOZ_LIST (may include additional built-ins)
+  const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+  const inList = list.find(n => n && String(n.id) === id);
+  if (inList) return { id, noz: inList };
+
+  // 3) Department equipment custom nozzles (canonical)
+  try {
+    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
+    if (rawDept) {
+      const dept = JSON.parse(rawDept) || {};
+      const custom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      const d = custom.find(n => n && String(n.id) === id);
+      if (d) {
+        const noz = {
+          id: String(d.id),
+          name: String(d.name || d.label || d.id),
+          gpm: Number(d.gpm ?? d.GPM ?? 0),
+          NP:  Number(d.NP ?? d.np ?? 0),
+          label: d.label || d.name || d.id,
+        };
+        return { id, noz };
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  return { id, noz: null };
+}
+
+function ensureDeptNozzleIdSelected(nozzleId) {
+  const id = canonicalNozzleId(nozzleId);
+  if (!id) return;
+  try {
+    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
+    const dept = rawDept ? (JSON.parse(rawDept) || {}) : {};
+    if (!Array.isArray(dept.nozzles)) dept.nozzles = [];
+    if (!dept.nozzles.includes(id)) {
+      dept.nozzles.push(id);
+      localStorage.setItem('fireops_dept_equipment_v1', JSON.stringify(dept));
+    }
+  } catch (e) { /* ignore */ }
+}
+
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -1578,16 +1633,44 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       state.lineDefaults[key] = next;
       saveLineDefaultsToStorage();
 
-      // Also save into the central dept defaults in store.js (pump_dept_defaults_v1)
-      // IMPORTANT: must support custom_noz_* ids (not present in NOZ map).
+      // Also save into the central dept defaults in store.js
       try {
-        if (typeof setLineDefaults === 'function') {
-          setLineDefaults(key, {
-            hose: single.hoseId || single.hoseSize || '',
-            length: single.lengthFt != null ? Number(single.lengthFt) : null,
-            elevation: single.elevationFt != null ? Number(single.elevationFt) : 0,
-            nozzle: single.nozzleId || ''
-          });
+        const storeKey =
+          lineNumber === 1 ? 'left' :
+          lineNumber === 2 ? 'back' :
+          lineNumber === 3 ? 'right' :
+          null;
+
+        if (storeKey) {
+          const L = {
+            label: 'Line ' + String(lineNumber),
+            visible: false,
+            itemsMain: [],
+            itemsLeft: [],
+            itemsRight: [],
+            hasWye: false,
+            elevFt: next.elevationFt || 0,
+            nozRight: null
+          };
+
+          if (single.hoseId) {
+            L.itemsMain.push({
+              size: String(single.hoseId),
+              lengthFt: next.lengthFt || 0
+            });
+          }
+
+          if (single.nozzleId) {
+            const r = resolveNozzleForDefaults(single.nozzleId);
+            if (r && r.id) {
+              L._nozId = r.id;
+              if (r.noz) L.nozRight = r.noz;
+              // make sure calc dropdown filtering doesn't drop a nozzle used in defaults
+              ensureDeptNozzleIdSelected(r.id);
+            }
+          }
+
+          setDeptLineDefault(storeKey, L);
         }
       } catch (e) {
         console.warn('Failed to sync dept line default to store', e);
