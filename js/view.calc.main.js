@@ -2302,16 +2302,44 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           }
 
           // Nozzle
-          const _nid = _normNozId(src.nozzleId);
+          // NOTE: Some Department Setup UIs historically saved the *label* (display text)
+          // instead of the nozzle *id*. If we only trust src.nozzleId as an id, custom
+          // nozzles will fail to seed and the line will fall back to the first option.
+          const rawNoz = (src.nozzleId != null ? src.nozzleId : (src.nozzle != null ? src.nozzle : ''));
+          const rawNozStr = String(rawNoz || '').trim();
+          const _nid = _normNozId(rawNozStr);
+
           // Dept defaults may reference custom_noz_* ids which are NOT in the built-in NOZ map.
-          // Always resolve through the shared resolver so custom nozzles work as defaults.
-          if (_nid) {
-            const chosen = (typeof resolveNozzleById === 'function') ? resolveNozzleById(_nid) : null;
-            if (chosen) {
-              L.nozRight = chosen;
-            } else if (typeof NOZ !== 'undefined' && NOZ && NOZ[_nid]) {
-              L.nozRight = NOZ[_nid];
-            }
+          // Always resolve through a resolver that understands custom nozzles.
+          let chosen = (_nid && typeof resolveNozzleById === 'function') ? resolveNozzleById(_nid) : null;
+
+          // EXTRA SAFETY: if Department Setup saved a label instead of an id, try to
+          // map the label back to an id using the current UI nozzle list.
+          if (!chosen && rawNozStr) {
+            try {
+              const ui = (typeof getUiNozzles === 'function') ? (getUiNozzles() || []) : [];
+              if (Array.isArray(ui) && ui.length) {
+                const hit = ui.find(n => {
+                  const nid = String(n?.id ?? '').trim();
+                  const lbl = String(n?.label ?? n?.name ?? '').trim();
+                  return (nid && (nid === rawNozStr || nid === _nid)) || (lbl && lbl === rawNozStr);
+                });
+                if (hit) {
+                  chosen = {
+                    id: String(hit.id),
+                    name: String(hit.label || hit.name || hit.id),
+                    gpm: Number(hit.gpm ?? hit.GPM ?? 0) || 0,
+                    NP: Number(hit.np ?? hit.NP ?? hit.psi ?? hit.pressure ?? 50) || 50,
+                  };
+                }
+              }
+            } catch (_e) { /* ignore */ }
+          }
+
+          if (chosen) {
+            L.nozRight = chosen;
+          } else if (_nid && typeof NOZ !== 'undefined' && NOZ && NOZ[_nid]) {
+            L.nozRight = NOZ[_nid];
           }
         }
       }
