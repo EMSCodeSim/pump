@@ -1081,6 +1081,4 @@ export function openStandpipePopup({
 }
 
 // === exports (same pattern as Standard line) ===
-
-// Explicit named export for module consumers
-export { openStandpipePopup };
+export default openStandpipePopup;
