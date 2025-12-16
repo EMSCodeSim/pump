@@ -35,7 +35,7 @@ document.addEventListener("click", (e) => {
 import {
   state,
   NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey,
-  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST, resolveNozzleById as resolveNozzleByIdStore,
+  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST,
   sectionsFor, FL_total_sections, breakdownText,
   PRACTICE_SAVE_KEY, safeClone, loadSaved, saveNow, markDirty, startAutoSave, stopAutoSave,
   buildSnapshot, restoreState,
@@ -45,6 +45,7 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
+import { resolveNozzleById as resolveNozzleByIdStore } from './store.js';
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
