@@ -594,7 +594,7 @@ export async function render(container){
 
       nozzleMap[id] = {
         id,
-        label: (function(){ const base = (n.label || n.name || id); const hasPsi = /psi/i.test(base); return (!hasPsi && np) ? `${base} @ ${np} psi` : base; })(),
+        label: n.label || n.name || id,
         gpm,
         np
       };
@@ -712,38 +712,98 @@ export async function render(container){
     // Helper to build a hose meta object for a given diameter
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
-    function metaForDiameter(dia) {
-      const s = String(dia);
+    function metaForDiameter(hoseIdOrDia) {
+      const raw = String(hoseIdOrDia ?? '').trim();
+      if (!raw) return { id: '1.75', label: '1 3/4"', c: COEFF['1.75'] ?? 15.5 };
 
-      // Custom hose from Department Setup?
-      const custom = customs.find(h => String(h.id) === s || String(h.hoseId) === s);
-      if (custom) {
-        const dRaw = custom.diameter ?? custom.size ?? custom.d ?? custom.D;
-        const d = (typeof dRaw === 'number') ? dRaw : Number(String(dRaw ?? '').replace(/[^0-9.]/g,''));
-        const pretty = (function(){
-          const x = String(d);
-          if (x === '1.75') return '1 3/4"';
-          if (x === '1.5') return '1 1/2"';
-          if (x === '2.5') return '2 1/2"';
-          if (x === '2') return '2"';
-          if (x === '3') return '3"';
-          if (x === '4') return '4"';
-          if (x === '5') return '5"';
-          return (d ? `${d}"` : (custom.label || custom.name || s));
-        })();
-
-        const c =
-          typeof custom.c === 'number' ? custom.c :
-          (typeof custom.flC === 'number' ? custom.flC :
-           (COEFF[String(d)] ?? COEFF[String(dRaw)] ?? 15.5));
-
-        return {
-          id: String(custom.id || s), // keep canonical id like custom_hose_* (DO NOT convert to diameter)
-          label: `${pretty} C`,
-          c
-        };
+      // Simple diameter -> display text
+      function diaLabel(diaStr){
+        const s = String(diaStr ?? '').trim();
+        if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
+        if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
+        if (s === '2.0'  || s === '2')                    return '2"';
+        if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
+        if (s === '3')                                     return '3"';
+        if (s === '4')                                     return '4"';
+        if (s === '5')                                     return '5"';
+        return s + '"';
       }
-// Built-in defaults
+
+      const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
+      let isCustom = false;
+      let isLF = false;
+      let dia = '';
+
+      // Custom hose id from Dept Setup
+      if (raw.startsWith('custom_hose_')) {
+        const ch = customs.find(h => h && String(h.id) === raw);
+        if (ch && ch.diameter != null) {
+          dia = String(ch.diameter);
+          isCustom = true;
+          if (String(ch.category || '').toLowerCase().includes('low')) isLF = true;
+        }
+      }
+
+      // Built-in low-friction ids (if Dept Setup returns ids rather than diameters)
+      if (!dia && raw.startsWith('h_lf_')) {
+        const suf = raw.replace('h_lf_','');
+        if (suf === '175') dia = '1.75';
+        else if (suf === '15') dia = '1.5';
+        else if (suf === '2') dia = '2.0';
+        else if (suf === '25') dia = '2.5';
+        else if (suf === '3') dia = '3';
+        else if (suf === '4') dia = '4';
+        else if (suf === '5') dia = '5';
+        isLF = true;
+      }
+
+      // Common built-in ids
+      if (!dia && raw.startsWith('h_')) {
+        const map = {
+          'h_1':'1', 'h_15':'1.5', 'h_175':'1.75', 'h_2':'2.0', 'h_25':'2.5', 'h_3':'3', 'h_4':'4', 'h_5':'5',
+          'h_4_ldh':'4', 'h_5_ldh':'5', 'h_3_supply':'3',
+          'h_lf_175':'1.75', 'h_lf_2':'2.0', 'h_lf_25':'2.5', 'h_lf_5':'5'
+        };
+        dia = map[raw] || '';
+        if (raw.includes('lf')) isLF = true;
+      }
+
+      // Already a diameter string
+      if (!dia) {
+        if (/^\d+(?:\.\d+)?$/.test(raw)) {
+          const n = Number(raw);
+          if (Number.isFinite(n)) {
+            if (Math.abs(n-2) < 1e-9) dia = '2.0';
+            else dia = raw;
+          }
+        } else {
+          dia = raw;
+        }
+      }
+
+      // If Dept Setup stored custom hoses by diameter (older behavior), resolve to add suffix
+      let customByDia = null;
+      if (!isCustom) {
+        customByDia = customs.find(h => h && String(h.diameter) === String(dia));
+        if (customByDia) {
+          isCustom = true;
+          if (String(customByDia.category || '').toLowerCase().includes('low')) isLF = true;
+        }
+      }
+
+      const c =
+        (customByDia && (Number(customByDia.cValue) || Number(customByDia.c) || Number(customByDia.flC))) ||
+        (COEFF[dia] ?? 15.5);
+
+      let label = diaLabel(dia);
+      if (isLF) label = label + ' LF';
+      else if (isCustom) label = label + ' C';
+
+      return { id: dia, label, c };
+    };
+      }
+
+      // Built-in defaults
       const def = DEFAULT_HOSES.find(h => h.id === s);
       if (def) return { ...def };
 
@@ -1188,30 +1248,8 @@ function updateSegSwitchVisibility(){
       .map(n => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : '';
+        const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
-
-        let label = n.label || n.name || n.desc || id || 'Nozzle';
-
-        const gpm = (typeof n.gpm === 'number' ? n.gpm : (typeof n.GPM === 'number' ? n.GPM : undefined));
-        const np  = (typeof n.np  === 'number' ? n.np  : (typeof n.NP  === 'number' ? n.NP  : undefined));
-
-        // Ensure psi shows in dropdown (e.g., "Fog 150 @ 100 psi")
-        const hasPsi = /\bpsi\b/i.test(label);
-        const hasAtNumber = /@\s*\d+/.test(label);
-        if (!hasPsi && typeof np === 'number' && isFinite(np) && np > 0) {
-          if (hasAtNumber) label = `${label} psi`;
-          else label = `${label} @ ${Math.round(np)} psi`;
-        }
-
-        // If label is still a raw custom id, fall back to a readable default
-        if (/^custom_noz_/i.test(label) && typeof gpm === 'number' && isFinite(gpm) && gpm > 0) {
-          if (typeof np === 'number' && isFinite(np) && np > 0) {
-            label = `Custom nozzle ${Math.round(gpm)} gpm @ ${Math.round(np)} psi`;
-          } else {
-            label = `Custom nozzle ${Math.round(gpm)} gpm`;
-          }
-        }
-
         return `<option value="${id}">${label}</option>`;
       })
       .join('');
@@ -1576,38 +1614,10 @@ function openPresetLineActions(id){
 
   // Helper to make hose diameter labels phone-friendly.
   function prettyHoseSize(d){
-    const raw = String(d ?? '').trim();
-    if (raw === '' || raw === 'null' || raw === 'undefined') return '';
-
-    // Low-friction hose ids like "h_lf_175", "h_lf_250"
-    if (/^h_lf_\d+$/i.test(raw)) {
-      const n = parseInt(raw.split('_').pop(), 10);
-      const inches = isFinite(n) ? (n / 100) : NaN;
-      const base = prettyHoseSize(String(inches));
-      return base ? `${base} LF` : `${raw}`;
-    }
-
-    // Custom hose ids like "custom_hose_<ts>_<token>"
-    if (/^custom_hose_/i.test(raw)) {
-      try {
-        const deptRaw = localStorage.getItem('fireops_dept_equipment_v1');
-        const dept = deptRaw ? JSON.parse(deptRaw) : null;
-        const list = (dept && Array.isArray(dept.customHoses)) ? dept.customHoses : [];
-        const found = list.find(h => String(h.id) === raw) || null;
-        if (found) {
-          const dia = found.diameter ?? found.dia ?? found.size ?? found.inches;
-          const base = prettyHoseSize(String(dia));
-          return base ? `${base} C` : `${raw}`;
-        }
-      } catch(_e) {}
-      return `${raw}`; // fallback
-    }
-
-    // Plain numeric / text diameters
-    const s = raw;
+    const s = String(d ?? '').trim();
+    if (s === '' || s === 'null' || s === 'undefined') return '';
     if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
     if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
-    if (s === '2'    || s === '2.0')                   return '2"';
     if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
     if (s === '3')                                     return '3"';
     if (s === '4')                                     return '4"';
@@ -2155,10 +2165,11 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         const chosenId = teNoz.value;
         if (chosenId) {
           try {
-            const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-            const found = fullList.find(n => n && n.id === chosenId);
+            const found = (typeof resolveNozzleById === 'function')
+              ? resolveNozzleById(chosenId)
+              : null;
             if (found) {
-              L.nozRight = Object.assign({}, L.nozRight || {}, found, { id: found.id });
+              L.nozRight = Object.assign({}, L.nozRight || {}, found, { id: found.id || chosenId });
             } else {
               L.nozRight = Object.assign({}, L.nozRight || {}, { id: chosenId });
             }
@@ -3021,9 +3032,28 @@ function initPlusMenus(root){
       const id = n.id != null ? String(n.id) : '';
       if (!id) return '';
       const fromUi = uiById && uiById.get(id);
-      const label =
+      const baseLabel =
         (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
         n.label || n.name || n.desc || id || 'Nozzle';
+      let label = String(baseLabel);
+
+      // Ensure nozzle pressure shows (many labels are like "Fog 150 @ 100" without "psi")
+      const npVal =
+        (fromUi && (fromUi.NP ?? fromUi.np ?? fromUi.psi)) ??
+        (n.NP ?? n.np ?? n.psi);
+      const npNum = Number(npVal);
+      const hasPsiWord = /\bpsi\b/i.test(label);
+      const hasAt = /@\s*\d+/.test(label);
+
+      if (!hasPsiWord) {
+        if (hasAt) {
+          // e.g. "Fog 150 @ 100" -> "Fog 150 @ 100 psi"
+          label = label + ' psi';
+        } else if (Number.isFinite(npNum) && npNum > 0) {
+          // e.g. "Fog 150" + NP=100 -> "Fog 150 @ 100 psi"
+          label = label + ` @ ${npNum} psi`;
+        }
+      }
       const val = id;
       return `<option value="${val}">${label}</option>`;
     }).join('');
