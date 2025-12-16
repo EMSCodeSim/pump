@@ -45,11 +45,87 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
-import { resolveNozzleById as resolveNozzleByIdStore } from './store.js';
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
-  return resolveNozzleByIdStore(id);
+  if (!id) return null;
+  
+  // Map legacy/alternate ids (from older Dept Setup / Presets lists) to store.NOZ ids
+  const canonicalNozzleId = (raw)=>{
+    const s = String(raw||'').trim();
+    if(!s) return s;
+    const map = {
+      // Smooth bore ids used in preset.js
+      'sb_78_50_160': 'sb7_8',
+      'sb_1516_50_185': 'sb15_16',
+      'sb_1_50_210': 'sb1',
+      'sb_1118_50_265': 'sb1_1_8',
+      'sb_114_50_325': 'sb1_1_4',
+
+      // Chief XD ids used in preset.js
+      'fog_xd_175_50_165': 'chiefXD165_50',
+      'fog_xd_175_50_185': 'chief185_50',
+      'fog_xd_25_50_265':  'chiefXD265',
+
+      // Common fog ids used in preset.js
+      'fog_175_100_150': 'fog150_100',
+      'fog_175_75_150':  'fog150_75',
+      'fog_15_100_95':   'fog95_100',
+      'fog_15_100_125':  'fog125_100',
+    };
+    return map[s] || s;
+  };
+
+  id = canonicalNozzleId(id);
+try{
+    // 1) Built-in map
+    if (typeof NOZ === 'object' && NOZ && NOZ[id]){
+      return NOZ[id];
+    }
+
+    // 2) Built-in list
+    const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+    const fromList = list.find(n => n && n.id === id);
+    if (fromList){
+      return fromList;
+    }
+
+    // 3) Department custom nozzles (canonical source)
+    // NOTE: Dept Setup stores custom nozzles in localStorage['fireops_dept_equipment_v1'].customNozzles.
+    // The calc dropdown can show customs via other paths, but seeding default lines MUST be able to
+    // resolve custom_noz_* ids without relying on any global helper.
+    try{
+      const raw = localStorage.getItem('fireops_dept_equipment_v1');
+      if (raw){
+        const dept = JSON.parse(raw);
+        const customs = Array.isArray(dept?.customNozzles) ? dept.customNozzles : [];
+        const found = customs.find(n => n && n.id === id);
+        if (found){
+          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
+          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
+          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
+          return { id: found.id, name, gpm, NP };
+        }
+      }
+    }catch(_e){ /* ignore */ }
+
+    // 4) Legacy custom nozzle helpers (older builds)
+    if (typeof getDeptCustomNozzlesForCalc === 'function'){
+      const customs = getDeptCustomNozzlesForCalc() || [];
+      if (Array.isArray(customs) && customs.length){
+        const found = customs.find(n => n && n.id === id);
+        if (found){
+          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
+          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
+          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
+          return { id: found.id, name, gpm, NP };
+        }
+      }
+    }
+  }catch(e){
+    console.warn('resolveNozzleById failed for id', id, e);
+  }
+  return null;
 }
 
 
@@ -75,7 +151,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { getDeptLineDefaults } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -1098,8 +1174,30 @@ function updateSegSwitchVisibility(){
       .map(n => {
         if (!n) return '';
         const id = n.id != null ? String(n.id) : '';
-        const label = n.label || n.name || n.desc || id || 'Nozzle';
         if (!id) return '';
+
+        let label = n.label || n.name || n.desc || id || 'Nozzle';
+
+        const gpm = (typeof n.gpm === 'number' ? n.gpm : (typeof n.GPM === 'number' ? n.GPM : undefined));
+        const np  = (typeof n.np  === 'number' ? n.np  : (typeof n.NP  === 'number' ? n.NP  : undefined));
+
+        // Ensure psi shows in dropdown (e.g., "Fog 150 @ 100 psi")
+        const hasPsi = /\bpsi\b/i.test(label);
+        const hasAtNumber = /@\s*\d+/.test(label);
+        if (!hasPsi && typeof np === 'number' && isFinite(np) && np > 0) {
+          if (hasAtNumber) label = `${label} psi`;
+          else label = `${label} @ ${Math.round(np)} psi`;
+        }
+
+        // If label is still a raw custom id, fall back to a readable default
+        if (/^custom_noz_/i.test(label) && typeof gpm === 'number' && isFinite(gpm) && gpm > 0) {
+          if (typeof np === 'number' && isFinite(np) && np > 0) {
+            label = `Custom nozzle ${Math.round(gpm)} gpm @ ${Math.round(np)} psi`;
+          } else {
+            label = `Custom nozzle ${Math.round(gpm)} gpm`;
+          }
+        }
+
         return `<option value="${id}">${label}</option>`;
       })
       .join('');
@@ -1464,10 +1562,38 @@ function openPresetLineActions(id){
 
   // Helper to make hose diameter labels phone-friendly.
   function prettyHoseSize(d){
-    const s = String(d ?? '').trim();
-    if (s === '' || s === 'null' || s === 'undefined') return '';
+    const raw = String(d ?? '').trim();
+    if (raw === '' || raw === 'null' || raw === 'undefined') return '';
+
+    // Low-friction hose ids like "h_lf_175", "h_lf_250"
+    if (/^h_lf_\d+$/i.test(raw)) {
+      const n = parseInt(raw.split('_').pop(), 10);
+      const inches = isFinite(n) ? (n / 100) : NaN;
+      const base = prettyHoseSize(String(inches));
+      return base ? `${base} LF` : `${raw}`;
+    }
+
+    // Custom hose ids like "custom_hose_<ts>_<token>"
+    if (/^custom_hose_/i.test(raw)) {
+      try {
+        const deptRaw = localStorage.getItem('fireops_dept_equipment_v1');
+        const dept = deptRaw ? JSON.parse(deptRaw) : null;
+        const list = (dept && Array.isArray(dept.customHoses)) ? dept.customHoses : [];
+        const found = list.find(h => String(h.id) === raw) || null;
+        if (found) {
+          const dia = found.diameter ?? found.dia ?? found.size ?? found.inches;
+          const base = prettyHoseSize(String(dia));
+          return base ? `${base} C` : `${raw}`;
+        }
+      } catch(_e) {}
+      return `${raw}`; // fallback
+    }
+
+    // Plain numeric / text diameters
+    const s = raw;
     if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
     if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
+    if (s === '2'    || s === '2.0')                   return '2"';
     if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
     if (s === '3')                                     return '3"';
     if (s === '4')                                     return '4"';
