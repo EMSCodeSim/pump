@@ -70,6 +70,51 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
+
+// ==============================
+// Legacy migration (one-time)
+// ==============================
+// Older builds stored custom nozzles in fireops_store_v1.customNozzles.
+// New builds use fireops_dept_equipment_v1.customNozzles as the single source of truth.
+// On load, migrate legacy items into dept storage, then clear legacy to prevent duplicates.
+(function migrateLegacyCustomNozzles(){
+  try{
+    const legacy = Array.isArray(store.customNozzles) ? store.customNozzles : [];
+    if(!legacy.length) return;
+
+    const KEY = 'fireops_dept_equipment_v1';
+    const raw = (typeof localStorage!=='undefined') ? localStorage.getItem(KEY) : null;
+    const dept = raw ? (JSON.parse(raw)||{}) : {};
+    const list = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+
+    let changed = false;
+    for(const c of legacy){
+      if(!c || !c.id) continue;
+      if(list.some(n => n && String(n.id) === String(c.id))) continue;
+      list.push({
+        id: String(c.id),
+        label: String(c.label || c.name || c.id),
+        name: String(c.name || c.label || c.id),
+        gpm: Number(c.gpm ?? c.GPM ?? 0),
+        NP:  Number(c.NP ?? c.np ?? c.psi ?? 0),
+        type: c.type || undefined,
+      });
+      changed = true;
+    }
+
+    if(changed){
+      dept.customNozzles = list;
+      if (typeof localStorage!=='undefined') localStorage.setItem(KEY, JSON.stringify(dept));
+    }
+
+    // Clear legacy list so it can't pollute dropdowns anymore.
+    store.customNozzles = [];
+    saveStore();
+  }catch(e){
+    // non-fatal
+  }
+})();
+
 export function setSelectedHoses(ids){
   store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI hoses are a simple list used by dropdowns
@@ -93,35 +138,34 @@ export function addCustomHose(label, diameter, cValue){
   return hose;
 }
 
-export function addCustomNozzle(label, gpm, np){
+export function addCustomNozzle(label, gpm, np, type){
   const id = `custom_noz_${Date.now()}`;
-  const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
-  store.customNozzles.push(noz);
+  const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0), type:String(type||'') };
 
-  // Keep Department equipment storage in sync.
-  // Calc/presets read custom nozzles from the shared dept-equipment key
-  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
-  // store.customNozzles, Department Setup and Calc can drift apart.
+  // Canonical storage for custom nozzles is fireops_dept_equipment_v1.customNozzles
   try {
     const KEY = 'fireops_dept_equipment_v1';
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      const dept = raw ? JSON.parse(raw) : {};
-      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      dept.customNozzles = existing.concat([{
+    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(KEY) : null;
+    const dept = raw ? (JSON.parse(raw) || {}) : {};
+    const list = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    if (!list.some(n => n && String(n.id) === noz.id)) {
+      list.push({
         id: noz.id,
         label: noz.label,
         name: noz.name,
         gpm: noz.gpm,
         NP: noz.NP,
-        np: noz.NP,
-        psi: noz.NP,
-      }]);
-      localStorage.setItem(KEY, JSON.stringify(dept));
+        type: noz.type || undefined,
+      });
+      dept.customNozzles = list;
+      if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(dept));
     }
   } catch (e) {
-    console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
+    console.warn('addCustomNozzle: failed to write dept customNozzles', e);
   }
+
+  // Legacy store.customNozzles is deprecated. We keep it only as a read-only fallback.
+  // Do NOT push here — it causes stale/unnamed duplicates to reappear in dropdowns.
 
   saveStore();
   return noz;
@@ -216,7 +260,7 @@ export function canonicalNozzleId(raw){
   return LEGACY_NOZ_ID_MAP[id] || id;
 }
 
-function resolveNozzleById(raw){
+export function resolveNozzleById(raw){
   const id = canonicalNozzleId(raw);
   if (!id) return null;
 
@@ -224,19 +268,6 @@ function resolveNozzleById(raw){
   if (NOZ && NOZ[id]) return NOZ[id];
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
 
-  // 2) custom nozzles created by user (stored in store.customNozzles)
-  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
-  const c = custom.find(n => n && String(n.id) === id);
-  if (c) {
-    // Normalize to the same shape calc expects
-    return {
-      id: String(c.id),
-      name: String(c.name || c.label || c.id),
-      gpm: Number(c.gpm ?? c.GPM ?? 0),
-      NP:  Number(c.NP ?? c.np ?? 0),
-      label: c.label || c.name || c.id,
-    };
-  }
 
   // 2b) custom nozzles saved in Department equipment storage (fireops_dept_equipment_v1)
   //     This is the canonical source used by Department Setup and Calc dropdowns.
@@ -261,6 +292,21 @@ function resolveNozzleById(raw){
     // ignore
   }
 
+
+  // 2) legacy custom nozzles (deprecated)
+
+  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
+  const c = custom.find(n => n && String(n.id) === id);
+  if (c) {
+    // Normalize to the same shape calc expects
+    return {
+      id: String(c.id),
+      name: String(c.name || c.label || c.id),
+      gpm: Number(c.gpm ?? c.GPM ?? 0),
+      NP:  Number(c.NP ?? c.np ?? 0),
+      label: c.label || c.name || c.id,
+    };
+  }
   // 3) safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
