@@ -90,7 +90,26 @@ try{
       return fromList;
     }
 
-    // 3) Department custom nozzles (from Department Setup)
+    // 3) Department custom nozzles (canonical source)
+    // NOTE: Dept Setup stores custom nozzles in localStorage['fireops_dept_equipment_v1'].customNozzles.
+    // The calc dropdown can show customs via other paths, but seeding default lines MUST be able to
+    // resolve custom_noz_* ids without relying on any global helper.
+    try{
+      const raw = localStorage.getItem('fireops_dept_equipment_v1');
+      if (raw){
+        const dept = JSON.parse(raw);
+        const customs = Array.isArray(dept?.customNozzles) ? dept.customNozzles : [];
+        const found = customs.find(n => n && n.id === id);
+        if (found){
+          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
+          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
+          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
+          return { id: found.id, name, gpm, NP };
+        }
+      }
+    }catch(_e){ /* ignore */ }
+
+    // 4) Legacy custom nozzle helpers (older builds)
     if (typeof getDeptCustomNozzlesForCalc === 'function'){
       const customs = getDeptCustomNozzlesForCalc() || [];
       if (Array.isArray(customs) && customs.length){
@@ -98,7 +117,7 @@ try{
         if (found){
           const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
           const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
-          const NP   = Number(found.NP ?? found.np ?? found.pressure ?? 50) || 50;
+          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
           return { id: found.id, name, gpm, NP };
         }
       }
