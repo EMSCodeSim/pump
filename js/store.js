@@ -70,51 +70,6 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-
-// ==============================
-// Legacy migration (one-time)
-// ==============================
-// Older builds stored custom nozzles in fireops_store_v1.customNozzles.
-// New builds use fireops_dept_equipment_v1.customNozzles as the single source of truth.
-// On load, migrate legacy items into dept storage, then clear legacy to prevent duplicates.
-(function migrateLegacyCustomNozzles(){
-  try{
-    const legacy = Array.isArray(store.customNozzles) ? store.customNozzles : [];
-    if(!legacy.length) return;
-
-    const KEY = 'fireops_dept_equipment_v1';
-    const raw = (typeof localStorage!=='undefined') ? localStorage.getItem(KEY) : null;
-    const dept = raw ? (JSON.parse(raw)||{}) : {};
-    const list = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-
-    let changed = false;
-    for(const c of legacy){
-      if(!c || !c.id) continue;
-      if(list.some(n => n && String(n.id) === String(c.id))) continue;
-      list.push({
-        id: String(c.id),
-        label: String(c.label || c.name || c.id),
-        name: String(c.name || c.label || c.id),
-        gpm: Number(c.gpm ?? c.GPM ?? 0),
-        NP:  Number(c.NP ?? c.np ?? c.psi ?? 0),
-        type: c.type || undefined,
-      });
-      changed = true;
-    }
-
-    if(changed){
-      dept.customNozzles = list;
-      if (typeof localStorage!=='undefined') localStorage.setItem(KEY, JSON.stringify(dept));
-    }
-
-    // Clear legacy list so it can't pollute dropdowns anymore.
-    store.customNozzles = [];
-    saveStore();
-  }catch(e){
-    // non-fatal
-  }
-})();
-
 export function setSelectedHoses(ids){
   store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI hoses are a simple list used by dropdowns
@@ -138,34 +93,35 @@ export function addCustomHose(label, diameter, cValue){
   return hose;
 }
 
-export function addCustomNozzle(label, gpm, np, type){
+export function addCustomNozzle(label, gpm, np){
   const id = `custom_noz_${Date.now()}`;
-  const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0), type:String(type||'') };
+  const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
+  store.customNozzles.push(noz);
 
-  // Canonical storage for custom nozzles is fireops_dept_equipment_v1.customNozzles
+  // Keep Department equipment storage in sync.
+  // Calc/presets read custom nozzles from the shared dept-equipment key
+  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
+  // store.customNozzles, Department Setup and Calc can drift apart.
   try {
     const KEY = 'fireops_dept_equipment_v1';
-    const raw = (typeof localStorage !== 'undefined') ? localStorage.getItem(KEY) : null;
-    const dept = raw ? (JSON.parse(raw) || {}) : {};
-    const list = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-    if (!list.some(n => n && String(n.id) === noz.id)) {
-      list.push({
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(KEY);
+      const dept = raw ? JSON.parse(raw) : {};
+      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      dept.customNozzles = existing.concat([{
         id: noz.id,
         label: noz.label,
         name: noz.name,
         gpm: noz.gpm,
         NP: noz.NP,
-        type: noz.type || undefined,
-      });
-      dept.customNozzles = list;
-      if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(dept));
+        np: noz.NP,
+        psi: noz.NP,
+      }]);
+      localStorage.setItem(KEY, JSON.stringify(dept));
     }
   } catch (e) {
-    console.warn('addCustomNozzle: failed to write dept customNozzles', e);
+    console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
   }
-
-  // Legacy store.customNozzles is deprecated. We keep it only as a read-only fallback.
-  // Do NOT push here — it causes stale/unnamed duplicates to reappear in dropdowns.
 
   saveStore();
   return noz;
@@ -260,7 +216,7 @@ export function canonicalNozzleId(raw){
   return LEGACY_NOZ_ID_MAP[id] || id;
 }
 
-export function resolveNozzleById(raw){
+function resolveNozzleById(raw){
   const id = canonicalNozzleId(raw);
   if (!id) return null;
 
@@ -268,6 +224,19 @@ export function resolveNozzleById(raw){
   if (NOZ && NOZ[id]) return NOZ[id];
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
 
+  // 2) custom nozzles created by user (stored in store.customNozzles)
+  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
+  const c = custom.find(n => n && String(n.id) === id);
+  if (c) {
+    // Normalize to the same shape calc expects
+    return {
+      id: String(c.id),
+      name: String(c.name || c.label || c.id),
+      gpm: Number(c.gpm ?? c.GPM ?? 0),
+      NP:  Number(c.NP ?? c.np ?? 0),
+      label: c.label || c.name || c.id,
+    };
+  }
 
   // 2b) custom nozzles saved in Department equipment storage (fireops_dept_equipment_v1)
   //     This is the canonical source used by Department Setup and Calc dropdowns.
@@ -292,21 +261,6 @@ export function resolveNozzleById(raw){
     // ignore
   }
 
-
-  // 2) legacy custom nozzles (deprecated)
-
-  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
-  const c = custom.find(n => n && String(n.id) === id);
-  if (c) {
-    // Normalize to the same shape calc expects
-    return {
-      id: String(c.id),
-      name: String(c.name || c.label || c.id),
-      gpm: Number(c.gpm ?? c.GPM ?? 0),
-      NP:  Number(c.NP ?? c.np ?? 0),
-      label: c.label || c.name || c.id,
-    };
-  }
   // 3) safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
@@ -485,7 +439,75 @@ export const COEFF = {
 };
 
 export function sizeLabel(v){
-  return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
+  // Accept either a diameter string (e.g., "1.75") OR a hose id (e.g., "h_lf_175", "custom_hose_123").
+  const raw = (v == null ? '' : String(v)).trim();
+  if(!raw) return '';
+
+  // ---------- helpers ----------
+  const fmtDia = (diaRaw) => {
+    const d = String(diaRaw ?? '').trim();
+    if(!d) return '';
+    // normalize common forms
+    const n = d === '2' ? '2.0' : d;
+    if (n === '1.75') return '1 3/4"';
+    if (n === '1.5')  return '1 1/2"';
+    if (n === '2.5')  return '2 1/2"';
+    if (n === '2.0')  return '2"';
+    if (n === '3')    return '3"';
+    if (n === '4')    return '4"';
+    if (n === '5')    return '5"';
+    // fallback: keep as inches
+    return `${n}"`;
+  };
+
+  const HOSE_ID_TO_DIA = {
+    'h_1': '1',
+    'h_15': '1.5',
+    'h_175': '1.75',
+    'h_2': '2.0',
+    'h_25': '2.5',
+    'h_3': '3',
+    'h_3_supply': '3',
+    'h_4_ldh': '4',
+    'h_5_ldh': '5',
+    'h_w_1': '1',
+    'h_w_15': '1.5',
+    'h_booster_1': '1',
+    'h_lf_175': '1.75',
+    'h_lf_2': '2.0',
+    'h_lf_25': '2.5',
+    'h_lf_5': '5',
+  };
+
+  // ---------- ID-based formats ----------
+  if (raw.startsWith('h_lf_')) {
+    const dia = HOSE_ID_TO_DIA[raw] || raw.replace('h_lf_', '').replace('_', '.');
+    return `${fmtDia(dia)} LF`;
+  }
+
+  if (raw.startsWith('custom_hose_')) {
+    // Look up custom hose diameter in dept equipment storage (canonical)
+    try{
+      const KEY = 'fireops_dept_equipment_v1';
+      const dept = JSON.parse(localStorage.getItem(KEY) || '{}');
+      const list = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+      const found = list.find(h => h && String(h.id) === raw);
+      const dia = found ? (found.diameter ?? found.dia ?? found.size ?? '') : '';
+      const label = fmtDia(dia || '');
+      return label ? `${label} C` : `${raw} C`;
+    }catch(_e){
+      return `${raw} C`;
+    }
+  }
+
+  if (raw.startsWith('h_')) {
+    const dia = HOSE_ID_TO_DIA[raw];
+    if (dia) return fmtDia(dia);
+  }
+
+  // ---------- Diameter-based formats ----------
+  // If they passed a plain diameter, keep it simple.
+  return fmtDia(raw);
 }
 
 /* =========================
