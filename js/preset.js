@@ -7,62 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
-
-// --- Custom nozzle resolution for Dept Line Defaults ---
-// Dept Setup can save custom nozzle ids like "custom_noz_*". When syncing Line 1/2/3 defaults
-// into calc-ready objects (left/back/right), we must resolve those ids into a nozzle object,
-// otherwise Calc will fall back to the first nozzle in the dropdown.
-function resolveNozzleForDefaults(rawId) {
-  const id = canonicalNozzleId(rawId);
-  if (!id) return { id:'', noz:null };
-
-  // 1) built-in catalog
-  if (NOZ && NOZ[id]) return { id, noz: NOZ[id] };
-  if (NOZ && NOZ[id + '_50']) return { id, noz: NOZ[id + '_50'] };
-
-  // 2) NOZ_LIST (may include additional built-ins)
-  const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-  const inList = list.find(n => n && String(n.id) === id);
-  if (inList) return { id, noz: inList };
-
-  // 3) Department equipment custom nozzles (canonical)
-  try {
-    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
-    if (rawDept) {
-      const dept = JSON.parse(rawDept) || {};
-      const custom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      const d = custom.find(n => n && String(n.id) === id);
-      if (d) {
-        const noz = {
-          id: String(d.id),
-          name: String(d.name || d.label || d.id),
-          gpm: Number(d.gpm ?? d.GPM ?? 0),
-          NP:  Number(d.NP ?? d.np ?? 0),
-          label: d.label || d.name || d.id,
-        };
-        return { id, noz };
-      }
-    }
-  } catch (e) { /* ignore */ }
-
-  return { id, noz: null };
-}
-
-function ensureDeptNozzleIdSelected(nozzleId) {
-  const id = canonicalNozzleId(nozzleId);
-  if (!id) return;
-  try {
-    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
-    const dept = rawDept ? (JSON.parse(rawDept) || {}) : {};
-    if (!Array.isArray(dept.nozzles)) dept.nozzles = [];
-    if (!dept.nozzles.includes(id)) {
-      dept.nozzles.push(id);
-      localStorage.setItem('fireops_dept_equipment_v1', JSON.stringify(dept));
-    }
-  } catch (e) { /* ignore */ }
-}
-
+import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId, setLineDefaults, addCustomNozzle } from './store.js';
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -899,33 +844,19 @@ function renderNozzleSelectionScreen() {
       let type = String(typeEl.value || 'fog');
       if (!['smooth','fog','master','special'].includes(type)) type = 'fog';
 
-      const id = 'custom_noz_' + Date.now() + '_' + Math.floor(Math.random()*1000);
       const labelParts = [name];
       if (gpm > 0) labelParts.push(gpm + ' gpm');
       if (psi > 0) labelParts.push('@ ' + psi + ' psi');
       const fullLabel = labelParts.join(' ');
 
-      const custom = { id, label: fullLabel, type, gpm, NP: psi, psi };
-      if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
-      state.customNozzles.push(custom);
+      // Create + persist via store.js (single source of truth)
+      const created = addCustomNozzle(fullLabel, gpm, psi, type);
+      const id = created && created.id ? created.id : ('custom_noz_' + Date.now());
 
-      let host = null;
-      if (type === 'smooth') host = smoothList;
-      else if (type === 'fog') host = fogList;
-      else if (type === 'master') host = masterList;
-      else host = specialList || fogList;
+      // Reload canonical dept equipment so state stays in sync (prevents overwriting/duplicates)
+      const deptNow = loadDeptFromStorage();
+      state.customNozzles = Array.isArray(deptNow.customNozzles) ? deptNow.customNozzles : [];
 
-      if (host) {
-        const row = document.createElement('label');
-        row.className = 'dept-option';
-        row.innerHTML = `
-          <input type="checkbox" data-noz-id="${id}" checked>
-          <span>${fullLabel}</span>
-        `;
-        host.appendChild(row);
-      }
-
-      saveDeptToStorage();
 
       nameEl.value = '';
       gpmEl.value = '';
@@ -947,7 +878,6 @@ function renderNozzleSelectionScreen() {
         }
       });
       state.deptNozzles = chosen;
-      saveDeptToStorage();
       const wrap2 = document.getElementById('deptPopupWrapper');
       if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
@@ -1632,50 +1562,28 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       if (!state.lineDefaults) state.lineDefaults = {};
       state.lineDefaults[key] = next;
       saveLineDefaultsToStorage();
-
       // Also save into the central dept defaults in store.js
+      // IMPORTANT: use store.js's setLineDefaults() so custom_noz_* ids are persisted as _nozId
+      // and resolve correctly when Calc seeds Lines 1–3.
       try {
-        const storeKey =
-          lineNumber === 1 ? 'left' :
-          lineNumber === 2 ? 'back' :
-          lineNumber === 3 ? 'right' :
+        const lineKey =
+          lineNumber === 1 ? 'line1' :
+          lineNumber === 2 ? 'line2' :
+          lineNumber === 3 ? 'line3' :
           null;
 
-        if (storeKey) {
-          const L = {
-            label: 'Line ' + String(lineNumber),
-            visible: false,
-            itemsMain: [],
-            itemsLeft: [],
-            itemsRight: [],
-            hasWye: false,
-            elevFt: next.elevationFt || 0,
-            nozRight: null
-          };
-
-          if (single.hoseId) {
-            L.itemsMain.push({
-              size: String(single.hoseId),
-              lengthFt: next.lengthFt || 0
-            });
-          }
-
-          if (single.nozzleId) {
-            const r = resolveNozzleForDefaults(single.nozzleId);
-            if (r && r.id) {
-              L._nozId = r.id;
-              if (r.noz) L.nozRight = r.noz;
-              // make sure calc dropdown filtering doesn't drop a nozzle used in defaults
-              ensureDeptNozzleIdSelected(r.id);
-            }
-          }
-
-          setDeptLineDefault(storeKey, L);
+        if (lineKey) {
+          setLineDefaults(lineKey, {
+            hose: single.hoseId || '',
+            nozzle: single.nozzleId || '',
+            length: next.lengthFt || 0,
+            elevation: next.elevationFt || 0,
+          });
         }
       } catch (e) {
         console.warn('Failed to sync dept line default to store', e);
       }
-    }
+}
   });
 }
 
