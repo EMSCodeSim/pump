@@ -7,7 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId, setLineDefaults, addCustomNozzle } from './store.js';
+import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -467,7 +467,14 @@ function loadDeptFromStorage() {
       nozzles: Array.isArray(parsed.nozzles) ? parsed.nozzles : [],
       customNozzles: Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [],
       hoses: Array.isArray(parsed.hoses) ? parsed.hoses : [],
-      customHoses: Array.isArray(parsed.customHoses) ? parsed.customHoses : [],
+      customHoses: Array.isArray(parsed.customHoses)
+        ? parsed.customHoses.map(h => {
+            if (!h || typeof h !== 'object') return h;
+            const c = (typeof h.c === 'number') ? h.c : (typeof h.cValue === 'number' ? h.cValue : (typeof h.flC === 'number' ? h.flC : 0));
+            const diameter = (h.diameter != null) ? String(h.diameter) : '';
+            return { ...h, diameter, c, cValue: (typeof h.cValue === 'number' ? h.cValue : c) };
+          })
+        : [],
       accessories: Array.isArray(parsed.accessories) ? parsed.accessories : [],
       customAccessories: Array.isArray(parsed.customAccessories) ? parsed.customAccessories : [],
     };
@@ -844,19 +851,33 @@ function renderNozzleSelectionScreen() {
       let type = String(typeEl.value || 'fog');
       if (!['smooth','fog','master','special'].includes(type)) type = 'fog';
 
+      const id = 'custom_noz_' + Date.now() + '_' + Math.floor(Math.random()*1000);
       const labelParts = [name];
       if (gpm > 0) labelParts.push(gpm + ' gpm');
       if (psi > 0) labelParts.push('@ ' + psi + ' psi');
       const fullLabel = labelParts.join(' ');
 
-      // Create + persist via store.js (single source of truth)
-      const created = addCustomNozzle(fullLabel, gpm, psi, type);
-      const id = created && created.id ? created.id : ('custom_noz_' + Date.now());
+      const custom = { id, label: fullLabel, type, gpm, NP: psi, psi };
+      if (!Array.isArray(state.customNozzles)) state.customNozzles = [];
+      state.customNozzles.push(custom);
 
-      // Reload canonical dept equipment so state stays in sync (prevents overwriting/duplicates)
-      const deptNow = loadDeptFromStorage();
-      state.customNozzles = Array.isArray(deptNow.customNozzles) ? deptNow.customNozzles : [];
+      let host = null;
+      if (type === 'smooth') host = smoothList;
+      else if (type === 'fog') host = fogList;
+      else if (type === 'master') host = masterList;
+      else host = specialList || fogList;
 
+      if (host) {
+        const row = document.createElement('label');
+        row.className = 'dept-option';
+        row.innerHTML = `
+          <input type="checkbox" data-noz-id="${id}" checked>
+          <span>${fullLabel}</span>
+        `;
+        host.appendChild(row);
+      }
+
+      saveDeptToStorage();
 
       nameEl.value = '';
       gpmEl.value = '';
@@ -878,6 +899,7 @@ function renderNozzleSelectionScreen() {
         }
       });
       state.deptNozzles = chosen;
+      saveDeptToStorage();
       const wrap2 = document.getElementById('deptPopupWrapper');
       if (wrap2) wrap2.classList.add('hidden');
       openPresetMainMenu();
@@ -1053,7 +1075,7 @@ function renderHoseSelectionScreen() {
       if (c > 0) labelParts.push('(C ' + c + ')');
       const fullLabel = labelParts.join(' ');
 
-      const custom = { id, label: fullLabel, diameter: dia, cValue: c, category: cat };
+      const custom = { id, label: fullLabel, diameter: String(dia), c: Number(c)||0, cValue: Number(c)||0, category: cat };
       if (!Array.isArray(state.customHoses)) state.customHoses = [];
       state.customHoses.push(custom);
 
@@ -1562,28 +1584,44 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       if (!state.lineDefaults) state.lineDefaults = {};
       state.lineDefaults[key] = next;
       saveLineDefaultsToStorage();
+
       // Also save into the central dept defaults in store.js
-      // IMPORTANT: use store.js's setLineDefaults() so custom_noz_* ids are persisted as _nozId
-      // and resolve correctly when Calc seeds Lines 1–3.
       try {
-        const lineKey =
-          lineNumber === 1 ? 'line1' :
-          lineNumber === 2 ? 'line2' :
-          lineNumber === 3 ? 'line3' :
+        const storeKey =
+          lineNumber === 1 ? 'left' :
+          lineNumber === 2 ? 'back' :
+          lineNumber === 3 ? 'right' :
           null;
 
-        if (lineKey) {
-          setLineDefaults(lineKey, {
-            hose: single.hoseId || '',
-            nozzle: single.nozzleId || '',
-            length: next.lengthFt || 0,
-            elevation: next.elevationFt || 0,
-          });
+        if (storeKey) {
+          const L = {
+            label: 'Line ' + String(lineNumber),
+            visible: false,
+            itemsMain: [],
+            itemsLeft: [],
+            itemsRight: [],
+            hasWye: false,
+            elevFt: next.elevationFt || 0,
+            nozRight: null
+          };
+
+          if (single.hoseId) {
+            L.itemsMain.push({
+              size: String(single.hoseId),
+              lengthFt: next.lengthFt || 0
+            });
+          }
+
+          if (single.nozzleId && NOZ[single.nozzleId]) {
+            L.nozRight = NOZ[single.nozzleId];
+          }
+
+          setDeptLineDefault(storeKey, L);
         }
       } catch (e) {
         console.warn('Failed to sync dept line default to store', e);
       }
-}
+    }
   });
 }
 
