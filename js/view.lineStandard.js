@@ -124,6 +124,10 @@ function prettifyNozzle(id, label, gpm, np) {
 
   // Custom nozzles
   if (lowerId.startsWith('custom_noz_')) {
+    // Preserve user-entered labels (e.g. "the one 444 gpm @ 33 psi") instead of
+    // overwriting them with "Custom nozzle ...".
+    const hasUserLabel = !!(lbl && String(lbl).trim() && !/^custom\s*nozzle\b/i.test(String(lbl).trim()));
+
     let g = gpm || parseGpmFromLabel(lbl);
     let p = np || parseNpFromLabel(lbl);
 
@@ -135,12 +139,16 @@ function prettifyNozzle(id, label, gpm, np) {
 
     if (!p) p = 50;
 
-    if (g && p) {
-      lbl = `Custom nozzle ${g} gpm @ ${p} psi`;
-    } else if (g) {
-      lbl = `Custom nozzle ${g} gpm`;
-    } else {
-      lbl = 'Custom nozzle';
+    // If the user supplied a meaningful label, keep it.
+    // Otherwise generate a fallback label from gpm/psi.
+    if (!hasUserLabel) {
+      if (g && p) {
+        lbl = `Custom nozzle ${g} gpm @ ${p} psi`;
+      } else if (g) {
+        lbl = `Custom nozzle ${g} gpm`;
+      } else {
+        lbl = 'Custom nozzle';
+      }
     }
 
     return { label: lbl, gpm: g || 0, np: p || 0 };
@@ -236,6 +244,42 @@ function getHoseListFromDept(dept) {
 }
 
 function getNozzleListFromDept(dept) {
+  // Resolve a custom nozzle id to the saved object that contains the user label.
+  // IMPORTANT: When Department Setup saves nozzle selections, DEPT_UI_NOZZLES can
+  // be an array of ids (strings). If we only have ids, older code would fall back
+  // to building a generic label like "Custom nozzle 385 gpm @ 50 psi".
+  //
+  // The *actual* user-entered labels live in department storage:
+  //   localStorage.fireops_dept_equipment_v1.customNozzles
+  // and may also be present on the passed-in dept object.
+  function resolveCustomNozzleById(id) {
+    const want = String(id || '').trim();
+    if (!want) return null;
+
+    // 1) Prefer explicit dept.customNozzles if provided
+    try {
+      if (dept && Array.isArray(dept.customNozzles)) {
+        const hit = dept.customNozzles.find(n => n && String(n.id) === want);
+        if (hit) return hit;
+      }
+    } catch (e) {}
+
+    // 2) Fall back to shared dept storage used by presets/calc
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('fireops_dept_equipment_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const arr = parsed && Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [];
+          const hit = arr.find(n => n && String(n.id) === want);
+          if (hit) return hit;
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
   let baseRaw;
 
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
@@ -262,13 +306,23 @@ function getNozzleListFromDept(dept) {
 
     if (typeof n === 'string' || typeof n === 'number') {
       id = String(n);
-      const fromCatalog = NOZ && NOZ[id] ? NOZ[id] : null;
+      // If it's a custom nozzle id, try to resolve the saved object so we keep the user's label.
+      if (String(id).toLowerCase().startsWith('custom_noz_')) {
+        const hit = resolveCustomNozzleById(id);
+        if (hit) {
+          label = hit.label || hit.name || String(id);
+          gpm = typeof hit.gpm === 'number' ? hit.gpm : Number(hit.gpm || 0);
+          np  = typeof hit.NP === 'number' ? hit.NP : Number(hit.NP ?? hit.np ?? hit.psi ?? 0);
+        }
+      }
+
+      const fromCatalog = (!label && NOZ && NOZ[id]) ? NOZ[id] : null;
       if (fromCatalog) {
         label = fromCatalog.name || id;
         gpm = typeof fromCatalog.gpm === 'number' ? fromCatalog.gpm : 0;
         np  = typeof fromCatalog.NP  === 'number' ? fromCatalog.NP  : 0;
       } else {
-        label = String(n);
+        label = label || String(n);
         gpm = parseGpmFromLabel(label);
         np  = parseNpFromLabel(label);
       }
