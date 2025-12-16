@@ -97,6 +97,32 @@ export function addCustomNozzle(label, gpm, np){
   const id = `custom_noz_${Date.now()}`;
   const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
   store.customNozzles.push(noz);
+
+  // Keep Department equipment storage in sync.
+  // Calc/presets read custom nozzles from the shared dept-equipment key
+  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
+  // store.customNozzles, Department Setup and Calc can drift apart.
+  try {
+    const KEY = 'fireops_dept_equipment_v1';
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(KEY);
+      const dept = raw ? JSON.parse(raw) : {};
+      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      dept.customNozzles = existing.concat([{
+        id: noz.id,
+        label: noz.label,
+        name: noz.name,
+        gpm: noz.gpm,
+        NP: noz.NP,
+        np: noz.NP,
+        psi: noz.NP,
+      }]);
+      localStorage.setItem(KEY, JSON.stringify(dept));
+    }
+  } catch (e) {
+    console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
+  }
+
   saveStore();
   return noz;
 }
@@ -297,7 +323,43 @@ export function getDeptNozzles() {
   //  - small UI objects {id,label} from Department Setup.
   // We always resolve to full calc-ready nozzle objects from NOZ (plus any stored customNozzles).
   const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-  const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+
+  // Custom nozzles can live in TWO places depending on which UI created them:
+  // - store.customNozzles (legacy / in-memory store)
+  // - dept equipment storage (fireops_dept_equipment_v1) (used by calc/presets)
+  // We merge them here so every screen sees the same custom nozzle names.
+  let custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+  try {
+    const KEY = 'fireops_dept_equipment_v1';
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const dept = JSON.parse(raw);
+        if (dept && Array.isArray(dept.customNozzles) && dept.customNozzles.length) {
+          const merged = [];
+          const seen = new Set();
+          // keep store.customNozzles first so any in-memory edits win
+          custom.forEach(n => {
+            if (!n) return;
+            const id = String(n.id || '').trim();
+            if (!id || seen.has(id)) return;
+            seen.add(id);
+            merged.push(n);
+          });
+          dept.customNozzles.forEach(n => {
+            if (!n) return;
+            const id = String(n.id || n.calcId || n.key || '').trim();
+            if (!id || seen.has(id)) return;
+            seen.add(id);
+            merged.push(n);
+          });
+          custom = merged;
+        }
+      }
+    }
+  } catch (e) {
+    // non-fatal: fall back to store.customNozzles
+  }
 
   function toFull(item){
     if (!item) return null;
