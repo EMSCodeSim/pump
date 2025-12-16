@@ -1,19 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
-
-// view.lineStandpipe.js
-// Standpipe-only popup editor for a single line (Line 1 / 2 / 3).
-// - Uses same department hose/nozzle logic as view.lineStandard.js
-//   (DEPT_UI_HOSES / DEPT_UI_NOZZLES, with "Closed" nozzle option).
-// - Engine → standpipe hose: type + length + number of hoses
-// - Floors up (or vertical feet)
-// - Standpipe → nozzle hose: type + length
-// - Nozzle type
-// - Live GPM & PDP preview
-// - "Explain math" button shows breakdown window
-
-/* -------------------------------------------------------------------------- */
-/*  Shared hose / nozzle helpers (mirrored from view.lineStandard.js)         */
-/* -------------------------------------------------------------------------- */
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, NOZ } from './store.js';
 
 function parseGpmFromLabel(label) {
   const m = String(label || '').match(/(\d+)\s*gpm/i);
@@ -25,62 +10,42 @@ function parseNpFromLabel(label) {
   return m ? Number(m[1]) : 0;
 }
 
-// Turn internal hose ids into nice labels that match on desktop/phone.
 function formatHoseLabel(idOrLabel) {
   const raw = String(idOrLabel || '').trim();
 
-  // Already looks like 2.5" / 4" / 5"
+  // Detect special hose types
+  const isCustom = /^custom_hose_/i.test(raw);
+  const isLF = /^h_lf_/i.test(raw) || /low[-\s]?friction|\blf\b/i.test(raw);
+
+  // Extract numeric size from common formats (e.g., 2.5", "2.5", "h_25", "h_lf_175")
   const quoteMatch = raw.match(/(\d(?:\.\d+)?)\s*"/);
-  if (quoteMatch) {
-    const v = quoteMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
-  }
+  const numMatch = quoteMatch ? quoteMatch[1] : (raw.match(/(\d(?:\.\d+)?)/)?.[1] || '');
 
-  // Internal IDs like h_175
-  if (/^h_?175$/i.test(raw)) return '1 3/4"';
-  if (/^h_?15$/i.test(raw))  return '1 1/2"';
-  if (/^h_?25$/i.test(raw))  return '2 1/2"';
-  if (/^h_?3$/i.test(raw))   return '3"';
-  if (/^h_?4$/i.test(raw))   return '4"';
-  if (/^h_?5$/i.test(raw))   return '5"';
+  let size = '';
+  if (/\b175\b/.test(raw) || numMatch === '1.75') size = '1 3/4"';
+  else if (/\b15\b/.test(raw) || numMatch === '1.5') size = '1 1/2"';
+  else if (/\bh_lf_2\b/i.test(raw) || numMatch === '2' || numMatch === '2.0') size = '2"';
+  else if (/\b25\b/.test(raw) || numMatch === '2.5') size = '2 1/2"';
+  else if (/\bh_?3\b/i.test(raw) || numMatch === '3') size = '3"';
+  else if (/\bh_?4\b/i.test(raw) || numMatch === '4') size = '4"';
+  else if (/\bh_?5\b/i.test(raw) || numMatch === '5') size = '5"';
 
-  // Custom hose ids: "custom_hose_<...>"
-  if (/^custom_hose_/i.test(raw)) {
-    if (/175/.test(raw)) return 'Custom 1 3/4"';
-    if (/15/.test(raw))  return 'Custom 1 1/2"';
-    if (/25/.test(raw))  return 'Custom 2 1/2"';
-    if (/\b3\b/.test(raw))   return 'Custom 3"';
-    if (/\b4\b/.test(raw))   return 'Custom 4"';
-    if (/\b5\b/.test(raw))   return 'Custom 5"';
-    return 'Custom hose';
-  }
+  if (!size) return raw;
 
-  // Text like "2.5 supply", "4 inch LDH"
-  const numMatch = raw.match(/(\d(?:\.\d+)?)/);
-  if (numMatch) {
-    const v = numMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
-  }
-
-  return raw;
+  // Simple suffix rules:
+  // - Normal: just size
+  // - Low-friction: add " LF"
+  // - Custom: add " C"
+  if (isLF) return `${size} LF`;
+  if (isCustom) return `${size} C`;
+  return size;
 }
 
 const DEFAULT_NOZZLES = [
   { id: 'fog150_50',   label: 'Fog 150 gpm @ 50 psi', gpm: 150, np: 50 },
   { id: 'fog185_50',   label: 'Fog 185 gpm @ 50 psi', gpm: 185, np: 50 },
-  { id: 'sb_7_8_50',   label: 'Smooth 7/8" 160 gpm @ 50 psi', gpm: 160, np: 50 },
-  { id: 'sb_15_16_50', label: 'Smooth 15/16" 185 gpm @ 50 psi', gpm: 185, np: 50 },
-  { id: 'sb_1_1_8_50', label: 'Smooth 1 1/8" 265 gpm @ 50 psi', gpm: 265, np: 50 },
+  { id: 'sb_7_8_50',   label: 'SB 7/8" @ 50',         gpm: 160, np: 50 },
+  { id: 'sb_1_1_8_50', label: 'SB 1 1/8" @ 50',       gpm: 265, np: 50 },
 ];
 
 const DEFAULT_HOSES = [
@@ -90,36 +55,15 @@ const DEFAULT_HOSES = [
   { id: '5',    label: '5"'     },
 ];
 
-const SMOOTH_TIP_GPM_MAP = {
-  '7/8': 160,
-  '15/16': 185,
-  '1': 210,
-  '1 1/8': 265,
-  '1 1/4': 325,
-};
-
 function extractSmoothTipFromLabel(label) {
   const txt = String(label || '');
-
-  // 15/16", 7/8", 1 1/8", 1 1/4"
   const frac = txt.match(/(\d+\s*\d*\/\d+)\s*"/);
-  if (frac) {
-    return frac[1].replace(/\s+/g, ' ');
-  }
-
-  // 7/8, 15/16 without quotes
+  if (frac) return frac[1].replace(/\s+/g, ' ');
   const frac2 = txt.match(/(\d+\/\d+)/);
   if (frac2) return frac2[1];
-
   return '';
 }
 
-/**
- * Make nozzle labels pretty & consistent:
- * - Smooth bores: "Smooth 15/16\" 185 gpm @ 50 psi"
- * - Fog:          "Fog 150 gpm @ 50 psi"
- * - Custom:       "Fog 150 gpm @ 50 psi" / "Smooth 15/16\" 185 gpm @ 50 psi"
- */
 function prettifyNozzle(id, label, gpm, np) {
   const idStr = String(id || '');
   let lbl = label ? String(label) : idStr;
@@ -128,109 +72,75 @@ function prettifyNozzle(id, label, gpm, np) {
 
   const hasGpmPsiWords = /gpm/i.test(lbl) && /psi/i.test(lbl);
 
-  // --- Custom nozzles (built from user input) ------------------------------
-  // Expect ids like: custom_noz_<timestamp>_<gpm>_<np>
-  if (lowerId.startsWith('custom_noz_')) {
-    // Preserve user-entered labels (e.g. "the one 444 gpm @ 33 psi") instead of
-    // overwriting them with generic "Fog 150 gpm @ 50 psi"-style labels.
-    const hasUserLabel = !!(lbl && String(lbl).trim() && !/^custom\s*nozzle\b/i.test(String(lbl).trim()));
-
-    let g = gpm || 0;
-    let p = np || 0;
-
-    const m = idStr.match(/(\d+)_([0-9]+)$/);
-    if (m) {
-      if (!g) g = Number(m[1]);
-      if (!p) p = Number(m[2]);
-    }
-
-    // If the label already contains the user's custom name, keep it and just
-    // backfill gpm/psi from the label when missing.
-    if (hasUserLabel) {
-      if (!g) g = parseGpmFromLabel(lbl) || 0;
-      if (!p) p = parseNpFromLabel(lbl) || 0;
-      if (!p) p = 50;
-      return { label: lbl, gpm: g, np: p };
-    }
-
-    let type = 'Nozzle';
-    if (lowerId.includes('fog') || /fog/i.test(lbl)) type = 'Fog';
-    else if (lowerId.includes('sb') || /smooth/i.test(lbl)) type = 'Smooth';
-    else if (lowerId.includes('ms_tip')) type = 'Master stream';
-
-    if (!g && !p) {
-      return { label: lbl || type, gpm: 0, np: 0 };
-    }
-    if (!p) p = 50;
-
-    const finalLabel = `${type} ${g} gpm @ ${p} psi`;
-    return { label: finalLabel, gpm: g, np: p };
-  }
-
-  // --- Smooth bores --------------------------------------------------------
+  // Smooth bores
   if (lowerId.startsWith('sb') || lowerLbl.includes('smooth')) {
-    if (!/smooth/i.test(lbl)) {
+    if (!/smooth/i.test(lbl) && !/^sb\b/i.test(lbl)) {
       lbl = 'Smooth ' + lbl;
     }
 
     let gFromLabel = parseGpmFromLabel(lbl);
     let pFromLabel = parseNpFromLabel(lbl);
-
     let tip = extractSmoothTipFromLabel(lbl);
 
-    // If we can't see the tip from label, try to decode from the id:
-    //   sb_7_8_50_160   ->  7/8"   160 gpm @ 50 psi
-    //   sb_15_16_50_185 -> 15/16"  185 gpm @ 50 psi
-    const idMatch = idStr.match(/^sb_([^_]+)_([^_]+)(?:_([^_]+))?/);
-    if (idMatch) {
-      const tipPart = idMatch[1];   // "7", "7_8", "15_16", etc.
-      const npPart  = idMatch[2];
-      const gPart   = idMatch[3];
-
-      if (!tip) {
-        if (tipPart === '7_8' || tipPart === '78') tip = '7/8';
-        else if (tipPart === '15_16' || tipPart === '1516') tip = '15/16';
-        else if (tipPart === '1') tip = '1';
-        else if (tipPart === '1_1_8' || tipPart === '1118') tip = '1 1/8';
-        else if (tipPart === '1_1_4' || tipPart === '114') tip = '1 1/4';
+    if (!tip) {
+      const m = idStr.match(/^sb[_-]?(\d+)(?:[_-](\d+))?(?:[_-](\d+))?/i);
+      if (m) {
+        const boreCode = m[1];
+        switch (boreCode) {
+          case '78':   tip = '7/8';   break;
+          case '1516': tip = '15/16'; break;
+          case '1':    tip = '1';     break;
+          case '1118': tip = '1 1/8'; break;
+          case '114':  tip = '1 1/4'; break;
+        }
+        if (!pFromLabel && m[2]) pFromLabel = Number(m[2]);
+        if (!gFromLabel && m[3]) gFromLabel = Number(m[3]);
       }
-
-      if (!gFromLabel && gPart) gFromLabel = Number(gPart);
-      if (!pFromLabel && npPart) pFromLabel = Number(npPart);
     }
-
-    if (!gFromLabel && tip && SMOOTH_TIP_GPM_MAP[tip]) {
-      gFromLabel = SMOOTH_TIP_GPM_MAP[tip];
-    }
-    if (!pFromLabel) pFromLabel = 50; // default if needed
 
     if (!gpm && gFromLabel) gpm = gFromLabel;
-    if (!np && pFromLabel)  np  = pFromLabel;
-
-    if (!tip) {
-      tip = extractSmoothTipFromLabel(lbl);
-    }
+    if (!np && pFromLabel)  np  = pFromLabel || 50;
 
     if (tip && gpm && np) {
-      lbl = `Smooth ${tip}" ${gpm} gpm @ ${np} psi`;
+      lbl = `SB ${tip}" @ ${np}`;
     }
 
     return { label: lbl, gpm, np };
   }
 
-  // --- Master stream tips --------------------------------------------------
-  // Expect ids like: ms_tip_<npGuess?>_<gpm>
-  if (lowerId.startsWith('ms_tip')) {
-    const parts = idStr.split('_'); // e.g. ["ms","tip","134","800"]
-    const maybeGpm = Number(parts[parts.length - 1]);
-    if (!gpm && maybeGpm) gpm = maybeGpm;
-    if (!np) np = 80; // default NP for master stream tips if not stored
+  // Custom nozzles
+  if (lowerId.startsWith('custom_noz_')) {
+    // Preserve user-entered labels (e.g. "the one 444 gpm @ 33 psi") instead of
+    // overwriting them with "Custom nozzle ...".
+    const hasUserLabel = !!(lbl && String(lbl).trim() && !/^custom\s*nozzle\b/i.test(String(lbl).trim()));
 
-    const finalLabel = `Master stream tip ${gpm || 0} gpm @ ${np} psi`;
-    return { label: finalLabel, gpm: gpm || 0, np: np || 0 };
+    let g = gpm || parseGpmFromLabel(lbl);
+    let p = np || parseNpFromLabel(lbl);
+
+    const m = idStr.match(/custom_noz_[^_]*_(\d+)_?(\d+)?$/i);
+    if (m) {
+      if (!g && m[1]) g = Number(m[1]);
+      if (!p && m[2]) p = Number(m[2]);
+    }
+
+    if (!p) p = 50;
+
+    // If the user supplied a meaningful label, keep it.
+    // Otherwise generate a fallback label from gpm/psi.
+    if (!hasUserLabel) {
+      if (g && p) {
+        lbl = `Custom nozzle ${g} gpm @ ${p} psi`;
+      } else if (g) {
+        lbl = `Custom nozzle ${g} gpm`;
+      } else {
+        lbl = 'Custom nozzle';
+      }
+    }
+
+    return { label: lbl, gpm: g || 0, np: p || 0 };
   }
 
-  // --- Fog and everything else --------------------------------------------
+  // Already has words
   if (hasGpmPsiWords) {
     const gFrom = parseGpmFromLabel(lbl);
     const pFrom = parseNpFromLabel(lbl);
@@ -239,12 +149,12 @@ function prettifyNozzle(id, label, gpm, np) {
     return { label: lbl, gpm, np };
   }
 
-  // FOG patterns based on id if available
+  // Fog internal ids
   if (lowerId.includes('fog')) {
     const nums = idStr.match(/\d+/g) || [];
     if (nums.length >= 2) {
-      const p = Number(nums[nums.length - 2]);
       const g = Number(nums[nums.length - 1]);
+      const p = Number(nums[nums.length - 2]);
       if (!gpm && g) gpm = g;
       if (!np && p)  np  = p;
     }
@@ -254,9 +164,9 @@ function prettifyNozzle(id, label, gpm, np) {
     if (!np && pFrom)  np  = pFrom || 50;
 
     if (gpm && np) {
-      lbl = `Fog ${gpm} gpm @ ${np} psi`;
+      lbl = `Fog ${gpm} @ ${np}`;
     } else if (gpm) {
-      lbl = `Fog ${gpm} gpm`;
+      lbl = `Fog ${gpm}`;
     } else {
       lbl = 'Fog nozzle';
     }
@@ -264,7 +174,7 @@ function prettifyNozzle(id, label, gpm, np) {
     return { label: lbl, gpm, np };
   }
 
-  // Generic: if we have numbers but no words, just format "XXX gpm @ YY psi"
+  // Generic
   if (!hasGpmPsiWords) {
     const gFrom = parseGpmFromLabel(lbl);
     const pFrom = parseNpFromLabel(lbl);
@@ -281,7 +191,6 @@ function prettifyNozzle(id, label, gpm, np) {
   return { label: lbl, gpm, np };
 }
 
-// Department → hose list (same behavior as Standard line)
 function getHoseListFromDept(dept) {
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
     return DEPT_UI_HOSES.map((h, idx) => {
@@ -320,39 +229,7 @@ function getHoseListFromDept(dept) {
   return DEFAULT_HOSES;
 }
 
-// Department → nozzle list (no master-stream filter; includes prettified fog / smooth)
 function getNozzleListFromDept(dept) {
-  // Resolve a custom nozzle id to the saved object that contains the user label.
-  // This prevents dropdowns from showing generic text like "Custom nozzle 385 gpm @ 50 psi"
-  // when the user's real label (e.g. "the one 444 gpm @ 33 psi") exists in dept storage.
-  function resolveCustomNozzleById(id) {
-    const want = String(id || '').trim();
-    if (!want) return null;
-
-    // 1) Prefer explicit dept.customNozzles if provided
-    try {
-      if (dept && Array.isArray(dept.customNozzles)) {
-        const hit = dept.customNozzles.find(n => n && String(n.id) === want);
-        if (hit) return hit;
-      }
-    } catch (e) {}
-
-    // 2) Fall back to shared dept storage used by presets/calc
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem('fireops_dept_equipment_v1');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const arr = parsed && Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [];
-          const hit = arr.find(n => n && String(n.id) === want);
-          if (hit) return hit;
-        }
-      }
-    } catch (e) {}
-
-    return null;
-  }
-
   let baseRaw;
 
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
@@ -379,28 +256,16 @@ function getNozzleListFromDept(dept) {
 
     if (typeof n === 'string' || typeof n === 'number') {
       id = String(n);
-
-      // If it's a custom nozzle id, resolve the saved object so we keep the user's label.
-      if (String(id).toLowerCase().startsWith('custom_noz_')) {
-        const hit = resolveCustomNozzleById(id);
-        if (hit) {
-          label = hit.label || hit.name || String(id);
-          gpm = typeof hit.gpm === 'number' ? hit.gpm : Number(hit.gpm || 0);
-          np  = typeof hit.NP === 'number' ? hit.NP : Number(hit.NP ?? hit.np ?? hit.psi ?? 0);
-        }
+      const fromCatalog = NOZ && NOZ[id] ? NOZ[id] : null;
+      if (fromCatalog) {
+        label = fromCatalog.name || id;
+        gpm = typeof fromCatalog.gpm === 'number' ? fromCatalog.gpm : 0;
+        np  = typeof fromCatalog.NP  === 'number' ? fromCatalog.NP  : 0;
+      } else {
+        label = String(n);
+        gpm = parseGpmFromLabel(label);
+        np  = parseNpFromLabel(label);
       }
-
-      // Built-in ids can be resolved via NOZ for better labels.
-      if (!label && typeof NOZ === 'object' && NOZ && NOZ[id]) {
-        const built = NOZ[id];
-        label = built.name || built.label || String(id);
-        gpm = typeof built.gpm === 'number' ? built.gpm : 0;
-        np  = typeof built.NP === 'number' ? built.NP : 0;
-      }
-
-      label = label || String(n);
-      if (!gpm) gpm = parseGpmFromLabel(label);
-      if (!np)  np  = parseNpFromLabel(label);
     } else {
       id = n.id != null ? String(n.id) : String(n.value ?? n.name ?? idx);
       label = n.label || n.name || String(id);
@@ -411,16 +276,53 @@ function getNozzleListFromDept(dept) {
       if (typeof n.pressure === 'number' && !np) np = n.pressure;
     }
 
-    const pretty = prettifyNozzle(id, label, gpm, np);
+    const idStr = String(id || '');
+    const lowerId = idStr.toLowerCase();
+    const lowerLabel = String(label || '').toLowerCase();
+
+    let finalLabel = label;
+    let finalGpm = gpm;
+    let finalNp = np;
+
+    const looksInternal =
+      lowerId.startsWith('sb') ||
+      lowerId.includes('fog') ||
+      lowerLabel.includes('sb_') ||
+      lowerLabel.includes('fog_');
+
+    if (looksInternal || lowerId.startsWith('custom_noz_')) {
+      const pretty = prettifyNozzle(idStr, label, gpm, np);
+      finalLabel = pretty.label;
+      finalGpm = pretty.gpm || 0;
+      finalNp = pretty.np || 0;
+    } else {
+      const gFrom = parseGpmFromLabel(finalLabel);
+      const pFrom = parseNpFromLabel(finalLabel);
+      if (!finalGpm && gFrom) finalGpm = gFrom;
+      if (!finalNp && pFrom)  finalNp  = pFrom;
+    }
+
     return {
       id,
-      label: pretty.label,
-      gpm: pretty.gpm || 0,
-      np:  pretty.np  || 0,
+      label: finalLabel,
+      gpm: finalGpm || 0,
+      np:  finalNp  || 0,
     };
   }).filter(Boolean);
 
   return mapped.length ? mapped : DEFAULT_NOZZLES;
+}
+
+function guessHoseCFromLabel(label) {
+  if (!label) return 15.5;
+  const txt = String(label).toLowerCase();
+  if (txt.includes('1 3/4') || txt.includes('1.75')) return 15.5;
+  if (txt.includes('1 1/2') || txt.includes('1.5'))  return 24;
+  if (txt.includes('2 1/2') || txt.includes('2.5'))  return 2;
+  if (txt.includes('3"') || txt.includes(' 3 '))     return 0.8;
+  if (txt.includes('4"') || txt.includes(' 4 '))     return 0.2;
+  if (txt.includes('5"') || txt.includes(' 5 '))     return 0.08;
+  return 15.5;
 }
 
 function findNozzleById(list, id) {
@@ -428,430 +330,82 @@ function findNozzleById(list, id) {
   return list.find(n => String(n.id) === String(id)) || null;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Standpipe-specific helpers                                                */
-/* -------------------------------------------------------------------------- */
-
-let standpipeStylesInjected = false;
-
-function injectStandpipeStyles() {
-  if (standpipeStylesInjected) return;
-  standpipeStylesInjected = true;
-
-  const style = document.createElement('style');
-  style.textContent = `
-  .sp-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(3, 7, 18, 0.55);
-    backdrop-filter: blur(6px);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 40px;
-    z-index: 10050;
-    overflow-y: auto;
-  }
-
-  .sp-panel {
-    position: relative;
-    max-width: 480px;
-    width: 100%;
-    margin: 0 12px 24px;
-    background: #020617;
-    border-radius: 18px;
-    box-shadow:
-      0 18px 30px rgba(15, 23, 42, 0.75),
-      0 0 0 1px rgba(148, 163, 184, 0.35);
-    padding: 12px 14px 10px;
-    color: #e5e7eb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  @media (min-width: 640px) {
-    .sp-panel {
-      margin-top: 12px;
-      border-radius: 20px;
-      padding: 14px 16px 12px;
-    }
-  }
-
-  .sp-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
-  }
-
-  .sp-title {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-
-  .sp-close {
-    width: 26px;
-    height: 26px;
-    border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.6);
-    background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
-    color: #e5e7eb;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8rem;
-  }
-  .sp-close:hover {
-    background: #111827;
-  }
-
-  .sp-body {
-    font-size: 0.85rem;
-    line-height: 1.45;
-    max-height: min(60vh, 420px);
-    overflow-y: auto;
-    padding-top: 4px;
-    padding-bottom: 4px;
-  }
-
-  .sp-footer {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid rgba(148, 163, 184, 0.25);
-  }
-
-  .sp-btn-primary,
-  .sp-btn-secondary {
-    border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.82rem;
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .sp-btn-primary {
-    background: linear-gradient(135deg, #38bdf8, #22c55e);
-    color: #020617;
-    font-weight: 600;
-  }
-
-  .sp-btn-secondary {
-    background: rgba(15, 23, 42, 0.9);
-    color: #e5e7eb;
-    border: 1px solid rgba(148, 163, 184, 0.7);
-  }
-
-  .sp-btn-primary:active,
-  .sp-btn-secondary:active {
-    transform: translateY(1px);
-  }
-
-  .sp-row {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 6px;
-  }
-
-  .sp-row label {
-    font-weight: 500;
-    font-size: 0.82rem;
-  }
-
-  .sp-row span {
-    font-size: 0.8rem;
-  }
-
-  .sp-panel input[type="text"],
-  .sp-panel input[type="number"],
-  .sp-panel select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 6px 8px;
-    border-radius: 8px;
-    border: 1px solid rgba(55, 65, 81, 0.9);
-    background: #020617;
-    color: #e5e7eb;
-    font-size: 0.8rem;
-  }
-
-  .sp-panel input::placeholder {
-    color: rgba(148, 163, 184, 0.9);
-  }
-
-  .sp-section {
-    border-top: 1px solid rgba(148, 163, 184, 0.4);
-    padding-top: 8px;
-    margin-top: 6px;
-  }
-  .sp-section:first-of-type {
-    border-top: none;
-  }
-
-  .sp-section h3 {
-    margin: 0 0 4px 0;
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #bfdbfe;
-  }
-
-  .sp-preview {
-    margin-top: 8px;
-    padding: 8px;
-    border-radius: 10px;
-    background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
-    border: 1px solid rgba(37, 99, 235, 0.8);
-    font-weight: 600;
-    font-size: 0.82rem;
-    text-align: center;
-  }
-
-  @media (min-width: 640px) {
-    .sp-row {
-      flex-direction: row;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .sp-row > label {
-      min-width: 130px;
-    }
-    .sp-row input,
-    .sp-row select {
-      width: auto;
-      min-width: 120px;
-    }
-  }
-
-  /* Explain math popup */
-  .sp-explain-body {
-    font-size: 0.83rem;
-    line-height: 1.5;
-  }
-  .sp-explain-body code {
-    font-size: 0.8rem;
-    background: rgba(15, 23, 42, 0.9);
-    border-radius: 4px;
-    padding: 1px 4px;
-  }
-
-  /* Rule-of-thumb button highlight */
-  .sp-rule25-active {
-    background: linear-gradient(135deg, #22c55e, #4ade80) !important;
-    color: #022c22 !important;
-    border-color: rgba(34, 197, 94, 0.9) !important;
-  }
-  `;
-  document.head.appendChild(style);
+function findHoseById(list, id) {
+  if (!id) return null;
+  return list.find(h => String(h.id) === String(id)) || null;
 }
 
-function spEl(tag, opts = {}, ...children) {
-  const e = document.createElement(tag);
-  if (opts.class) e.className = opts.class;
-  if (opts.text) e.textContent = opts.text;
-  if (opts.type) e.type = opts.type;
-  if (opts.value != null) e.value = opts.value;
-  if (opts.placeholder) e.placeholder = opts.placeholder;
-  if (opts.for) e.htmlFor = opts.for;
-  if (opts.id) e.id = opts.id;
-  if (opts.onchange) e.addEventListener('change', opts.onchange);
-  if (opts.onclick) e.addEventListener('click', opts.onclick);
-  children.forEach(c => e.append(c));
-  return e;
-}
+const PSI_PER_FT = 0.434;
+const WYE_LOSS_PSI = 10;
 
-function spNumberInput(value, onChange, extra = {}) {
-  return spEl('input', {
-    type: 'number',
-    value: value ?? '',
-    step: extra.step ?? '1',
-    min: extra.min ?? '0',
-    onchange: (e) => {
-      const raw = e.target.value;
-      if (raw === '') onChange('');
-      else onChange(Number(raw));
-    }
-  });
-}
-
-function spSelect(options, current, onChange) {
-  const s = spEl('select', { onchange: e => onChange(e.target.value) });
-  options.forEach(opt => {
-    const o = document.createElement('option');
-    o.value = opt.id;
-    o.textContent = opt.label;
-    if (opt.id === current) o.selected = true;
-    s.appendChild(o);
-  });
-  return s;
-}
-
-// --- Simple helpers to estimate GPM / NP from nozzle (uses dept logic) ---
-
-function parseGpmFromNozzle(nozzles, nozzleId) {
-  const noz = findNozzleById(nozzles, nozzleId);
-  if (!noz) return nozzleId === 'closed' ? 0 : 150;
-  if (typeof noz.gpm === 'number') return noz.gpm;
-  if (!noz.label) return 150;
-  const m = noz.label.match(/(\d+)\s*gpm/i);
-  return m ? Number(m[1]) : 150;
-}
-
-function parseNpFromNozzle(nozzles, nozzleId) {
-  const noz = findNozzleById(nozzles, nozzleId);
-  if (!noz) return nozzleId === 'closed' ? 0 : 100;
-  if (typeof noz.np === 'number') return noz.np;
-  if (!noz.label) return 100;
-  const m = noz.label.match(/@\s*(\d+)\s*psi/i);
-  return m ? Number(m[1]) : 100;
-}
-
-// Simple C-value mapping (approx) by hose diameter (inches)
-const SP_C_BY_DIA = {
-  '1.75': 15.5,
-  '1.5': 24,
-  '2.5': 2,
-  '3':   0.8,
-  '4':   0.2,
-  '5':   0.08,
-};
-
-// If you store diameters in the dept.hoses objects, you can use that instead.
-// Here we'll try to guess from label.
-function guessDiaFromHoseLabel(label) {
-  if (!label) return 2.5;
-  const m = label.match(/(\d(?:\.\d+)?)\s*"/);
-  if (m) return Number(m[1]);
-  if (/1 3\/4/.test(label)) return 1.75;
-  if (/1¾/.test(label))     return 1.75;
-  if (/1\s?1\/2/.test(label)) return 1.5;
-  if (/2\s?1\/2/.test(label)) return 2.5;
-  if (/3"/.test(label))     return 3;
-  if (/5"/.test(label))     return 5;
-  return 2.5;
-}
-
-function getHoseLabelById(hoses, id) {
-  const h = hoses.find(x => String(x.id) === String(id));
-  return h ? h.label : '';
-}
-
-// Friction loss: FL = C * (GPM/100)^2 * (length/100)
-function calcFL(C, gpm, lengthFt) {
-  if (!C || !gpm || !lengthFt) return 0;
-  const per100 = C * Math.pow(gpm / 100, 2);
-  return per100 * (lengthFt / 100);
-}
-
-// Elevation: 5 psi per floor as a simple model (or ~0.434 psi/ft)
-function calcElevationPsi(floorsUp) {
-  if (!floorsUp) return 0;
-  return floorsUp * 5;
-}
-
-/**
- * Standpipe popup entry point
- *
- * @param {Object} opts
- *   - dept: { hosesAll/nozzlesAll/etc. }, but main source is DEPT_UI_* from store.js
- *   - initial: optional existing config to seed the form
- *   - onSave: function(config) -> void
- */
-export function openStandpipePopup({
-  dept = {},
-  initial = null,
-  onSave = () => {},
-} = {}) {
-  injectStandpipeStyles();
-
-  // Use same dept-driven logic as Standard line
-  const hoseList   = getHoseListFromDept(dept);
+function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } = {}) {
   const nozzleList = getNozzleListFromDept(dept);
+  const hoseList = getHoseListFromDept(dept);
 
   const CLOSED_NOZZLE = { id: 'closed', label: 'Closed (no flow)', gpm: 0, np: 0 };
   const allNozzles = [CLOSED_NOZZLE, ...nozzleList];
 
   const firstHose = hoseList[0] || DEFAULT_HOSES[0];
+  const secondHose = hoseList[1] || hoseList[0] || DEFAULT_HOSES[1] || DEFAULT_HOSES[0];
   const firstNozzle = allNozzles[1] || allNozzles[0];
 
   const state = {
-    engineHoseId: firstHose.id,
-    engineLengthFt: 200,
-    engineHoseCount: 1,     // number of hoses feeding the FDC
-
-    floorsUp: 3,
-    systemLossPsi: 0,       // single system loss value (editable, +25 button adjusts this)
-    addRule25: false,       // just for button highlight / state
-
-    attackHoseId: firstHose.id,
-    attackLengthFt: 150,
-    nozzleId: firstNozzle.id,
+    mode: (initial && initial.mode) || 'single',
+    targetGpm: 0,
+    targetPdp: 0,
+    single: {
+      hoseId:      initial?.single?.hoseId      ?? firstHose.id,
+      hoseSize:    initial?.single?.hoseSize    ?? firstHose.label,
+      lengthFt:    initial?.single?.lengthFt    ?? 200,
+      elevationFt: initial?.single?.elevationFt ?? 0,
+      nozzleId:    initial?.single?.nozzleId    ?? firstNozzle.id,
+    },
+    wye: {
+      engineHoseId:   initial?.wye?.engineHoseId   ?? secondHose.id,
+      engineHoseSize: initial?.wye?.engineHoseSize ?? secondHose.label,
+      engineLengthFt: initial?.wye?.engineLengthFt ?? 100,
+      elevationFt:    initial?.wye?.elevationFt    ?? 0,
+      branchA: {
+        hoseId:   initial?.wye?.branchA?.hoseId   ?? firstHose.id,
+        hoseSize: initial?.wye?.branchA?.hoseSize ?? firstHose.label,
+        lengthFt: initial?.wye?.branchA?.lengthFt ?? 200,
+        nozzleId: initial?.wye?.branchA?.nozzleId ?? firstNozzle.id,
+      },
+      branchB: {
+        hoseId:   initial?.wye?.branchB?.hoseId   ?? firstHose.id,
+        hoseSize: initial?.wye?.branchB?.hoseSize ?? firstHose.label,
+        lengthFt: initial?.wye?.branchB?.lengthFt ?? 200,
+        nozzleId: initial?.wye?.branchB?.nozzleId ?? 'closed',
+      },
+    },
   };
 
-  if (initial && typeof initial === 'object') {
-    Object.assign(state, initial);
-  }
-
-  // --- Popup skeleton ---
   const overlay = document.createElement('div');
-  overlay.className = 'sp-overlay';
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.background = 'rgba(0,0,0,0.55)';
+  overlay.style.display = 'flex';
+  overlay.style.alignItems = 'flex-end';
+  overlay.style.justifyContent = 'center';
+  overlay.style.padding = '8px';
+  overlay.style.zIndex = '9999';
+  overlay.style.boxSizing = 'border-box';
+  overlay.style.overflowX = 'hidden';
 
   const panel = document.createElement('div');
-  panel.className = 'sp-panel';
+  panel.style.maxWidth = '100vw';
+  panel.style.width = '100%';
+  panel.style.maxHeight = '90vh';
+  panel.style.background = '#020617';
+  panel.style.color = '#e5e7eb';
+  panel.style.borderRadius = '16px 16px 0 0';
+  panel.style.boxShadow = '0 18px 30px rgba(15,23,42,0.75)';
+  panel.style.border = '1px solid rgba(148,163,184,0.35)';
+  panel.style.padding = '12px 10px 10px';
+  panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
+  panel.style.boxSizing = 'border-box';
+  panel.style.overflow = 'hidden';
 
-  const header = document.createElement('div');
-  header.className = 'sp-header';
-
-  const title = document.createElement('div');
-  title.className = 'sp-title';
-  title.textContent = 'Standpipe setup';
-
-  const closeBtn = document.createElement('button');
-  closeBtn.type = 'button';
-  closeBtn.className = 'sp-close';
-  closeBtn.textContent = '✕';
-
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-
-  const body = document.createElement('div');
-  body.className = 'sp-body';
-
-  const footer = document.createElement('div');
-  footer.className = 'sp-footer';
-
-  const explainBtn = document.createElement('button');
-  explainBtn.type = 'button';
-  explainBtn.className = 'sp-btn-secondary';
-  explainBtn.textContent = 'Explain math';
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.className = 'sp-btn-secondary';
-  cancelBtn.textContent = 'Cancel';
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'sp-btn-primary';
-  saveBtn.textContent = 'Save';
-
-  footer.append(explainBtn, cancelBtn, saveBtn);
-
-  panel.append(header, body, footer);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 
@@ -862,291 +416,438 @@ export function openStandpipePopup({
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });
-  closeBtn.addEventListener('click', () => close());
-  cancelBtn.addEventListener('click', () => close());
 
-  // --- GPM / PDP calc + preview ---
-  const previewBar = spEl('div', { class: 'sp-preview' });
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.marginBottom = '6px';
+  header.style.borderBottom = '1px solid rgba(148,163,184,0.25)';
+  header.style.paddingBottom = '4px';
 
-  function calcStandpipeNumbers() {
-    const gpm   = parseGpmFromNozzle(allNozzles, state.nozzleId);
-    const np    = parseNpFromNozzle(allNozzles, state.nozzleId);
+  const title = document.createElement('div');
+  title.textContent = 'Standard attack line';
+  title.style.fontSize = '16px';
+  title.style.fontWeight = '600';
 
-    // Engine → standpipe
-    const engLabel = getHoseLabelById(hoseList, state.engineHoseId);
-    const engDia   = String(guessDiaFromHoseLabel(engLabel));
-    const C1       = SP_C_BY_DIA[engDia] || 2;
-    const hosesParallel = Math.max(1, state.engineHoseCount || 1);
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '✕';
+  closeBtn.style.width = '28px';
+  closeBtn.style.height = '28px';
+  closeBtn.style.borderRadius = '999px';
+  closeBtn.style.border = '1px solid rgba(148,163,184,0.6)';
+  closeBtn.style.background = '#020617';
+  closeBtn.style.color = '#e5e7eb';
+  closeBtn.style.cursor = 'pointer';
+  closeBtn.addEventListener('click', close);
 
-    // Parallel hoses: effective C drops by n² (approx)
-    const C1eff    = C1 / (hosesParallel * hosesParallel);
-    const FL1      = calcFL(C1eff, gpm, state.engineLengthFt || 0);
+  header.append(title, closeBtn);
 
-    // Standpipe → nozzle
-    const atkLabel = getHoseLabelById(hoseList, state.attackHoseId);
-    const atkDia   = String(guessDiaFromHoseLabel(atkLabel));
-    const C2       = SP_C_BY_DIA[atkDia] || 2;
-    const FL2      = calcFL(C2, gpm, state.attackLengthFt || 0);
+  const body = document.createElement('div');
+  body.style.maxHeight = '65vh';
+  body.style.overflowY = 'auto';
+  body.style.fontSize = '14px';
 
-    const elev     = calcElevationPsi(state.floorsUp || 0);
-    const system   = state.systemLossPsi || 0;  // already includes any +25 adjustments
-    const PDP      = np + FL1 + FL2 + elev + system;
+  const modeRow = document.createElement('div');
+  modeRow.style.display = 'flex';
+  modeRow.style.gap = '6px';
+  modeRow.style.marginTop = '4px';
 
-    return {
-      gpm,
-      np,
-      FL1: Math.round(FL1),
-      FL2: Math.round(FL2),
-      elev: Math.round(elev),
-      system: Math.round(system),
-      PDP: Math.round(PDP),
-      hosesParallel,
+  const singleBtn = document.createElement('button');
+  singleBtn.type = 'button';
+  singleBtn.textContent = 'Single';
+
+  const wyeBtn = document.createElement('button');
+  wyeBtn.type = 'button';
+  wyeBtn.textContent = 'Wye';
+
+  [singleBtn, wyeBtn].forEach((b) => {
+    b.style.flex = '1 1 0';
+    b.style.padding = '6px 4px';
+    b.style.borderRadius = '999px';
+    b.style.border = '1px solid rgba(55,65,81,0.9)';
+    b.style.background = 'rgba(15,23,42,0.9)';
+    b.style.color = '#e5e7eb';
+    b.style.cursor = 'pointer';
+    b.style.fontSize = '14px';
+  });
+
+  function updateModeButtons() {
+    if (state.mode === 'single') {
+      singleBtn.style.background = '#022c22';
+      singleBtn.style.borderColor = '#22c55e';
+      wyeBtn.style.background = 'rgba(15,23,42,0.9)';
+      wyeBtn.style.borderColor = 'rgba(55,65,81,0.9)';
+    } else {
+      wyeBtn.style.background = '#022c22';
+      wyeBtn.style.borderColor = '#22c55e';
+      singleBtn.style.background = 'rgba(15,23,42,0.9)';
+      singleBtn.style.borderColor = 'rgba(55,65,81,0.9)';
+    }
+  }
+
+  singleBtn.addEventListener('click', () => {
+    state.mode = 'single';
+    updateModeButtons();
+    renderSections();
+    updatePreview();
+  });
+
+  wyeBtn.addEventListener('click', () => {
+    state.mode = 'wye';
+    updateModeButtons();
+    renderSections();
+    updatePreview();
+  });
+
+  const sectionsContainer = document.createElement('div');
+  sectionsContainer.style.marginTop = '8px';
+  sectionsContainer.style.display = 'flex';
+  sectionsContainer.style.flexDirection = 'column';
+  sectionsContainer.style.gap = '8px';
+
+  function makeSection(titleText) {
+    const box = document.createElement('div');
+    box.style.border = '1px solid rgba(30,64,175,0.5)';
+    box.style.borderRadius = '12px';
+    box.style.padding = '6px 8px';
+    box.style.background = 'rgba(15,23,42,0.85)';
+
+    const h = document.createElement('div');
+    h.textContent = titleText;
+    h.style.fontSize = '12px';
+    h.style.fontWeight = '600';
+    h.style.textTransform = 'uppercase';
+    h.style.letterSpacing = '0.06em';
+    h.style.marginBottom = '4px';
+    h.style.color = '#bfdbfe';
+
+    box.appendChild(h);
+    return { box, h };
+  }
+
+  function makeNumberRow(labelText, value, onChange) {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '2px';
+    row.style.marginBottom = '4px';
+
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    label.style.fontSize = '14px';
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = value;
+    input.style.padding = '6px 8px';
+    input.style.borderRadius = '8px';
+    input.style.border = '1px solid rgba(55,65,81,0.9)';
+    input.style.background = '#020617';
+    input.style.color = '#e5e7eb';
+    input.style.fontSize = '16px';
+
+    input.addEventListener('input', () => {
+      const v = input.value === '' ? 0 : Number(input.value);
+      onChange(v);
+      updatePreview();
+    });
+
+    row.append(label, input);
+    return row;
+  }
+
+  function makeSelectRow(labelText, list, selectedId, onChange) {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.flexDirection = 'column';
+    row.style.gap = '2px';
+    row.style.marginBottom = '4px';
+
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    label.style.fontSize = '14px';
+
+    const sel = document.createElement('select');
+    sel.style.padding = '6px 8px';
+    sel.style.borderRadius = '8px';
+    sel.style.border = '1px solid rgba(55,65,81,0.9)';
+    sel.style.background = '#020617';
+    sel.style.color = '#e5e7eb';
+    sel.style.fontSize = '16px';
+    sel.style.maxWidth = '100%';
+    sel.style.whiteSpace = 'nowrap';
+    sel.style.textOverflow = 'ellipsis';
+    sel.style.overflow = 'hidden';
+
+    list.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.id;
+      opt.textContent = item.label;
+      sel.appendChild(opt);
+    });
+
+    if (selectedId != null) sel.value = selectedId;
+
+    sel.addEventListener('change', () => {
+      onChange(sel.value);
+      updatePreview();
+    });
+
+    row.append(label, sel);
+    return row;
+  }
+
+  function renderSections() {
+    sectionsContainer.innerHTML = '';
+
+    if (state.mode === 'single') {
+      const section = makeSection('Single attack line');
+
+      section.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.single.hoseId, (id) => {
+          state.single.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.single.hoseSize = h.label;
+        })
+      );
+
+      section.box.appendChild(
+        makeNumberRow('Line length (ft)', state.single.lengthFt, (v) => {
+          state.single.lengthFt = v;
+        })
+      );
+
+      section.box.appendChild(
+        makeNumberRow('Elevation (+/- ft)', state.single.elevationFt, (v) => {
+          state.single.elevationFt = v;
+        })
+      );
+
+      section.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.single.nozzleId, (id) => {
+          state.single.nozzleId = id;
+        })
+      );
+
+      sectionsContainer.appendChild(section.box);
+    } else {
+      const engine = makeSection('Engine to wye');
+      engine.box.appendChild(
+        makeSelectRow('Engine hose size', hoseList, state.wye.engineHoseId, (id) => {
+          state.wye.engineHoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.engineHoseSize = h.label;
+        })
+      );
+      engine.box.appendChild(
+        makeNumberRow('Engine line length (ft)', state.wye.engineLengthFt, (v) => {
+          state.wye.engineLengthFt = v;
+        })
+      );
+      engine.box.appendChild(
+        makeNumberRow('Elevation at nozzle (+/- ft)', state.wye.elevationFt, (v) => {
+          state.wye.elevationFt = v;
+        })
+      );
+      sectionsContainer.appendChild(engine.box);
+
+      const branchA = makeSection('Branch A');
+      branchA.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.wye.branchA.hoseId, (id) => {
+          state.wye.branchA.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.branchA.hoseSize = h.label;
+        })
+      );
+      branchA.box.appendChild(
+        makeNumberRow('Length (ft)', state.wye.branchA.lengthFt, (v) => {
+          state.wye.branchA.lengthFt = v;
+        })
+      );
+      branchA.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.wye.branchA.nozzleId, (id) => {
+          state.wye.branchA.nozzleId = id;
+        })
+      );
+      sectionsContainer.appendChild(branchA.box);
+
+      const branchB = makeSection('Branch B');
+      branchB.box.appendChild(
+        makeSelectRow('Hose size', hoseList, state.wye.branchB.hoseId, (id) => {
+          state.wye.branchB.hoseId = id;
+          const h = findHoseById(hoseList, id);
+          if (h) state.wye.branchB.hoseSize = h.label;
+        })
+      );
+      branchB.box.appendChild(
+        makeNumberRow('Length (ft)', state.wye.branchB.lengthFt, (v) => {
+          state.wye.branchB.lengthFt = v;
+        })
+      );
+      branchB.box.appendChild(
+        makeSelectRow('Nozzle', allNozzles, state.wye.branchB.nozzleId, (id) => {
+          state.wye.branchB.nozzleId = id;
+        })
+      );
+      sectionsContainer.appendChild(branchB.box);
+    }
+  }
+
+  const preview = document.createElement('div');
+  preview.style.marginTop = '8px';
+  preview.style.padding = '8px';
+  preview.style.borderRadius = '10px';
+  preview.style.border = '1px solid rgba(37,99,235,0.8)';
+  preview.style.background = '#020617';
+  preview.style.fontSize = '14px';
+  preview.style.fontWeight = '600';
+  preview.style.textAlign = 'center';
+
+  function frictionLoss(c, gpm, lengthFt) {
+    if (!c || !gpm || !lengthFt) return 0;
+    const flPer100 = c * Math.pow(gpm / 100, 2);
+    return flPer100 * (lengthFt / 100);
+  }
+
+  function calcSingle() {
+    const noz = findNozzleById(allNozzles, state.single.nozzleId) || CLOSED_NOZZLE;
+    const hose = findHoseById(hoseList, state.single.hoseId) || firstHose;
+    let gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
+    let np = noz.np || parseNpFromLabel(noz.label) || 50;
+    const len = state.single.lengthFt || 0;
+    const elevPsi = (state.single.elevationFt || 0) * PSI_PER_FT;
+    const c = typeof hose.c === 'number' ? hose.c : guessHoseCFromLabel(hose.label);
+    const fl = frictionLoss(c, gpm, len);
+    const pdp = Math.round(np + fl + elevPsi);
+    return { gpm: Math.round(gpm), pdp };
+  }
+
+  function calcWye() {
+    const branch = (b) => {
+      const noz = findNozzleById(allNozzles, b.nozzleId) || CLOSED_NOZZLE;
+      const hose = findHoseById(hoseList, b.hoseId) || firstHose;
+      let gpm = noz.gpm || parseGpmFromLabel(noz.label) || 0;
+      let np = noz.np || parseNpFromLabel(noz.label) || 50;
+      const len = b.lengthFt || 0;
+      const c = typeof hose.c === 'number' ? hose.c : guessHoseCFromLabel(hose.label);
+      const fl = frictionLoss(c, gpm, len);
+      return { gpm, np, fl };
     };
+
+    const a = branch(state.wye.branchA);
+    const b = branch(state.wye.branchB);
+    const totalGpm = a.gpm + b.gpm;
+    const elevPsi = (state.wye.elevationFt || 0) * PSI_PER_FT;
+
+    const needA = a.np + a.fl + elevPsi;
+    const needB = b.np + b.fl + elevPsi;
+    const branchMax = Math.max(needA, needB);
+
+    const engineHose = findHoseById(hoseList, state.wye.engineHoseId) || secondHose;
+    const cE = typeof engineHose.c === 'number' ? engineHose.c : guessHoseCFromLabel(engineHose.label);
+    const lenE = state.wye.engineLengthFt || 0;
+    const flE = frictionLoss(cE, totalGpm, lenE);
+
+    const pdp = Math.round(branchMax + flE + (totalGpm > 0 ? WYE_LOSS_PSI : 0));
+    return { gpm: Math.round(totalGpm), pdp };
   }
 
   function updatePreview() {
-    const { gpm, PDP, hosesParallel } = calcStandpipeNumbers();
-    const hoseText = hosesParallel > 1 ? ` (${hosesParallel} hoses to FDC)` : '';
-    previewBar.textContent = `Standpipe – GPM: ${gpm}   |   PDP: ${PDP} psi${hoseText}`;
-  }
-
-  // --- Explain math popup ---
-  function openExplainPopup() {
-    const vals = calcStandpipeNumbers();
-
-    const o = document.createElement('div');
-    o.className = 'sp-overlay';
-
-    const p = document.createElement('div');
-    p.className = 'sp-panel';
-
-    const h = document.createElement('div');
-    h.className = 'sp-header';
-
-    const t = document.createElement('div');
-    t.className = 'sp-title';
-    t.textContent = 'Standpipe math breakdown';
-
-    const x = document.createElement('button');
-    x.type = 'button';
-    x.className = 'sp-close';
-    x.textContent = '✕';
-
-    h.append(t, x);
-
-    const b = document.createElement('div');
-    b.className = 'sp-body sp-explain-body';
-
-    const gpm = vals.gpm;
-    const np  = vals.np;
-
-    const engLabel = getHoseLabelById(hoseList, state.engineHoseId);
-    const atkLabel = getHoseLabelById(hoseList, state.attackHoseId);
-
-    const ruleText = state.addRule25
-      ? ' (includes +25 psi rule-of-thumb)'
-      : '';
-
-    b.innerHTML = `
-      <p>We are using a simple standpipe formula:</p>
-      <p><code>PDP = NP + FL₁ + FL₂ + Elevation + System&nbsp;Loss</code></p>
-
-      <p><strong>Inputs:</strong></p>
-      <ul>
-        <li>Nozzle: ${state.nozzleId || ''} → approx <code>${gpm} gpm</code> @ <code>${np} psi</code></li>
-        <li>Engine → standpipe hose: <code>${engLabel || state.engineHoseId || 'unknown'}</code>,
-            length <code>${state.engineLengthFt || 0} ft</code>,
-            hoses in parallel: <code>${vals.hosesParallel}</code></li>
-        <li>Standpipe → nozzle hose: <code>${atkLabel || state.attackHoseId || 'unknown'}</code>,
-            length <code>${state.attackLengthFt || 0} ft</code></li>
-        <li>Floors up / elevation: <code>${state.floorsUp || 0}</code></li>
-        <li>System loss: <code>${vals.system} psi</code>${ruleText}</li>
-      </ul>
-
-      <p><strong>Step 1 – Friction loss (engine → standpipe):</strong><br>
-        We use FL = C × (GPM/100)² × (length/100). With ${vals.hosesParallel} hose(s) in parallel,
-        we lower C accordingly.<br>
-        → FL₁ ≈ <code>${vals.FL1} psi</code>
-      </p>
-
-      <p><strong>Step 2 – Friction loss (standpipe → nozzle):</strong><br>
-        Same formula with the attack hose C and length.<br>
-        → FL₂ ≈ <code>${vals.FL2} psi</code>
-      </p>
-
-      <p><strong>Step 3 – Elevation:</strong><br>
-        Approx 5 psi per floor up.<br>
-        → Elevation ≈ <code>${vals.elev} psi</code>
-      </p>
-
-      <p><strong>Step 4 – System loss:</strong><br>
-        User-entered system loss value${state.addRule25 ? ', including the +25 psi rule-of-thumb if toggled' : ''}.<br>
-        → System loss ≈ <code>${vals.system} psi</code>
-      </p>
-
-      <p><strong>Final pump discharge pressure (PDP):</strong></p>
-      <p>
-        <code>
-          PDP = ${np} (NP) +
-                ${vals.FL1} (FL₁) +
-                ${vals.FL2} (FL₂) +
-                ${vals.elev} (elev) +
-                ${vals.system} (system)
-          = ${vals.PDP} psi
-        </code>
-      </p>
-    `;
-
-    const f = document.createElement('div');
-    f.className = 'sp-footer';
-
-    const ok = document.createElement('button');
-    ok.type = 'button';
-    ok.className = 'sp-btn-primary';
-    ok.textContent = 'Close';
-
-    f.appendChild(ok);
-
-    p.append(h, b, f);
-    o.appendChild(p);
-    document.body.appendChild(o);
-
-    function closeExplain() {
-      if (o.parentNode) o.parentNode.removeChild(o);
+    let gpm, pdp;
+    if (state.mode === 'single') {
+      const r = calcSingle();
+      gpm = r.gpm;
+      pdp = r.pdp;
+      preview.textContent = `Single line • Flow: ${gpm} gpm • PDP: ${pdp} psi`;
+    } else {
+      const r = calcWye();
+      gpm = r.gpm;
+      pdp = r.pdp;
+      preview.textContent = `Wye line • Total flow: ${gpm} gpm • PDP: ${pdp} psi`;
     }
-
-    o.addEventListener('click', (e) => {
-      if (e.target === o) closeExplain();
-    });
-    x.addEventListener('click', closeExplain);
-    ok.addEventListener('click', closeExplain);
+    state.targetGpm = gpm;
+    state.targetPdp = pdp;
   }
 
-  explainBtn.addEventListener('click', () => {
-    openExplainPopup();
-  });
+  const footer = document.createElement('div');
+  footer.style.display = 'flex';
+  footer.style.justifyContent = 'flex-end';
+  footer.style.gap = '6px';
+  footer.style.marginTop = '8px';
+  footer.style.borderTop = '1px solid rgba(148,163,184,0.25)';
+  footer.style.paddingTop = '6px';
 
-  // --- Build form ---
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.borderRadius = '999px';
+  cancelBtn.style.padding = '6px 10px';
+  cancelBtn.style.fontSize = '14px';
+  cancelBtn.style.border = '1px solid rgba(148,163,184,0.7)';
+  cancelBtn.style.background = '#020617';
+  cancelBtn.style.color = '#e5e7eb';
+  cancelBtn.style.cursor = 'pointer';
+  cancelBtn.addEventListener('click', close);
 
-  const engineSection = spEl('div', { class: 'sp-section' },
-    spEl('h3', { text: 'Engine → standpipe (FDC)' }),
-    spEl('div', { class: 'sp-row' },
-      spEl('label', { text: 'Hose type:' }),
-      spSelect(hoseList, state.engineHoseId, v => { state.engineHoseId = v; updatePreview(); }),
-      spEl('span', { text: 'Hoses:' }),
-      spNumberInput(
-        state.engineHoseCount,
-        v => {
-          const n = v || 1;
-          state.engineHoseCount = n < 1 ? 1 : n;
-          updatePreview();
-        },
-        { min: '1', step: '1' }
-      ),
-      spEl('span', { text: 'Length:' }),
-      spNumberInput(state.engineLengthFt, v => { state.engineLengthFt = v || 0; updatePreview(); }),
-      spEl('span', { text: 'ft' })
-    )
-  );
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.textContent = 'Save line';
+  saveBtn.style.borderRadius = '999px';
+  saveBtn.style.padding = '6px 10px';
+  saveBtn.style.fontSize = '14px';
+  saveBtn.style.border = 'none';
+  saveBtn.style.background = '#22c55e';
+  saveBtn.style.color = '#020617';
+  saveBtn.style.fontWeight = '600';
+  saveBtn.style.cursor = 'pointer';
 
-  // System loss input needs a reference so the button can update it
-  let systemLossInput;
+  saveBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const calc = state.mode === 'single' ? calcSingle() : calcWye();
 
-  const elevationSection = spEl('div', { class: 'sp-section' },
-    spEl('h3', { text: 'Elevation & system' }),
-    spEl('div', { class: 'sp-row' },
-      spEl('label', { text: 'Floors up:' }),
-      spNumberInput(state.floorsUp, v => { state.floorsUp = v || 0; updatePreview(); }),
-      spEl('span', { text: '≈ 5 psi / floor' })
-    ),
-    (function () {
-      systemLossInput = spNumberInput(
-        state.systemLossPsi,
-        v => {
-          state.systemLossPsi = v || 0;
-          updatePreview();
-        }
-      );
-      return spEl('div', { class: 'sp-row' },
-        spEl('label', { text: 'System loss:' }),
-        systemLossInput,
-        spEl('span', { text: 'psi (valves, PRVs, etc.)' })
-      );
-    })(),
-    spEl('div', { class: 'sp-row' },
-      spEl('label', { text: '' }),
-      (function() {
-        const btn = spEl('button', {
-          class: 'sp-btn-secondary',
-          text: state.addRule25 ? 'Rule of thumb +25 psi (on)' : 'Apply +25 psi rule of thumb',
-        });
-        if (state.addRule25) {
-          btn.classList.add('sp-rule25-active');
-        }
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          if (!state.addRule25) {
-            // Turn ON: add +25 psi to whatever is in the box
-            state.systemLossPsi = (state.systemLossPsi || 0) + 25;
-            state.addRule25 = true;
-          } else {
-            // Turn OFF: remove 25 psi (but not below 0)
-            state.systemLossPsi = Math.max(0, (state.systemLossPsi || 0) - 25);
-            state.addRule25 = false;
-          }
-          systemLossInput.value = state.systemLossPsi;
-          if (state.addRule25) {
-            btn.textContent = 'Rule of thumb +25 psi (on)';
-            btn.classList.add('sp-rule25-active');
-          } else {
-            btn.textContent = 'Apply +25 psi rule of thumb';
-            btn.classList.remove('sp-rule25-active');
-          }
-          updatePreview();
-        });
-        return btn;
-      })()
-    )
-  );
-
-  const attackSection = spEl('div', { class: 'sp-section' },
-    spEl('h3', { text: 'Standpipe → nozzle' }),
-    spEl('div', { class: 'sp-row' },
-      spEl('label', { text: 'Attack hose type:' }),
-      spSelect(hoseList, state.attackHoseId, v => { state.attackHoseId = v; updatePreview(); }),
-      spEl('span', { text: 'Length:' }),
-      spNumberInput(state.attackLengthFt, v => { state.attackLengthFt = v || 0; updatePreview(); }),
-      spEl('span', { text: 'ft' })
-    ),
-    spEl('div', { class: 'sp-row' },
-      spEl('label', { text: 'Nozzle:' }),
-      spSelect(allNozzles, state.nozzleId, v => { state.nozzleId = v; updatePreview(); })
-    )
-  );
-
-  body.append(engineSection, elevationSection, attackSection, previewBar);
-  updatePreview();
-
-  // Save handler – returns a compact config for this line
-  saveBtn.addEventListener('click', () => {
     const payload = {
-      type: 'standpipe',
-      engineHoseId: state.engineHoseId,
-      engineLengthFt: state.engineLengthFt,
-      engineHoseCount: state.engineHoseCount,
-      floorsUp: state.floorsUp,
-      systemLossPsi: state.systemLossPsi,
-      addRule25: state.addRule25,
-      attackHoseId: state.attackHoseId,
-      attackLengthFt: state.attackLengthFt,
-      nozzleId: state.nozzleId,
-      // Optional: cache last-calculated PDP/GPM
-      lastCalc: calcStandpipeNumbers(),
+      type: 'standard',
+      mode: state.mode,
+      single: { ...state.single },
+      wye: {
+        engineHoseId:   state.wye.engineHoseId,
+        engineHoseSize: state.wye.engineHoseSize,
+        engineLengthFt: state.wye.engineLengthFt,
+        elevationFt:    state.wye.elevationFt,
+        branchA: { ...state.wye.branchA },
+        branchB: { ...state.wye.branchB },
+      },
+      targetGpm: calc.gpm,
+      targetPdp: calc.pdp,
+      lastCalc: {
+        targetGpm: calc.gpm,
+        targetPdp: calc.pdp,
+      },
     };
+
     onSave(payload);
     close();
   });
+
+  footer.append(cancelBtn, saveBtn);
+
+  const numbersNote = document.createElement('div');
+  numbersNote.style.fontSize = '12px';
+  numbersNote.style.marginTop = '6px';
+  numbersNote.style.opacity = '0.85';
+  numbersNote.textContent =
+    'GPM comes from nozzle selection (Closed = 0 gpm). PDP uses hose C, length, nozzle pressure, elevation, and (for a wye) both branches plus the engine line and wye loss.';
+
+  body.append(modeRow, sectionsContainer, numbersNote, preview);
+  panel.append(header, body, footer);
+
+  updateModeButtons();
+  renderSections();
+  updatePreview();
 }
 
-// === exports (same pattern as Standard line) ===
-export default openStandpipePopup;
+// ⬅️ important: export both ways so your import always finds it
+export { openStandardLinePopup };
+export default openStandardLinePopup;
