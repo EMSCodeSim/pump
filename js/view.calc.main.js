@@ -594,7 +594,7 @@ export async function render(container){
 
       nozzleMap[id] = {
         id,
-        label: n.label || n.name || id,
+        label: (function(){ const base = (n.label || n.name || id); const hasPsi = /psi/i.test(base); return (!hasPsi && np) ? `${base} @ ${np} psi` : base; })(),
         gpm,
         np
       };
@@ -716,20 +716,34 @@ export async function render(container){
       const s = String(dia);
 
       // Custom hose from Department Setup?
-      const custom = customs.find(h => String(h.diameter) === s);
+      const custom = customs.find(h => String(h.id) === s || String(h.hoseId) === s);
       if (custom) {
+        const dRaw = custom.diameter ?? custom.size ?? custom.d ?? custom.D;
+        const d = (typeof dRaw === 'number') ? dRaw : Number(String(dRaw ?? '').replace(/[^0-9.]/g,''));
+        const pretty = (function(){
+          const x = String(d);
+          if (x === '1.75') return '1 3/4"';
+          if (x === '1.5') return '1 1/2"';
+          if (x === '2.5') return '2 1/2"';
+          if (x === '2') return '2"';
+          if (x === '3') return '3"';
+          if (x === '4') return '4"';
+          if (x === '5') return '5"';
+          return (d ? `${d}"` : (custom.label || custom.name || s));
+        })();
+
         const c =
           typeof custom.c === 'number' ? custom.c :
           (typeof custom.flC === 'number' ? custom.flC :
-           (COEFF[s] ?? 15.5));
+           (COEFF[String(d)] ?? COEFF[String(dRaw)] ?? 15.5));
+
         return {
-          id: s,
-          label: custom.label || custom.name || `${s}"`,
+          id: String(custom.id || s), // keep canonical id like custom_hose_* (DO NOT convert to diameter)
+          label: `${pretty} C`,
           c
         };
       }
-
-      // Built-in defaults
+// Built-in defaults
       const def = DEFAULT_HOSES.find(h => h.id === s);
       if (def) return { ...def };
 
