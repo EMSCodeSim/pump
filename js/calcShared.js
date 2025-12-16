@@ -19,7 +19,7 @@ function sectionsFor(items){
       } else {
         chunk = len;
       }
-      out.push({ size, lengthFt: chunk });
+      out.push({ size, lengthFt: chunk, cValue: (seg.cValue ?? seg.c ?? null) });
       len -= chunk;
     }
   }
@@ -29,7 +29,7 @@ function FL_total_sections(flow, items){
   const secs = sectionsFor(items||[]);
   let total = 0;
   for(const s of secs){
-    total += FL(flow, s.size, s.lengthFt);
+    total += FL(flow, s.size, s.lengthFt, s.cValue);
   }
   return total;
 }
