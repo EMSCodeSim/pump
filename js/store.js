@@ -325,9 +325,11 @@ export function getDeptNozzles() {
   const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
 
   // Custom nozzles can live in TWO places depending on which UI created them:
-  // - store.customNozzles (legacy / in-memory store)
-  // - dept equipment storage (fireops_dept_equipment_v1) (used by calc/presets)
-  // We merge them here so every screen sees the same custom nozzle names.
+  // - store.customNozzles (legacy / fireops_store_v1)
+  // - dept equipment storage (fireops_dept_equipment_v1) (used by dept setup + calc + presets)
+  // IMPORTANT: If dept storage has custom nozzles, that is the canonical source.
+  // Legacy store.customNozzles often contains stale/unnamed entries that show up as
+  // "Custom nozzle XXX gpm @ YY psi" in the Line 1/2/3 dropdown.
   let custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
   try {
     const KEY = 'fireops_dept_equipment_v1';
@@ -336,24 +338,9 @@ export function getDeptNozzles() {
       if (raw) {
         const dept = JSON.parse(raw);
         if (dept && Array.isArray(dept.customNozzles) && dept.customNozzles.length) {
-          const merged = [];
-          const seen = new Set();
-          // keep store.customNozzles first so any in-memory edits win
-          custom.forEach(n => {
-            if (!n) return;
-            const id = String(n.id || '').trim();
-            if (!id || seen.has(id)) return;
-            seen.add(id);
-            merged.push(n);
-          });
-          dept.customNozzles.forEach(n => {
-            if (!n) return;
-            const id = String(n.id || n.calcId || n.key || '').trim();
-            if (!id || seen.has(id)) return;
-            seen.add(id);
-            merged.push(n);
-          });
-          custom = merged;
+          // Use dept.customNozzles as canonical.
+          // (Calc and presets read from this same object.)
+          custom = dept.customNozzles;
         }
       }
     }
