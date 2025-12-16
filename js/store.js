@@ -238,6 +238,29 @@ function resolveNozzleById(raw){
     };
   }
 
+  // 2b) custom nozzles saved in Department equipment storage (fireops_dept_equipment_v1)
+  //     This is the canonical source used by Department Setup and Calc dropdowns.
+  //     Shape: { customNozzles: [{id,label/name,gpm,NP}, ...] }
+  try {
+    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
+    if (rawDept) {
+      const dept = JSON.parse(rawDept) || {};
+      const deptCustom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      const d = deptCustom.find(n => n && String(n.id) === id);
+      if (d) {
+        return {
+          id: String(d.id),
+          name: String(d.name || d.label || d.id),
+          gpm: Number(d.gpm ?? d.GPM ?? 0),
+          NP:  Number(d.NP ?? d.np ?? 0),
+          label: d.label || d.name || d.id,
+        };
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
   // 3) safety fallback: search list (covers future catalog shapes)
   return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
