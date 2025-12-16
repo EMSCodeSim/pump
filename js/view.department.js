@@ -1,368 +1,572 @@
 // ===========================================================
-// view.department.js
-// FIX: Custom nozzles show wrong name/GPM + dept nozzle selection mismatch
-// - Dept nozzle UI list now stores SELECTED NOZZLE IDS (strings), not DEPT_NOZZLE_LIBRARY objects
-// - This ensures store.getDeptNozzles() resolves built-ins via NOZ + custom nozzles via store.customNozzles
-// - Add Custom Nozzle now auto-selects the new nozzle + refreshes Line 1/2/3 dropdowns immediately
+// view.department.js  (Updated for Custom Hoses/Nozzles)
 // ===========================================================
 
 import {
-  store,
-  saveStore,
-  NOZ,
-  NOZ_LIST,
-  addCustomHose,
-  addCustomNozzle,
-  setSelectedHoses,
-  setSelectedNozzles,
-  setDeptUiNozzles,
-  getDeptHoses,
-  getDeptNozzles,
-  HOSES_MATCHING_CHARTS,
-  getLineDefaults,
-  setLineDefaults
+    store,
+    saveStore,
+    addCustomHose,
+    addCustomNozzle,
+    setSelectedHoses,
+    setSelectedNozzles,
+    getDeptHoses,
+    getDeptNozzles,
+    HOSES_MATCHING_CHARTS
 } from "./store.js";
-
 import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
 import { getUiNozzles } from "./deptState.js";
+import { setDeptUiNozzles } from "./store.js";
+import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
+import { getUiNozzles } from "./deptState.js";
+import { getLineDefaults, setLineDefaults } from "./store.js";
+import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
+import { getUiNozzles } from "./deptState.js";
+
+import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
+
 
 // ------- DOM Helpers -------
 function qs(sel) { return document.querySelector(sel); }
 function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
 
+
+
 // ===========================================================
-// Calc nozzle list builder (mirror of view.calc.main.js style)
+// Single nozzle list: EXACTLY match Calc (view.calc.main.js)
 // ===========================================================
 function getCalcNozzlesList() {
-  let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
+    // Start with built-in nozzles
+    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
 
-  // Merge in custom nozzles created in Dept Setup (calc-ready objects)
-  try {
-    const customs = (typeof getDeptCustomNozzlesForCalc === "function")
-      ? (getDeptCustomNozzlesForCalc() || [])
-      : [];
-    if (Array.isArray(customs) && customs.length) list = list.concat(customs);
-  } catch (e) {
-    console.warn("Dept custom nozzles load failed", e);
-  }
-
-  // Filter to selected nozzle IDs (dept selection)
-  try {
-    const ids = (typeof getDeptNozzleIds === "function") ? (getDeptNozzleIds() || []) : [];
-    if (Array.isArray(ids) && ids.length) {
-      const allowed = new Set(ids.map(id => String(id)));
-      const filtered = list.filter(n => n && allowed.has(String(n.id)));
-      if (filtered.length) list = filtered;
-    }
-  } catch (e) {
-    console.warn("Dept nozzle filter failed", e);
-  }
-
-  // Overlay labels from deptState UI list (if present)
-  let uiById = null;
-  try {
-    const uiNozzles = (typeof getUiNozzles === "function") ? (getUiNozzles() || []) : [];
-    if (Array.isArray(uiNozzles) && uiNozzles.length) {
-      uiById = new Map(
-        uiNozzles
-          .filter(n => n && n.id != null)
-          .map(n => [String(n.id), n])
-      );
-    }
-  } catch (e) {}
-
-  // Normalize objects {id,label,gpm,NP}
-  const out = [];
-  const seen = new Set();
-  for (const n of list) {
-    if (!n) continue;
-    const id = n.id != null ? String(n.id) : "";
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-
-    const fromUi = uiById && uiById.get(id);
-
-    // Prefer explicit custom name (n.name) first, then UI label, then store label
-    const label =
-      (n.name && String(n.name)) ||
-      (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
-      n.label || n.desc || id;
-
-    let gpm = Number(n.gpm ?? n.GPM ?? 0) || 0;
-    let NP  = Number(n.NP ?? n.np ?? n.psi ?? n.pressure ?? 0) || 0;
-
-    // If built-in exists, trust catalog for hydraulics numbers
-    if (NOZ && NOZ[id]) {
-      if (!gpm && typeof NOZ[id].gpm === "number") gpm = NOZ[id].gpm;
-      if (!NP  && typeof NOZ[id].NP  === "number") NP  = NOZ[id].NP;
+    // Merge in department custom nozzles (from Department Setup)
+    try {
+        if (typeof getDeptCustomNozzlesForCalc === "function") {
+            const customs = getDeptCustomNozzlesForCalc() || [];
+            if (Array.isArray(customs) && customs.length) {
+                list = list.concat(customs);
+            }
+        }
+    } catch (e) {
+        console.warn("Dept custom nozzles load failed", e);
     }
 
-    out.push({ id, label, gpm, NP });
-  }
+    // If department selected specific nozzles, filter to that set
+    try {
+        if (typeof getDeptNozzleIds === "function") {
+            const ids = getDeptNozzleIds() || [];
+            if (Array.isArray(ids) && ids.length) {
+                const allowed = new Set(ids.map(id => String(id)));
+                const filtered = list.filter(n => n && allowed.has(String(n.id)));
+                if (filtered.length) list = filtered;
+            }
+        }
+    } catch (e) {
+        console.warn("Dept nozzle filter failed", e);
+    }
 
-  out.unshift({ id: "closed", label: "Closed (no flow)", gpm: 0, NP: 0 });
-  return out;
+    // Overlay labels from deptState UI list (if present)
+    let uiById = null;
+    try {
+        if (typeof getUiNozzles === "function") {
+            const uiNozzles = getUiNozzles() || [];
+            if (Array.isArray(uiNozzles) && uiNozzles.length) {
+                uiById = new Map(
+                    uiNozzles
+                        .filter(n => n && n.id != null)
+                        .map(n => [String(n.id), n])
+                );
+            }
+        }
+    } catch (e) {
+        console.warn("deptState getUiNozzles failed", e);
+    }
+
+    // Normalize into uniform objects {id,label,gpm,NP}
+    const out = [];
+    const seen = new Set();
+    for (const n of list) {
+        if (!n) continue;
+        const id = n.id != null ? String(n.id) : "";
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+
+        const fromUi = uiById && uiById.get(id);
+        const label =
+            (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
+            n.label || n.name || n.desc || id;
+
+        let gpm = Number(n.gpm ?? n.GPM ?? 0) || 0;
+        let NP  = Number(n.NP ?? n.np ?? n.pressure ?? 0) || 0;
+
+        // If NOZ has this id, trust it for hydraulics numbers
+        if (NOZ && NOZ[id]) {
+            if (!gpm && typeof NOZ[id].gpm === "number") gpm = NOZ[id].gpm;
+            if (!NP  && typeof NOZ[id].NP  === "number") NP  = NOZ[id].NP;
+        }
+
+        out.push({ id, label, gpm, NP });
+    }
+
+    // Add "Closed" option at the top
+    out.unshift({ id: "closed", label: "Closed (no flow)", gpm: 0, NP: 0 });
+    return out;
 }
-
-// ===========================================================
-// Storage for dept selection (kept for preset/calc compatibility)
-// ===========================================================
-const STORAGE_DEPT_KEY = "fireops_dept_equipment_v1";
+const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
 function loadDeptConfig() {
-  try {
-    const raw = localStorage.getItem(STORAGE_DEPT_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch (e) {
-    console.warn("Dept config load failed", e);
-    return {};
-  }
+    try {
+        const raw = localStorage.getItem(STORAGE_DEPT_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (e) {
+        console.warn("Dept config load failed", e);
+        return {};
+    }
 }
 
 function saveDeptConfig(update) {
-  try {
-    const current = loadDeptConfig();
-    const merged = Object.assign({}, current || {}, update || {});
-    localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(merged));
-  } catch (e) {
-    console.warn("Dept config save failed", e);
-  }
+    try {
+        const current = loadDeptConfig();
+        const merged = Object.assign({}, current || {}, update || {});
+        localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(merged));
+    } catch (e) {
+        console.warn("Dept config save failed", e);
+    }
 }
 
-// ===========================================================
-// Render hose + nozzle selectors
-// ===========================================================
+// ------- Render Existing Lists -------
 function renderHoseSelector() {
-  const wrapper = qs("#dept-hose-list");
-  if (!wrapper) return;
+    const wrapper = qs("#dept-hose-list");
+    const hoses = HOSES_MATCHING_CHARTS;
 
-  const hoses = HOSES_MATCHING_CHARTS || [];
-  wrapper.innerHTML = hoses.map(h => `
-    <label class="dept-item">
-      <input type="checkbox" class="dept-hose-check" value="${h.id}"
-        ${(Array.isArray(store.deptSelectedHoses) && store.deptSelectedHoses.includes(h.id)) ? "checked" : ""}>
-      ${h.label}
-    </label>
-  `).join("");
+    wrapper.innerHTML = hoses.map(h => `
+        <label class="dept-item">
+            <input 
+                type="checkbox" 
+                class="dept-hose-check" 
+                value="${h.id}"
+                ${store.deptSelectedHoses.includes(h.id) ? "checked" : ""} >
+            ${h.label}
+        </label>
+    `).join("");
 }
 
 function renderNozzleSelector() {
-  const wrapper = qs("#dept-nozzle-list");
-  if (!wrapper) return;
+    const wrapper = qs("#dept-nozzle-list");
+    if (!wrapper) return;
 
-  const list = getCalcNozzlesList().filter(n => n.id !== "closed");
+    const list = getCalcNozzlesList().filter(n => n.id !== "closed");
 
-  let selectedIds = [];
-  try {
-    const ids = (typeof getDeptNozzleIds === "function") ? (getDeptNozzleIds() || []) : [];
-    if (Array.isArray(ids)) selectedIds = ids.map(String);
-  } catch (e) {}
+    // Selected IDs come from preset.js storage (same as calc)
+    let selectedIds = [];
+    try {
+        if (typeof getDeptNozzleIds === "function") {
+            const ids = getDeptNozzleIds() || [];
+            if (Array.isArray(ids)) selectedIds = ids.map(id => String(id));
+        }
+    } catch (e) {}
 
-  const selected = new Set(selectedIds);
+    const selected = new Set(selectedIds);
 
-  wrapper.innerHTML = list.map(n => {
-    const id = String(n.id);
-    const label = String(n.label || id);
-    return `
-      <label class="dept-item">
-        <input type="checkbox" class="dept-nozzle-check" value="${id}" ${selected.has(id) ? "checked" : ""}>
-        ${label}
-      </label>
-    `;
-  }).join("");
+    wrapper.innerHTML = list.map(n => {
+        const id = String(n.id);
+        const label = String(n.label || id);
+        return `
+        <label class="dept-item">
+            <input type="checkbox" class="dept-nozzle-check" value="${id}" ${selected.has(id) ? "checked" : ""}>
+            ${label}
+        </label>`;
+    }).join("");
 }
 
+
 // ===========================================================
-// Custom hose/nozzle add forms
+//                ADD CUSTOM HOSE
 // ===========================================================
 function setupCustomHoseForm() {
-  const btn = qs("#add-custom-hose-btn");
-  const nameInput = qs("#custom-hose-name");
-  const diaInput = qs("#custom-hose-diameter");
-  const cInput = qs("#custom-hose-c");
-  if (!btn) return;
-
-  btn.onclick = () => {
-    const label = (nameInput?.value || "").trim();
-    const dia = (diaInput?.value || "").trim();
-    const c = (cInput?.value || "").trim();
-    if (!label || !dia || !c) {
-      alert("Please enter hose name, diameter, and C value.");
-      return;
-    }
-    addCustomHose(label, dia, c);
-    renderHoseSelector();
-    if (nameInput) nameInput.value = "";
-    if (diaInput) diaInput.value = "";
-    if (cInput) cInput.value = "";
-    alert("Custom hose added.");
-  };
-}
-
-function setupCustomNozzleForm() {
-  const btn = qs("#add-custom-nozzle-btn");
-  const nameInput = qs("#custom-nozzle-name");
-  const gpmInput = qs("#custom-nozzle-gpm");
-  const npInput = qs("#custom-nozzle-np");
-  if (!btn) return;
-
-  btn.onclick = () => {
-    const label = (nameInput?.value || "").trim();
-    const gpm = (gpmInput?.value || "").trim();
-    const np = (npInput?.value || "").trim();
-    if (!label || !gpm || !np) {
-      alert("Please enter nozzle name, GPM, and NP.");
-      return;
-    }
-
-    // store.addCustomNozzle returns a calc-ready nozzle object with id,label,name,gpm,NP
-    const noz = addCustomNozzle(label, gpm, np);
-
-    // AUTO-SELECT the new custom nozzle so it appears everywhere (checkboxes + line dropdowns + calc)
-    const dept = loadDeptConfig();
-    const current = Array.isArray(dept.nozzles) ? dept.nozzles.map(String) : [];
-    const next = current.includes(String(noz.id)) ? current : current.concat(String(noz.id));
-    saveDeptConfig({ nozzles: next });
-
-    // Critical: DEPT_UI_NOZZLES should be the SELECTED IDS (strings), so store.getDeptNozzles resolves customs too.
-    setDeptUiNozzles(next);
-    setSelectedNozzles(next);
-
-    renderNozzleSelector();
-    populateDropdowns();
-    renderLineDefaults();
-
-    if (nameInput) nameInput.value = "";
-    if (gpmInput) gpmInput.value = "";
-    if (npInput) npInput.value = "";
-
-    alert("Custom nozzle added.");
-  };
-}
-
-// ===========================================================
-// Save selection buttons
-// ===========================================================
-function setupSaveButtons() {
-  const saveHosesBtn = qs("#save-hose-selection");
-  const saveNozzlesBtn = qs("#save-nozzle-selection");
-
-  if (saveHosesBtn) {
-    saveHosesBtn.onclick = () => {
-      const selections = qsa(".dept-hose-check")
-        .filter(el => el.checked)
-        .map(el => el.value);
-
-      setSelectedHoses(selections);
-      alert("Department hose selection saved!");
-    };
-  }
-
-  if (saveNozzlesBtn) {
-    saveNozzlesBtn.onclick = () => {
-      const selectedIds = qsa(".dept-nozzle-check")
-        .filter(el => el.checked)
-        .map(el => String(el.value));
-
-      // Persist for preset/calc readers
-      saveDeptConfig({ nozzles: selectedIds });
-
-      // *** FIX: store UI nozzle list should be IDS (strings), not DEPT_NOZZLE_LIBRARY objects ***
-      setDeptUiNozzles(selectedIds);
-      setSelectedNozzles(selectedIds);
-
-      // Refresh UI so Line 1/2/3 pickers never fall back to first option
-      renderNozzleSelector();
-      populateDropdowns();
-      renderLineDefaults();
-
-      alert("Department nozzle selection saved!");
-    };
-  }
-}
-
-// ===========================================================
-// Line defaults (Line 1/2/3)
-// ===========================================================
-function renderLineDefaults() {
-  ["line1", "line2", "line3"].forEach(id => {
-    const data = getLineDefaults(id) || {};
-    const hoseEl = qs(`#${id}-hose`);
-    const nozEl  = qs(`#${id}-nozzle`);
-    const lenEl  = qs(`#${id}-length`);
-    const elevEl = qs(`#${id}-elevation`);
-
-    if (hoseEl) hoseEl.value = data.hose || "";
-    if (nozEl)  nozEl.value  = data.nozzle || "";
-    if (lenEl)  lenEl.value  = data.length ?? "";
-    if (elevEl) elevEl.value = data.elevation ?? "";
-  });
-}
-
-function setupLineDefaultSaving() {
-  ["line1","line2","line3"].forEach(id => {
-    const lineNum = id.replace("line","");
-
-    const btn =
-      qs(`#${id}-save`) ||
-      qs(`#${id}-save-btn`) ||
-      qs(`#save-${id}`) ||
-      qs(`#save-${lineNum}`) ||
-      document.querySelector(`[data-line-save="${id}"]`) ||
-      document.querySelector(`[data-line-save="${lineNum}"]`) ||
-      document.querySelector(`.dept-line-save[data-line="${lineNum}"]`) ||
-      document.querySelector(`.dept-line-save[data-line="${id}"]`);
+    const btn = qs("#add-custom-hose-btn");
+    const nameInput = qs("#custom-hose-name");
+    const diaInput = qs("#custom-hose-diameter");
+    const cInput = qs("#custom-hose-c");
 
     if (!btn) return;
 
     btn.onclick = () => {
-      const hose = qs(`#${id}-hose`)?.value || "";
-      const nozzle = qs(`#${id}-nozzle`)?.value || "";
-      const length = Number(qs(`#${id}-length`)?.value || 0);
-      const elevation = Number(qs(`#${id}-elevation`)?.value || 0);
+        const label = nameInput.value.trim();
+        const dia = diaInput.value.trim();
+        const c = cInput.value.trim();
 
-      setLineDefaults(id, { hose, nozzle, length, elevation });
-      renderLineDefaults();
-      alert(`${id} defaults saved`);
+        if (!label || !dia || !c) {
+            alert("Please enter hose name, diameter, and C value.");
+            return;
+        }
+
+        addCustomHose(label, dia, c);
+
+        // Re-render list
+        renderHoseSelector();
+
+        // Clear fields
+        nameInput.value = "";
+        diaInput.value = "";
+        cInput.value = "";
+
+        alert("Custom hose added.");
     };
-  });
 }
 
 // ===========================================================
-// Dropdown data (Line 1/2/3)
+//                ADD CUSTOM NOZZLE
+// ===========================================================
+function setupCustomNozzleForm() {
+    const btn = qs("#add-custom-nozzle-btn");
+    const nameInput = qs("#custom-nozzle-name");
+    const gpmInput = qs("#custom-nozzle-gpm");
+    const npInput = qs("#custom-nozzle-np");
+
+    if (!btn) return;
+
+    btn.onclick = () => {
+        const label = nameInput.value.trim();
+        const gpm = gpmInput.value.trim();
+        const np = npInput.value.trim();
+
+        if (!label || !gpm || !np) {
+            alert("Please enter nozzle name, GPM, and NP.");
+            return;
+        }
+
+                const created = addCustomNozzle(label, gpm, np);
+
+        // ALSO persist into Department config so preset.js (getDeptCustomNozzlesForCalc)
+        // and the calc-style nozzle list see the exact same custom nozzle objects.
+        try {
+            const dept = loadDeptConfig();
+            const arr = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+            if (created && created.id) {
+                // de-dupe by id
+                const id = String(created.id);
+                const filtered = arr.filter(n => n && String(n.id) !== id);
+                filtered.push({
+                    id,
+                    label: String(created.label || created.name || label),
+                    name: String(created.name || created.label || label),
+                    gpm: Number(created.gpm || gpm),
+                    NP: Number(created.NP || np),
+                    np: Number(created.NP || np),
+                    psi: Number(created.NP || np)
+                });
+                dept.customNozzles = filtered;
+                saveDeptConfig(dept);
+            }
+        } catch (e) {
+            console.warn("Failed to persist custom nozzle into dept config", e);
+        }
+
+        // Auto-select newly created nozzle for department nozzle selection list
+        try {
+            const ids = (typeof getDeptNozzleIds === "function") ? (getDeptNozzleIds() || []) : [];
+            const idSet = new Set(Array.isArray(ids) ? ids.map(x => String(x)) : []);
+            if (created && created.id) idSet.add(String(created.id));
+
+            const nextIds = Array.from(idSet);
+            // Update both storage systems used in this codebase
+            saveDeptConfig({ nozzles: nextIds });
+            if (typeof setSelectedNozzles === "function") setSelectedNozzles(nextIds);
+        } catch (e) {}
+
+        // Re-render list
+        renderNozzleSelector();
+
+        // Clear
+        nameInput.value = "";
+        gpmInput.value = "";
+        npInput.value = "";
+
+        alert("Custom nozzle added.");
+    };
+}
+
+// ===========================================================
+//                SAVE SELECTED HOSES/NOZZLES
+// ===========================================================
+function setupSaveButtons() {
+    const saveHosesBtn = qs("#save-hose-selection");
+    const saveNozzlesBtn = qs("#save-nozzle-selection");
+    let restoreDefaultsBtn = qs("#restore-dept-defaults");
+
+    // If the Restore Defaults button does not exist in HTML,
+    // create it next to the "save nozzle" button.
+    if (!restoreDefaultsBtn && saveNozzlesBtn) {
+        restoreDefaultsBtn = document.createElement("button");
+        restoreDefaultsBtn.id = "restore-dept-defaults";
+        restoreDefaultsBtn.textContent = "Restore Defaults";
+        // Match styling if saveNozzlesBtn has a class
+        if (saveNozzlesBtn.className) {
+            restoreDefaultsBtn.className = saveNozzlesBtn.className;
+        }
+        // Insert right after the save nozzle button
+        if (saveNozzlesBtn.parentElement) {
+            saveNozzlesBtn.parentElement.insertBefore(
+                restoreDefaultsBtn,
+                saveNozzlesBtn.nextSibling
+            );
+        } else {
+            // Fallback: append to body
+            document.body.appendChild(restoreDefaultsBtn);
+        }
+    }
+
+    if (saveHosesBtn) {
+        saveHosesBtn.onclick = () => {
+            const selections = qsa(".dept-hose-check")
+                .filter(el => el.checked)
+                .map(el => el.value);
+
+            setSelectedHoses(selections);
+            alert("Department hose selection saved!");
+        };
+    }
+
+    if (saveNozzlesBtn) {
+        saveNozzlesBtn.onclick = () => {
+            const selectedIds = qsa(".dept-nozzle-check")
+                .filter(el => el.checked)
+                .map(el => el.value);
+
+            // Persist to shared department config used by presets / calc
+            saveDeptConfig({ nozzles: selectedIds });
+
+            // Build UI-ready nozzle objects for calc screen
+            const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                ? DEPT_NOZZLE_LIBRARY
+                    .filter(n => selectedIds.includes(String(n.id)))
+                    .map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                : [];
+
+            // Update the global Dept UI nozzle list used by calc view
+            try {
+                if (typeof setDeptUiNozzles === "function") {
+                    setDeptUiNozzles(uiList);
+                }
+            } catch (e) {
+                console.warn("setDeptUiNozzles failed", e);
+            }
+
+            // Keep legacy store-based helper in sync if present
+            try {
+                if (typeof setSelectedNozzles === "function") {
+                    setSelectedNozzles(selectedIds);
+                }
+            } catch (e) {
+                console.warn("setSelectedNozzles failed", e);
+            }
+
+            alert("Department nozzle selection saved!");
+        };
+    }
+
+    if (restoreDefaultsBtn) {
+        restoreDefaultsBtn.onclick = () => {
+            try {
+                // Hoses: default = all department hoses
+                const allHoseIds = Array.isArray(store.deptHoses)
+                    ? store.deptHoses.map(h => h.id)
+                    : [];
+
+                setSelectedHoses(allHoseIds);
+
+                // Nozzles: default = all entries from DEPT_NOZZLE_LIBRARY
+                const allNozzleIds = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => n.id)
+                    : [];
+
+                // Save into shared dept config used by presets/calc
+                saveDeptConfig({
+                    nozzles: allNozzleIds
+                });
+
+                // Build full UI nozzle list
+                const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                    : [];
+
+                if (typeof setDeptUiNozzles === "function") {
+                    setDeptUiNozzles(uiList);
+                }
+
+                // Keep legacy store-based helper in sync if present
+                if (typeof setSelectedNozzles === "function") {
+                    setSelectedNozzles(allNozzleIds);
+                }
+
+                // Re-render UI selections
+                renderHoseSelector();
+                renderNozzleSelector();
+
+                alert("Department defaults restored.");
+            } catch (e) {
+                console.warn("Restore defaults failed", e);
+            }
+        };
+    }
+}
+// ===========================================================
+//              LINE DEFAULTS (Line 1, 2, 3)
+// ===========================================================
+function renderLineDefaults() {
+    ["line1", "line2", "line3"].forEach(id => {
+        const num = id.replace("line", "");
+        const data = getLineDefaults(id) || {};
+
+        const hoseEl = document.querySelector(`#${id}-hose`);
+        const nozEl  = document.querySelector(`#${id}-nozzle`);
+        const lenEl  = document.querySelector(`#${id}-length`);
+        const elevEl = document.querySelector(`#${id}-elevation`);
+
+        if (hoseEl) hoseEl.value = data.hose || "";
+        if (nozEl)  nozEl.value  = data.nozzle || "";
+        if (lenEl)  lenEl.value  = data.length ?? "";
+        if (elevEl) elevEl.value = data.elevation ?? "";
+    });
+}
+
+
+function setupLineDefaultSaving() {
+    ["line1","line2","line3"].forEach(id => {
+        const lineNum = id.replace('line',''); // '1'|'2'|'3'
+
+        // Try a few likely save-button selectors (supports old/new HTML)
+        const btn =
+            qs(`#${id}-save`) ||
+            qs(`#${id}-save-btn`) ||
+            qs(`#save-${id}`) ||
+            qs(`#save-${lineNum}`) ||
+            document.querySelector(`[data-line-save="${id}"]`) ||
+            document.querySelector(`[data-line-save="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${lineNum}"]`) ||
+            document.querySelector(`.dept-line-save[data-line="${id}"]`);
+
+        if (!btn) {
+            console.warn('Dept setup: save button not found for', id);
+            return;
+        }
+
+        btn.onclick = () => {
+            const hose = (qs(`#${id}-hose`) || document.querySelector(`#${id}-hose`))?.value || "";
+            const nozzle = (qs(`#${id}-nozzle`) || document.querySelector(`#${id}-nozzle`))?.value || "";
+            const length = Number((qs(`#${id}-length`) || document.querySelector(`#${id}-length`))?.value || 0);
+            const elevation = Number((qs(`#${id}-elevation`) || document.querySelector(`#${id}-elevation`))?.value || 0);
+
+            // Persist into pump_dept_defaults_v1 via store.js so calc Line 1/2/3 deploy matches.
+            setLineDefaults(id, { hose, nozzle, length, elevation });
+
+            // Re-render in case something got normalized during save.
+            renderLineDefaults();
+
+            alert(`${id} defaults saved`);
+        };
+    });
+}
+
+
+// ===========================================================
+//         DROPDOWN DATA (Filtered from store.js)
 // ===========================================================
 function populateDropdowns() {
-  const hoses = getDeptHoses();
-  const nozzles = getCalcNozzlesList(); // includes customs + Closed
+    const hoses = getDeptHoses();
+    const nozzles = getCalcNozzlesList();
 
-  ["line1", "line2", "line3"].forEach(id => {
-    const hoseSel = qs(`#${id}-hose`);
-    const nozSel = qs(`#${id}-nozzle`);
+    ["line1", "line2", "line3"].forEach(id => {
+        const hoseSel = qs(`#${id}-hose`);
+        const nozSel = qs(`#${id}-nozzle`);
 
-    if (hoseSel) {
-      hoseSel.innerHTML = hoses.map(h => `<option value="${h.id}">${h.label}</option>`).join("");
-    }
-    if (nozSel) {
-      nozSel.innerHTML = nozzles.map(n => `<option value="${n.id}">${n.label}</option>`).join("");
-    }
-  });
+        if (hoseSel) {
+            hoseSel.innerHTML = hoses.map(h => `
+                <option value="${h.id}">${h.label}</option>
+            `).join("");
+        }
+
+        if (nozSel) {
+            nozSel.innerHTML = nozzles.map(n => `
+                <option value="${n.id}">${n.label}</option>
+            `).join("");
+        }
+    });
 }
 
 // ===========================================================
-// Initialize view
+//              INITIALIZE VIEW
 // ===========================================================
 export function initDepartmentView() {
-  renderHoseSelector();
-  renderNozzleSelector();
+    // Existing initialization
+    renderHoseSelector();
+    renderNozzleSelector();
 
-  populateDropdowns();
+    populateDropdowns();
 
-  setupCustomHoseForm();
-  setupCustomNozzleForm();
-  setupSaveButtons();
+    setupCustomHoseForm();
+    setupCustomNozzleForm();
+    setupSaveButtons();
 
-  renderLineDefaults();
-  setupLineDefaultSaving();
+    renderLineDefaults();
+    setupLineDefaultSaving();
+
+    // Ensure a Restore Defaults button exists on the Department page
+    try {
+        const deptHose = document.querySelector('#dept-hose-list') || document.body;
+
+        if (deptHose && !document.getElementById('restore-dept-defaults')) {
+            const btn = document.createElement('button');
+            btn.id = 'restore-dept-defaults';
+            btn.textContent = 'Restore Defaults';
+            btn.className = 'btn';
+
+            btn.addEventListener('click', () => {
+                try {
+                    // Hoses: reset to ALL department hoses
+                    const allHoseIds = Array.isArray(store.deptHoses)
+                        ? store.deptHoses.map(h => h.id)
+                        : [];
+
+                    setSelectedHoses(allHoseIds);
+
+                    // Nozzles: reset to ALL nozzles in DEPT_NOZZLE_LIBRARY
+                    const allNozzleIds = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                        ? DEPT_NOZZLE_LIBRARY.map(n => n.id)
+                        : [];
+
+                    // Save into shared dept config used by presets / calc
+                    saveDeptConfig({
+                        nozzles: allNozzleIds
+                    });
+
+                    // Keep legacy store-based helper in sync if present
+                    if (typeof setSelectedNozzles === 'function') {
+                        setSelectedNozzles(allNozzleIds);
+                    }
+
+                    // Re-render UI selections
+                    renderHoseSelector();
+                    renderNozzleSelector();
+
+                    alert('Department defaults restored.');
+                } catch (e) {
+                    console.warn('Restore defaults failed', e);
+                }
+            });
+
+            // Append button at bottom of hose section (or body fallback)
+            deptHose.appendChild(btn);
+        }
+    } catch (e) {
+        console.warn('Failed to attach Restore Defaults button', e);
+    }
 }
