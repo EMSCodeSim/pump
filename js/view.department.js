@@ -15,6 +15,7 @@ import {
 } from "./store.js";
 import { setDeptUiNozzles } from "./store.js";
 import { getLineDefaults, setLineDefaults } from "./store.js";
+import { getUiNozzles } from "./deptState.js";
 
 // ------- DOM Helpers -------
 function qs(sel) { return document.querySelector(sel); }
@@ -195,11 +196,15 @@ function setupSaveButtons() {
             // Persist to shared department config used by presets / calc
             saveDeptConfig({ nozzles: selectedIds });
 
-            // Build UI-ready nozzle objects for calc screen (FULL objects, including custom names/GPM/NP)
-// Use the SAME source as calc: getDeptNozzles()
-const allNozzles = Array.isArray(getDeptNozzles()) ? getDeptNozzles() : [];
-const uiList = allNozzles.filter(n => selectedIds.includes(String(n.id)));
-
+            // Build UI-ready nozzle objects for calc screen
+            const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                ? DEPT_NOZZLE_LIBRARY
+                    .filter(n => selectedIds.includes(String(n.id)))
+                    .map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                : [];
 
             // Update the global Dept UI nozzle list used by calc view
             try {
@@ -233,20 +238,23 @@ const uiList = allNozzles.filter(n => selectedIds.includes(String(n.id)));
 
                 setSelectedHoses(allHoseIds);
 
-                // Nozzles: default = all entries from the SAME nozzle list as calc (including customs)
-const allNozzleIds = Array.isArray(getDeptNozzles())
-    ? getDeptNozzles().map(n => String(n.id))
-    : [];
-
+                // Nozzles: default = all entries from DEPT_NOZZLE_LIBRARY
+                const allNozzleIds = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => n.id)
+                    : [];
 
                 // Save into shared dept config used by presets/calc
                 saveDeptConfig({
                     nozzles: allNozzleIds
                 });
 
-                // Build full UI nozzle list (FULL objects, including custom names/GPM/NP)
-const uiList = Array.isArray(getDeptNozzles()) ? getDeptNozzles() : [];
-
+                // Build full UI nozzle list
+                const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
+                    ? DEPT_NOZZLE_LIBRARY.map(n => ({
+                        id: n.id,
+                        label: n.label
+                    }))
+                    : [];
 
                 if (typeof setDeptUiNozzles === "function") {
                     setDeptUiNozzles(uiList);
@@ -388,7 +396,7 @@ export function initDepartmentView() {
 
                     setSelectedHoses(allHoseIds);
 
-                    // Nozzles: reset to ALL nozzles (same list as calc)
+                    // Nozzles: reset to ALL nozzles in DEPT_NOZZLE_LIBRARY
                     const allNozzleIds = Array.isArray(getDeptNozzles()) ? getDeptNozzles().map(n => String(n.id)) : [];
 
                     // Save into shared dept config used by presets / calc
