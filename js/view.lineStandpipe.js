@@ -1,5 +1,37 @@
 import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
 
+
+function _deptEquipRead() {
+  try {
+    const raw = localStorage.getItem('fireops_dept_equipment_v1');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _getCustomNozzleById(id) {
+  const dept = _deptEquipRead();
+  const list = dept && Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+  return list.find(n => n && n.id === id) || null;
+}
+
+function _getCustomHoseById(id) {
+  const dept = _deptEquipRead();
+  const list = dept && Array.isArray(dept.customHoses) ? dept.customHoses : [];
+  return list.find(h => h && h.id === id) || null;
+}
+
+function _diaToLabel(dia) {
+  const f = Number(dia);
+  if (!isFinite(f)) return '';
+  const map = {1:'1"', 1.5:'1 1/2"', 1.75:'1 3/4"', 2:'2"', 2.5:'2 1/2"', 3:'3"', 4:'4"', 5:'5"'};
+  for (const k of Object.keys(map)) {
+    if (Math.abs(f - Number(k)) < 1e-6) return map[k];
+  }
+  return `${f}"`;
+}
+
 // view.lineStandpipe.js
 // Standpipe-only popup editor for a single line (Line 1 / 2 / 3).
 // - Uses same department hose/nozzle logic as view.lineStandard.js
@@ -26,36 +58,59 @@ function parseNpFromLabel(label) {
 }
 
 // Turn internal hose ids into nice labels that match on desktop/phone.
+
 function formatHoseLabel(idOrLabel) {
   const raw = String(idOrLabel || '').trim();
 
-  // Detect special hose types
-  const isCustom = /^custom_hose_/i.test(raw);
-  const isLF = /^h_lf_/i.test(raw) || /low[-\s]?friction|\blf\b/i.test(raw);
+  // Custom hose: show simple size + " C" using stored diameter/label if available
+  if (/^custom_hose_/i.test(raw)) {
+    const h = _getCustomHoseById(raw);
+    const diaLbl = h ? (_diaToLabel(h.diameter) || '') : '';
+    if (diaLbl) return `${diaLbl} C`;
+    // fallback: try to parse something like 1.75 or 2.5 from label
+    const parsed = (h && h.label) ? String(h.label).match(/(\d(?:\.\d+)?)/) : null;
+    if (parsed) return `${_diaToLabel(parsed[1])} C`;
+    return `Custom C`;
+  }
 
-  // Extract numeric size from common formats (e.g., 2.5", "2.5", "h_25", "h_lf_175")
-  const quoteMatch = raw.match(/(\d(?:\.\d+)?)\s*"/);
-  const numMatch = quoteMatch ? quoteMatch[1] : (raw.match(/(\d(?:\.\d+)?)/)?.[1] || '');
+  // Low-friction hose ids like h_lf_175, h_lf_25, h_lf_5
+  if (/^h_lf_/i.test(raw)) {
+    const m = raw.match(/^h_lf_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : code === '4' ? 4.0
+      : code === '5' ? 5.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    return base ? `${base} LF` : `${raw} LF`;
+  }
 
-  let size = '';
-  if (/\b175\b/.test(raw) || numMatch === '1.75') size = '1 3/4"';
-  else if (/\b15\b/.test(raw) || numMatch === '1.5') size = '1 1/2"';
-  else if (/\bh_lf_2\b/i.test(raw) || numMatch === '2' || numMatch === '2.0') size = '2"';
-  else if (/\b25\b/.test(raw) || numMatch === '2.5') size = '2 1/2"';
-  else if (/\bh_?3\b/i.test(raw) || numMatch === '3') size = '3"';
-  else if (/\bh_?4\b/i.test(raw) || numMatch === '4') size = '4"';
-  else if (/\bh_?5\b/i.test(raw) || numMatch === '5') size = '5"';
+  // Standard hose ids like h_175, h_25, h_4_ldh, etc.
+  if (/^h_/i.test(raw)) {
+    if (/h_4/i.test(raw)) return '4"';
+    if (/h_5/i.test(raw)) return '5"';
+    const m = raw.match(/h_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    return base || raw;
+  }
 
-  if (!size) return raw;
+  // If user already gave a nice label like 2 1/2"
+  if (/\d/.test(raw) && /"/.test(raw)) return raw;
 
-  // Simple suffix rules:
-  // - Normal: just size
-  // - Low-friction: add " LF"
-  // - Custom: add " C"
-  if (isLF) return `${size} LF`;
-  if (isCustom) return `${size} C`;
-  return size;
+  return raw || '';
 }
+
 
 const DEFAULT_NOZZLES = [
   { id: 'fog150_50',   label: 'Fog 150 gpm @ 50 psi', gpm: 150, np: 50 },
@@ -116,6 +171,14 @@ function prettifyNozzle(id, label, gpm, np) {
     // Preserve user-entered labels (e.g. "the one 444 gpm @ 33 psi") instead of
     // overwriting them with generic "Fog 150 gpm @ 50 psi"-style labels.
     const hasUserLabel = !!(lbl && String(lbl).trim() && !/^custom\s*nozzle\b/i.test(String(lbl).trim()));
+
+    // Pull label/gpm/np from saved custom nozzle object (dept equipment) if needed
+    const saved = _getCustomNozzleById(idStr);
+    if (saved) {
+      if (!lbl || lbl === idStr) lbl = saved.label || saved.name || saved.title || lbl;
+      if (!gpm) gpm = Number(saved.gpm || saved.GPM || 0);
+      if (!np) np = Number(saved.NP || saved.np || saved.psi || 0);
+    }
 
     let g = gpm || 0;
     let p = np || 0;
