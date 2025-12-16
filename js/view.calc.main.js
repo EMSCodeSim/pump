@@ -712,95 +712,21 @@ export async function render(container){
     // Helper to build a hose meta object for a given diameter
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
-    function metaForDiameter(hoseIdOrDia) {
-      const raw = String(hoseIdOrDia ?? '').trim();
-      if (!raw) return { id: '1.75', label: '1 3/4"', c: COEFF['1.75'] ?? 15.5 };
+    function metaForDiameter(dia) {
+      const s = String(dia);
 
-      // Simple diameter -> display text
-      function diaLabel(diaStr){
-        const s = String(diaStr ?? '').trim();
-        if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
-        if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
-        if (s === '2.0'  || s === '2')                    return '2"';
-        if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
-        if (s === '3')                                     return '3"';
-        if (s === '4')                                     return '4"';
-        if (s === '5')                                     return '5"';
-        return s + '"';
-      }
-
-      const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
-      let isCustom = false;
-      let isLF = false;
-      let dia = '';
-
-      // Custom hose id from Dept Setup
-      if (raw.startsWith('custom_hose_')) {
-        const ch = customs.find(h => h && String(h.id) === raw);
-        if (ch && ch.diameter != null) {
-          dia = String(ch.diameter);
-          isCustom = true;
-          if (String(ch.category || '').toLowerCase().includes('low')) isLF = true;
-        }
-      }
-
-      // Built-in low-friction ids (if Dept Setup returns ids rather than diameters)
-      if (!dia && raw.startsWith('h_lf_')) {
-        const suf = raw.replace('h_lf_','');
-        if (suf === '175') dia = '1.75';
-        else if (suf === '15') dia = '1.5';
-        else if (suf === '2') dia = '2.0';
-        else if (suf === '25') dia = '2.5';
-        else if (suf === '3') dia = '3';
-        else if (suf === '4') dia = '4';
-        else if (suf === '5') dia = '5';
-        isLF = true;
-      }
-
-      // Common built-in ids
-      if (!dia && raw.startsWith('h_')) {
-        const map = {
-          'h_1':'1', 'h_15':'1.5', 'h_175':'1.75', 'h_2':'2.0', 'h_25':'2.5', 'h_3':'3', 'h_4':'4', 'h_5':'5',
-          'h_4_ldh':'4', 'h_5_ldh':'5', 'h_3_supply':'3',
-          'h_lf_175':'1.75', 'h_lf_2':'2.0', 'h_lf_25':'2.5', 'h_lf_5':'5'
+      // Custom hose from Department Setup?
+      const custom = customs.find(h => String(h.diameter) === s);
+      if (custom) {
+        const c =
+          typeof custom.c === 'number' ? custom.c :
+          (typeof custom.flC === 'number' ? custom.flC :
+           (COEFF[s] ?? 15.5));
+        return {
+          id: s,
+          label: custom.label || custom.name || `${s}"`,
+          c
         };
-        dia = map[raw] || '';
-        if (raw.includes('lf')) isLF = true;
-      }
-
-      // Already a diameter string
-      if (!dia) {
-        if (/^\d+(?:\.\d+)?$/.test(raw)) {
-          const n = Number(raw);
-          if (Number.isFinite(n)) {
-            if (Math.abs(n-2) < 1e-9) dia = '2.0';
-            else dia = raw;
-          }
-        } else {
-          dia = raw;
-        }
-      }
-
-      // If Dept Setup stored custom hoses by diameter (older behavior), resolve to add suffix
-      let customByDia = null;
-      if (!isCustom) {
-        customByDia = customs.find(h => h && String(h.diameter) === String(dia));
-        if (customByDia) {
-          isCustom = true;
-          if (String(customByDia.category || '').toLowerCase().includes('low')) isLF = true;
-        }
-      }
-
-      const c =
-        (customByDia && (Number(customByDia.cValue) || Number(customByDia.c) || Number(customByDia.flC))) ||
-        (COEFF[dia] ?? 15.5);
-
-      let label = diaLabel(dia);
-      if (isLF) label = label + ' LF';
-      else if (isCustom) label = label + ' C';
-
-      return { id: dia, label, c };
-    };
       }
 
       // Built-in defaults
@@ -2165,11 +2091,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         const chosenId = teNoz.value;
         if (chosenId) {
           try {
-            const found = (typeof resolveNozzleById === 'function')
-              ? resolveNozzleById(chosenId)
-              : null;
+            const fullList = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+            const found = fullList.find(n => n && n.id === chosenId);
             if (found) {
-              L.nozRight = Object.assign({}, L.nozRight || {}, found, { id: found.id || chosenId });
+              L.nozRight = Object.assign({}, L.nozRight || {}, found, { id: found.id });
             } else {
               L.nozRight = Object.assign({}, L.nozRight || {}, { id: chosenId });
             }
@@ -3032,28 +2957,9 @@ function initPlusMenus(root){
       const id = n.id != null ? String(n.id) : '';
       if (!id) return '';
       const fromUi = uiById && uiById.get(id);
-      const baseLabel =
+      const label =
         (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
         n.label || n.name || n.desc || id || 'Nozzle';
-      let label = String(baseLabel);
-
-      // Ensure nozzle pressure shows (many labels are like "Fog 150 @ 100" without "psi")
-      const npVal =
-        (fromUi && (fromUi.NP ?? fromUi.np ?? fromUi.psi)) ??
-        (n.NP ?? n.np ?? n.psi);
-      const npNum = Number(npVal);
-      const hasPsiWord = /\bpsi\b/i.test(label);
-      const hasAt = /@\s*\d+/.test(label);
-
-      if (!hasPsiWord) {
-        if (hasAt) {
-          // e.g. "Fog 150 @ 100" -> "Fog 150 @ 100 psi"
-          label = label + ' psi';
-        } else if (Number.isFinite(npNum) && npNum > 0) {
-          // e.g. "Fog 150" + NP=100 -> "Fog 150 @ 100 psi"
-          label = label + ` @ ${npNum} psi`;
-        }
-      }
       const val = id;
       return `<option value="${val}">${label}</option>`;
     }).join('');
@@ -3124,10 +3030,14 @@ function initBranchPlusMenus(root){
   }
 
   sel.innerHTML = nozList.map(n => {
-    const label = n.name || n.desc || n.id || 'Nozzle';
-    const val = n.id ?? label;
+    const baseLabel = n.name || n.desc || n.id || 'Nozzle';
+    const np = (n && (n.NP ?? n.np ?? n.psi ?? n.pressure));
+    const hasPsi = /\bpsi\b/i.test(String(baseLabel));
+    const label = (!hasPsi && (np !== null && np !== undefined && np !== '')) ? `${baseLabel} @ ${np} psi` : baseLabel;
+    const val = (n && n.id != null) ? n.id : baseLabel;
     return `<option value="${val}">${label}</option>`;
   }).join('');
+
 }
 
   // Branch A
