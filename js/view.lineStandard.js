@@ -13,46 +13,32 @@ function parseNpFromLabel(label) {
 function formatHoseLabel(idOrLabel) {
   const raw = String(idOrLabel || '').trim();
 
+  // Detect special hose types
+  const isCustom = /^custom_hose_/i.test(raw);
+  const isLF = /^h_lf_/i.test(raw) || /low[-\s]?friction|\blf\b/i.test(raw);
+
+  // Extract numeric size from common formats (e.g., 2.5", "2.5", "h_25", "h_lf_175")
   const quoteMatch = raw.match(/(\d(?:\.\d+)?)\s*"/);
-  if (quoteMatch) {
-    const v = quoteMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
-  }
+  const numMatch = quoteMatch ? quoteMatch[1] : (raw.match(/(\d(?:\.\d+)?)/)?.[1] || '');
 
-  if (/^h_?175$/i.test(raw)) return '1 3/4"';
-  if (/^h_?15$/i.test(raw))  return '1 1/2"';
-  if (/^h_?25$/i.test(raw))  return '2 1/2"';
-  if (/^h_?3$/i.test(raw))   return '3"';
-  if (/^h_?4$/i.test(raw))   return '4"';
-  if (/^h_?5$/i.test(raw))   return '5"';
+  let size = '';
+  if (/\b175\b/.test(raw) || numMatch === '1.75') size = '1 3/4"';
+  else if (/\b15\b/.test(raw) || numMatch === '1.5') size = '1 1/2"';
+  else if (/\bh_lf_2\b/i.test(raw) || numMatch === '2' || numMatch === '2.0') size = '2"';
+  else if (/\b25\b/.test(raw) || numMatch === '2.5') size = '2 1/2"';
+  else if (/\bh_?3\b/i.test(raw) || numMatch === '3') size = '3"';
+  else if (/\bh_?4\b/i.test(raw) || numMatch === '4') size = '4"';
+  else if (/\bh_?5\b/i.test(raw) || numMatch === '5') size = '5"';
 
-  if (/^custom_hose_/i.test(raw)) {
-    if (/175/.test(raw)) return 'Custom 1 3/4"';
-    if (/15/.test(raw))  return 'Custom 1 1/2"';
-    if (/25/.test(raw))  return 'Custom 2 1/2"';
-    if (/\b3\b/.test(raw))   return 'Custom 3"';
-    if (/\b4\b/.test(raw))   return 'Custom 4"';
-    if (/\b5\b/.test(raw))   return 'Custom 5"';
-    return 'Custom hose';
-  }
+  if (!size) return raw;
 
-  const numMatch = raw.match(/(\d(?:\.\d+)?)/);
-  if (numMatch) {
-    const v = numMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
-  }
-
-  return raw;
+  // Simple suffix rules:
+  // - Normal: just size
+  // - Low-friction: add " LF"
+  // - Custom: add " C"
+  if (isLF) return `${size} LF`;
+  if (isCustom) return `${size} C`;
+  return size;
 }
 
 const DEFAULT_NOZZLES = [
@@ -244,42 +230,6 @@ function getHoseListFromDept(dept) {
 }
 
 function getNozzleListFromDept(dept) {
-  // Resolve a custom nozzle id to the saved object that contains the user label.
-  // IMPORTANT: When Department Setup saves nozzle selections, DEPT_UI_NOZZLES can
-  // be an array of ids (strings). If we only have ids, older code would fall back
-  // to building a generic label like "Custom nozzle 385 gpm @ 50 psi".
-  //
-  // The *actual* user-entered labels live in department storage:
-  //   localStorage.fireops_dept_equipment_v1.customNozzles
-  // and may also be present on the passed-in dept object.
-  function resolveCustomNozzleById(id) {
-    const want = String(id || '').trim();
-    if (!want) return null;
-
-    // 1) Prefer explicit dept.customNozzles if provided
-    try {
-      if (dept && Array.isArray(dept.customNozzles)) {
-        const hit = dept.customNozzles.find(n => n && String(n.id) === want);
-        if (hit) return hit;
-      }
-    } catch (e) {}
-
-    // 2) Fall back to shared dept storage used by presets/calc
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem('fireops_dept_equipment_v1');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const arr = parsed && Array.isArray(parsed.customNozzles) ? parsed.customNozzles : [];
-          const hit = arr.find(n => n && String(n.id) === want);
-          if (hit) return hit;
-        }
-      }
-    } catch (e) {}
-
-    return null;
-  }
-
   let baseRaw;
 
   if (Array.isArray(DEPT_UI_NOZZLES) && DEPT_UI_NOZZLES.length) {
@@ -306,23 +256,13 @@ function getNozzleListFromDept(dept) {
 
     if (typeof n === 'string' || typeof n === 'number') {
       id = String(n);
-      // If it's a custom nozzle id, try to resolve the saved object so we keep the user's label.
-      if (String(id).toLowerCase().startsWith('custom_noz_')) {
-        const hit = resolveCustomNozzleById(id);
-        if (hit) {
-          label = hit.label || hit.name || String(id);
-          gpm = typeof hit.gpm === 'number' ? hit.gpm : Number(hit.gpm || 0);
-          np  = typeof hit.NP === 'number' ? hit.NP : Number(hit.NP ?? hit.np ?? hit.psi ?? 0);
-        }
-      }
-
-      const fromCatalog = (!label && NOZ && NOZ[id]) ? NOZ[id] : null;
+      const fromCatalog = NOZ && NOZ[id] ? NOZ[id] : null;
       if (fromCatalog) {
         label = fromCatalog.name || id;
         gpm = typeof fromCatalog.gpm === 'number' ? fromCatalog.gpm : 0;
         np  = typeof fromCatalog.NP  === 'number' ? fromCatalog.NP  : 0;
       } else {
-        label = label || String(n);
+        label = String(n);
         gpm = parseGpmFromLabel(label);
         np  = parseNpFromLabel(label);
       }
