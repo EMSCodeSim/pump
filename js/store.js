@@ -321,9 +321,11 @@ export function getDeptNozzles() {
     if (c) {
       return {
         id: c.id,
-        label: c.label || c.name || c.id,
+        // IMPORTANT: prefer the UI label/name if Department Setup passed one.
+        // This is what keeps Line 1/2/3 showing the user's custom nozzle name.
+        label: item.label || item.name || c.label || c.name || c.id,
         gpm: Number(c.gpm ?? 0),
-        NP:  Number(c.NP ?? c.np ?? 0),
+        NP:  Number(c.NP ?? c.np ?? c.psi ?? c.pressure ?? 0),
       };
     }
     return null;
