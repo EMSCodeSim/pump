@@ -172,12 +172,65 @@ const HOSE_ID_TO_DIA = {
   'h_lf_5':     '5',
 };
 
+// Resolve a hose input (id or diameter) into { dia, c, kind }.
+// - dia is the diameter string used by COEFF keys (e.g. '1.75', '2.0', '2.5', '5')
+// - c is optional friction-loss coefficient override (for custom hoses)
+// - kind is 'built' | 'lowfriction' | 'custom' | 'diameter'
+function resolveHoseMeta(input){
+  const raw = (input == null ? '' : String(input)).trim();
+  if (!raw) return { dia:'', c:null, kind:'diameter' };
+
+  // Built-in / low-friction ids
+  if (HOSE_ID_TO_DIA[raw]) {
+    const dia = HOSE_ID_TO_DIA[raw];
+    // If this is a low-friction id, we allow an override C only if the dept storage includes one;
+    // otherwise the default COEFF[dia] applies.
+    return { dia, c: null, kind: raw.startsWith('h_lf_') ? 'lowfriction' : 'built' };
+  }
+
+  // Custom hose ids (canonical storage is fireops_dept_equipment_v1.customHoses)
+  if (raw.startsWith('custom_hose_')) {
+    try{
+      const deptRaw = localStorage.getItem('fireops_dept_equipment_v1');
+      const dept = deptRaw ? JSON.parse(deptRaw) : {};
+      const list = Array.isArray(dept?.customHoses) ? dept.customHoses : [];
+      const found = list.find(h => h && String(h.id) === raw);
+      if (found){
+        const dia = String(found.diameter ?? found.dia ?? found.size ?? '').trim();
+        const c   = Number(found.c ?? found.C ?? found.flC ?? found.coeff ?? null);
+        return { dia: normalizeHoseDiameter(dia), c: Number.isFinite(c) ? c : null, kind:'custom' };
+      }
+    }catch(_e){ /* ignore */ }
+    return { dia:'', c:null, kind:'custom' };
+  }
+
+  // Already a diameter string
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    return { dia: normalizeHoseDiameter(raw), c: null, kind:'diameter' };
+  }
+
+  return { dia:'', c:null, kind:'diameter' };
+}
+
 function normalizeHoseDiameter(input){
   if (input == null) return '';
   const s = String(input).trim();
   if (!s) return '';
   const mapped = HOSE_ID_TO_DIA[s];
   if (mapped) return mapped;
+
+  // Custom hose id -> diameter
+  if (s.startsWith('custom_hose_')) {
+    try{
+      const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
+      const dept = rawDept ? JSON.parse(rawDept) : {};
+      const list = Array.isArray(dept?.customHoses) ? dept.customHoses : [];
+      const found = list.find(h => h && String(h.id) === s);
+      const dia = found ? String(found.diameter ?? found.dia ?? found.size ?? '').trim() : '';
+      if (dia) return normalizeHoseDiameter(dia);
+    }catch(_e){ /* ignore */ }
+    return '';
+  }
 
   // already a diameter string
   if (/^\d+(?:\.\d+)?$/.test(s)) {
@@ -439,75 +492,7 @@ export const COEFF = {
 };
 
 export function sizeLabel(v){
-  // Accept either a diameter string (e.g., "1.75") OR a hose id (e.g., "h_lf_175", "custom_hose_123").
-  const raw = (v == null ? '' : String(v)).trim();
-  if(!raw) return '';
-
-  // ---------- helpers ----------
-  const fmtDia = (diaRaw) => {
-    const d = String(diaRaw ?? '').trim();
-    if(!d) return '';
-    // normalize common forms
-    const n = d === '2' ? '2.0' : d;
-    if (n === '1.75') return '1 3/4"';
-    if (n === '1.5')  return '1 1/2"';
-    if (n === '2.5')  return '2 1/2"';
-    if (n === '2.0')  return '2"';
-    if (n === '3')    return '3"';
-    if (n === '4')    return '4"';
-    if (n === '5')    return '5"';
-    // fallback: keep as inches
-    return `${n}"`;
-  };
-
-  const HOSE_ID_TO_DIA = {
-    'h_1': '1',
-    'h_15': '1.5',
-    'h_175': '1.75',
-    'h_2': '2.0',
-    'h_25': '2.5',
-    'h_3': '3',
-    'h_3_supply': '3',
-    'h_4_ldh': '4',
-    'h_5_ldh': '5',
-    'h_w_1': '1',
-    'h_w_15': '1.5',
-    'h_booster_1': '1',
-    'h_lf_175': '1.75',
-    'h_lf_2': '2.0',
-    'h_lf_25': '2.5',
-    'h_lf_5': '5',
-  };
-
-  // ---------- ID-based formats ----------
-  if (raw.startsWith('h_lf_')) {
-    const dia = HOSE_ID_TO_DIA[raw] || raw.replace('h_lf_', '').replace('_', '.');
-    return `${fmtDia(dia)} LF`;
-  }
-
-  if (raw.startsWith('custom_hose_')) {
-    // Look up custom hose diameter in dept equipment storage (canonical)
-    try{
-      const KEY = 'fireops_dept_equipment_v1';
-      const dept = JSON.parse(localStorage.getItem(KEY) || '{}');
-      const list = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-      const found = list.find(h => h && String(h.id) === raw);
-      const dia = found ? (found.diameter ?? found.dia ?? found.size ?? '') : '';
-      const label = fmtDia(dia || '');
-      return label ? `${label} C` : `${raw} C`;
-    }catch(_e){
-      return `${raw} C`;
-    }
-  }
-
-  if (raw.startsWith('h_')) {
-    const dia = HOSE_ID_TO_DIA[raw];
-    if (dia) return fmtDia(dia);
-  }
-
-  // ---------- Diameter-based formats ----------
-  // If they passed a plain diameter, keep it simple.
-  return fmtDia(raw);
+  return v === '1.75' ? '1¾″' : v === '2.5' ? '2½″' : v === '5' ? '5″' : (v || '');
 }
 
 /* =========================
@@ -520,21 +505,23 @@ export function applianceLoss(totalGpm){
   return totalGpm > 350 ? 10 : 0;
 }
 
-function flPer100(size, gpm){
+function flPer100(size, gpm, cOverride){
   const q = Math.max(0, gpm) / 100;
-  const C = COEFF[size] ?? 10;
+  const C = (Number.isFinite(Number(cOverride)) && Number(cOverride) > 0)
+    ? Number(cOverride)
+    : (COEFF[size] ?? 10);
   return C * q * q;
 }
 
-export function FL(gpm, size, lengthFt){
+export function FL(gpm, size, lengthFt, cOverride){
   if(!size || !lengthFt || !gpm) return 0;
-  return flPer100(size, gpm) * (lengthFt/100);
+  return flPer100(size, gpm, cOverride) * (lengthFt/100);
 }
 
 export function FL_total(gpm, items){
   if(!Array.isArray(items) || !items.length || !gpm) return 0;
   let sum = 0;
-  for(const seg of items) sum += FL(gpm, seg.size, seg.lengthFt);
+  for(const seg of items) sum += FL(gpm, seg.size, seg.lengthFt, seg.cValue);
   return sum;
 }
 
@@ -545,7 +532,11 @@ export function sumFt(items){
 
 export function splitIntoSections(items){
   if(!Array.isArray(items)) return [];
-  return items.map(s => ({ size: String(s.size), lengthFt: Number(s.lengthFt)||0 }));
+  return items.map(s => ({
+    size: String(s.size),
+    lengthFt: Number(s.lengthFt)||0,
+    cValue: (Number.isFinite(Number(s.cValue)) && Number(s.cValue)>0) ? Number(s.cValue) : null,
+  }));
 }
 
 /* =========================
@@ -820,7 +811,7 @@ export function getDeptLineDefault(key){
     const built = {
       label,
       visible: false,
-      itemsMain: [{ size: hose, lengthFt: len }],
+      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: resolveHoseMeta(hose).c }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
