@@ -7,7 +7,7 @@ import { openSprinklerPopup }      from './view.lineSprinkler.js';
 import { openFoamPopup }           from './view.lineFoam.js';
 import { openSupplyLinePopup }     from './view.lineSupply.js';
 import { openCustomBuilderPopup }  from './view.lineCustom.js';
-import { setDeptLineDefault, NOZ, NOZ_LIST, canonicalNozzleId, setLineDefaults } from './store.js';
+import { setDeptLineDefault, setLineDefaults, NOZ, NOZ_LIST, canonicalNozzleId } from './store.js';
 
 // Safe wrapper for optional line standard popup.
 // If ./view.lineStandard.js does not export openStandardLinePopup,
@@ -1577,28 +1577,22 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       if (!state.lineDefaults) state.lineDefaults = {};
       state.lineDefaults[key] = next;
       saveLineDefaultsToStorage();
-      // Also save into the central dept defaults in store.js
-      // IMPORTANT: use store.js's setLineDefaults() so custom_noz_* ids are persisted as _nozId
-      // and resolve correctly when Calc seeds Lines 1–3.
-      try {
-        const lineKey =
-          lineNumber === 1 ? 'line1' :
-          lineNumber === 2 ? 'line2' :
-          lineNumber === 3 ? 'line3' :
-          null;
 
-        if (lineKey) {
-          setLineDefaults(lineKey, {
-            hose: single.hoseId || '',
-            nozzle: single.nozzleId || '',
-            length: next.lengthFt || 0,
-            elevation: next.elevationFt || 0,
+      // Also save into the central dept defaults in store.js (pump_dept_defaults_v1)
+      // IMPORTANT: must support custom_noz_* ids (not present in NOZ map).
+      try {
+        if (typeof setLineDefaults === 'function') {
+          setLineDefaults(key, {
+            hose: single.hoseId || single.hoseSize || '',
+            length: single.lengthFt != null ? Number(single.lengthFt) : null,
+            elevation: single.elevationFt != null ? Number(single.elevationFt) : 0,
+            nozzle: single.nozzleId || ''
           });
         }
       } catch (e) {
         console.warn('Failed to sync dept line default to store', e);
       }
-}
+    }
   });
 }
 
