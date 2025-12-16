@@ -97,32 +97,6 @@ export function addCustomNozzle(label, gpm, np){
   const id = `custom_noz_${Date.now()}`;
   const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
   store.customNozzles.push(noz);
-
-  // Keep Department equipment storage in sync.
-  // Calc/presets read custom nozzles from the shared dept-equipment key
-  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
-  // store.customNozzles, Department Setup and Calc can drift apart.
-  try {
-    const KEY = 'fireops_dept_equipment_v1';
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      const dept = raw ? JSON.parse(raw) : {};
-      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      dept.customNozzles = existing.concat([{
-        id: noz.id,
-        label: noz.label,
-        name: noz.name,
-        gpm: noz.gpm,
-        NP: noz.NP,
-        np: noz.NP,
-        psi: noz.NP,
-      }]);
-      localStorage.setItem(KEY, JSON.stringify(dept));
-    }
-  } catch (e) {
-    console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
-  }
-
   saveStore();
   return noz;
 }
@@ -224,41 +198,35 @@ function resolveNozzleById(raw){
   if (NOZ && NOZ[id]) return NOZ[id];
   if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
 
-  // 2) custom nozzles created by user (stored in store.customNozzles)
-  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
-  const c = custom.find(n => n && String(n.id) === id);
+
+  // 2) custom nozzles created by user
+  // Prefer Department Equipment storage (fireops_dept_equipment_v1) because Dept Setup and Calc
+  // both treat it as the canonical source of custom nozzles.
+  const deptCustom = (() => {
+    try {
+      const raw = (typeof localStorage !== 'undefined')
+        ? localStorage.getItem('fireops_dept_equipment_v1')
+        : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      return (parsed && Array.isArray(parsed.customNozzles)) ? parsed.customNozzles : [];
+    } catch (_) { return []; }
+  })();
+
+  const storeCustom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
+
+  // Merge (dept first so it wins)
+  const allCustom = [...deptCustom, ...storeCustom];
+  const c = allCustom.find(n => n && String(n.id) === id);
   if (c) {
     // Normalize to the same shape calc expects
+    const label = String(c.label || c.name || c.title || c.id);
     return {
       id: String(c.id),
-      name: String(c.name || c.label || c.id),
+      name: label,
+      label,
       gpm: Number(c.gpm ?? c.GPM ?? 0),
       NP:  Number(c.NP ?? c.np ?? 0),
-      label: c.label || c.name || c.id,
     };
-  }
-
-  // 2b) custom nozzles saved in Department equipment storage (fireops_dept_equipment_v1)
-  //     This is the canonical source used by Department Setup and Calc dropdowns.
-  //     Shape: { customNozzles: [{id,label/name,gpm,NP}, ...] }
-  try {
-    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
-    if (rawDept) {
-      const dept = JSON.parse(rawDept) || {};
-      const deptCustom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      const d = deptCustom.find(n => n && String(n.id) === id);
-      if (d) {
-        return {
-          id: String(d.id),
-          name: String(d.name || d.label || d.id),
-          gpm: Number(d.gpm ?? d.GPM ?? 0),
-          NP:  Number(d.NP ?? d.np ?? 0),
-          label: d.label || d.name || d.id,
-        };
-      }
-    }
-  } catch (e) {
-    // ignore
   }
 
   // 3) safety fallback: search list (covers future catalog shapes)
@@ -346,30 +314,7 @@ export function getDeptNozzles() {
   //  - small UI objects {id,label} from Department Setup.
   // We always resolve to full calc-ready nozzle objects from NOZ (plus any stored customNozzles).
   const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-
-  // Custom nozzles can live in TWO places depending on which UI created them:
-  // - store.customNozzles (legacy / fireops_store_v1)
-  // - dept equipment storage (fireops_dept_equipment_v1) (used by dept setup + calc + presets)
-  // IMPORTANT: If dept storage has custom nozzles, that is the canonical source.
-  // Legacy store.customNozzles often contains stale/unnamed entries that show up as
-  // "Custom nozzle XXX gpm @ YY psi" in the Line 1/2/3 dropdown.
-  let custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
-  try {
-    const KEY = 'fireops_dept_equipment_v1';
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const dept = JSON.parse(raw);
-        if (dept && Array.isArray(dept.customNozzles) && dept.customNozzles.length) {
-          // Use dept.customNozzles as canonical.
-          // (Calc and presets read from this same object.)
-          custom = dept.customNozzles;
-        }
-      }
-    }
-  } catch (e) {
-    // non-fatal: fall back to store.customNozzles
-  }
+  const custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
 
   function toFull(item){
     if (!item) return null;
