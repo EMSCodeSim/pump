@@ -633,6 +633,25 @@ export async function render(container){
       console.warn('getDeptNozzleIds failed', e);
     }
 
+    // ALSO include any nozzle ids referenced by Department Line Defaults (Lines 1–3).
+    // This prevents a custom_noz_* default from being seeded correctly but then not
+    // showing up in the Calc nozzle dropdown because it wasn't manually checked in
+    // the Dept Nozzles list.
+    try {
+      const defs = (typeof getDeptLineDefaults === 'function') ? (getDeptLineDefaults() || {}) : {};
+      const candidates = [
+        defs?.line1?.nozzleId,
+        defs?.line2?.nozzleId,
+        defs?.line3?.nozzleId,
+      ].map(_normNozId).filter(Boolean);
+      candidates.forEach(id => {
+        const sid = String(id);
+        if (nozzleMap[sid] && !selectedNozzleIds.includes(sid)) selectedNozzleIds.push(sid);
+      });
+    } catch (e) {
+      console.warn('Failed to include line-default nozzle ids', e);
+    }
+
     // If Department Setup didn't pick any nozzles,
     // selectedNozzleIds stays empty - meaning "show all".
     dept.nozzlesSelected = selectedNozzleIds;
@@ -2265,8 +2284,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
           // Nozzle
           const _nid = _normNozId(src.nozzleId);
-          if (_nid && NOZ[_nid]) {
-            L.nozRight = NOZ[_nid];
+          // Dept defaults may reference custom_noz_* ids which are NOT in the built-in NOZ map.
+          // Always resolve through the shared resolver so custom nozzles work as defaults.
+          if (_nid) {
+            const chosen = (typeof resolveNozzleById === 'function') ? resolveNozzleById(_nid) : null;
+            if (chosen) {
+              L.nozRight = chosen;
+            } else if (typeof NOZ !== 'undefined' && NOZ && NOZ[_nid]) {
+              L.nozRight = NOZ[_nid];
+            }
           }
         }
       }
