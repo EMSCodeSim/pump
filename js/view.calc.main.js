@@ -35,7 +35,7 @@ document.addEventListener("click", (e) => {
 import {
   state,
   NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey,
-  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST,
+  isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST, resolveNozzleById as resolveNozzleByIdStore,
   sectionsFor, FL_total_sections, breakdownText,
   PRACTICE_SAVE_KEY, safeClone, loadSaved, saveNow, markDirty, startAutoSave, stopAutoSave,
   buildSnapshot, restoreState,
@@ -48,84 +48,7 @@ import {
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
-  if (!id) return null;
-  
-  // Map legacy/alternate ids (from older Dept Setup / Presets lists) to store.NOZ ids
-  const canonicalNozzleId = (raw)=>{
-    const s = String(raw||'').trim();
-    if(!s) return s;
-    const map = {
-      // Smooth bore ids used in preset.js
-      'sb_78_50_160': 'sb7_8',
-      'sb_1516_50_185': 'sb15_16',
-      'sb_1_50_210': 'sb1',
-      'sb_1118_50_265': 'sb1_1_8',
-      'sb_114_50_325': 'sb1_1_4',
-
-      // Chief XD ids used in preset.js
-      'fog_xd_175_50_165': 'chiefXD165_50',
-      'fog_xd_175_50_185': 'chief185_50',
-      'fog_xd_25_50_265':  'chiefXD265',
-
-      // Common fog ids used in preset.js
-      'fog_175_100_150': 'fog150_100',
-      'fog_175_75_150':  'fog150_75',
-      'fog_15_100_95':   'fog95_100',
-      'fog_15_100_125':  'fog125_100',
-    };
-    return map[s] || s;
-  };
-
-  id = canonicalNozzleId(id);
-try{
-    // 1) Built-in map
-    if (typeof NOZ === 'object' && NOZ && NOZ[id]){
-      return NOZ[id];
-    }
-
-    // 2) Built-in list
-    const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
-    const fromList = list.find(n => n && n.id === id);
-    if (fromList){
-      return fromList;
-    }
-
-    // 3) Department custom nozzles (canonical source)
-    // NOTE: Dept Setup stores custom nozzles in localStorage['fireops_dept_equipment_v1'].customNozzles.
-    // The calc dropdown can show customs via other paths, but seeding default lines MUST be able to
-    // resolve custom_noz_* ids without relying on any global helper.
-    try{
-      const raw = localStorage.getItem('fireops_dept_equipment_v1');
-      if (raw){
-        const dept = JSON.parse(raw);
-        const customs = Array.isArray(dept?.customNozzles) ? dept.customNozzles : [];
-        const found = customs.find(n => n && n.id === id);
-        if (found){
-          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
-          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
-          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
-          return { id: found.id, name, gpm, NP };
-        }
-      }
-    }catch(_e){ /* ignore */ }
-
-    // 4) Legacy custom nozzle helpers (older builds)
-    if (typeof getDeptCustomNozzlesForCalc === 'function'){
-      const customs = getDeptCustomNozzlesForCalc() || [];
-      if (Array.isArray(customs) && customs.length){
-        const found = customs.find(n => n && n.id === id);
-        if (found){
-          const name = found.label || found.name || found.desc || found.id || 'Custom nozzle';
-          const gpm  = Number(found.gpm ?? found.flow ?? 0) || 0;
-          const NP   = Number(found.NP ?? found.np ?? found.psi ?? found.pressure ?? 50) || 50;
-          return { id: found.id, name, gpm, NP };
-        }
-      }
-    }
-  }catch(e){
-    console.warn('resolveNozzleById failed for id', id, e);
-  }
-  return null;
+  return resolveNozzleByIdStore(id);
 }
 
 
@@ -151,7 +74,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
+import { getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
