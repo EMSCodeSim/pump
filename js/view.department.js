@@ -13,14 +13,8 @@ import {
     getDeptNozzles,
     HOSES_MATCHING_CHARTS
 } from "./store.js";
-import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
-import { getUiNozzles } from "./deptState.js";
-import { setDeptUiNozzles } from "./store.js";
-import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
-import { getUiNozzles } from "./deptState.js";
-import { getLineDefaults, setLineDefaults } from "./store.js";
-import { getDeptNozzleIds, getDeptCustomNozzlesForCalc } from "./preset.js";
-import { getUiNozzles } from "./deptState.js";
+import { getDeptNozzleIds } from "./preset.js";
+import { setDeptUiNozzles, getLineDefaults, setLineDefaults } from "./store.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
 
@@ -243,15 +237,13 @@ function setupSaveButtons() {
             // Persist to shared department config used by presets / calc
             saveDeptConfig({ nozzles: selectedIds });
 
-            // Build UI-ready nozzle objects for calc screen
-            const uiList = Array.isArray(DEPT_NOZZLE_LIBRARY)
-                ? DEPT_NOZZLE_LIBRARY
-                    .filter(n => selectedIds.includes(String(n.id)))
-                    .map(n => ({
-                        id: n.id,
-                        label: n.label
-                    }))
-                : [];
+            // Build UI-ready nozzle objects EXACTLY like Calc wants.
+            // This must include custom nozzles (with their real names) too.
+            const all = getCalcNozzlesList().filter(n => n && n.id);
+            const uiList = selectedIds.length
+                ? all.filter(n => selectedIds.includes(String(n.id)))
+                      .map(n => ({ id: String(n.id), label: String(n.label || n.name || n.id) }))
+                : all.map(n => ({ id: String(n.id), label: String(n.label || n.name || n.id) }));
 
             // Update the global Dept UI nozzle list used by calc view
             try {
