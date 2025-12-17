@@ -105,7 +105,7 @@ function renderNozzleSelector() {
 
     const selected = new Set(selectedIds);
 
-    wrapper.innerHTML = list.map(n => {
+    const listHtml = list.map(n => {
         const id = String(n.id);
         const label = String(n.label || id);
         return `
@@ -114,7 +114,78 @@ function renderNozzleSelector() {
             ${label}
         </label>`;
     }).join("");
+
+    // IMPORTANT: The custom nozzle form is injected here so the IDs are guaranteed to match
+    // the JS handlers (and so re-renders don't detach the button).
+    const customHtml = `
+      <div class="dept-custom" style="margin-top:14px; padding-top:12px; border-top:1px solid rgba(148,163,184,0.35);">
+        <h3 style="margin:0 0 8px 0; font-size:0.95rem;">Add a custom nozzle</h3>
+        <div class="dept-custom-row" style="display:flex; flex-direction:column; gap:8px;">
+          <label style="font-weight:600; font-size:0.85rem;">
+            Name / label
+            <input type="text" id="custom-nozzle-name" placeholder="Example: 2 1/2&quot; fog 250 gpm @ 50 psi" style="width:100%; box-sizing:border-box;">
+          </label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <label style="flex:1; min-width:130px; font-weight:600; font-size:0.85rem;">
+              GPM
+              <input type="number" id="custom-nozzle-gpm" inputmode="numeric" placeholder="250" style="width:100%; box-sizing:border-box;">
+            </label>
+            <label style="flex:1; min-width:130px; font-weight:600; font-size:0.85rem;">
+              Nozzle PSI
+              <input type="number" id="custom-nozzle-np" inputmode="numeric" placeholder="50" style="width:100%; box-sizing:border-box;">
+            </label>
+          </div>
+          <button type="button" class="btn-secondary" id="add-custom-nozzle-btn" style="width:100%;">Add custom nozzle</button>
+          <div style="font-size:0.78rem; opacity:0.85;">
+            Tip: Custom nozzles will appear in the Line 1 / 2 / 3 dropdowns and in the Calc nozzle menu.
+          </div>
+        </div>
+      </div>
+    `;
+
+    wrapper.innerHTML = listHtml + customHtml;
+
+    // Wire button AFTER HTML exists
+    const btn = qs("#add-custom-nozzle-btn");
+    if (btn) {
+        btn.onclick = () => {
+            const nameInput = qs("#custom-nozzle-name");
+            const gpmInput  = qs("#custom-nozzle-gpm");
+            const npInput   = qs("#custom-nozzle-np");
+
+            const label = String(nameInput?.value || "").trim();
+            const gpm = Number(gpmInput?.value || 0);
+            const np  = Number(npInput?.value || 0);
+
+            if (!label) {
+                alert("Please enter a nozzle name/label.");
+                return;
+            }
+            if (!Number.isFinite(gpm) || gpm <= 0) {
+                alert("Please enter a valid GPM (number greater than 0).");
+                return;
+            }
+            if (!Number.isFinite(np) || np <= 0) {
+                alert("Please enter a valid nozzle PSI (number greater than 0).");
+                return;
+            }
+
+            try {
+                addCustomNozzle(label, gpm, np);
+            } catch (e) {
+                console.error("addCustomNozzle failed", e);
+                alert("Could not add custom nozzle. Check console for details.");
+                return;
+            }
+
+            // Re-render to include the new nozzle in the list
+            renderNozzleSelector();
+
+            alert("Custom nozzle added.");
+        };
+    }
 }
+
 
 
 // ===========================================================
