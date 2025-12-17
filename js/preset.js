@@ -1572,10 +1572,18 @@ function renderDeptLineDefaultsScreen(lineNumber) {
       if (!payload || typeof payload !== 'object') return;
       const single = payload.single || {};
 
+      const rawHoseId = (single.hoseId != null) ? String(single.hoseId) : '';
+      const hoseDiameterNum = (/^\d+(?:\.\d+)?$/.test(rawHoseId)) ? Number(rawHoseId) : null;
+      const nozId = canonicalNozzleId(single.nozzleId || '');
+
       const next = {
-        hoseDiameter: single.hoseId ? Number(single.hoseId) : null,
+        // Keep legacy field for older UI bits (numeric inches) when applicable
+        hoseDiameter: hoseDiameterNum,
+        // New canonical id (supports h_*, h_lf_*, custom_hose_*)
+        hoseId: rawHoseId,
         lengthFt: single.lengthFt != null ? Number(single.lengthFt) : null,
-        nozzleId: single.nozzleId || '',
+        // Always store canonical nozzle id (supports custom_noz_*)
+        nozzleId: nozId,
         nozzlePsi: null,
         elevationFt: single.elevationFt != null ? Number(single.elevationFt) : 0
       };
@@ -1607,13 +1615,24 @@ function renderDeptLineDefaultsScreen(lineNumber) {
 
           if (single.hoseId) {
             L.itemsMain.push({
-              size: String(single.hoseId),
-              lengthFt: next.lengthFt || 0
+              // Keep hose id if it's an id, or diameter string if numeric (both supported downstream)
+              size: (next.hoseId || String(single.hoseId)),
+              lengthFt: next.lengthFt || 0,
+              // Preserve the canonical hose id for downstream C-value lookup when applicable
+              hoseId: (next.hoseId || String(single.hoseId))
             });
           }
 
-          if (single.nozzleId && NOZ[single.nozzleId]) {
-            L.nozRight = NOZ[single.nozzleId];
+          // Always persist the nozzle id so Calc can resolve standard OR custom nozzles.
+          const nozId2 = canonicalNozzleId(single.nozzleId || '');
+          if (nozId2) L._nozId = nozId2;
+
+          // For standard catalog nozzles, keep the object for immediate calc/UI.
+          if (nozId2 && NOZ[nozId2]) {
+            L.nozRight = NOZ[nozId2];
+          } else {
+            // Custom nozzle: Calc will resolve via L._nozId from dept customNozzles
+            L.nozRight = null;
           }
 
           setDeptLineDefault(storeKey, L);
