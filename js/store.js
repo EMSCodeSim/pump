@@ -896,7 +896,8 @@ export function getDeptLineDefaults(){
   const fallback = {
     line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
     line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
-    line3: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
+    // Default start layout: Line 3 = 250' of 2½" with Chief XD 265 gpm @ 50 psi.
+    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
   };
 
   // Normalize minimal shapes expected by view.calc.main.js

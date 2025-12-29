@@ -200,6 +200,45 @@ export async function render(container){
     restoreState(s);
   }
 
+  // WEB DEFAULT START LAYOUT
+  // Web does not support Department Setup / Presets, so we seed the three lines
+  // to the desired default every full load.
+  if (!IS_APP) {
+    try {
+      const seedLine = (key, hoseDiameter, lengthFt, nozzleId) => {
+        const L = seedDefaultsForKey(key);
+        if (!L) return;
+
+        const main = (L.itemsMain && L.itemsMain[0]) ? L.itemsMain[0] : {};
+        main.size = String(hoseDiameter || '');
+        main.lengthFt = Number(lengthFt || 0);
+        L.itemsMain = [main];
+
+        // Straight line (no wye)
+        L.hasWye = false;
+        L.itemsLeft = [];
+        L.itemsRight = [];
+        L.elevFt = 0;
+
+        const nid = _normNozId(nozzleId);
+        L.nozRight = resolveNozzleById(nid) || (NOZ && NOZ[nid]) || null;
+        L.nozLeft = null;
+
+        // Show deployed by default on web
+        L.visible = true;
+      };
+
+      // Line 1 & 2: 200' of 1 3/4" with Chief XD 185 gpm @ 50 psi
+      seedLine('left', '1.75', 200, 'chief185_50');
+      seedLine('back', '1.75', 200, 'chief185_50');
+
+      // Line 3: 250' of 2 1/2" with Chief XD 265 gpm @ 50 psi
+      seedLine('right', '2.5', 250, 'chiefXD265');
+    } catch (e) {
+      console.warn('web default line seeding failed', e);
+    }
+  }
+
 
   // Persist on hide/close
   window.addEventListener('beforeunload', ()=>{
