@@ -1,7 +1,58 @@
 import { state, NOZ_LIST, savePresets, loadPresets } from './store.js';
 import { getDeptNozzleIds } from './preset.js';
 
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
+
+function isNativeApp(){
+  try{
+    // Capacitor exposes a global in native builds
+    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
+    const p = window?.Capacitor?.getPlatform?.();
+    if (p && p !== 'web') return true;
+  }catch(_e){}
+  // Fallback heuristics
+  const proto = (window?.location?.protocol || '').toLowerCase();
+  return proto === 'capacitor:'; // common in native shells
+}
+
 export async function render(container){
+  const IS_APP = isNativeApp();
+
+  if (!IS_APP){
+    container.innerHTML = `
+      <section class="stack">
+        <section class="card">
+          <h3 style="margin:4px 0 8px">Department Setup & Presets (App Only)</h3>
+          <p style="margin:0 0 10px; opacity:.92">
+            The <b>website version</b> includes the full calculator, Practice mode, and Tables.
+            To customize your <b>department hoses/nozzles</b> and save <b>Line 1/2/3 presets</b>,
+            install the <b>FireOps Calc app</b>.
+          </p>
+
+          <div class="card" style="background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.10)">
+            <h4 style="margin:0 0 6px">What are these?</h4>
+            <ul style="margin:0 0 0 18px; padding:0; line-height:1.45">
+              <li><b>Department Setup</b>: pick the exact hoses/nozzles your rig carries so menus only show your gear.</li>
+              <li><b>Presets</b>: save common Line 1/2/3 lengths, diameters, and nozzle choices for one-tap deployment.</li>
+            </ul>
+          </div>
+
+          <div class="te-actions" style="margin-top:12px">
+            <a class="btn primary" href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Get FireOps Calc on Google Play</a>
+            <a class="btn" href="/app-only-presets.html">Learn about Presets</a>
+            <a class="btn" href="/app-only.html">Learn about Department Setup</a>
+          </div>
+
+          <div class="status" style="margin-top:10px; opacity:.85">
+            Note: the app saves your setup <b>locally on your device</b> for fast offline use.
+          </div>
+        </section>
+      </section>
+    `;
+    return { dispose(){} };
+  }
+
+  // === APP VERSION: allow editing presets ===
   container.innerHTML = `
     <section class="stack">
       <section class="card">
