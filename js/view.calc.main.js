@@ -46,6 +46,17 @@ import {
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
 
+// Web vs App feature gating (Presets / Dept Setup are app-only)
+function isNativeApp(){
+  try{
+    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
+    const p = window?.Capacitor?.getPlatform?.();
+    if (p && p !== 'web') return true;
+  }catch(_e){}
+  const proto = (window?.location?.protocol || '').toLowerCase();
+  return proto === 'capacitor:';
+}
+
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
 function resolveNozzleById(id){
   if (!id) return null;
@@ -167,6 +178,8 @@ import './view.calc.enhance.js';
 /* ========================================================================== */
 
 export async function render(container){
+
+  const IS_APP = isNativeApp();
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
@@ -2660,18 +2673,30 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     renderPresetLineButtons();
     markDirty();
   }
-  try {
-    setupPresets({
-      // Treat PC/web as "app" so we get the full preset editor while you build it.
-      isApp: true,
-      triggerButtonId: 'presetsBtn',
-      appStoreUrl: '',
-      playStoreUrl: '',
-      getLineState: getLineStateFromCalc,
-      applyPresetToCalc
-    });
-  } catch (e) {
-    console.warn('setupPresets failed', e);
+  if (IS_APP) {
+    try {
+      setupPresets({
+        isApp: true,
+        triggerButtonId: 'presetsBtn',
+        appStoreUrl: 'https://play.google.com/store/apps/details?id=com.fireopscalc.app',
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=com.fireopscalc.app',
+        getLineState: getLineStateFromCalc,
+        applyPresetToCalc
+      });
+    } catch (e) {
+      console.warn('setupPresets failed', e);
+    }
+  } else {
+    // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
+    const b = container.querySelector('#presetsBtn');
+    if (b) {
+      b.textContent = 'Presets (App)';
+      b.addEventListener('click', (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = '/app-only-presets.html';
+      });
+    }
   }
   function enhanceTenderListStyle() {
     const rootEl = container.querySelector('#tenderList');
