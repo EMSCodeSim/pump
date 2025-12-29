@@ -768,15 +768,27 @@
     })();
   </script>
 
-  <!-- App-only guards for presets links (temporarily disabled: treat all as app) -->
+    <!-- App-only guards (web vs native app) -->
   <script>
     (function(){
-      const IS_APP = true; // TEMP: allow full presets / dept setup on any device
+      const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
+      const IS_APP = (function(){
+        try{
+          if (window && window.Capacitor){
+            if (typeof window.Capacitor.isNativePlatform === 'function') return !!window.Capacitor.isNativePlatform();
+            if (typeof window.Capacitor.getPlatform === 'function') return window.Capacitor.getPlatform() !== 'web';
+          }
+        }catch(e){}
+        const proto = (window.location && window.location.protocol || '').toLowerCase();
+        return proto === 'capacitor:';
+      })();
+
+      // 1) Any "Presets" links/buttons → redirect on web
       const presetButtons = [
         ...document.querySelectorAll('[href*="presets"]'),
         ...document.querySelectorAll('#openPresets')
       ];
-      presetButtons.forEach(pbtn => {
+      presetButtons.forEach((pbtn) => {
         pbtn.addEventListener('click', (e) => {
           if (!IS_APP) {
             e.preventDefault();
@@ -784,10 +796,29 @@
           }
         }, { capture: true });
       });
+
+      // 2) Department Setup shortcuts → redirect on web
+      const deptButtons = [
+        document.getElementById('aboutDeptBtn'),
+        document.getElementById('navSettings'),
+        ...document.querySelectorAll('[data-qsgoto="department"]')
+      ].filter(Boolean);
+
+      deptButtons.forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          if (!IS_APP) {
+            e.preventDefault();
+            window.location.href = '/app-only.html';
+          }
+        }, { capture: true });
+      });
+
+      // 3) Optional: expose store url for any future UI
+      window.FIREOPS_PLAY_STORE_URL = PLAY_STORE_URL;
+      window.FIREOPS_IS_APP = IS_APP;
     })();
   </script>
-
-  <!-- Screen Wake Lock to reduce phone timeouts on calc screen -->
+<!-- Screen Wake Lock to reduce phone timeouts on calc screen -->
   <script>
     (function(){
       let wakeLock = null;
