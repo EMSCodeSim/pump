@@ -1,4 +1,11 @@
 // Tiny router + lazy loading
+import { renderAdOnce } from './ads-guards.js';
+
+// === AdSense (web-only) ===
+// Replace slot IDs with your real AdSense ad unit slot IDs after approval.
+const ADS_CLIENT = 'ca-pub-9414291143716298';
+const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
+
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
@@ -25,6 +32,21 @@ async function openCharts(){
     const mod = await loaders.charts();
     const res = await mod.render(chartsMount); // may return { dispose }
     chartsDispose = res?.dispose || null;
+
+    // Non-intrusive ad at the very bottom of reference tables (only inject once)
+    try{
+      renderAdOnce({
+        key: 'tables_bottom',
+        container: chartsMount,
+        position: 'bottom',
+        client: ADS_CLIENT,
+        slot: SLOT_TABLES_BOTTOM,
+        format: 'auto',
+        style: 'display:block; margin:16px 0;',
+      });
+    } catch (e) {
+      // Ads are best-effort; never break the overlay.
+    }
   }catch(err){
     chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
   }
