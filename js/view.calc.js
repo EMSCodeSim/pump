@@ -531,17 +531,7 @@ export async function render(container){
   try{
     const adMount = container.querySelector('#adCalcInfeed');
     if (adMount) {
-      renderAdOnce({
-        key: 'calc_infeed_between_cards',
-        container: adMount,
-        position: 'bottom',
-        client: ADS_CLIENT,
-        slot: SLOT_CALC_INFEED,
-        format: 'fluid',
-        style: 'display:block; margin:12px 0;',
-        extraAttrs: { 'data-layout': 'in-article' },
-      });
-    }
+      }
   } catch (e) {
     // Ads are best-effort; never break calc.
   }

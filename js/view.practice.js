@@ -1,3 +1,4 @@
+import { renderAdOnce } from './ads-guards.js';
 // /js/view.practice.js
 // Practice Mode (phone-friendly) with:
 // - 50' multiples only (no 25' / 75')
