@@ -780,6 +780,9 @@
   <script>
     (function(){
       const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
+      // TEMP: disable App-Only redirect guards on the website while making changes.
+      // Set to true to restore the normal web redirects to /app-only*.html.
+      const SHOW_APP_ONLY_GUARDS = false;
       const IS_APP = (function(){
         try{
           if (window && window.Capacitor){
@@ -791,35 +794,37 @@
         return proto === 'capacitor:';
       })();
 
-      // 1) Any "Presets" links/buttons → redirect on web
-      const presetButtons = [
-        ...document.querySelectorAll('[href*="presets"]'),
-        ...document.querySelectorAll('#openPresets')
-      ];
-      presetButtons.forEach((pbtn) => {
-        pbtn.addEventListener('click', (e) => {
-          if (!IS_APP) {
-            e.preventDefault();
-            window.location.href = '/app-only-presets.html';
-          }
-        }, { capture: true });
-      });
+      if (SHOW_APP_ONLY_GUARDS) {
+        // 1) Any "Presets" links/buttons → redirect on web
+        const presetButtons = [
+          ...document.querySelectorAll('[href*="presets"]'),
+          ...document.querySelectorAll('#openPresets')
+        ];
+        presetButtons.forEach((pbtn) => {
+          pbtn.addEventListener('click', (e) => {
+            if (!IS_APP) {
+              e.preventDefault();
+              window.location.href = '/app-only-presets.html';
+            }
+          }, { capture: true });
+        });
 
-      // 2) Department Setup shortcuts → redirect on web
-      const deptButtons = [
-        document.getElementById('aboutDeptBtn'),
-        document.getElementById('navSettings'),
-        ...document.querySelectorAll('[data-qsgoto="department"]')
-      ].filter(Boolean);
+        // 2) Department Setup shortcuts → redirect on web
+        const deptButtons = [
+          document.getElementById('aboutDeptBtn'),
+          document.getElementById('navSettings'),
+          ...document.querySelectorAll('[data-qsgoto="department"]')
+        ].filter(Boolean);
 
-      deptButtons.forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          if (!IS_APP) {
-            e.preventDefault();
-            window.location.href = '/app-only.html';
-          }
-        }, { capture: true });
-      });
+        deptButtons.forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            if (!IS_APP) {
+              e.preventDefault();
+              window.location.href = '/app-only.html';
+            }
+          }, { capture: true });
+        });
+      }
 
       // 3) Optional: expose store url for any future UI
       window.FIREOPS_PLAY_STORE_URL = PLAY_STORE_URL;
