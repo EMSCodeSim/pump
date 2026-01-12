@@ -54,11 +54,6 @@ const SLOT_CALC_INFEED = 'REPLACE_WITH_SLOT_ID';
 
 
 // Web vs App feature gating (Presets / Dept Setup are app-only)
-// TEMP: hide/disable web "App-Only" gating UI while making changes.
-// When false: the Presets button is hidden on web (no redirect pages).
-// When true: the Presets button shows "Presets (App)" and redirects to the explainer page.
-const SHOW_APP_ONLY_SECTION = false;
-
 function isNativeApp(){
   try{
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
@@ -240,11 +235,11 @@ export async function render(container){
         L.visible = true;
       };
 
-      // Line 1 & 2: 200' of 1 3/4" with Chief XD 185 gpm @ 50 psi
+      // Preconnect 1 & 2: 200' of 1 3/4" with Chief XD 185 gpm @ 50 psi
       seedLine('left', '1.75', 200, 'chief185_50');
       seedLine('back', '1.75', 200, 'chief185_50');
 
-      // Line 3: 250' of 2 1/2" with Chief XD 265 gpm @ 50 psi
+      // Preconnect 3: 250' of 2 1/2" with Chief XD 265 gpm @ 50 psi
       seedLine('right', '2.5', 250, 'chiefXD265');
     } catch (e) {
       console.warn('web default line seeding failed', e);
@@ -430,9 +425,9 @@ export async function render(container){
         <div class="controlBlock">
           <div class="controlRow">
             <div class="lineGroup">
-              <button class="linebtn" data-line="left">Line 1</button>
-              <button class="linebtn" data-line="back">Line 2</button>
-              <button class="linebtn" data-line="right">Line 3</button>
+              <button class="linebtn" data-line="left">Preconnect 1</button>
+              <button class="linebtn" data-line="back">Preconnect 2</button>
+              <button class="linebtn" data-line="right">Preconnect 3</button>
               <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
@@ -1598,7 +1593,7 @@ function refreshNozzleSelectOptions() {
       return;
     }
 
-    // Default / unknown -> treat as standard attack line
+    // Default / unknown -> treat as standard preconnect
     openStandardLinePopup({
       dept,
       initial: raw,
@@ -1834,7 +1829,7 @@ function openPresetLineActions(id){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
 
-    // Department lines (Line 1/2/3)
+    // Department lines (Preconnect 1/2/3)
     vis.forEach(([key, L])=>{
       const single = L.hasWye && isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
@@ -2562,7 +2557,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   function applyPresetToCalc(preset){
     if (!preset) return;
 
-    // --- Special case: direct Line 1/2/3 edits from the Dept line editor ----
+    // --- Special case: direct Preconnect 1/2/3 edits from the Dept line editor ----
     if (preset.kind === 'lineEdit'){
       const src = (preset && typeof preset.payload === 'object' && preset.payload)
         ? preset.payload
@@ -2657,7 +2652,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
       const lc = raw.lastCalc || {};
 
-      // Standard attack line (from view.lineStandard.js)
+      // Standard preconnect (from view.lineStandard.js)
       if (lt === 'standard' || lt === 'single' || lt === 'wye') {
         const gpm = typeof lc.targetGpm === 'number' ? lc.targetGpm : null;
         const pdp = typeof lc.targetPdp === 'number' ? lc.targetPdp : null;
@@ -2750,20 +2745,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       console.warn('setupPresets failed', e);
     }
   } else {
+    // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
     const b = container.querySelector('#presetsBtn');
     if (b) {
-      if (!SHOW_APP_ONLY_SECTION) {
-        // Temporarily remove the app-only section on web
-        b.style.display = 'none';
-      } else {
-        // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
-        b.textContent = 'Presets (App)';
-        b.addEventListener('click', (e)=>{
-          e.preventDefault();
-          e.stopPropagation();
-          window.location.href = '/app-only-presets.html';
-        });
-      }
+      b.textContent = 'Presets (App)';
+      b.addEventListener('click', (e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        window.location.href = '/app-only-presets.html';
+      });
     }
   }
   function enhanceTenderListStyle() {
@@ -2861,7 +2851,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
     container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
 
-    // Line button states (Line 1/2/3)
+    // Line button states (Preconnect 1/2/3)
     ['left','back','right'].forEach(k => {
       const L = state.lines[k];
       const btn = container.querySelector(`.linebtn[data-line="${k}"]`);

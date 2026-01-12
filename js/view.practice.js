@@ -218,8 +218,8 @@ function buildReveal(S){
   // master
   const totalGPM = S.ms.gpm;
   const perLine = totalGPM/2;
-  const a = flSteps(perLine, '2.5', S.line1.len, 'Line 1');
-  const b = flSteps(perLine, '2.5', S.line2.len, 'Line 2');
+  const a = flSteps(perLine, '2.5', S.line1.len, 'Preconnect 1');
+  const b = flSteps(perLine, '2.5', S.line2.len, 'Preconnect 2');
   const worst = Math.max(a.value, b.value);
   const total = S.ms.NP + worst + S.ms.appliance + E;
   return {
@@ -637,14 +637,14 @@ export function render(container) {
       G_labelsP,
       outLeftX - 20,
       Math.max(12, junctionY - 12),
-      `Line 1: ${S.line1.len}′ 2½″`,
+      `Preconnect 1: ${S.line1.len}′ 2½″`,
       'L'
     );
     addBubble(
       G_labelsP,
       outRightX + 20,
       Math.max(12, junctionY - 12),
-      `Line 2: ${S.line2.len}′ 2½″`,
+      `Preconnect 2: ${S.line2.len}′ 2½″`,
       'R'
     );
     addBubble(

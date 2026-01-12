@@ -137,7 +137,7 @@ function renderNozzleSelector() {
           </div>
           <button type="button" class="btn-secondary" id="add-custom-nozzle-btn" style="width:100%;">Add custom nozzle</button>
           <div style="font-size:0.78rem; opacity:0.85;">
-            Tip: Custom nozzles will appear in the Line 1 / 2 / 3 dropdowns and in the Calc nozzle menu.
+            Tip: Custom nozzles will appear in the Preconnect 1 / 2 / 3 dropdowns and in the Calc nozzle menu.
           </div>
         </div>
       </div>
@@ -387,7 +387,7 @@ function setupSaveButtons() {
     }
 }
 // ===========================================================
-//              LINE DEFAULTS (Line 1, 2, 3)
+//              LINE DEFAULTS (Preconnect 1, 2, 3)
 // ===========================================================
 function renderLineDefaults() {
     ["line1", "line2", "line3"].forEach(id => {
@@ -433,13 +433,13 @@ function setupLineDefaultSaving() {
             const length = Number((qs(`#${id}-length`) || document.querySelector(`#${id}-length`))?.value || 0);
             const elevation = Number((qs(`#${id}-elevation`) || document.querySelector(`#${id}-elevation`))?.value || 0);
 
-            // Persist into pump_dept_defaults_v1 via store.js so calc Line 1/2/3 deploy matches.
+            // Persist into pump_dept_defaults_v1 via store.js so calc Preconnect 1/2/3 deploy matches.
             setLineDefaults(id, { hose, nozzle, length, elevation });
 
             // Re-render in case something got normalized during save.
             renderLineDefaults();
 
-            alert(`${id} defaults saved`);
+            alert(`Preconnect ${id} defaults saved`);
         };
     });
 }

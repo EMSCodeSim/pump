@@ -3,10 +3,6 @@ import { getDeptNozzleIds } from './preset.js';
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
 
-// TEMP: hide/disable the App-Only explainer section on the website while making changes.
-// Set to true to restore the normal web-only explainer card + links.
-const SHOW_APP_ONLY_SECTION = false;
-
 function isNativeApp(){
   try{
     // Capacitor exposes a global in native builds
@@ -23,20 +19,6 @@ export async function render(container){
   const IS_APP = isNativeApp();
 
   if (!IS_APP){
-    if (!SHOW_APP_ONLY_SECTION){
-      container.innerHTML = `
-        <section class="stack">
-          <section class="card">
-            <h3 style="margin:4px 0 8px">Settings</h3>
-            <p style="margin:0; opacity:.92">
-              The <b>Department Setup</b> and <b>Presets</b> section is temporarily disabled while updates are in progress.
-            </p>
-          </section>
-        </section>
-      `;
-      return { dispose(){} };
-    }
-
     container.innerHTML = `
       <section class="stack">
         <section class="card">
