@@ -320,11 +320,20 @@
       }
       const IS_APP = isStandalonePWA() || isCapacitor();
 
+      // TEMP: disable App-Only redirect guards on the website while making changes.
+      // Set to true to restore the normal web redirects to /app-only*.html.
+      const SHOW_APP_ONLY_GUARDS = false;
+
       // Point Custom Setup appropriately:
       const setupLink = document.getElementById('customSetupLink');
       if (!IS_APP){
-        setupLink.setAttribute('href','/app-only.html'); // explainer page for website users
-        setupLink.setAttribute('title','Custom settings available in the app');
+        if (!SHOW_APP_ONLY_GUARDS) {
+          // Hide the app-only entry point while updates are in progress.
+          if (setupLink) setupLink.style.display = 'none';
+        } else {
+          setupLink.setAttribute('href','/app-only.html'); // explainer page for website users
+          setupLink.setAttribute('title','Custom settings available in the app');
+        }
       } else {
         setupLink.setAttribute('href','/custom-setup.html'); // real custom setup in app/PWA
       }
@@ -334,14 +343,19 @@
         ...document.querySelectorAll('.presetsbtn'),
         ...document.querySelectorAll('#openPresets')
       ];
-      presetButtons.forEach(pbtn => {
-        pbtn.addEventListener('click', (e) => {
-          if (!IS_APP) {
-            e.preventDefault();
-            window.location.href = '/app-only-presets.html';
-          }
-        }, { capture: true });
-      });
+      if (!SHOW_APP_ONLY_GUARDS) {
+        // Hide the web-only app-gated buttons while updates are in progress.
+        presetButtons.forEach(pbtn => { if (pbtn) pbtn.style.display = 'none'; });
+      } else {
+        presetButtons.forEach(pbtn => {
+          pbtn.addEventListener('click', (e) => {
+            if (!IS_APP) {
+              e.preventDefault();
+              window.location.href = '/app-only-presets.html';
+            }
+          }, { capture: true });
+        });
+      }
     })();
   </script>
 </body>
