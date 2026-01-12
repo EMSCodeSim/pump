@@ -47,6 +47,11 @@ import {
 } from './calcShared.js';
 
 // Web vs App feature gating (Presets / Dept Setup are app-only)
+// TEMP: hide/disable web "App-Only" gating UI while making changes.
+// When false: the Presets button is hidden on web (no redirect pages).
+// When true: the Presets button shows "Presets (App)" and redirects to the explainer page.
+const SHOW_APP_ONLY_SECTION = false;
+
 function isNativeApp(){
   try{
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
@@ -2726,15 +2731,20 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       console.warn('setupPresets failed', e);
     }
   } else {
-    // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
     const b = container.querySelector('#presetsBtn');
     if (b) {
-      b.textContent = 'Presets (App)';
-      b.addEventListener('click', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.href = '/app-only-presets.html';
-      });
+      if (!SHOW_APP_ONLY_SECTION) {
+        // Temporarily remove the app-only section on web
+        b.style.display = 'none';
+      } else {
+        // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
+        b.textContent = 'Presets (App)';
+        b.addEventListener('click', (e)=>{
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.href = '/app-only-presets.html';
+        });
+      }
     }
   }
   function enhanceTenderListStyle() {
