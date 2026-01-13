@@ -5,8 +5,11 @@ import {
   state,
   NOZ, NOZ_LIST,
   seedDefaultsForKey,
-  COLORS,   // ✅ compat re-export
-  FL,       // ✅ compat re-export
+
+  // legacy / compat exports from store
+  COLORS,
+  FL,
+  FL_total,
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -32,8 +35,7 @@ function saveNow(pack){
 
 let __saveInterval = null;
 
-// If your original file had a real markDirty implementation, keep it there.
-// Leaving as a no-op is safe if callers only use it as a hint.
+// No-op is safe; callers just signal intent
 function markDirty(){}
 
 function startAutoSave(getPackFn){
@@ -54,12 +56,12 @@ function stopAutoSave(){
 // Build a combined snapshot: full sim state + optional water supply snapshot
 function buildSnapshot(waterSnapshot){
   return safeClone({
-    state,                // entire sim state (lines, supply, etc.)
+    state,
     water: waterSnapshot || null
   });
 }
 
-/* ============================= CRITICAL FIX HERE ============================= */
+/* ============================= CRITICAL FIX ============================= */
 // Applies saved.state into live state (preserving object identities)
 function restoreState(savedState){
   if (!savedState) return;
@@ -68,16 +70,13 @@ function restoreState(savedState){
   if (savedState.supply) state.supply = savedState.supply;
 
   // IMPORTANT:
-  // We do NOT restore full line objects for the preconnects (Line 1/2/3).
-  // Those should always come from Department Defaults / Presets and must not
-  // "stick" across app launches via pump.practice.v3.
-  //
-  // We only allow restoring non-preconnect runtime lines (if any exist).
+  // Do NOT restore Line 1/2/3 (left/back/right) from practice snapshot.
+  // These must always come from Department Defaults / Presets.
   if (savedState.lines && state.lines) {
     for (const k of Object.keys(state.lines)) {
       if (!savedState.lines[k]) continue;
 
-      // Never restore preconnects from practice snapshot
+      // Skip preconnects
       if (k === 'left' || k === 'back' || k === 'right') continue;
 
       Object.assign(state.lines[k], savedState.lines[k]);
@@ -89,16 +88,16 @@ function restoreState(savedState){
     seedDefaultsForKey('left');
     seedDefaultsForKey('back');
     seedDefaultsForKey('right');
-  } catch(e) {}
+  } catch {}
 
-  // FINAL GUARANTEE: app always starts with NO lines deployed.
+  // FINAL GUARANTEE: app always starts with NO lines deployed
   try {
     if (state && state.lines) {
       ['left','back','right'].forEach(k => {
         if (state.lines[k]) state.lines[k].visible = false;
       });
     }
-  } catch(_e) {}
+  } catch {}
 }
 /* ============================= END CRITICAL FIX ============================= */
 
@@ -117,13 +116,19 @@ function injectStyle(root, cssText){
   root.appendChild(s);
 }
 
-function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+function clearGroup(g){
+  while(g.firstChild) g.removeChild(g.firstChild);
+}
 
 function fmt(n){ return Math.round(n); }
 
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, m => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
   }[m]));
 }
 
@@ -168,7 +173,7 @@ function ensureDefaultNozzleFor(L, where){
 
   if (where === 'L'){
     if (L.nozLeft) return;
-    L.nozLeft  = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+    L.nozLeft = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
     return;
   }
 
@@ -176,7 +181,7 @@ function ensureDefaultNozzleFor(L, where){
   L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
 }
 
-/* =============================== Exports used by view.calc.main.js =============================== */
+/* =============================== EXPORTS =============================== */
 
 export {
   PRACTICE_SAVE_KEY,
@@ -189,12 +194,21 @@ export {
   buildSnapshot,
   restoreState,
 
-  // ✅ compat re-exports (older files import these from calcShared.js)
+  // ✅ legacy / compat re-exports
   COLORS,
   FL,
+  FL_total,
 
-  TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
-  injectStyle, clearGroup, fmt, escapeHTML,
+  TRUCK_W,
+  TRUCK_H,
+  PX_PER_50FT,
+  CURVE_PULL,
+  BRANCH_LIFT,
+
+  injectStyle,
+  clearGroup,
+  fmt,
+  escapeHTML,
 
   findNozzleId,
   defaultNozzleIdForSize,
