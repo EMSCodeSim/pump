@@ -58,6 +58,9 @@ export async function render(container){
       <section class="card">
         <h3 style="margin:4px 0 8px">Preconnect Presets</h3>
         <div class="status" style="margin:0 0 8px; opacity:.85">Set up 1–3 preconnects. Preconnect 2/3 will only show if configured.</div>
+        <div class="te-actions" style="margin:0 0 12px">
+          <a class="btn" href="/setup-preconnects.html">Run First-Time Preconnect Setup</a>
+        </div>
         <div class="row" id="pcRow1">
           <div class="field"><label>Preconnect 1 length (ft)</label><input id="s_len1" type="number"></div>
           <div class="field"><label>Preconnect 1 size</label>

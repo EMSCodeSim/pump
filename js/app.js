@@ -1,5 +1,6 @@
 // Tiny router + lazy loading
 import { renderAdOnce } from './ads-guards.js';
+import { getConfiguredPreconnects } from './store.js';
 
 // === AdSense (web-only) ===
 // Replace slot IDs with your real AdSense ad unit slot IDs after approval.
@@ -22,6 +23,21 @@ let chartsOverlay = document.getElementById('chartsOverlay');
 let chartsMount = document.getElementById('chartsMount');
 let chartsClose = document.getElementById('closeCharts');
 let chartsDispose = null;
+
+// ===========================================================
+// First-time guard: require at least one configured preconnect
+// ===========================================================
+try{
+  const pcs = (typeof getConfiguredPreconnects === 'function') ? (getConfiguredPreconnects() || []) : [];
+  // If none configured, force the setup wizard.
+  if (!Array.isArray(pcs) || pcs.length < 1) {
+    // Avoid redirect loops if someone directly opened the setup page.
+    // (app.js normally runs only on index.html)
+    window.location.href = '/setup-preconnects.html';
+  }
+}catch(_e){
+  // If anything fails here, do not blank-screen the app.
+}
 
 async function openCharts(){
   if(!chartsOverlay) return;
