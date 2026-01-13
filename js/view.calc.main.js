@@ -200,6 +200,17 @@ export async function render(container){
     restoreState(s);
   }
 
+  // ---------------------------------------------------------------------------
+  // Startup behavior: default to NO lines deployed.
+  // Even if the user had lines deployed last session, we start clean each load and
+  // require pressing Preconnect 1/2/3 to deploy.
+  // ---------------------------------------------------------------------------
+  try{
+    ['left','back','right'].forEach(k=>{
+      if (state && state.lines && state.lines[k]) state.lines[k].visible = false;
+    });
+  }catch(_e){}
+
 
 
   // Persist on hide/close
