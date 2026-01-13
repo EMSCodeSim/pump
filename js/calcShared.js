@@ -149,7 +149,7 @@ export function escapeHTML(s){
 
 /* =============================== SVG helpers =============================== */
 
-// ✅ NEW: addLabel helper (older calc code imports this from calcShared.js)
+// addLabel helper (older calc code imports this from calcShared.js)
 export function addLabel(parent, x, y, text, opts = {}){
   if (!parent) return null;
 
@@ -179,7 +179,6 @@ export function addLabel(parent, x, y, text, opts = {}){
   if (opacity != null) el.setAttribute('opacity', String(opacity));
   if (className) el.setAttribute('class', className);
 
-  // Keep label content safe
   el.textContent = (text == null) ? '' : String(text);
 
   if (typeof rotate === 'number' && !Number.isNaN(rotate)) {
@@ -190,9 +189,34 @@ export function addLabel(parent, x, y, text, opts = {}){
   return el;
 }
 
-// ✅ Common legacy aliases some files use
+// Common legacy aliases some files use
 export const addText = addLabel;
 export const addSvgText = addLabel;
+
+/**
+ * ✅ NEW: addTip helper (older calc code imports this from calcShared.js)
+ * Creates a small "tooltip-like" label near a point.
+ * Usage: addTip(svgGroup, x, y, "TIP", { dx: 10, dy: -10 })
+ */
+export function addTip(parent, x, y, text, opts = {}){
+  // Implemented as a styled label with defaults tuned for "tips"
+  const {
+    dx = 10,
+    dy = -10,
+    fontSize = 11,
+    fontWeight = 700,
+    fill = '#111',
+    anchor = 'start',
+    baseline = 'middle',
+    className = 'tip',
+    opacity = 0.95,
+    rotate = null,
+  } = opts || {};
+
+  return addLabel(parent, x, y, text, {
+    dx, dy, fontSize, fontWeight, fill, anchor, baseline, className, opacity, rotate
+  });
+}
 
 /* =============================== Nozzle helpers =============================== */
 
