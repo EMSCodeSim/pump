@@ -14,6 +14,9 @@ import {
   FL,
   FL_total,
   FL_total_sections,
+
+  // ✅ legacy nozzle resolver
+  activeNozzle,
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -207,6 +210,7 @@ export {
   FL_total_sections,
   NOZ,
   NOZ_LIST,
+  activeNozzle,
 
   TRUCK_W,
   TRUCK_H,
