@@ -1,5 +1,9 @@
 ;
 
+// Boot-time guard: always start with NO lines deployed.
+// Some older saved states or init paths can re-enable lines before first draw.
+let FORCE_NO_LINES_ON_BOOT = false;
+
 // --- legacy nozzle id normalization (keeps nozzle dropdown from "sticking") ---
 function _normNozId(id){
   const s = String(id ?? '').trim();
@@ -178,6 +182,14 @@ import './view.calc.enhance.js';
 /* ========================================================================== */
 
 export async function render(container){
+
+  // Ensure app always opens with no preconnect lines deployed.
+  FORCE_NO_LINES_ON_BOOT = true;
+  try {
+    if (state && state.lines) {
+      ['left','back','right'].forEach(k=>{ if (state.lines[k]) state.lines[k].visible = false; });
+    }
+  } catch(_e) {}
 
   const IS_APP = isNativeApp();
 
@@ -2758,6 +2770,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   /* -------------------------------- Draw --------------------------------- */
 
   function drawAll(){
+    // Boot-time guard: override any restored visibility before first render.
+    if (FORCE_NO_LINES_ON_BOOT) {
+      try {
+        if (state && state.lines) {
+          ['left','back','right'].forEach(k=>{ if (state.lines[k]) state.lines[k].visible = false; });
+        }
+      } catch(_e) {}
+    }
+
     const viewH = Math.ceil(computeNeededHeightPx());
     stageSvg.setAttribute('viewBox', `0 0 ${TRUCK_W} ${viewH}`);
     stageSvg.style.height = viewH + 'px';
@@ -2766,6 +2787,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
+    // After first draw pass, drop boot guard.
+    FORCE_NO_LINES_ON_BOOT = false;
+
     topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
 
     ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
@@ -2847,23 +2871,6 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     // mark dirty after draw (belt & suspenders)
     markDirty();
   }
-
-  // ---------------------------------------------------------------------------
-  // Startup lock: ALWAYS start with no preconnect lines deployed.
-  // (Even if anything earlier toggled them on during init.)
-  // ---------------------------------------------------------------------------
-  try{
-    if (state && state.lines){
-      ['left','back','right'].forEach(k=>{
-        if (state.lines[k]) state.lines[k].visible = false;
-      });
-    }
-    // Also make sure the buttons are not shown as active before first draw.
-    ['left','back','right'].forEach(k=>{
-      const btn = container.querySelector(`.linebtn[data-line="${k}"]`);
-      if (btn) btn.classList.remove('active');
-    });
-  }catch(_e){}
 
   // Initial draw
   drawAll();
