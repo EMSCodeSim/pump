@@ -832,6 +832,30 @@ export function getDeptLineDefault(key){
   }
 }
 
+
+// Returns an array of configured preconnect keys in order: left, back, right.
+// This is used by the Preconnect Setup wizard and UI to decide whether Preconnect 2/3 should be shown.
+// A preconnect is considered "configured" only if it has a saved department default object (not a fallback).
+export function getConfiguredPreconnects(){
+  const keys = ['left','back','right'];
+
+  const out = [];
+  for (let i = 0; i < keys.length; i++){
+    const k = keys[i];
+
+    // Preconnect 1 (left) is always treated as required; include it even if not configured yet
+    // so the wizard can render at least one card.
+    if (i === 0){
+      out.push(k);
+      continue;
+    }
+
+    const saved = getDeptLineDefault(k);
+    if (saved) out.push(k);
+  }
+  return out;
+}
+
 export function setDeptLineDefault(key, data){
   const all = loadDeptDefaults();
   all[key] = data;
