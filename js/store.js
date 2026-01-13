@@ -1,9 +1,6 @@
 // store.js
 // Central app state, department defaults, presets, and hydraulic helpers
 
-// ======================================================
-// Runtime State
-// ======================================================
 export const state = {
   supply: 'off',
   showMath: false,
@@ -17,9 +14,6 @@ export const state = {
   lastUpdatedAt: 0,
 };
 
-// ======================================================
-// Constants
-// ======================================================
 export const PSI_PER_FT = 0.05;
 
 export const COEFF = {
@@ -30,12 +24,9 @@ export const COEFF = {
   4.0: 0.2,
 };
 
-// --------------------------------------------------
 // Legacy UI colors (compat export)
-// Some views import COLORS from store.js.
-// --------------------------------------------------
 export const COLORS = {
-  primary: '#2563eb',   // blue
+  primary: '#2563eb',
   accent:  '#0ea5e9',
   ok:      '#16a34a',
   warn:    '#f59e0b',
@@ -44,16 +35,11 @@ export const COLORS = {
   dark:    '#111827',
 };
 
-// ======================================================
-// Storage Keys
-// ======================================================
 const KEY_DEPT_DEFAULTS_V1 = 'pump_dept_defaults_v1';
 const KEY_PRESETS_V1 = 'pump_presets_v1';
 const KEY_LAST_PRESET = 'pump_last_preset_v1';
 
-// ======================================================
 // Nozzles
-// ======================================================
 export const NOZZLES = [
   { id: 'fog_95', label: 'Fog 95 GPM', gpm: 95, np: 100 },
   { id: 'fog_125', label: 'Fog 125 GPM', gpm: 125, np: 100 },
@@ -66,14 +52,11 @@ export const NOZZLES = [
 export function getNozzleById(id) {
   return NOZZLES.find(n => n.id === id) || null;
 }
-
 export function getDeptNozzles() {
   return NOZZLES.slice();
 }
 
-// ======================================================
 // Hoses
-// ======================================================
 export const HOSES = [
   { id: '1.75', size: '1.75', label: '1¾"' },
   { id: '2.0', size: '2.0', label: '2"' },
@@ -86,16 +69,11 @@ export function getDeptHoses() {
   return HOSES.slice();
 }
 
-// ======================================================
-// Department Defaults
-// ======================================================
-
+// Dept defaults
 function makeDefaultLine(label = '', placeholder = false) {
   return {
     label,
-    itemsMain: placeholder
-      ? [{ size: '', lengthFt: 0 }]          // placeholder lines start empty
-      : [{ size: '1.75', lengthFt: 200 }],   // real default for Preconnect 1
+    itemsMain: placeholder ? [{ size: '', lengthFt: 0 }] : [{ size: '1.75', lengthFt: 200 }],
     elevationFt: 0,
     nozRight: placeholder ? '' : 'fog_150',
     _nozId: placeholder ? '' : 'fog_150',
@@ -117,16 +95,13 @@ function loadDeptDefaults() {
     if (!raw) return seeded;
 
     const parsed = JSON.parse(raw);
-
-    // Start with stored-or-seeded values
     const d = {
       left:  parsed.left  || seeded.left,
       back:  parsed.back  || seeded.back,
       right: parsed.right || seeded.right,
     };
 
-    // --- Migration: older versions seeded Preconnect 2/3 with real-looking defaults
-    // If firstTimeSetupComplete isn't true yet, treat those legacy seeded defaults as placeholders.
+    // Migration: legacy seeded back/right as real-looking defaults
     const setupComplete = localStorage.getItem('firstTimeSetupComplete') === 'true';
 
     function looksLikeLegacySeed(L, expectedLabel){
@@ -136,10 +111,8 @@ function loadDeptDefaults() {
       const len  = Number(seg.lengthFt || 0);
       const noz  = String(L.nozRight || L._nozId || '').trim();
       const elev = Number(L.elevationFt || 0);
-
       const label = String(L.label || '').trim();
       const labelOk = !expectedLabel || label === expectedLabel;
-
       return labelOk && size === '1.75' && len === 200 && noz === 'fog_150' && elev === 0;
     }
 
@@ -161,16 +134,13 @@ function saveDeptDefaults(obj) {
 export function getDeptLineDefault(key) {
   return loadDeptDefaults()[key] || null;
 }
-
 export function setDeptLineDefault(key, val) {
   const d = loadDeptDefaults();
   d[key] = val;
   saveDeptDefaults(d);
 }
 
-// ======================================================
-// Line Defaults API (line1 / line2 / line3)
-// ======================================================
+// line1/2/3 API
 function mapLineIdToKey(id) {
   return id === 'line1' ? 'left'
        : id === 'line2' ? 'back'
@@ -181,10 +151,8 @@ function mapLineIdToKey(id) {
 export function getLineDefaults(id) {
   const key = mapLineIdToKey(id);
   if (!key) return null;
-
   const L = getDeptLineDefault(key);
   if (!L) return null;
-
   const seg = L.itemsMain?.[0] || {};
   return {
     hose: seg.size || '',
@@ -198,7 +166,6 @@ export function getLineDefaults(id) {
 export function setLineDefaults(id, data) {
   const key = mapLineIdToKey(id);
   if (!key) return;
-
   const d = loadDeptDefaults();
   const base = d[key] || makeDefaultLine('');
 
@@ -217,9 +184,6 @@ export function setLineDefaults(id, data) {
   saveDeptDefaults(d);
 }
 
-// ======================================================
-// Configured Preconnect Detection (FIXED)
-// ======================================================
 export function getConfiguredPreconnects() {
   const keys = ['left', 'back', 'right'];
   const out = [];
@@ -231,42 +195,29 @@ export function getConfiguredPreconnects() {
   }
 
   for (let i = 0; i < keys.length; i++) {
-    if (i === 0) {
-      out.push(keys[i]); // Preconnect 1 always exists
-      continue;
-    }
+    if (i === 0) { out.push(keys[i]); continue; }
     if (isReal(getDeptLineDefault(keys[i]))) out.push(keys[i]);
   }
 
   return out;
 }
 
-// ======================================================
 // Presets
-// ======================================================
 export function loadPresets() {
-  try {
-    return JSON.parse(localStorage.getItem(KEY_PRESETS_V1)) || [];
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(localStorage.getItem(KEY_PRESETS_V1)) || []; }
+  catch { return []; }
 }
-
 export function savePresets(presets) {
   localStorage.setItem(KEY_PRESETS_V1, JSON.stringify(presets || []));
 }
-
 export function getLastPresetId() {
   return localStorage.getItem(KEY_LAST_PRESET) || '';
 }
-
 export function setLastPresetId(id) {
   localStorage.setItem(KEY_LAST_PRESET, id || '');
 }
 
-// ======================================================
 // Hydraulics
-// ======================================================
 export function frictionLossPsi(hoseSize, gpm, lengthFt) {
   const C = COEFF[Number(hoseSize)] || 0;
   if (!C || !gpm || !lengthFt) return 0;
@@ -277,14 +228,15 @@ export function elevationPsi(ft) {
   return Number(ft || 0) * PSI_PER_FT;
 }
 
-// LEGACY EXPORT — REQUIRED BY OLDER VIEWS
+// LEGACY EXPORTS
+export function FL(hoseSize, gpm, lengthFt) {
+  return frictionLossPsi(hoseSize, gpm, lengthFt);
+}
 export function FL_total(hoseSize, gpm, lengthFt) {
   return frictionLossPsi(hoseSize, gpm, lengthFt);
 }
 
-// ======================================================
-// Runtime Line Seeding
-// ======================================================
+// Runtime line seeding
 function seedRuntimeLines() {
   const d = loadDeptDefaults();
 
@@ -306,11 +258,7 @@ function seedRuntimeLines() {
     };
   };
 
-  return {
-    left: mk('left'),
-    back: mk('back'),
-    right: mk('right'),
-  };
+  return { left: mk('left'), back: mk('back'), right: mk('right') };
 }
 
 export function ensureSeeded() {
