@@ -580,49 +580,50 @@
   <!-- Quick Start overlay -->
   <div id="quickStartModal" class="qs-modal hidden" role="dialog" aria-modal="true" aria-label="Quick start guide">
     <div class="qs-window">
-      <h2>FireOps Calc — Quick Start</h2>
+      <h2>FireOps Calc — First-Time Setup</h2>
+      <p class="qs-sub">Before you start calculating, set up your engine’s <b>preconnects</b>. You can do 1–3 total.</p>
 
       <section>
-        <h3>1. Set up your department</h3>
-        <p>Select the hoses, nozzles, accessories, and presets your department actually carries. Menus will then show only these items for faster use on scene.</p>
-        <button class="qs-link" type="button" data-qsgoto="department">Open Department Setup</button>
+        <h3>1. Set up Preconnects (required)</h3>
+        <p>Create your department’s standard preconnects. These replace “Line 1/2/3” and will be used everywhere in the app.</p>
+        <button class="qs-link" type="button" data-qsgoto="preconnects">Open Preconnect Setup</button>
       </section>
 
       <section>
-        <h3>2. Calculation mode</h3>
-        <p>Run fast field-ready calculations for preconnects, quick length and nozzle changes, and water supply (hydrants, relay, shuttle, and tank operations). Use custom presets for master streams, standpipes, foam lines, and more.</p>
+        <h3>2. Calculations</h3>
+        <p>Fast field-ready pressure calculations using your saved preconnects, quick length/nozzle changes, and water supply tools.</p>
         <button class="qs-link" type="button" data-qsgoto="calc">Open Calculations</button>
       </section>
 
       <section>
-        <h3>3. Practice mode</h3>
-        <p>Use the visual pump simulator to adjust hose layouts, lengths, elevation, and nozzles and see PDP update live. Great for keeping pump skills sharp.</p>
+        <h3>3. Practice</h3>
+        <p>Use the visual pump simulator to practice layouts and see PDP update live. Great for keeping pump skills sharp.</p>
         <button class="qs-link" type="button" data-qsgoto="practice">Open Practice Mode</button>
       </section>
 
       <section>
         <h3>4. Tables</h3>
-        <p>View reference tables for nozzles, hose coefficients, rules of thumb, and water supply formulas.</p>
-        <button class="qs-link" type="button" data-qsgoto="tables">Open Tables</button>
+        <p>Reference tables for nozzles, hose coefficients, rules of thumb, and water supply formulas.</p>
+        <button class="qs-link" type="button" data-qsgoto="charts">Open Tables</button>
       </section>
 
-      <label class="qs-checkbox">
-        <input type="checkbox" id="qsDontShow"> Do not show this again
+      <label class="qs-check">
+        <input type="checkbox" id="qsDontShow" />
+        Do not show this again
       </label>
 
       <button class="qs-close" type="button" id="qsCloseBtn">Close</button>
     </div>
   </div>
-
-
-  <!-- App JS (router + view.calc.js, etc.) -->
-  <script type="module" src="/js/app.js"></script>
+<!-- App JS (router + view.calc.js, etc.) -->
+  <script type="module" src="/js/app.js?v=20260112b"></script>
 
 
   <!-- Quick Start wiring -->
   <script>
     (function(){
-      const MODAL_KEY = 'fireops_quickstart_hide';
+      const GUIDE_VERSION = 2;
+      const MODAL_KEY = 'fireops_quickstart_seen_version';
       const modal = document.getElementById('quickStartModal');
       const dontShowBox = document.getElementById('qsDontShow');
       const closeBtn = document.getElementById('qsCloseBtn');
@@ -634,6 +635,9 @@
 
       function go(screen){
         switch(screen){
+          case 'preconnects':
+            window.location.href = '/setup-preconnects.html';
+            break;
           case 'department':
             try{
               if (window && typeof window.fireopsOpenDeptSetup === 'function'){
@@ -659,7 +663,7 @@
       function hide(){
         if (!modal) return;
         if (dontShowBox && dontShowBox.checked){
-          try{ localStorage.setItem(MODAL_KEY, '1'); }catch(e){}
+          try{ localStorage.setItem(MODAL_KEY, String(GUIDE_VERSION)); }catch(e){}
         }
         modal.classList.add('hidden');
       }
@@ -668,7 +672,7 @@
         if (!modal) return;
         let suppressed = false;
         try{
-          suppressed = localStorage.getItem(MODAL_KEY) === '1';
+          suppressed = Number(localStorage.getItem(MODAL_KEY) || '0') >= GUIDE_VERSION;
         }catch(e){}
         if (!suppressed){
           modal.classList.remove('hidden');
