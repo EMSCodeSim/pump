@@ -1,21 +1,5 @@
 // calcShared.js - shared math, geometry, persistence helpers for pump calc view
-import {
-  state,
-  NOZ,
-  COLORS,
-  FL,
-  FL_total,
-  sumFt,
-  splitIntoSections,
-  PSI_PER_FT,
-  seedDefaultsForKey,
-  isSingleWye,
-  activeNozzle,
-  activeSide,
-  sizeLabel,
-  NOZ_LIST
-} from './store.js';
-
+import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
 
 function sectionsFor(items){
@@ -30,21 +14,17 @@ function sectionsFor(items){
       if (len >= 100){
         chunk = 100;
       } else if (len > 50){
+        // anything between 51–99 becomes 50 + remainder
         chunk = 50;
       } else {
         chunk = len;
       }
-      out.push({
-        size,
-        lengthFt: chunk,
-        cValue: seg.cValue
-      });
+      out.push({ size, lengthFt: chunk, cValue: (seg.cValue ?? seg.c ?? null) });
       len -= chunk;
     }
   }
   return out;
 }
-
 function FL_total_sections(flow, items){
   const secs = sectionsFor(items||[]);
   let total = 0;
@@ -53,103 +33,82 @@ function FL_total_sections(flow, items){
   }
   return total;
 }
-
 function breakdownText(items){
   const secs = sectionsFor(items||[]);
-  if(!secs.length) return '';
-  return secs.map(s => `${sizeLabel(s.size)} ${s.lengthFt}′`).join(' + ');
+  if(!secs.length) return '0′';
+  return secs.map(s=> (s.lengthFt||0)+'′').join(' + ');
 }
 
-// --- PRACTICE snapshot persistence
+
+
+
+
 
 const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
 function safeClone(obj){
-  try { return JSON.parse(JSON.stringify(obj)); } catch(e){ return null; }
+  try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
 }
-
 function loadSaved(){
-  try{
-    const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  }catch(e){
-    return null;
-  }
+  try { const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
 }
-
 function saveNow(pack){
-  try{
-    sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack));
-  }catch(e){}
+  try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
 }
 
+// mark edits “dirty” and flush every 1s
+let __dirty = false;
+function markDirty(){ __dirty = true; }
 let __saveInterval = null;
-
-function markDirty(){}
-
-function startAutoSave(getPackFn){
-  stopAutoSave();
+function startAutoSave(getPack){
+  if (__saveInterval) return;
   __saveInterval = setInterval(()=>{
-    try{
-      const p = getPackFn?.();
-      if (p) saveNow(p);
-    }catch(e){}
+    if (!__dirty) return;
+    const pack = getPack();
+    if (pack) saveNow(pack);
+    __dirty = false;
   }, 1000);
 }
-
 function stopAutoSave(){
   if (__saveInterval) clearInterval(__saveInterval);
   __saveInterval = null;
 }
 
+// Build a combined snapshot: full sim state + optional water supply snapshot
 function buildSnapshot(waterSnapshot){
   return safeClone({
-    state,
+    state,                // entire sim state (lines, supply, etc.)
     water: waterSnapshot || null
   });
 }
 
-/**
- * ✅ PATCHED restoreState:
- * - do NOT restore left/back/right from practice snapshot
- * - always start with preconnects stowed (visible=false)
- */
+// Applies saved.state into live state (preserving object identities)
 function restoreState(savedState){
   if (!savedState) return;
 
   if (savedState.supply) state.supply = savedState.supply;
 
   // Apply saved line edits (practice mode), but DO NOT let them permanently override
-  // department defaults for Line 1/2/3 (left/back/right). Those must always come from Dept Setup / Presets.
+  // department defaults for Line 1/2/3 in Calc mode.
   if (savedState.lines && state.lines) {
     for (const k of Object.keys(state.lines)) {
-      if (!savedState.lines[k]) continue;
-
-      // never restore preconnects from the practice snapshot
-      if (k === 'left' || k === 'back' || k === 'right') continue;
-
-      Object.assign(state.lines[k], savedState.lines[k]);
+      if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
     }
   }
 
-  // Re-seed left/back/right from dept templates (source of truth)
+  // If department defaults exist, re-seed left/back/right from dept templates.
+  // This prevents the 'pump.practice.v3' snapshot from freezing nozzle + only showing 1–2 lines.
   try {
     seedDefaultsForKey('left');
     seedDefaultsForKey('back');
     seedDefaultsForKey('right');
   } catch(e) {}
-
-  // Final guarantee: app starts with NO preconnects deployed
-  try {
-    if (state && state.lines) {
-      ['left','back','right'].forEach(k=>{
-        if (state.lines[k]) state.lines[k].visible = false;
-      });
-    }
-  } catch(e) {}
 }
 
-// --- SVG / geometry helpers
+
+
+
 
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -157,199 +116,327 @@ const PX_PER_50FT = 45;
 const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
-function supplyHeight(mode){
-  if(mode === 'pressurized') return 80;
-  if(mode === 'draft') return 115;
-  if(mode === 'relay') return 95;
-  return 70;
+
+
+
+
+function injectStyle(root, cssText){ const s=document.createElement('style'); s.textContent=cssText; root.appendChild(s); }
+function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+function clsFor(size){ return size==='5'?'hose5':(size==='2.5'?'hose25':'hose175'); }
+function fmt(n){ return Math.round(n); }
+
+function escapeHTML(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+
+
+// Generic finder (Fog preferred when preferFog=true)
+function findNozzleId({ gpm, NP, preferFog=true }){
+  // exact match
+  const exact = NOZ_LIST.find(n =>
+    Number(n.gpm)===Number(gpm) &&
+    Number(n.NP)===Number(NP) &&
+    (!preferFog || /fog/i.test(n.name||n.label||'')));
+  if (exact) return exact.id;
+
+  // close match
+  const near = NOZ_LIST
+    .filter(n => Math.abs(Number(n.gpm)-Number(gpm))<=12 && Math.abs(Number(n.NP)-Number(NP))<=5)
+    .sort((a,b)=>{
+      const af = /fog/i.test(a.name||a.label||'') ? 0 : 1;
+      const bf = /fog/i.test(b.name||b.label||'') ? 0 : 1;
+      const ad = Math.abs(a.gpm-gpm)+Math.abs(a.NP-NP);
+      const bd = Math.abs(b.gpm-gpm)+Math.abs(b.NP-NP);
+      return af-bf || ad-bd;
+    })[0];
+  if (near) return near.id;
+
+  // fallback: first fog, else first
+  const anyFog = NOZ_LIST.find(n => /fog/i.test(n.name||n.label||''));
+  return anyFog ? anyFog.id : (NOZ_LIST[0]?.id);
 }
 
-function computeNeededHeightPx(mainItems, leftItems){
-  const mainFt = sumFt(mainItems||[]);
-  const leftFt = sumFt(leftItems||[]);
-  const tallestFt = Math.max(mainFt, leftFt);
-  return Math.max(260, 160 + (tallestFt/50)*PX_PER_50FT);
+// Requested defaults by diameter:
+//  - 1.75 → 185 @ 50 (Fog preferred)
+//  - 2.5  → 265 @ 50 (Fog preferred)
+function defaultNozzleIdForSize(size){
+  if (size === '1.75') return findNozzleId({ gpm:185, NP:50, preferFog:true });
+  if (size === '2.5')  return findNozzleId({ gpm:265, NP:50, preferFog:true });
+  // For other sizes, keep “closest fog near 185 @ 50”
+  return findNozzleId({ gpm:185, NP:50, preferFog:true });
 }
 
-function truckTopY(h){
-  return Math.max(10, (h - TRUCK_H)/2);
+// Ensure a nozzle exists for a target (main/left/right) based on size
+function ensureDefaultNozzleFor(L, where, size){
+  // IMPORTANT: Do NOT override a nozzle that was chosen via Department Setup / presets.
+  // Only seed a default if the target nozzle is currently missing.
+  if (!L) return;
+
+  const nozId = defaultNozzleIdForSize(size);
+
+  if (where === 'main'){
+    if (L.nozRight) return;
+    L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    return;
+  }
+
+  if (where === 'L'){
+    if (L.nozLeft) return;
+    L.nozLeft  = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    return;
+  }
+
+  if (L.nozRight) return;
+  L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
 }
 
-function pumpXY(h){
-  const top = truckTopY(h);
-  return { x: 200, y: top + 130 };
+// Special helper: Branch B defaults to Fog 185 @ 50 (always when this helper is called)
+function setBranchBDefaultIfEmpty(L){
+  // Only seed if Branch B nozzle is empty (never override Dept Setup / presets)
+  if(!L) return;
+  if (L.nozRight) return;
+  try{
+    const id = typeof findNozzleId==='function'
+      ? findNozzleId({gpm:185, NP:50, preferFog:true})
+      : null;
+    if(id && NOZ && NOZ[id]){
+      L.nozRight = NOZ[id];
+      return;
+    }
+    const fallback = (NOZ_LIST||[]).find(n=>Number(n.gpm)===185 && Number(n.NP)===50);
+    if(fallback) L.nozRight = fallback;
+  }catch(_){}
 }
 
-function mainCurve(x0,y0,x1,y1,pull=CURVE_PULL){
-  const midx = (x0+x1)/2;
-  return `M ${x0} ${y0} C ${midx} ${y0+pull}, ${midx} ${y1-pull}, ${x1} ${y1}`;
+
+
+
+
+function supplyHeight(){
+  return state.supply==='drafting'?150: state.supply==='pressurized'?150: state.supply==='relay'?170: state.supply==='static'?150: 0;
 }
-
-function straightBranch(x0,y0,x1,y1){
-  return `M ${x0} ${y0} L ${x1} ${y1}`;
+function computeNeededHeightPx(){
+  const needs = Object.values(state.lines).filter(l=>l.visible);
+  let maxUp = 0;
+  needs.forEach(L=>{
+    const mainPx = (sumFt(L.itemsMain)/50)*PX_PER_50FT;
+    let branchPx = 0;
+    if(L.hasWye){
+      const lpx = (sumFt(L.itemsLeft)/50)*PX_PER_50FT;
+      const rpx = (sumFt(L.itemsRight)/50)*PX_PER_50FT;
+      branchPx = Math.max(lpx, rpx) + BRANCH_LIFT;
+    }
+    maxUp = Math.max(maxUp, mainPx + branchPx);
+  });
+  return Math.max(TRUCK_H + supplyHeight() + 10, TRUCK_H + maxUp + 40 + supplyHeight());
 }
+function truckTopY(viewH){ return viewH - TRUCK_H - supplyHeight(); }
+function pumpXY(viewH){ const top = truckTopY(viewH); return { x: TRUCK_W*0.515, y: top + TRUCK_H*0.74 }; }
 
-function injectStyle(root, cssText){
-  const s = document.createElement('style');
-  s.textContent = cssText;
-  root.appendChild(s);
+function mainCurve(dir, totalPx, viewH){
+  const {x:sx,y:sy} = pumpXY(viewH);
+  const ex = dir===-1 ? sx - 110 : dir===1 ? sx + 110 : sx;
+  const ey = Math.max(10, sy - totalPx);
+  const cx = (sx+ex)/2 + (dir===-1?-CURVE_PULL:dir===1?CURVE_PULL:0);
+  const cy = sy - (sy-ey)*0.48;
+  return { d:`M ${sx},${sy} Q ${cx},${cy} ${ex},${ey}`, endX:ex, endY:ey };
 }
-
-function clearGroup(g){
-  while(g.firstChild) g.removeChild(g.firstChild);
+function straightBranch(side, startX, startY, totalPx){
+  const dir = side==='L'?-1:1, x = startX + dir*20, y1 = startY - BRANCH_LIFT, y2 = Math.max(8, y1 - totalPx);
+  return { d:`M ${startX},${startY} L ${startX},${y1} L ${x},${y1} L ${x},${y2}`, endX:x, endY:y2 };
 }
-
-function clsFor(key){
-  if(key === 'left') return 'line-left';
-  if(key === 'back') return 'line-back';
-  if(key === 'right') return 'line-right';
-  return '';
+function addLabel(G_labels, text, x, y, dy=0){
+  const ns='http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns,'g');
+  const pad = 4;
+  const t = document.createElementNS(ns,'text');
+  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  g.appendChild(t); G_labels.appendChild(g);
+  const bb = t.getBBox();
+  const bg = document.createElementNS(ns,'rect');
+  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
+  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
+  bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
+  g.insertBefore(bg, t);
 }
-
-function fmt(n){
-  return Math.round(Number(n)||0);
+function addTip(G_tips, key, where, x, y){
+  const ns='http://www.w3.org/2000/svg';
+  const g = document.createElementNS(ns,'g');
+  g.setAttribute('class','hose-end'); g.setAttribute('data-line',key); g.setAttribute('data-where',where);
+  const hit = document.createElementNS(ns,'rect'); hit.setAttribute('class','plus-hit'); hit.setAttribute('x', x-28); hit.setAttribute('y', y-28); hit.setAttribute('width', 56); hit.setAttribute('height', 56); hit.setAttribute('rx', 16); hit.setAttribute('ry', 16);
+  const c = document.createElementNS(ns,'circle'); c.setAttribute('class','plus-circle'); c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',16);
+  const v = document.createElementNS(ns,'line'); v.setAttribute('class','plus-sign'); v.setAttribute('x1',x); v.setAttribute('y1',y-7); v.setAttribute('x2',x); v.setAttribute('y2',y+7);
+  const h = document.createElementNS(ns,'line'); h.setAttribute('class','plus-sign'); h.setAttribute('x1',x-7); h.setAttribute('y1',y); h.setAttribute('x2',x+7); h.setAttribute('y2',y);
+  g.appendChild(hit); g.appendChild(c); g.appendChild(v); g.appendChild(h); G_tips.appendChild(g);
 }
+function drawSegmentedPath(group, basePath, segs){
+  const ns = 'http://www.w3.org/2000/svg';
 
-function escapeHTML(s){
-  return String(s).replace(/[&<>"']/g, m => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[m]));
-}
+  // Removed black shadow path; draw only colored hose segments
+  const total = basePath.getTotalLength();
+  let offset = 0;
+  const totalPx = (sumFt(segs) / 50) * PX_PER_50FT || 1;
 
-function addLabel(parent, x, y, text, opts={}){
-  const {
-    fontSize=12,
-    fontWeight=700,
-    fill='#d9e2ef',
-    anchor='middle',
-    baseline='middle',
-    className='',
-    dx=0, dy=0
-  } = opts;
+  segs.forEach(seg => {
+    const px = (seg.lengthFt / 50) * PX_PER_50FT;
+    const portion = Math.min(total, (px / totalPx) * total);
 
-  const el = document.createElementNS('http://www.w3.org/2000/svg','text');
-  el.setAttribute('x', String(Number(x)+Number(dx)));
-  el.setAttribute('y', String(Number(y)+Number(dy)));
-  el.setAttribute('font-size', String(fontSize));
-  el.setAttribute('font-weight', String(fontWeight));
-  el.setAttribute('fill', String(fill));
-  el.setAttribute('text-anchor', anchor);
-  el.setAttribute('dominant-baseline', baseline);
-  if(className) el.setAttribute('class', className);
-  el.textContent = text ?? '';
-  parent.appendChild(el);
-  return el;
-}
+    const p = document.createElementNS(ns,'path');
+    p.setAttribute('class', 'hoseBase ' + clsFor(seg.size));
+    p.setAttribute('d', basePath.getAttribute('d'));
+    p.setAttribute('stroke-dasharray', portion + ' ' + total);
+    p.setAttribute('stroke-dashoffset', -offset);
+    group.appendChild(p);
 
-function addTip(parent, x, y, text, opts={}){
-  return addLabel(parent, x, y, text, {
-    dx: 10, dy: -10,
-    fontSize: 11,
-    fontWeight: 700,
-    fill: '#9fe879',
-    anchor: 'start',
-    baseline: 'middle',
-    className: 'tip',
-    ...opts
+    offset += portion;
   });
 }
 
-function drawSegmentedPath(svg, d, cls, strokeWidth=5){
-  const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-  p.setAttribute('d', d);
-  p.setAttribute('class', cls);
-  p.setAttribute('fill', 'none');
-  p.setAttribute('stroke-width', String(strokeWidth));
-  p.setAttribute('stroke-linecap', 'round');
-  p.setAttribute('stroke-linejoin', 'round');
-  svg.appendChild(p);
-  return p;
+
+
+
+function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride=null){
+  const totalLen = sumFt(sections);
+  containerEl.innerHTML='';
+  if(!totalLen||!gpm){
+    containerEl.textContent='No hose yet';
+    containerEl.style.color='#9fb0c8';
+    containerEl.style.fontSize='12px';
+    return;
+  }
+  const W = Math.max(300, Math.min(containerEl.clientWidth||360, 720)), NP_W=64, H=54;
+  const svgNS='http://www.w3.org/2000/svg';
+  const svg=document.createElementNS(svgNS,'svg');
+  svg.setAttribute('width','100%'); svg.setAttribute('height',H);
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+
+  if(nozzleText){
+    const t=document.createElementNS(svgNS,'text'); t.setAttribute('x',8); t.setAttribute('y',12);
+    t.setAttribute('fill','#cfe4ff'); t.setAttribute('font-size','12'); t.textContent=nozzleText;
+    svg.appendChild(t);
+  }
+
+  const innerW=W-16-NP_W;
+  const track=document.createElementNS(svgNS,'rect');
+  track.setAttribute('x',8); track.setAttribute('y',20);
+  track.setAttribute('width',innerW); track.setAttribute('height',18);
+  track.setAttribute('fill','#0c1726'); track.setAttribute('stroke','#20324f');
+  track.setAttribute('rx',6); track.setAttribute('ry',6);
+  svg.appendChild(track);
+
+  let x=8;
+  sections.forEach(seg=>{
+    const totalFt = sections.reduce((a,c)=>a+c.lengthFt,0) || 1;
+    const segW=(seg.lengthFt/totalFt)*innerW;
+    const r=document.createElementNS(svgNS,'rect');
+    r.setAttribute('x',x); r.setAttribute('y',20);
+    r.setAttribute('width',Math.max(segW,1)); r.setAttribute('height',18);
+    r.setAttribute('fill',COLORS[seg.size]||'#888');
+    r.setAttribute('stroke','rgba(0,0,0,.35)');
+    r.setAttribute('rx',5); r.setAttribute('ry',5);
+    svg.appendChild(r);
+
+    const fl=FL(gpm,seg.size,seg.lengthFt);
+    const tx=document.createElementNS(svgNS,'text');
+    tx.setAttribute('fill','#0b0f14'); tx.setAttribute('font-size','11');
+    tx.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
+    tx.setAttribute('text-anchor','middle'); tx.setAttribute('x',x+segW/2); tx.setAttribute('y',34);
+    tx.textContent=''+seg.lengthFt+'′ • '+Math.round(fl)+' psi';
+    svg.appendChild(tx);
+
+    x+=segW;
+  });
+
+  const pill=document.createElementNS(svgNS,'rect');
+  pill.setAttribute('x',innerW+8+6); pill.setAttribute('y',20);
+  pill.setAttribute('width',64-12); pill.setAttribute('height',18);
+  pill.setAttribute('fill','#eaf2ff'); pill.setAttribute('stroke','#20324f');
+  pill.setAttribute('rx',6); pill.setAttribute('ry',6);
+  svg.appendChild(pill);
+
+  const npT=document.createElementNS(svgNS,'text');
+  npT.setAttribute('x',innerW+8+(64-12)/2); npT.setAttribute('y',33);
+  npT.setAttribute('text-anchor','middle'); npT.setAttribute('fill','#0b0f14'); npT.setAttribute('font-size','11');
+  npT.textContent = pillOverride ? pillOverride : ('NP '+npPsi);
+  svg.appendChild(npT);
+
+  containerEl.appendChild(svg);
 }
 
-function findNozzleId({ gpm, NP, preferFog=true }){
-  const exact = NOZ_LIST.find(n =>
-    Number(n.gpm) === Number(gpm) &&
-    Number(n.NP)  === Number(NP) &&
-    (!preferFog || /fog/i.test(n.name || n.label || ''))
-  );
-  if (exact) return exact.id;
 
-  const any = NOZ_LIST.find(n =>
-    Number(n.gpm) === Number(gpm) &&
-    Number(n.NP)  === Number(NP)
-  );
-  return any ? any.id : null;
-}
 
-function defaultNozzleIdForSize(size){
-  const s = String(size||'');
-  if (s === '2.5') return 'chiefXD265';
-  if (s === '5') return 'fog1000_100';
-  return 'chief185_50';
-}
 
-function ensureDefaultNozzleFor(L, where){
-  if(!L) return;
-  const id = defaultNozzleIdForSize(L.itemsMain?.[0]?.size || '1.75');
-  if(where === 'L'){
-    if(!L.nozLeft) L.nozLeft = NOZ[id] || null;
-  }else{
-    if(!L.nozRight) L.nozRight = NOZ[id] || null;
+
+function ppExplainHTML(L){
+  const single = isSingleWye(L);
+  const side = activeSide(L);
+  const flow = single ? (activeNozzle(L)?.gpm||0)
+             : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
+                        : (L.nozRight?.gpm||0);
+  const mainSecs = sectionsFor(L.itemsMain);
+  const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
+  const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
+  const mainSum = mainFLs.reduce((a,c)=>a+c,0);
+  const elevPsi = (L.elevFt||0) * PSI_PER_FT;
+  const elevStr = (elevPsi>=0? '+':'')+fmt(elevPsi)+' psi';
+
+  if(!L.hasWye){
+    return `
+      <div><b>Simple PP:</b>
+        <ul class="simpleList">
+          <li><b>Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+          <li><b>Friction Loss (Main)</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
+        </ul>
+        <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
+      </div>
+    `;
+  } else if(single){
+    // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
+    const noz = activeNozzle(L);
+    const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+    const bnSecs = sectionsFor(bnSegs);
+    const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
+    const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
+    const brSum  = brFLs.reduce((x,y)=>x+y,0);
+    const total  = noz.NP + brSum + mainSum + elevPsi;
+    return `
+      <div><b>Simple PP (Single branch via wye):</b>
+        <ul class="simpleList">
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
+        </ul>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
+      </div>
+    `;
+  } else {
+    const aSecs = sectionsFor(L.itemsLeft);
+    const bSecs = sectionsFor(L.itemsRight);
+    const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
+    const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
+    const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
+    const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
+    const maxNeed = Math.max(aNeed, bNeed);
+    const wyeLoss = (L.wyeLoss||10);
+    const total = maxNeed + mainSum + wyeLoss + elevPsi;
+    return `
+      <div><b>Simple PP (Wye):</b>
+        <ul class="simpleList">
+          <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
+          <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
+          <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Wye</b> = +${wyeLoss} psi</li>
+          <li><b>Elevation</b> = ${elevStr}</li>
+        </ul>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
+      </div>
+    `;
   }
 }
 
-function setBranchBDefaultIfEmpty(line){
-  if(!line) return;
-  if(!line.itemsLeft || !line.itemsLeft.length){
-    line.itemsLeft = [{ size: '1.75', lengthFt: 100, cValue: 15.5 }];
-  }
-}
 
-function drawHoseBar(svg, x, y, w, h, fill, stroke='rgba(255,255,255,.25)'){
-  const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
-  r.setAttribute('x', String(x));
-  r.setAttribute('y', String(y));
-  r.setAttribute('width', String(w));
-  r.setAttribute('height', String(h));
-  r.setAttribute('rx', '8');
-  r.setAttribute('ry', '8');
-  r.setAttribute('fill', fill);
-  r.setAttribute('stroke', stroke);
-  r.setAttribute('stroke-width', '1');
-  svg.appendChild(r);
-  return r;
-}
-
-function ppExplainHTML({ lineKey, flow, noz, mainItems, leftItems, elevFt, useWye }){
-  const mainFL = FL_total_sections(flow, mainItems||[]);
-  const leftFL = useWye ? FL_total_sections(flow, leftItems||[]) : 0;
-  const elev = (Number(elevFt)||0) * PSI_PER_FT;
-
-  const nozStr = noz ? `${noz.label} (${noz.gpm} gpm @ ${noz.NP} psi)` : '—';
-  const mainStr = breakdownText(mainItems||[]);
-  const leftStr = breakdownText(leftItems||[]);
-  const elevStr = `${fmt(elevFt||0)}′ × ${PSI_PER_FT} = ${fmt(elev)} psi`;
-
-  const totalA = (noz?.NP||0) + mainFL + elev;
-  const totalB = useWye ? (noz?.NP||0) + leftFL + elev : 0;
-  const total = useWye ? Math.max(totalA, totalB) : totalA;
-
-  const wyeLine = useWye
-    ? `<li><b>Branch (B)</b> FL = ${fmt(leftFL)} psi <span style="opacity:.7">(${escapeHTML(leftStr)})</span></li>`
-    : '';
-
-  return `
-    <div class="ppExplain">
-      <div style="margin-bottom:6px"><b>${escapeHTML(lineKey.toUpperCase())}</b> — ${escapeHTML(nozStr)}</div>
-      <ul style="margin:0;padding-left:18px">
-        <li><b>Main</b> FL = ${fmt(mainFL)} psi <span style="opacity:.7">(${escapeHTML(mainStr)})</span></li>
-        ${wyeLine}
-        <li><b>Elevation</b> = ${escapeHTML(elevStr)}</li>
-      </ul>
-      <div style="margin-top:6px"><b>PP = ${useWye ? 'max(A,B)' : ''} + Main FL + Elevation = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
-    </div>
-  `;
-}
 
 export {
   state,
