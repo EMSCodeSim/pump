@@ -19,7 +19,7 @@ function $(id) {
 }
 
 function safeMount() {
-  return $('cards') || $('mount');
+  return $('mount') || $('cards');
 }
 
 function createEl(tag, cls) {
@@ -39,7 +39,7 @@ function renderPreconnectCard(index) {
   const card = createEl('div', 'card preconnect-card');
 
   card.innerHTML = `
-    <div class="card-title">Preconnect ${index}</div>
+    <div style="font-weight:800;margin-bottom:6px;">Preconnect ${index}</div>
 
     <label>Name</label>
     <input type="text" id="pc-name-${index}" placeholder="Officer Side 1¾">
@@ -74,7 +74,7 @@ function renderAll() {
     mount.appendChild(renderPreconnectCard(i));
   }
 
-  const addBtn = $('addPreconnectBtn');
+  const addBtn = $('addBtn');
   if (addBtn) {
     addBtn.disabled = preconnectCount >= 3;
   }
@@ -113,13 +113,14 @@ export function render(root) {
   }
 
   // Load existing preconnects if present
-  const existing = getLineDefaults();
-  const keys = Object.keys(existing || {}).filter(k => k.startsWith('pc'));
+  const existing = getLineDefaults?.() || {};
+  const keys = Object.keys(existing).filter(k => k.startsWith('pc'));
   preconnectCount = Math.min(Math.max(keys.length, 1), 3);
 
   renderAll();
 
-  const addBtn = $('addPreconnectBtn');
+  // ✅ MATCH HTML IDS
+  const addBtn = $('addBtn');
   if (addBtn) {
     addBtn.onclick = () => {
       if (preconnectCount < 3) {
@@ -129,12 +130,10 @@ export function render(root) {
     };
   }
 
-  const saveBtn = $('savePreconnectsBtn');
+  const saveBtn = $('saveBtn');
   if (saveBtn) {
     saveBtn.onclick = saveAndExit;
   }
 
-  return {
-    dispose() {}
-  };
+  return { dispose(){} };
 }
