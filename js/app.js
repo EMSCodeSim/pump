@@ -1,6 +1,5 @@
 // Tiny router + lazy loading
 import { renderAdOnce } from './ads-guards.js';
-import { getConfiguredPreconnects } from './store.js';
 
 // === AdSense (web-only) ===
 // Replace slot IDs with your real AdSense ad unit slot IDs after approval.
@@ -23,21 +22,6 @@ let chartsOverlay = document.getElementById('chartsOverlay');
 let chartsMount = document.getElementById('chartsMount');
 let chartsClose = document.getElementById('closeCharts');
 let chartsDispose = null;
-
-// ===========================================================
-// First-time guard: require at least one configured preconnect
-// ===========================================================
-try{
-  const pcs = (typeof getConfiguredPreconnects === 'function') ? (getConfiguredPreconnects() || []) : [];
-  // If none configured, force the setup wizard.
-  if (!Array.isArray(pcs) || pcs.length < 1) {
-    // Avoid redirect loops if someone directly opened the setup page.
-    // (app.js normally runs only on index.html)
-    window.location.href = '/setup-preconnects.html';
-  }
-}catch(_e){
-  // If anything fails here, do not blank-screen the app.
-}
 
 async function openCharts(){
   if(!chartsOverlay) return;
@@ -78,16 +62,56 @@ if(chartsClose){ chartsClose.addEventListener('click', closeCharts); }
 if(chartsOverlay){ chartsOverlay.addEventListener('click', (e)=>{ if(e.target === chartsOverlay) closeCharts(); }); }
 
 // ---- view swapping for calc/practice/settings ----
+function withTimeout(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 async function setView(name){
   try{
     if(currentView?.dispose) { currentView.dispose(); }
-    app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
-    const mod = await loaders[name]();
-    const view = await mod.render(app);
+
+    // Show loading immediately
+    if (app) {
+      app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
+    }
+
+    // If module import hangs (cache/missing file), fail gracefully instead of infinite Loading...
+    const mod = await withTimeout(loaders[name](), 4000, `Load view "${name}"`);
+
+    // Render view
+    const view = await withTimeout(mod.render(app), 4000, `Render view "${name}"`);
+
     currentView = { name, dispose: view?.dispose };
     buttons.forEach(b=>b.classList.toggle('active', b.dataset.view===name));
   }catch(err){
-    app.innerHTML = `<div class="card">Failed to load view: ${String(err)}</div>`;
+    const msg = String(err);
+
+    if (app) {
+      app.innerHTML = `
+        <div class="card">
+          <div style="font-weight:800;margin-bottom:6px;">App failed to load</div>
+          <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
+
+          <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
+          <button class="btn" id="btnReload" style="margin-left:8px;">Hard Reload</button>
+
+          <div style="opacity:.7;margin-top:10px;font-size:.9em;">
+            If this keeps happening, clear site data for fireopscalc.com (cache + storage).
+          </div>
+        </div>
+      `;
+
+      const s = document.getElementById("btnSetup");
+      if (s) s.onclick = () => window.location.href = "/setup-preconnects.html";
+
+      const r = document.getElementById("btnReload");
+      if (r) r.onclick = () => window.location.reload();
+    }
   }
 }
 
