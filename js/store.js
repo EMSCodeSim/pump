@@ -585,7 +585,12 @@ seedInitialDefaults();
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
 
-  const existing = state.lines ? state.lines[key] : null;
+  const existing = state\.lines \? state\.lines\[key\] : null;
+
+  // Always start preconnects stowed, even if some old state had them deployed
+  if ((key === 'left' || key === 'back' || key === 'right') && existing && typeof existing === 'object') {
+    existing.visible = false;
+  }
 
   // A placeholder is a blank line with no hose + no nozzle set yet.
   const isPlaceholder = (L) => !!L

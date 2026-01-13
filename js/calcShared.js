@@ -93,7 +93,10 @@ function restoreState(savedState){
   // department defaults for Line 1/2/3 in Calc mode.
   if (savedState.lines && state.lines) {
     for (const k of Object.keys(state.lines)) {
-      if (savedState.lines[k]) Object.assign(state.lines[k], savedState.lines[k]);
+      if (!savedState.lines[k]) continue;
+      // Never restore preconnect deployment state (or layouts) from practice snapshots
+      if (k === 'left' || k === 'back' || k === 'right') continue;
+      Object.assign(state.lines[k], savedState.lines[k]);
     }
   }
 
@@ -104,6 +107,10 @@ function restoreState(savedState){
     seedDefaultsForKey('back');
     seedDefaultsForKey('right');
   } catch(e) {}
+
+  // Always start with NO preconnects deployed after any restore
+  try { ['left','back','right'].forEach(k=>{ if (state.lines?.[k]) state.lines[k].visible = false; }); } catch(_e) {}
+
 }
 
 
