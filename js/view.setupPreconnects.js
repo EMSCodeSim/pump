@@ -1,7 +1,7 @@
 // First-time setup wizard: configure 1-3 Preconnects (Preconnect 1/2/3)
 // Saves into Department defaults via store.js setLineDefaults(), so Calc and Presets stay in sync.
 
-import { getDeptHoses, getDeptNozzles, setLineDefaults, getLineDefaults } from './store.js';
+import { getDeptHoses, getDeptNozzles, getConfiguredPreconnects, setLineDefaults, getLineDefaults } from './store.js';
 
 const MAX = 3;
 const MIN = 1;
@@ -174,37 +174,9 @@ function save(list){
 // --- Init ---
 // If they already have preconnects configured, show the count but keep page usable.
 try{
-  // Determine how many preconnects are already configured.
-  // We infer this from stored line defaults (fireops_line_defaults_v1), if present.
-  const raw = localStorage.getItem('fireops_line_defaults_v1');
-  let count = 1;
-
-  if(raw){
-    let parsed = null;
-    try { parsed = JSON.parse(raw); } catch(_) { parsed = null; }
-
-    const hasCfg = (obj) => {
-      if(!obj || typeof obj !== 'object') return false;
-      const hoseId = String(obj.hoseId ?? obj.hose ?? '');
-      const nozzleId = String(obj.nozzleId ?? obj.nozzle ?? '');
-      const length = Number(obj.lengthFt ?? obj.length ?? 0);
-      return !!hoseId && !!nozzleId && length > 0;
-    };
-
-    // store.js maps: line1->left, line2->back, line3->right
-    if(parsed){
-      if(hasCfg(parsed.back))  count = 2;
-      if(hasCfg(parsed.right)) count = 3;
-    }
-  }
-
-  const initialCount = Math.min(MAX, Math.max(MIN, count));
+  const existing = getConfiguredPreconnects?.() || [];
+  const initialCount = Math.min(MAX, Math.max(MIN, existing.length || 1));
   render(initialCount);
-} catch(e){
-  // Fallback: keep the page usable even if parsing fails
-  render(1);
-}
-
 }catch(_e){
   render(1);
 }
