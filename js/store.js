@@ -1,6 +1,9 @@
 // store.js
 // Central app state, department defaults, presets, and hydraulic helpers
 
+// ======================================================
+// Runtime State
+// ======================================================
 export const state = {
   supply: 'off',
   showMath: false,
@@ -14,6 +17,9 @@ export const state = {
   lastUpdatedAt: 0,
 };
 
+// ======================================================
+// Constants
+// ======================================================
 export const PSI_PER_FT = 0.05;
 
 export const COEFF = {
@@ -24,7 +30,10 @@ export const COEFF = {
   4.0: 0.2,
 };
 
+// --------------------------------------------------
 // Legacy UI colors (compat export)
+// Some views import COLORS from store.js.
+// --------------------------------------------------
 export const COLORS = {
   primary: '#2563eb',
   accent:  '#0ea5e9',
@@ -35,11 +44,16 @@ export const COLORS = {
   dark:    '#111827',
 };
 
+// ======================================================
+// Storage Keys
+// ======================================================
 const KEY_DEPT_DEFAULTS_V1 = 'pump_dept_defaults_v1';
 const KEY_PRESETS_V1 = 'pump_presets_v1';
 const KEY_LAST_PRESET = 'pump_last_preset_v1';
 
+// ======================================================
 // Nozzles
+// ======================================================
 export const NOZZLES = [
   { id: 'fog_95', label: 'Fog 95 GPM', gpm: 95, np: 100 },
   { id: 'fog_125', label: 'Fog 125 GPM', gpm: 125, np: 100 },
@@ -49,14 +63,23 @@ export const NOZZLES = [
   { id: 'sb_15_16', label: 'Smooth Bore 15/16"', gpm: 185, np: 50 },
 ];
 
+// --------------------------------------------------
+// Legacy aliases (compat exports)
+// --------------------------------------------------
+export const NOZ = NOZZLES;       // older views import NOZ
+export const NOZ_LIST = NOZZLES;  // older views import NOZ_LIST
+
 export function getNozzleById(id) {
   return NOZZLES.find(n => n.id === id) || null;
 }
+
 export function getDeptNozzles() {
   return NOZZLES.slice();
 }
 
+// ======================================================
 // Hoses
+// ======================================================
 export const HOSES = [
   { id: '1.75', size: '1.75', label: '1¾"' },
   { id: '2.0', size: '2.0', label: '2"' },
@@ -69,11 +92,17 @@ export function getDeptHoses() {
   return HOSES.slice();
 }
 
-// Dept defaults
+// ======================================================
+// Department Defaults
+// ======================================================
+
 function makeDefaultLine(label = '', placeholder = false) {
   return {
     label,
-    itemsMain: placeholder ? [{ size: '', lengthFt: 0 }] : [{ size: '1.75', lengthFt: 200 }],
+    // Placeholder lines start empty so they DON'T count as configured
+    itemsMain: placeholder
+      ? [{ size: '', lengthFt: 0 }]
+      : [{ size: '1.75', lengthFt: 200 }],
     elevationFt: 0,
     nozRight: placeholder ? '' : 'fog_150',
     _nozId: placeholder ? '' : 'fog_150',
@@ -81,6 +110,7 @@ function makeDefaultLine(label = '', placeholder = false) {
 }
 
 function seedDefaults() {
+  // Preconnect 1 is real; 2 and 3 are placeholders until user adds them
   return {
     left:  makeDefaultLine('Preconnect 1', false),
     back:  makeDefaultLine('Preconnect 2', true),
@@ -95,16 +125,20 @@ function loadDeptDefaults() {
     if (!raw) return seeded;
 
     const parsed = JSON.parse(raw);
+
+    // Start with stored-or-seeded values
     const d = {
       left:  parsed.left  || seeded.left,
       back:  parsed.back  || seeded.back,
       right: parsed.right || seeded.right,
     };
 
-    // Migration: legacy seeded back/right as real-looking defaults
+    // Migration: older versions seeded Preconnect 2/3 with real-looking defaults.
+    // If the user hasn't completed first-time setup, treat those legacy defaults as placeholders
+    // so the "+ Add Preconnect" button isn't disabled.
     const setupComplete = localStorage.getItem('firstTimeSetupComplete') === 'true';
 
-    function looksLikeLegacySeed(L, expectedLabel){
+    function looksLikeLegacySeed(L, expectedLabel) {
       if (!L || !Array.isArray(L.itemsMain) || !L.itemsMain[0]) return false;
       const seg = L.itemsMain[0] || {};
       const size = String(seg.size || '').trim();
@@ -113,6 +147,8 @@ function loadDeptDefaults() {
       const elev = Number(L.elevationFt || 0);
       const label = String(L.label || '').trim();
       const labelOk = !expectedLabel || label === expectedLabel;
+
+      // Legacy seed signature: 1.75 @ 200, fog_150, elevation 0, matching label
       return labelOk && size === '1.75' && len === 200 && noz === 'fog_150' && elev === 0;
     }
 
@@ -134,13 +170,16 @@ function saveDeptDefaults(obj) {
 export function getDeptLineDefault(key) {
   return loadDeptDefaults()[key] || null;
 }
+
 export function setDeptLineDefault(key, val) {
   const d = loadDeptDefaults();
   d[key] = val;
   saveDeptDefaults(d);
 }
 
-// line1/2/3 API
+// ======================================================
+// Line Defaults API (line1 / line2 / line3)
+// ======================================================
 function mapLineIdToKey(id) {
   return id === 'line1' ? 'left'
        : id === 'line2' ? 'back'
@@ -151,8 +190,10 @@ function mapLineIdToKey(id) {
 export function getLineDefaults(id) {
   const key = mapLineIdToKey(id);
   if (!key) return null;
+
   const L = getDeptLineDefault(key);
   if (!L) return null;
+
   const seg = L.itemsMain?.[0] || {};
   return {
     hose: seg.size || '',
@@ -166,58 +207,75 @@ export function getLineDefaults(id) {
 export function setLineDefaults(id, data) {
   const key = mapLineIdToKey(id);
   if (!key) return;
+
   const d = loadDeptDefaults();
   const base = d[key] || makeDefaultLine('');
 
   d[key] = {
     ...base,
-    label: data.name ?? base.label,
+    label: data?.name ?? base.label,
     itemsMain: [{
-      size: data.hose || base.itemsMain[0].size,
-      lengthFt: Number(data.length || base.itemsMain[0].lengthFt),
+      size: (data?.hose ?? base.itemsMain[0].size) || '',
+      lengthFt: Number(data?.length ?? base.itemsMain[0].lengthFt) || 0,
     }],
-    elevationFt: Number(data.elevation || 0),
-    nozRight: data.nozzle || base.nozRight,
-    _nozId: data.nozzle || base._nozId,
+    elevationFt: Number(data?.elevation ?? 0) || 0,
+    nozRight: (data?.nozzle ?? base.nozRight) || '',
+    _nozId: (data?.nozzle ?? base._nozId) || '',
   };
 
   saveDeptDefaults(d);
 }
 
+// ======================================================
+// Configured Preconnect Detection (FIXED)
+// ======================================================
 export function getConfiguredPreconnects() {
   const keys = ['left', 'back', 'right'];
   const out = [];
 
   function isReal(L) {
     if (!L || !L.itemsMain?.length) return false;
-    const seg = L.itemsMain[0];
+    const seg = L.itemsMain[0] || {};
     return Number(seg.lengthFt || 0) > 0 && String(seg.size || '').trim() !== '';
   }
 
   for (let i = 0; i < keys.length; i++) {
-    if (i === 0) { out.push(keys[i]); continue; }
+    if (i === 0) {
+      out.push(keys[i]); // Preconnect 1 always exists
+      continue;
+    }
     if (isReal(getDeptLineDefault(keys[i]))) out.push(keys[i]);
   }
 
   return out;
 }
 
+// ======================================================
 // Presets
+// ======================================================
 export function loadPresets() {
-  try { return JSON.parse(localStorage.getItem(KEY_PRESETS_V1)) || []; }
-  catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(KEY_PRESETS_V1)) || [];
+  } catch {
+    return [];
+  }
 }
+
 export function savePresets(presets) {
   localStorage.setItem(KEY_PRESETS_V1, JSON.stringify(presets || []));
 }
+
 export function getLastPresetId() {
   return localStorage.getItem(KEY_LAST_PRESET) || '';
 }
+
 export function setLastPresetId(id) {
   localStorage.setItem(KEY_LAST_PRESET, id || '');
 }
 
+// ======================================================
 // Hydraulics
+// ======================================================
 export function frictionLossPsi(hoseSize, gpm, lengthFt) {
   const C = COEFF[Number(hoseSize)] || 0;
   if (!C || !gpm || !lengthFt) return 0;
@@ -228,22 +286,27 @@ export function elevationPsi(ft) {
   return Number(ft || 0) * PSI_PER_FT;
 }
 
-// LEGACY EXPORTS
+// --------------------------------------------------
+// Legacy exports (compat)
+// --------------------------------------------------
 export function FL(hoseSize, gpm, lengthFt) {
   return frictionLossPsi(hoseSize, gpm, lengthFt);
 }
+
 export function FL_total(hoseSize, gpm, lengthFt) {
   return frictionLossPsi(hoseSize, gpm, lengthFt);
 }
 
-// Runtime line seeding
+// ======================================================
+// Runtime Line Seeding
+// ======================================================
 function seedRuntimeLines() {
   const d = loadDeptDefaults();
 
   const mk = key => {
     const L = d[key];
     const seg = (L.itemsMain && L.itemsMain[0]) ? L.itemsMain[0] : { size: '1.75', lengthFt: 200 };
-    const noz = getNozzleById(L.nozRight);
+    const noz = getNozzleById(L.nozRight || L._nozId) || getNozzleById('fog_150');
 
     return {
       key,
@@ -258,7 +321,11 @@ function seedRuntimeLines() {
     };
   };
 
-  return { left: mk('left'), back: mk('back'), right: mk('right') };
+  return {
+    left: mk('left'),
+    back: mk('back'),
+    right: mk('right'),
+  };
 }
 
 export function ensureSeeded() {
