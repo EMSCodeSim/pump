@@ -75,21 +75,24 @@ export function getDeptHoses() {
 // ======================================================
 // Department Defaults
 // ======================================================
-function makeDefaultLine(label = '') {
+
+function makeDefaultLine(label = '', placeholder = false) {
   return {
     label,
-    itemsMain: [{ size: '1.75', lengthFt: 200 }],
+    itemsMain: placeholder
+      ? [{ size: '', lengthFt: 0 }]          // IMPORTANT: placeholder lines
+      : [{ size: '1.75', lengthFt: 200 }],   // real default
     elevationFt: 0,
-    nozRight: 'fog_150',
-    _nozId: 'fog_150',
+    nozRight: placeholder ? '' : 'fog_150',
+    _nozId: placeholder ? '' : 'fog_150',
   };
 }
 
 function seedDefaults() {
   return {
-    left: makeDefaultLine('Preconnect 1'),
-    back: makeDefaultLine('Preconnect 2'),
-    right: makeDefaultLine('Preconnect 3'),
+    left:  makeDefaultLine('Preconnect 1', false),
+    back:  makeDefaultLine('Preconnect 2', true),
+    right: makeDefaultLine('Preconnect 3', true),
   };
 }
 
@@ -97,11 +100,13 @@ function loadDeptDefaults() {
   try {
     const raw = localStorage.getItem(KEY_DEPT_DEFAULTS_V1);
     if (!raw) return seedDefaults();
+
     const parsed = JSON.parse(raw);
     const seeded = seedDefaults();
+
     return {
-      left: parsed.left || seeded.left,
-      back: parsed.back || seeded.back,
+      left:  parsed.left  || seeded.left,
+      back:  parsed.back  || seeded.back,
       right: parsed.right || seeded.right,
     };
   } catch {
@@ -124,20 +129,22 @@ export function setDeptLineDefault(key, val) {
 }
 
 // ======================================================
-// Line Defaults API (line1/2/3)
+// Line Defaults API (line1 / line2 / line3)
 // ======================================================
 function mapLineIdToKey(id) {
-  return id === 'line1' ? 'left' :
-         id === 'line2' ? 'back' :
-         id === 'line3' ? 'right' :
-         null;
+  return id === 'line1' ? 'left'
+       : id === 'line2' ? 'back'
+       : id === 'line3' ? 'right'
+       : null;
 }
 
 export function getLineDefaults(id) {
   const key = mapLineIdToKey(id);
   if (!key) return null;
+
   const L = getDeptLineDefault(key);
   if (!L) return null;
+
   const seg = L.itemsMain?.[0] || {};
   return {
     hose: seg.size || '',
@@ -171,7 +178,7 @@ export function setLineDefaults(id, data) {
 }
 
 // ======================================================
-// ✅ FIXED: Configured Preconnect Detection
+// Configured Preconnect Detection (FIXED)
 // ======================================================
 export function getConfiguredPreconnects() {
   const keys = ['left', 'back', 'right'];
@@ -180,16 +187,19 @@ export function getConfiguredPreconnects() {
   function isReal(L) {
     if (!L || !L.itemsMain?.length) return false;
     const seg = L.itemsMain[0];
-    return Number(seg.lengthFt || 0) > 0 && !!seg.size;
+    return Number(seg.lengthFt || 0) > 0 && String(seg.size || '').trim() !== '';
   }
 
   for (let i = 0; i < keys.length; i++) {
     if (i === 0) {
-      out.push(keys[i]);
+      out.push(keys[i]); // Preconnect 1 always exists
       continue;
     }
-    if (isReal(getDeptLineDefault(keys[i]))) out.push(keys[i]);
+    if (isReal(getDeptLineDefault(keys[i]))) {
+      out.push(keys[i]);
+    }
   }
+
   return out;
 }
 
@@ -204,8 +214,8 @@ export function loadPresets() {
   }
 }
 
-export function savePresets(p) {
-  localStorage.setItem(KEY_PRESETS_V1, JSON.stringify(p || []));
+export function savePresets(presets) {
+  localStorage.setItem(KEY_PRESETS_V1, JSON.stringify(presets || []));
 }
 
 export function getLastPresetId() {
@@ -229,37 +239,46 @@ export function elevationPsi(ft) {
   return Number(ft || 0) * PSI_PER_FT;
 }
 
-// ✅ LEGACY EXPORT — REQUIRED
+// LEGACY EXPORT — REQUIRED BY OLDER VIEWS
 export function FL_total(hoseSize, gpm, lengthFt) {
   return frictionLossPsi(hoseSize, gpm, lengthFt);
 }
 
 // ======================================================
-// Runtime Seeding
+// Runtime Line Seeding
 // ======================================================
 function seedRuntimeLines() {
   const d = loadDeptDefaults();
+
   const mk = key => {
     const L = d[key];
     const seg = L.itemsMain[0];
     const noz = getNozzleById(L.nozRight);
+
     return {
       key,
       enabled: key === 'left',
-      hoseSize: seg.size,
-      lengthFt: seg.lengthFt,
+      hoseSize: seg.size || '1.75',
+      lengthFt: seg.lengthFt || 200,
       nozzleId: noz?.id || 'fog_150',
       gpm: noz?.gpm || 150,
       nozzlePsi: noz?.np || 100,
-      elevationFt: L.elevationFt,
+      elevationFt: L.elevationFt || 0,
       applianceLoss: false,
     };
   };
-  return { left: mk('left'), back: mk('back'), right: mk('right') };
+
+  return {
+    left: mk('left'),
+    back: mk('back'),
+    right: mk('right'),
+  };
 }
 
 export function ensureSeeded() {
-  if (!state.lines) state.lines = seedRuntimeLines();
+  if (!state.lines) {
+    state.lines = seedRuntimeLines();
+  }
 }
 
 ensureSeeded();
