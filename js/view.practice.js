@@ -146,7 +146,295 @@ function makeScenario(){
   };
 }
 
-function generateScenario(){
+function computeAll(S){
+  const Epsi = (S.elevFt||0) * PSI_PER_FT;
+
+  if(S.type==='single'){
+    const mainFL = FL_total(S.flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
+    const PDP = Math.round(S.mainNoz.NP + mainFL + Epsi);
+    return { type:'single', flow:S.flow, mainFL:Math.round(mainFL), Epsi:Math.round(Epsi), PDP };
+  }
+
+  if(S.type==='wye2'){
+    const flow = S.bnA.noz.gpm + S.bnB.noz.gpm;
+    const mainFL = FL_total(flow, [{size:S.mainSize, lengthFt:S.mainLen}]);
+
+    const flA = FL_total(S.bnA.noz.gpm, [{size:'1.75', lengthFt:S.bnA.len}]);
+    const flB = FL_total(S.bnB.noz.gpm, [{size:'1.75', lengthFt:S.bnB.len}]);
+
+    const needA = S.bnA.noz.NP + flA;
+    const needB = S.bnB.noz.NP + flB;
+    const higherNeed = Math.max(needA, needB);
+
+    const PDP = Math.round(higherNeed + mainFL + (S.wyeLoss||10) + Epsi);
+
+    return {
+      type:'wye2',
+      flow,
+      mainFL:Math.round(mainFL),
+      flA:Math.round(flA),
+      flB:Math.round(flB),
+      needA:Math.round(needA),
+      needB:Math.round(needB),
+      higherNeed:Math.round(higherNeed),
+      Epsi:Math.round(Epsi),
+      PDP
+    };
+  }
+
+  // master: two equal 2½″ lines
+  const totalGPM = S.ms.gpm;
+  const perLine = totalGPM/2;
+  const flPer = FL_total(perLine, [{size:'2.5', lengthFt:S.line1.len}]); // equal lines in generator
+  const PDP = Math.round(S.ms.NP + flPer + S.ms.appliance + Epsi);
+
+  return {
+    type:'master',
+    totalGPM,
+    perLine,
+    flPer:Math.round(flPer),
+    Epsi:Math.round(Epsi),
+    PDP
+  };
+}
+
+function makeQuestion(){
+  // base visual scenario
+  const baseS = generateScenarioBase();
+  const base = computeAll(baseS);
+
+  const qKind = weightedPick([
+    { v:'PP',     w:55 },
+    { v:'ADJUST', w:20 },
+    { v:'REVERSE',w:15 },
+    { v:'CHECK',  w:10 }
+  ]);
+
+  // default
+  const q = {
+    scenario: baseS,
+    qKind,
+    questionType: 'NUM', // NUM or YN
+    unitHint: 'psi',
+    prompt: 'Calculate required Pump Discharge Pressure (PDP).',
+    answer: base.PDP,
+    revealHtml: null
+  };
+
+  // CHECK (Y/N) against 150 psi
+  if(qKind==='CHECK'){
+    const limit = 150;
+    const ok = base.PDP <= limit;
+    q.questionType = 'YN';
+    q.unitHint = 'Y/N';
+    q.prompt = `Is this setup acceptable with a ${limit} psi pump limit? (Y/N)`;
+    q.answer = ok ? 'Y' : 'N';
+    q.revealHtml = `
+      <div><b>Decision Check</b></div>
+      <ul class="simpleList">
+        <li>Calculated PDP = <b>${base.PDP} psi</b></li>
+        <li>Limit = <b>${limit} psi</b></li>
+      </ul>
+      <div><b>Answer: <span class="${ok?'ok':'alert'}">${ok?'Y (acceptable)':'N (not acceptable)'}</span></b></div>
+    `;
+    return q;
+  }
+
+  // ADJUST
+  if(qKind==='ADJUST'){
+    const S2 = structuredClone ? structuredClone(baseS) : JSON.parse(JSON.stringify(baseS));
+    let changeText = '';
+
+    if(S2.type==='single'){
+      const which = pick(['addLen','moreElev','swapNoz']);
+      if(which==='addLen'){
+        const add = pick([50,100]);
+        S2.mainLen = Math.min(450, S2.mainLen + add);
+        changeText = `Add ${add}′ to the attack line.`;
+      }else if(which==='moreElev'){
+        const add = pick([10,20]);
+        S2.elevFt = Math.min(70, (S2.elevFt||0) + add);
+        changeText = `Increase elevation by ${add}′.`;
+      }else{
+        const opts = S2.mainSize==='2.5'
+          ? [{gpm:265, NP:50, label:'265@50'},{gpm:250, NP:75, label:'250@75'}]
+          : [{gpm:185, NP:50, label:'185@50'},{gpm:150, NP:75, label:'150@75'},{gpm:185, NP:75, label:'185@75'}];
+        S2.mainNoz = pick(opts);
+        S2.flow = S2.mainNoz.gpm;
+        changeText = `Change nozzle to ${S2.mainNoz.gpm} gpm @ NP ${S2.mainNoz.NP}.`;
+      }
+    }else if(S2.type==='wye2'){
+      const which = pick(['addMain','addBranch','moreElev','swapBranchNoz']);
+      if(which==='addMain'){
+        const add = pick([50,100]);
+        S2.mainLen = Math.min(450, S2.mainLen + add);
+        changeText = `Add ${add}′ to the main line feeding the wye.`;
+      }else if(which==='addBranch'){
+        const add = pick([50,100]);
+        const side = pick(['A','B']);
+        if(side==='A') S2.bnA.len = Math.min(300, S2.bnA.len + add);
+        else S2.bnB.len = Math.min(300, S2.bnB.len + add);
+        changeText = `Add ${add}′ to Branch ${side}.`;
+      }else if(which==='moreElev'){
+        const add = pick([10,20]);
+        S2.elevFt = Math.min(70, (S2.elevFt||0) + add);
+        changeText = `Increase elevation by ${add}′.`;
+      }else{
+        const opts = [
+          {gpm:185, NP:50, label:'185@50'},
+          {gpm:150, NP:75, label:'150@75'},
+          {gpm:185, NP:75, label:'185@75'}
+        ];
+        const side = pick(['A','B']);
+        if(side==='A') S2.bnA.noz = pick(opts);
+        else S2.bnB.noz = pick(opts);
+        changeText = `Change Branch ${side} nozzle.`;
+      }
+      // refresh cached flow/PDP used by generator visuals
+      S2.flow = S2.bnA.noz.gpm + S2.bnB.noz.gpm;
+    }else{
+      const which = pick(['addLen','moreElev','raiseFlow']);
+      if(which==='addLen'){
+        const add = pick([50,100]);
+        S2.line1.len = Math.min(450, S2.line1.len + add);
+        S2.line2.len = S2.line1.len;
+        changeText = `Add ${add}′ to each 2½″ line.`;
+      }else if(which==='moreElev'){
+        const add = pick([10,20]);
+        S2.elevFt = Math.min(70, (S2.elevFt||0) + add);
+        changeText = `Increase elevation by ${add}′.`;
+      }else{
+        const opts = [
+          { gpm: 500, NP: 80, appliance: 25 },
+          { gpm: 750, NP: 80, appliance: 25 },
+          { gpm: 1000, NP: 80, appliance: 25 }
+        ];
+        S2.ms = pick(opts);
+        changeText = `Change master stream flow to ${S2.ms.gpm} gpm.`;
+      }
+    }
+
+    const b2 = computeAll(S2);
+    q.scenario = S2;
+    q.prompt = `Adjustment: ${changeText} What is the NEW PDP?`;
+    q.answer = b2.PDP;
+    return q;
+  }
+
+  // REVERSE
+  if(qKind==='REVERSE'){
+    if(baseS.type==='single'){
+      q.prompt = 'Reverse: What is the Main friction loss (psi)?';
+      q.unitHint = 'psi';
+      q.answer = base.mainFL;
+      q.revealHtml = `
+        <div><b>Reverse: Main Friction Loss</b></div>
+        <ul class="simpleList">
+          <li>Flow = <b>${base.flow} gpm</b></li>
+          <li>Main FL = <b>${base.mainFL} psi</b></li>
+        </ul>
+        <div><b>Answer = <span class="ok">${base.mainFL} psi</span></b></div>
+      `;
+      return q;
+    }
+
+    if(baseS.type==='wye2'){
+      const target = weightedPick([
+        {v:'TOTAL_GPM', w:35},
+        {v:'MAIN_FL', w:40},
+        {v:'HIGHER_NEED', w:25}
+      ]);
+      if(target==='TOTAL_GPM'){
+        q.prompt = 'Reverse: What is the TOTAL flow through the main line (GPM)?';
+        q.unitHint = 'gpm';
+        q.answer = Math.round(base.flow);
+        return q;
+      }
+      if(target==='HIGHER_NEED'){
+        q.prompt = 'Reverse: What is the required pressure at the wye (higher branch need), before main FL/elevation?';
+        q.unitHint = 'psi';
+        q.answer = Math.round(base.higherNeed);
+        return q;
+      }
+      q.prompt = 'Reverse: What is the Main friction loss feeding the wye (psi)?';
+      q.unitHint = 'psi';
+      q.answer = base.mainFL;
+      return q;
+    }
+
+    // master
+    const target = weightedPick([
+      {v:'PER_LINE_GPM', w:45},
+      {v:'LINE_FL', w:55}
+    ]);
+    if(target==='PER_LINE_GPM'){
+      q.prompt = `Reverse: Total flow is ${base.totalGPM} gpm. What is the per-line GPM (two equal 2½″ lines)?`;
+      q.unitHint = 'gpm';
+      q.answer = Math.round(base.perLine);
+      return q;
+    }
+    q.prompt = 'Reverse: What is the friction loss (psi) in each 2½″ line?';
+    q.unitHint = 'psi';
+    q.answer = base.flPer;
+    return q;
+  }
+
+  // PP
+  return q;
+}
+
+function buildRevealForQuestion(q){
+  // If a special reveal was prepared, use it.
+  if(q.revealHtml){
+    return { total: q.answer, html: q.revealHtml };
+  }
+
+  // Default: reuse existing PP breakdown (works for PP and ADJUST)
+  if(q.questionType==='YN'){
+    return { total: q.answer, html: q.revealHtml || '' };
+  }
+
+  // For numeric reverse questions without custom reveal, provide a concise explanation.
+  if(q.qKind==='REVERSE'){
+    const base = computeAll(q.scenario);
+    if(q.unitHint==='gpm'){
+      if(q.scenario.type==='wye2'){
+        return {
+          total: q.answer,
+          html: `
+            <div><b>Reverse: Total Flow</b></div>
+            <ul class="simpleList">
+              <li>Branch A = <b>${q.scenario.bnA.noz.gpm} gpm</b></li>
+              <li>Branch B = <b>${q.scenario.bnB.noz.gpm} gpm</b></li>
+              <li>Total = A + B = <b>${Math.round(base.flow)} gpm</b></li>
+            </ul>
+            <div><b>Answer = <span class="ok">${Math.round(base.flow)} gpm</span></b></div>
+          `
+        };
+      }
+      // master per-line gpm
+      return {
+        total: q.answer,
+        html: `
+          <div><b>Reverse: Per-line Flow</b></div>
+          <ul class="simpleList">
+            <li>Total = <b>${base.totalGPM} gpm</b></li>
+            <li>Per-line = total ÷ 2 = <b>${Math.round(base.perLine)} gpm</b></li>
+          </ul>
+          <div><b>Answer = <span class="ok">${Math.round(base.perLine)} gpm</span></b></div>
+        `
+      };
+    }
+    // otherwise just show computed piece and PP breakdown
+    return buildReveal(q.scenario);
+  }
+
+  return buildReveal(q.scenario);
+}
+
+// NOTE: generateScenarioBase returns ONLY a visual scenario/layout.
+// Questions are built on top of it via makeQuestion().
+function generateScenarioBase(){
   let S;
   for(let i=0;i<18;i++){
     S = makeScenario();
@@ -154,6 +442,7 @@ function generateScenario(){
   }
   return S;
 }
+
 
 // ---------- reveal builder ----------
 function flSteps(gpm, size, lenFt, label){
@@ -422,7 +711,7 @@ export function render(container) {
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
           <label>Your PP answer (psi)</label>
-          <input type="number" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;">
+          <input type="text" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
         </div>
         <div class="field" style="max-width:160px">
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL})</button>
@@ -452,6 +741,7 @@ export function render(container) {
   const eqToggleBtn = container.querySelector('#eqToggleBtn');
 
   let scenario = null;
+  let currentQ = null;
   let practiceAnswer = null;
   let eqVisible = false;
 
@@ -684,48 +974,91 @@ export function render(container) {
 
   // ---------- interactions ----------
   function makePractice(){
-    const S = generateScenario();
-    scenario = S;
+    const q = makeQuestion();
+    currentQ = q;
+    scenario = q.scenario;
 
     if(eqVisible){
       eqBox.innerHTML = renderEquations(scenario);
       eqBox.style.display = 'block';
     }
 
-    const rev = buildReveal(S);
+    const rev = buildRevealForQuestion(q);
     practiceAnswer = rev.total;
-    drawScenario(S);
-    practiceInfo.textContent = `Scenario ready — enter your PP below (±${TOL} psi).`;
+
+    drawScenario(scenario);
+
+    // Prompt
+    practiceInfo.innerHTML = `<b>Prompt:</b> ${q.prompt}`;
+
+    // Input type hints
+    if(q.questionType === 'YN'){
+      guessEl.placeholder = 'Enter Y or N';
+      statusEl.textContent = 'Enter Y or N, then press Check.';
+    } else if((q.unitHint||'').toLowerCase() === 'gpm'){
+      guessEl.placeholder = 'e.g., 370';
+      statusEl.textContent = `Enter your answer (±${TOL}).`;
+    } else {
+      guessEl.placeholder = `e.g., 145`;
+      statusEl.textContent = `Enter your answer (±${TOL} psi).`;
+    }
 
     // Reset previous work/answer
-    statusEl.textContent = 'Awaiting your answer…';
     workEl.innerHTML = '';
-    const guessEl = container.querySelector('#ppGuess');
     if (guessEl) guessEl.value = '';
   }
 
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
 
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
-    const guess = +(container.querySelector('#ppGuess').value||0);
-    if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
-    const diff = Math.abs(guess - practiceAnswer);
-    const rev = buildReveal(scenario);
+    const raw = (container.querySelector('#ppGuess').value || '').trim();
+    if(!currentQ || practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
+
+    const rev = buildRevealForQuestion(currentQ);
+
+    // Y/N decision questions
+    if(currentQ.questionType === 'YN'){
+      const user = raw.toUpperCase();
+      const v = user.startsWith('Y') ? 'Y' : user.startsWith('N') ? 'N' : '';
+      const ok = v && v === String(practiceAnswer).toUpperCase();
+
+      if(ok){
+        statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer})`;
+        workEl.innerHTML = '';
+      }else{
+        statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer})`;
+        workEl.innerHTML = rev.html || '';
+        workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+      }
+      return;
+    }
+
+    // Numeric questions (psi or gpm)
+    const guess = Number(raw);
+    if(!Number.isFinite(guess)){
+      statusEl.textContent = 'Enter a number (or Y/N for decision questions).';
+      return;
+    }
+
+    const diff = Math.abs(guess - Number(practiceAnswer));
+    const unit = (currentQ.unitHint || 'psi');
+
     if(diff<=TOL){
-      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
+      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})`;
       workEl.innerHTML = '';
     }else{
-      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} psi; Δ ${diff})`;
-      workEl.innerHTML = rev.html;
+      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})`;
+      workEl.innerHTML = rev.html || '';
       workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
   });
 
   container.querySelector('#revealBtn').addEventListener('click', ()=>{
-    if(!scenario) return;
-    const rev = buildReveal(scenario);
-    workEl.innerHTML = rev.html;
-    statusEl.innerHTML = `<b>Answer:</b> ${rev.total} psi`;
+    if(!currentQ || !scenario) return;
+    const rev = buildRevealForQuestion(currentQ);
+    workEl.innerHTML = rev.html || '';
+    const unit = currentQ.questionType === 'YN' ? '' : ` ${currentQ.unitHint || 'psi'}`;
+    statusEl.innerHTML = `<b>Answer:</b> ${rev.total}${unit}`;
     workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
   });
 
