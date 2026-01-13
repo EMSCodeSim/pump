@@ -1011,7 +1011,7 @@ export function render(container) {
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
 
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
-    const raw = (container.querySelector('#ppGuess').value || '').trim();
+    const raw = (guessEl?.value || '').trim();
     if(!currentQ || practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
 
     const rev = buildRevealForQuestion(currentQ);
