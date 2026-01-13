@@ -190,6 +190,14 @@ export function saveDept(dept){
   localStorage.setItem(KEY_DEPT, JSON.stringify(dept));
 }
 
+// ✅ COMPAT ALIASES: some older modules still import these names
+export function loadDeptDefaults(){
+  return loadDept();
+}
+export function saveDeptDefaults(dept){
+  return saveDept(dept);
+}
+
 export function getDeptHoses(){
   return loadDept().hoses || [];
 }
