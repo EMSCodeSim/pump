@@ -147,6 +147,44 @@ export function escapeHTML(s){
   }[m]));
 }
 
+/* =============================== CSS class helper =============================== */
+/**
+ * ✅ clsFor (legacy import)
+ * Returns a CSS class string based on common inputs (line key, hose size, generic tokens).
+ * Works even if callers pass objects.
+ */
+export function clsFor(input){
+  if (input == null) return '';
+
+  // objects: try common fields
+  if (typeof input === 'object') {
+    if (input.key) return clsFor(input.key);
+    if (input.size) return clsFor(input.size);
+    if (input.id) return clsFor(input.id);
+    if (input.label) return clsFor(input.label);
+    return '';
+  }
+
+  const s = String(input).trim().toLowerCase();
+  if (!s) return '';
+
+  // Line keys
+  if (s === 'left' || s === 'line1' || s === 'preconnect1') return 'line-left';
+  if (s === 'back' || s === 'line2' || s === 'preconnect2') return 'line-back';
+  if (s === 'right' || s === 'line3' || s === 'preconnect3') return 'line-right';
+
+  // Hose sizes
+  if (s === '1.75' || s.includes('1¾') || s.includes('1 3/4')) return 'hose-175';
+  if (s === '2' || s.includes('2"')) return 'hose-2';
+  if (s === '2.5' || s.includes('2½') || s.includes('2 1/2')) return 'hose-250';
+  if (s === '3') return 'hose-3';
+  if (s === '4') return 'hose-4';
+  if (s === '5') return 'hose-5';
+
+  // fallback tokenized
+  return 'x-' + s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 /* =============================== SVG helpers =============================== */
 
 export function addLabel(parent, x, y, text, opts = {}){
@@ -245,7 +283,6 @@ export function breakdownText(a, b){
     const side = (b === 'left') ? 'left' : 'right';
     if (!line) return '';
 
-    // Try to infer nozzle
     let noz = null;
     if (side === 'left') noz = line.nozLeft || null;
     else noz = line.nozRight || null;
@@ -258,7 +295,7 @@ export function breakdownText(a, b){
   }
 }
 
-// aliases (won’t hurt, can help)
+// aliases
 export const breakdownLabel = breakdownText;
 export const breakdownString = breakdownText;
 
