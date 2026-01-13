@@ -64,6 +64,61 @@ export function nozzleById(id){
   return NOZ[id] || null;
 }
 
+// ✅ COMPAT: normalize any nozzle reference into a valid NOZ id
+// Accepts: string id, nozzle object, or label-ish string.
+// Returns: a valid nozzle id from NOZ (or null if not found).
+export function canonicalNozzleId(input){
+  if (!input) return null;
+
+  // 1) Already an id or label string
+  if (typeof input === 'string') {
+    const s = input.trim();
+    if (!s) return null;
+
+    // exact id
+    if (NOZ[s]) return s;
+
+    const lower = s.toLowerCase();
+
+    // exact label match
+    const byLabel = NOZ_LIST.find(n => String(n.label || '').toLowerCase() === lower);
+    if (byLabel) return byLabel.id;
+
+    // substring label match
+    const partial = NOZ_LIST.find(n => String(n.label || '').toLowerCase().includes(lower));
+    if (partial) return partial.id;
+
+    return null;
+  }
+
+  // 2) Nozzle-like object
+  if (typeof input === 'object') {
+    // id field
+    if (input.id && NOZ[input.id]) return input.id;
+
+    // label/name field
+    const label = String(input.label || input.name || '').trim();
+    if (label) {
+      const lower = label.toLowerCase();
+      const byLabel = NOZ_LIST.find(n => String(n.label || '').toLowerCase() === lower);
+      if (byLabel) return byLabel.id;
+
+      const partial = NOZ_LIST.find(n => String(n.label || '').toLowerCase().includes(lower));
+      if (partial) return partial.id;
+    }
+
+    // gpm/NP match
+    const gpm = Number(input.gpm ?? input.GPM ?? 0);
+    const NP  = Number(input.NP ?? input.np ?? 0);
+    if (gpm && NP) {
+      const found = NOZ_LIST.find(n => Number(n.gpm) === gpm && Number(n.NP) === NP);
+      if (found) return found.id;
+    }
+  }
+
+  return null;
+}
+
 // -------------------- department defaults storage --------------------
 const KEY_DEPT = 'pump.dept.v2';
 
