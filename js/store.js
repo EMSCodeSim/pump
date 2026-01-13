@@ -387,6 +387,7 @@ export const NOZ = {
   piercing100_100:{ id:'piercing100_100', name:'Piercing 100 @ 100', gpm:100, NP:100 },
   cellar250_100:  { id:'cellar250_100',   name:'Cellar 250 @ 100',   gpm:250, NP:100 },
   breaker30_100:  { id:'breaker30_100',   name:'Breaker 30 @ 100',   gpm:30,  NP:100 },
+
 };
 
 export const NOZ_LIST = Object.values(NOZ);
@@ -603,12 +604,15 @@ export function seedDefaultsForKey(key){
       const deptLine = getDeptLineDefault(key);
       if (deptLine && typeof deptLine === 'object') {
         state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+        // Always start with NO lines deployed on app load
+        state.lines[key].visible = false;
         return state.lines[key];
       }
     }
     // If we already have a real line object, return it as-is.
     if (existing) return existing;
   }
+
 
   // No built-in creation for left/back/right here.
   // They are seeded blank in seedInitialDefaults(), and only filled when Department Setup saves a template.
@@ -630,7 +634,6 @@ export function seedDefaultsForKey(key){
 
   return state.lines[key];
 }
-
 /* =========================
  * Wye helpers
  * ========================= */
@@ -735,12 +738,12 @@ export function savePresets(presetsObj){
   const norm = normalizePresets(presetsObj);
   state._presetsMem = norm;
   return writeStorage(norm);
-}
-
-/* =========================
+}/* =========================
  * Small utils
  * ========================= */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
+
+
 
 // === Department Defaults Persistence (added) ===
 const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
@@ -785,7 +788,10 @@ export function getDeptLineDefault(key){
   const all = loadDeptDefaults();
   const candidate = all ? all[key] : null;
   if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
-    return candidate;
+    // Always start with NO lines deployed on app load
+    const safe = JSON.parse(JSON.stringify(candidate));
+    safe.visible = false;
+    return safe;
   }
 
   // 2) Compatibility: simple line defaults saved by deptState.js (fireops_line_defaults_v1)
@@ -831,6 +837,7 @@ export function getDeptLineDefault(key){
   }
 }
 
+
 // Returns an array of configured preconnect keys in order: left, back, right.
 // This is used by the Preconnect Setup wizard and UI to decide whether Preconnect 2/3 should be shown.
 // A preconnect is considered "configured" only if it has a saved department default object (not a fallback).
@@ -859,6 +866,7 @@ export function setDeptLineDefault(key, data){
   all[key] = data;
   saveDeptDefaults(all);
 }
+
 
 // === Simple Line Defaults API for Department Setup =====================
 // Used by view.department.js for Line 1 / Line 2 / Line 3 panels.
@@ -896,6 +904,7 @@ export function getLineDefaults(id){
     elevation: Number(L.elevFt || 0),
   };
 }
+
 
 // Returns a calc-ready snapshot of department line defaults for Line 1/2/3.
 // Shape:
@@ -938,6 +947,7 @@ export function getDeptLineDefaults(){
   };
 }
 
+
 // Ensure a nozzle id is included in the department-selected nozzle ids.
 // This prevents Calc nozzle dropdown filters from dropping a nozzle that is used
 // as a Department default Line 1/2/3 nozzle (especially custom_noz_*).
@@ -969,6 +979,7 @@ function ensureDeptNozzleSelected(nozId){
   }catch(_e){/* ignore */}
 }
 
+
 export function setLineDefaults(id, data){
   const key =
     id === 'line1' ? 'left' :
@@ -995,7 +1006,6 @@ export function setLineDefaults(id, data){
   const main = {
     size: normalizeHoseDiameter(hoseId) || '1.75',
     lengthFt: len || 200,
-    cValue: resolveHoseMeta(hoseIdRaw).c,
   };
 
   const L = {
@@ -1013,3 +1023,4 @@ export function setLineDefaults(id, data){
 
   setDeptLineDefault(key, L);
 }
+
