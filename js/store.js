@@ -1,19 +1,20 @@
-// store.js
-// Central app state, nozzle catalog, presets, and friction loss helpers.
-// Backward-compatible export surface (legacy views import many symbols from here).
+// js/store.js
+// Central app state, nozzle catalog, dept defaults, presets, and friction loss helpers.
+// Backward-compatible export surface for older calc modules.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'draft' | 'relay'
   showMath: false,
-  lastMaxKey: null,    // track which line last had MAX pressed
-  lines: null,         // runtime hose line objects (left/back/right + any added)
-  water: null,         // water supply state (hydrant/tanker/etc) if used
+  lastMaxKey: null,
+  lines: null,
+  water: null,
 };
 
-// -------------------- constants --------------------
+/* ===================== constants ===================== */
+
 export const PSI_PER_FT = 0.05;
 
-// Hose C-values / coefficients
+// Default friction-loss coefficients (approx; your dept setup can override per section)
 export const COEFF = {
   '1.75': 15.5,
   '2': 8,
@@ -23,7 +24,7 @@ export const COEFF = {
   '5': 0.08,
 };
 
-// UI color tokens (used by older modules)
+// UI color tokens used by legacy UI
 export const COLORS = {
   left:  '#3b82f6',
   back:  '#f59e0b',
@@ -32,9 +33,9 @@ export const COLORS = {
   relay: '#ef4444',
 };
 
-// -------------------- nozzle catalog --------------------
+/* ===================== nozzle catalog ===================== */
+
 export const NOZ_LIST = [
-  // id, label, gpm, NP, type
   { id:'fog_95_100',   label:'Fog 95 @ 100',   gpm:95,  NP:100, type:'fog' },
   { id:'fog_125_100',  label:'Fog 125 @ 100',  gpm:125, NP:100, type:'fog' },
   { id:'fog_150_100',  label:'Fog 150 @ 100',  gpm:150, NP:100, type:'fog' },
@@ -56,7 +57,6 @@ export const NOZ_LIST = [
   { id:'fog1000_100',  label:'Master Fog 1000 @ 100', gpm:1000, NP:100, type:'master' },
 ];
 
-// Map form (older files import NOZ)
 export const NOZ = {};
 for (const n of NOZ_LIST) NOZ[n.id] = n;
 
@@ -64,63 +64,50 @@ export function nozzleById(id){
   return NOZ[id] || null;
 }
 
-// ✅ COMPAT: normalize any nozzle reference into a valid NOZ id
-// Accepts: string id, nozzle object, or label-ish string.
-// Returns: a valid nozzle id from NOZ (or null if not found).
+/**
+ * ✅ COMPAT: normalize any nozzle reference into a valid NOZ id
+ */
 export function canonicalNozzleId(input){
   if (!input) return null;
 
-  // 1) Already an id or label string
   if (typeof input === 'string') {
     const s = input.trim();
     if (!s) return null;
-
-    // exact id
     if (NOZ[s]) return s;
 
     const lower = s.toLowerCase();
-
-    // exact label match
-    const byLabel = NOZ_LIST.find(n => String(n.label || '').toLowerCase() === lower);
+    const byLabel = NOZ_LIST.find(n => String(n.label||'').toLowerCase() === lower);
     if (byLabel) return byLabel.id;
 
-    // substring label match
-    const partial = NOZ_LIST.find(n => String(n.label || '').toLowerCase().includes(lower));
-    if (partial) return partial.id;
-
-    return null;
+    const partial = NOZ_LIST.find(n => String(n.label||'').toLowerCase().includes(lower));
+    return partial ? partial.id : null;
   }
 
-  // 2) Nozzle-like object
   if (typeof input === 'object') {
-    // id field
     if (input.id && NOZ[input.id]) return input.id;
 
-    // label/name field
     const label = String(input.label || input.name || '').trim();
     if (label) {
       const lower = label.toLowerCase();
-      const byLabel = NOZ_LIST.find(n => String(n.label || '').toLowerCase() === lower);
+      const byLabel = NOZ_LIST.find(n => String(n.label||'').toLowerCase() === lower);
       if (byLabel) return byLabel.id;
 
-      const partial = NOZ_LIST.find(n => String(n.label || '').toLowerCase().includes(lower));
+      const partial = NOZ_LIST.find(n => String(n.label||'').toLowerCase().includes(lower));
       if (partial) return partial.id;
     }
 
-    // gpm/NP match
     const gpm = Number(input.gpm ?? input.GPM ?? 0);
     const NP  = Number(input.NP ?? input.np ?? 0);
     if (gpm && NP) {
       const found = NOZ_LIST.find(n => Number(n.gpm) === gpm && Number(n.NP) === NP);
-      if (found) return found.id;
+      return found ? found.id : null;
     }
   }
 
   return null;
 }
 
-// -------------------- department defaults storage --------------------
-const KEY_DEPT = 'pump.dept.v2';
+/* ===================== helpers: parsing / cloning ===================== */
 
 function safeParse(raw, fallback){
   try { return JSON.parse(raw); } catch { return fallback; }
@@ -130,26 +117,29 @@ function deepClone(o){
   try { return JSON.parse(JSON.stringify(o)); } catch { return null; }
 }
 
-// Dept line template shape
+/* ===================== dept defaults ===================== */
+
+const KEY_DEPT = 'pump.dept.v2';
+
 function defaultDeptLine(label){
   return {
     label,
-    visible: false,     // templates should never mean "deployed"
+    visible: false,      // templates never mean deployed
     hasWye: false,
     elevFt: 0,
-    nozRight: null,     // nozzle id
-    nozLeft: null,
-    itemsMain: [],      // [{size,lengthFt,cValue}]
-    itemsLeft: [],      // branch left sections
+    nozRight: null,      // nozzle id string
+    nozLeft: null,       // nozzle id string
+    itemsMain: [],       // [{size,lengthFt,cValue}]
+    itemsLeft: [],       // [{size,lengthFt,cValue}]
   };
 }
 
-// Default dept config
 function seedDept(){
   return {
     left:  defaultDeptLine('Preconnect 1'),
     back:  defaultDeptLine('Preconnect 2'),
     right: defaultDeptLine('Preconnect 3'),
+
     hoses: [
       { id:'1.75', label:'1¾" (15.5)', size:'1.75', cValue:15.5 },
       { id:'2',    label:'2" (8)',     size:'2',    cValue:8 },
@@ -162,7 +152,7 @@ function seedDept(){
   };
 }
 
-// ✅ COMPAT: older modules import these static lists for Department Setup UI
+// ✅ COMPAT: static UI lists for Dept Setup screens
 export const DEPT_UI_HOSES = seedDept().hoses;
 export const DEPT_UI_NOZZLES = seedDept().nozzles;
 
@@ -173,13 +163,11 @@ export function loadDept(){
   const parsed = safeParse(raw, seedDept());
   const base = seedDept();
 
-  // merge
   const merged = { ...base, ...parsed };
   merged.left  = { ...base.left,  ...(parsed.left  || {}) };
   merged.back  = { ...base.back,  ...(parsed.back  || {}) };
   merged.right = { ...base.right, ...(parsed.right || {}) };
 
-  // sanity arrays
   if (!Array.isArray(merged.hoses)) merged.hoses = base.hoses;
   if (!Array.isArray(merged.nozzles)) merged.nozzles = base.nozzles;
 
@@ -190,29 +178,17 @@ export function saveDept(dept){
   localStorage.setItem(KEY_DEPT, JSON.stringify(dept));
 }
 
-// ✅ COMPAT ALIASES: some older modules still import these names
-export function loadDeptDefaults(){
-  return loadDept();
-}
-export function saveDeptDefaults(dept){
-  return saveDept(dept);
-}
+// ✅ COMPAT ALIASES
+export function loadDeptDefaults(){ return loadDept(); }
+export function saveDeptDefaults(dept){ return saveDept(dept); }
 
-export function getDeptHoses(){
-  return loadDept().hoses || [];
-}
-
-export function getDeptNozzles(){
-  return loadDept().nozzles || [];
-}
-
-// ✅ COMPAT: older Dept UI calls these setters
 export function setDeptUiHoses(hoses){
   const dept = loadDept();
   dept.hoses = Array.isArray(hoses) ? hoses : dept.hoses;
   saveDept(dept);
   return dept.hoses;
 }
+
 export function setDeptUiNozzles(nozzles){
   const dept = loadDept();
   dept.nozzles = Array.isArray(nozzles) ? nozzles : dept.nozzles;
@@ -224,13 +200,12 @@ export function getDeptLineDefault(key){
   const dept = loadDept();
   const candidate = dept && dept[key];
 
-  // Ensure it looks like a line template
   if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
     const safe = deepClone(candidate) || candidate;
-    // Always start with NO lines deployed on app load
-    safe.visible = false;
+    safe.visible = false; // always stowed at startup
     return safe;
   }
+
   return defaultDeptLine(key);
 }
 
@@ -240,9 +215,9 @@ export function setDeptLineDefault(key, obj){
   saveDept(dept);
 }
 
-// -------------------- mapping: setup wizard -> dept preconnects --------------------
+/* ===================== mapping: wizard preconnects ===================== */
+
 export function setLineDefaults(lineId, data){
-  // lineId: 'line1'|'line2'|'line3'
   const map = { line1:'left', line2:'back', line3:'right' };
   const key = map[lineId];
   if (!key) return;
@@ -257,16 +232,11 @@ export function setLineDefaults(lineId, data){
   L.label = (data.name || L.label || `Preconnect ${lineId}`);
   L.elevFt = Number(data.elevation || 0);
   L.nozRight = data.nozzle || null;
-  L.visible = false; // templates never deployed
+  L.nozLeft = null;
+  L.visible = false; // template never deployed
   L.hasWye = false;
 
-  L.itemsMain = [{
-    size,
-    lengthFt,
-    cValue
-  }];
-
-  // clear branch on template
+  L.itemsMain = [{ size, lengthFt, cValue }];
   L.itemsLeft = [];
 
   dept[key] = L;
@@ -290,29 +260,28 @@ export function getLineDefaults(lineId){
   };
 }
 
-// -------------------- runtime line seed / ensure --------------------
+/* ===================== runtime lines ===================== */
+
 export function seedDefaultsForKey(key){
   const deptLine = getDeptLineDefault(key);
   const safe = deepClone(deptLine) || deptLine;
 
-  // Normalize for runtime shape expected by calc view
-  const rt = {
+  return {
     key,
-    visible: false,  // 🚨 start stowed ALWAYS
+    label: safe.label || '',
+    visible: false,         // ✅ ALWAYS start stowed
     enabled: false,
     hasWye: !!safe.hasWye,
     elevFt: Number(safe.elevFt || 0),
+
     itemsMain: Array.isArray(safe.itemsMain) ? deepClone(safe.itemsMain) : [],
     itemsLeft: Array.isArray(safe.itemsLeft) ? deepClone(safe.itemsLeft) : [],
-    nozRight: safe.nozRight || null,
-    nozLeft: safe.nozLeft || null,
-    label: safe.label || '',
-    // ✅ added for legacy imports: which discharge side is "active" on a line
-    // (defaults to right; wye logic can switch to 'left' when needed)
-    _activeSide: 'right', // 'right' | 'left'
-  };
 
-  return rt;
+    nozRight: safe.nozRight || null, // nozzle id
+    nozLeft:  safe.nozLeft  || null, // nozzle id
+
+    _activeSide: 'right',    // legacy side selection
+  };
 }
 
 export function seedRuntimeLines(){
@@ -326,98 +295,136 @@ export function seedRuntimeLines(){
 export function ensureSeeded(){
   if (!state.lines) state.lines = seedRuntimeLines();
 
-  // Force start with nothing deployed
-  try{
+  // ✅ Guarantee no lines deployed on app load
+  try {
     ['left','back','right'].forEach(k=>{
       if (state.lines[k]) state.lines[k].visible = false;
       if (state.lines[k] && !state.lines[k]._activeSide) state.lines[k]._activeSide = 'right';
     });
-  }catch(_e){}
+  } catch {}
 }
 
-// -------------------- nozzle / active nozzle / active side (legacy helpers) --------------------
-export function setNozzleOnLine(lineKey, nozzleId, side='right'){
-  if (!state.lines) ensureSeeded();
-  const L = state.lines[lineKey];
-  if (!L) return;
+/* ===================== legacy helpers expected by calc ===================== */
 
-  if (side === 'left') L.nozLeft = nozzleId;
-  else L.nozRight = nozzleId;
+/**
+ * ✅ isSingleWye
+ * Legacy helper used by older calc UI to decide if a line is configured as a single-wye.
+ * Returns true when the line is wye-enabled AND has a branch defined.
+ */
+export function isSingleWye(line){
+  try {
+    // accept key or object
+    const L = (typeof line === 'string')
+      ? (state.lines?.[line] || null)
+      : line;
+
+    if (!L) return false;
+
+    const hasWyeFlag = !!(L.hasWye || L.wye || L.useWye);
+    const branch = Array.isArray(L.itemsLeft) ? L.itemsLeft : [];
+    const hasBranch = branch.some(s => Number(s?.lengthFt || 0) > 0);
+
+    return hasWyeFlag && hasBranch;
+  } catch {
+    return false;
+  }
 }
 
-// Active nozzle (legacy) – returns the nozzle object for a line
-export function activeNozzle(lineKey, side='right'){
-  if (!state.lines) ensureSeeded();
-  const L = state.lines[lineKey];
+/**
+ * ✅ sizeLabel
+ * Legacy helper used in breakdown strings.
+ */
+export function sizeLabel(size){
+  const s = String(size || '').trim();
+  if (!s) return '';
+  if (s === '1.75') return '1¾"';
+  if (s === '2.5') return '2½"';
+  return `${s}"`;
+}
+
+/**
+ * Active nozzle object for a line side.
+ * Supports (lineKey, side) and (lineObj, side).
+ */
+export function activeNozzle(lineOrKey, side='right'){
+  ensureSeeded();
+
+  const L = (typeof lineOrKey === 'string')
+    ? state.lines?.[lineOrKey]
+    : lineOrKey;
+
   if (!L) return null;
 
   const id = (side === 'left') ? L.nozLeft : L.nozRight;
   return nozzleById(id);
 }
 
-// ✅ FIX: some modules import activeSide from store.js
-// Returns 'right' or 'left' for the current “selected” side of a line (wye support).
-export function activeSide(lineKey){
-  if (!state.lines) ensureSeeded();
-  const L = state.lines?.[lineKey];
-  return (L && (L._activeSide === 'left' || L._activeSide === 'right')) ? L._activeSide : 'right';
+/**
+ * ✅ activeSide (exported)
+ * Works with either a line key OR a line object.
+ */
+export function activeSide(lineOrKey){
+  ensureSeeded();
+
+  const L = (typeof lineOrKey === 'string')
+    ? state.lines?.[lineOrKey]
+    : lineOrKey;
+
+  if (!L) return 'right';
+  return (L._activeSide === 'left' || L._activeSide === 'right') ? L._activeSide : 'right';
 }
 
-// Optional setter (harmless if unused)
 export function setActiveSide(lineKey, side){
-  if (!state.lines) ensureSeeded();
+  ensureSeeded();
   const L = state.lines?.[lineKey];
   if (!L) return;
   L._activeSide = (side === 'left') ? 'left' : 'right';
 }
 
-// -------------------- friction loss helpers --------------------
+/* ===================== friction loss ===================== */
+
 export function CPer100(size, gpm, cOverride){
   const C = (cOverride != null) ? Number(cOverride) : (COEFF[String(size)] || 0);
   if (!C || !gpm) return 0;
-  return C * Math.pow((gpm/100), 2);
+  return C * Math.pow((gpm / 100), 2);
 }
 
 export function FL(gpm, size, lengthFt, cOverride){
-  if(!gpm || !lengthFt) return 0;
-  return CPer100(size, gpm, cOverride) * (lengthFt/100);
+  if (!gpm || !lengthFt) return 0;
+  return CPer100(size, gpm, cOverride) * (lengthFt / 100);
 }
 
 export function FL_total(gpm, items){
-  if(!Array.isArray(items) || !items.length || !gpm) return 0;
+  if (!Array.isArray(items) || !items.length || !gpm) return 0;
   let sum = 0;
-  for(const seg of items) sum += FL(gpm, seg.size, seg.lengthFt, seg.cValue);
+  for (const seg of items) sum += FL(gpm, seg.size, seg.lengthFt, seg.cValue);
   return sum;
 }
 
-// ✅ COMPAT: older calc code imports FL_total_sections from store/calcShared
+// ✅ Compat export name some modules expect
 export function FL_total_sections(gpm, sections){
   return FL_total(gpm, sections);
 }
 
-// ✅ COMPAT: some modules also look for FL_total_sections under this spelling
-export function FL_total_sections_compat(gpm, sections){
-  return FL_total(gpm, sections);
-}
-
 export function sumFt(items){
-  if(!Array.isArray(items)) return 0;
-  return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
+  if (!Array.isArray(items)) return 0;
+  return items.reduce((a,c)=> a + (Number(c?.lengthFt)||0), 0);
 }
 
 export function splitIntoSections(items){
-  if(!Array.isArray(items)) return [];
+  if (!Array.isArray(items)) return [];
   return items
     .filter(Boolean)
     .map(s => ({
       size: String(s.size),
-      lengthFt: Number(s.lengthFt)||0,
-      cValue: (s.cValue!=null) ? Number(s.cValue) : (COEFF[String(s.size)] || 0)
+      lengthFt: Number(s.lengthFt) || 0,
+      cValue: (s.cValue != null) ? Number(s.cValue) : (COEFF[String(s.size)] || 0)
     }))
     .filter(s => s.lengthFt > 0);
 }
 
-// -------------------- presets (saved user presets) --------------------
+/* ===================== presets ===================== */
+
 const KEY_PRESETS = 'pump.presets.v3';
 
 function seedPresets(){
@@ -426,11 +433,11 @@ function seedPresets(){
 
 export function loadPresets(){
   const raw = localStorage.getItem(KEY_PRESETS);
-  if(!raw) return seedPresets();
+  if (!raw) return seedPresets();
   const parsed = safeParse(raw, seedPresets());
-  if(!parsed || typeof parsed !== 'object') return seedPresets();
-  if(!Array.isArray(parsed.list)) parsed.list = [];
-  if(!('activeId' in parsed)) parsed.activeId = null;
+  if (!parsed || typeof parsed !== 'object') return seedPresets();
+  if (!Array.isArray(parsed.list)) parsed.list = [];
+  if (!('activeId' in parsed)) parsed.activeId = null;
   return parsed;
 }
 
@@ -475,19 +482,20 @@ export function presetGetActive(){
 }
 
 export function presetApply(entry){
-  if(!entry || !entry.dept) return;
+  if (!entry || !entry.dept) return;
   saveDept(entry.dept);
 
-  // Reseed runtime lines from the new dept defaults
+  // Reseed runtime lines from new dept defaults
   state.lines = seedRuntimeLines();
 
-  // Never auto-deploy on preset apply; user must deploy
-  try{
+  // ✅ Never auto-deploy on preset apply
+  try {
     ['left','back','right'].forEach(k=>{
       if (state.lines[k]) state.lines[k].visible = false;
     });
-  }catch(_e){}
+  } catch {}
 }
 
-// -------------------- init --------------------
+/* ===================== init ===================== */
+
 ensureSeeded();
