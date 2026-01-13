@@ -30,6 +30,20 @@ export const COEFF = {
   4.0: 0.2,
 };
 
+// --------------------------------------------------
+// Legacy UI colors (compat export)
+// Some views import COLORS from store.js.
+// --------------------------------------------------
+export const COLORS = {
+  primary: '#2563eb',   // blue
+  accent:  '#0ea5e9',
+  ok:      '#16a34a',
+  warn:    '#f59e0b',
+  bad:     '#dc2626',
+  light:   '#f3f4f6',
+  dark:    '#111827',
+};
+
 // ======================================================
 // Storage Keys
 // ======================================================
@@ -111,9 +125,8 @@ function loadDeptDefaults() {
       right: parsed.right || seeded.right,
     };
 
-    // --- Migration / safety: older versions seeded Preconnect 2/3 with "real-looking" defaults
-    // which makes the setup wizard think they are already configured (disabling "+ Add Preconnect").
-    // If the user has NOT completed first-time setup, treat those legacy seeded defaults as placeholders.
+    // --- Migration: older versions seeded Preconnect 2/3 with real-looking defaults
+    // If firstTimeSetupComplete isn't true yet, treat those legacy seeded defaults as placeholders.
     const setupComplete = localStorage.getItem('firstTimeSetupComplete') === 'true';
 
     function looksLikeLegacySeed(L, expectedLabel){
@@ -127,7 +140,6 @@ function loadDeptDefaults() {
       const label = String(L.label || '').trim();
       const labelOk = !expectedLabel || label === expectedLabel;
 
-      // Legacy seed signature: 1.75 @ 200 ft, fog_150, elevation 0, label matches
       return labelOk && size === '1.75' && len === 200 && noz === 'fog_150' && elev === 0;
     }
 
