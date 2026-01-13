@@ -307,6 +307,9 @@ export function seedDefaultsForKey(key){
     nozRight: safe.nozRight || null,
     nozLeft: safe.nozLeft || null,
     label: safe.label || '',
+    // ✅ added for legacy imports: which discharge side is "active" on a line
+    // (defaults to right; wye logic can switch to 'left' when needed)
+    _activeSide: 'right', // 'right' | 'left'
   };
 
   return rt;
@@ -327,11 +330,12 @@ export function ensureSeeded(){
   try{
     ['left','back','right'].forEach(k=>{
       if (state.lines[k]) state.lines[k].visible = false;
+      if (state.lines[k] && !state.lines[k]._activeSide) state.lines[k]._activeSide = 'right';
     });
   }catch(_e){}
 }
 
-// -------------------- nozzle / active nozzle (legacy helpers) --------------------
+// -------------------- nozzle / active nozzle / active side (legacy helpers) --------------------
 export function setNozzleOnLine(lineKey, nozzleId, side='right'){
   if (!state.lines) ensureSeeded();
   const L = state.lines[lineKey];
@@ -349,6 +353,22 @@ export function activeNozzle(lineKey, side='right'){
 
   const id = (side === 'left') ? L.nozLeft : L.nozRight;
   return nozzleById(id);
+}
+
+// ✅ FIX: some modules import activeSide from store.js
+// Returns 'right' or 'left' for the current “selected” side of a line (wye support).
+export function activeSide(lineKey){
+  if (!state.lines) ensureSeeded();
+  const L = state.lines?.[lineKey];
+  return (L && (L._activeSide === 'left' || L._activeSide === 'right')) ? L._activeSide : 'right';
+}
+
+// Optional setter (harmless if unused)
+export function setActiveSide(lineKey, side){
+  if (!state.lines) ensureSeeded();
+  const L = state.lines?.[lineKey];
+  if (!L) return;
+  L._activeSide = (side === 'left') ? 'left' : 'right';
 }
 
 // -------------------- friction loss helpers --------------------
