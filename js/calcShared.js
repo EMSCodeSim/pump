@@ -147,6 +147,53 @@ export function escapeHTML(s){
   }[m]));
 }
 
+/* =============================== SVG helpers =============================== */
+
+// ✅ NEW: addLabel helper (older calc code imports this from calcShared.js)
+export function addLabel(parent, x, y, text, opts = {}){
+  if (!parent) return null;
+
+  const {
+    fontSize = 12,
+    fontWeight = 700,
+    fill = '#111',
+    anchor = 'middle',      // 'start'|'middle'|'end'
+    baseline = 'middle',    // 'hanging'|'middle'|'baseline' etc
+    className = '',
+    dx = 0,
+    dy = 0,
+    rotate = null,          // number degrees
+    opacity = null,
+    pointerEvents = 'none',
+  } = opts || {};
+
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  el.setAttribute('x', String(Number(x) + Number(dx)));
+  el.setAttribute('y', String(Number(y) + Number(dy)));
+  el.setAttribute('text-anchor', anchor);
+  el.setAttribute('dominant-baseline', baseline);
+  el.setAttribute('font-size', String(fontSize));
+  el.setAttribute('font-weight', String(fontWeight));
+  el.setAttribute('fill', String(fill));
+  el.setAttribute('pointer-events', String(pointerEvents));
+  if (opacity != null) el.setAttribute('opacity', String(opacity));
+  if (className) el.setAttribute('class', className);
+
+  // Keep label content safe
+  el.textContent = (text == null) ? '' : String(text);
+
+  if (typeof rotate === 'number' && !Number.isNaN(rotate)) {
+    el.setAttribute('transform', `rotate(${rotate} ${Number(x) + Number(dx)} ${Number(y) + Number(dy)})`);
+  }
+
+  parent.appendChild(el);
+  return el;
+}
+
+// ✅ Common legacy aliases some files use
+export const addText = addLabel;
+export const addSvgText = addLabel;
+
 /* =============================== Nozzle helpers =============================== */
 
 export function findNozzleId({ gpm, NP, preferFog=true }){
