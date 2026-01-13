@@ -10,7 +10,7 @@ import {
   COLORS,
   FL,
   FL_total,
-  FL_total_sections,   // ✅ added
+  FL_total_sections,
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -112,24 +112,24 @@ const CURVE_PULL = 36;
 const BRANCH_LIFT = 10;
 
 function injectStyle(root, cssText){
-  const s=document.createElement('style');
-  s.textContent=cssText;
+  const s = document.createElement('style');
+  s.textContent = cssText;
   root.appendChild(s);
 }
 
 function clearGroup(g){
-  while(g.firstChild) g.removeChild(g.firstChild);
+  while (g.firstChild) g.removeChild(g.firstChild);
 }
 
 function fmt(n){ return Math.round(n); }
 
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, m => ({
-    '&':'&amp;',
-    '<':'&lt;',
-    '>':'&gt;',
-    '"':'&quot;',
-    "'":'&#39;
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',   // ✅ FIXED
   }[m]));
 }
 
@@ -138,21 +138,23 @@ function escapeHTML(s){
 // Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
   const exact = NOZ_LIST.find(n =>
-    Number(n.gpm)===Number(gpm) &&
-    Number(n.NP)===Number(NP) &&
-    (!preferFog || /fog/i.test(n.name||n.label||'')));
+    Number(n.gpm) === Number(gpm) &&
+    Number(n.NP)  === Number(NP) &&
+    (!preferFog || /fog/i.test(n.name || n.label || ''))
+  );
   if (exact) return exact.id;
 
   const any = NOZ_LIST.find(n =>
-    Number(n.gpm)===Number(gpm) &&
-    Number(n.NP)===Number(NP));
+    Number(n.gpm) === Number(gpm) &&
+    Number(n.NP)  === Number(NP)
+  );
   if (any) return any.id;
 
   return null;
 }
 
 function defaultNozzleIdForSize(size){
-  const s = String(size||'');
+  const s = String(size || '');
   if (s === '1.75') return 'chief185_50';
   if (s === '2.5')  return 'chiefXD265';
   if (s === '5')    return 'fog1000_100';
@@ -168,18 +170,18 @@ function ensureDefaultNozzleFor(L, where){
 
   if (where === 'main'){
     if (L.nozRight) return;
-    L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+    L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n => n.id === nozId) || null;
     return;
   }
 
   if (where === 'L'){
     if (L.nozLeft) return;
-    L.nozLeft  = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+    L.nozLeft = NOZ?.[nozId] || NOZ_LIST.find(n => n.id === nozId) || null;
     return;
   }
 
   if (L.nozRight) return;
-  L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+  L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n => n.id === nozId) || null;
 }
 
 /* =============================== EXPORTS =============================== */
@@ -199,7 +201,7 @@ export {
   COLORS,
   FL,
   FL_total,
-  FL_total_sections, // ✅ added
+  FL_total_sections,
 
   TRUCK_W,
   TRUCK_H,
