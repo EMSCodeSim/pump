@@ -3,10 +3,14 @@
 
 import {
   state,
-  NOZ, NOZ_LIST,
+
+  // ✅ nozzle compat exports (older files import from calcShared)
+  NOZ,
+  NOZ_LIST,
+
   seedDefaultsForKey,
 
-  // legacy / compat exports from store
+  // ✅ legacy / compat exports from store
   COLORS,
   FL,
   FL_total,
@@ -129,7 +133,7 @@ function escapeHTML(s){
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
-    "'": '&#39;',   // ✅ FIXED
+    "'": '&#39;',
   }[m]));
 }
 
@@ -197,11 +201,13 @@ export {
   buildSnapshot,
   restoreState,
 
-  // ✅ legacy / compat re-exports
+  // ✅ compat re-exports that older modules import from calcShared.js
   COLORS,
   FL,
   FL_total,
   FL_total_sections,
+  NOZ,
+  NOZ_LIST,
 
   TRUCK_W,
   TRUCK_H,
