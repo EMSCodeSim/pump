@@ -200,17 +200,6 @@ export async function render(container){
     restoreState(s);
   }
 
-  // ---------------------------------------------------------------------------
-  // Startup behavior: default to NO lines deployed.
-  // Even if the user had lines deployed last session, we start clean each load and
-  // require pressing Preconnect 1/2/3 to deploy.
-  // ---------------------------------------------------------------------------
-  try{
-    ['left','back','right'].forEach(k=>{
-      if (state && state.lines && state.lines[k]) state.lines[k].visible = false;
-    });
-  }catch(_e){}
-
 
 
   // Persist on hide/close
@@ -2858,6 +2847,23 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     // mark dirty after draw (belt & suspenders)
     markDirty();
   }
+
+  // ---------------------------------------------------------------------------
+  // Startup lock: ALWAYS start with no preconnect lines deployed.
+  // (Even if anything earlier toggled them on during init.)
+  // ---------------------------------------------------------------------------
+  try{
+    if (state && state.lines){
+      ['left','back','right'].forEach(k=>{
+        if (state.lines[k]) state.lines[k].visible = false;
+      });
+    }
+    // Also make sure the buttons are not shown as active before first draw.
+    ['left','back','right'].forEach(k=>{
+      const btn = container.querySelector(`.linebtn[data-line="${k}"]`);
+      if (btn) btn.classList.remove('active');
+    });
+  }catch(_e){}
 
   // Initial draw
   drawAll();
