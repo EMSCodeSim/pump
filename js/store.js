@@ -1,5 +1,6 @@
 // store.js
 // Central app state, nozzle catalog, presets, and friction loss helpers.
+// Backward-compatible export surface (legacy views import many symbols from here).
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'draft' | 'relay'
@@ -33,7 +34,7 @@ export const COLORS = {
 
 // -------------------- nozzle catalog --------------------
 export const NOZ_LIST = [
-  // id, label, gpm, NP, type, notes
+  // id, label, gpm, NP, type
   { id:'fog_95_100',   label:'Fog 95 @ 100',   gpm:95,  NP:100, type:'fog' },
   { id:'fog_125_100',  label:'Fog 125 @ 100',  gpm:125, NP:100, type:'fog' },
   { id:'fog_150_100',  label:'Fog 150 @ 100',  gpm:150, NP:100, type:'fog' },
@@ -59,6 +60,10 @@ export const NOZ_LIST = [
 export const NOZ = {};
 for (const n of NOZ_LIST) NOZ[n.id] = n;
 
+export function nozzleById(id){
+  return NOZ[id] || null;
+}
+
 // -------------------- department defaults storage --------------------
 const KEY_DEPT = 'pump.dept.v2';
 
@@ -70,16 +75,17 @@ function deepClone(o){
   try { return JSON.parse(JSON.stringify(o)); } catch { return null; }
 }
 
-// A dept line template shape used throughout app:
+// Dept line template shape
 function defaultDeptLine(label){
   return {
     label,
-    visible: false,
+    visible: false,     // templates should never mean "deployed"
     hasWye: false,
     elevFt: 0,
-    nozRight: null,      // nozzle id
-    itemsMain: [],       // [{size,lengthFt,cValue}]
-    itemsLeft: [],       // wye/branch left
+    nozRight: null,     // nozzle id
+    nozLeft: null,
+    itemsMain: [],      // [{size,lengthFt,cValue}]
+    itemsLeft: [],      // branch left sections
   };
 }
 
@@ -100,6 +106,10 @@ function seedDept(){
     nozzles: NOZ_LIST.map(n => ({ id:n.id, label:n.label })),
   };
 }
+
+// ✅ COMPAT: older modules import these static lists for Department Setup UI
+export const DEPT_UI_HOSES = seedDept().hoses;
+export const DEPT_UI_NOZZLES = seedDept().nozzles;
 
 export function loadDept(){
   const raw = localStorage.getItem(KEY_DEPT);
@@ -139,10 +149,10 @@ export function getDeptLineDefault(key){
 
   // Ensure it looks like a line template
   if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
+    const safe = deepClone(candidate) || candidate;
     // Always start with NO lines deployed on app load
-    const safe = deepClone(candidate);
-    if (safe) safe.visible = false;
-    return safe || candidate;
+    safe.visible = false;
+    return safe;
   }
   return defaultDeptLine(key);
 }
@@ -170,7 +180,7 @@ export function setLineDefaults(lineId, data){
   L.label = (data.name || L.label || `Preconnect ${lineId}`);
   L.elevFt = Number(data.elevation || 0);
   L.nozRight = data.nozzle || null;
-  L.visible = false; // never stored as deployed
+  L.visible = false; // templates never deployed
   L.hasWye = false;
 
   L.itemsMain = [{
@@ -244,11 +254,7 @@ export function ensureSeeded(){
   }catch(_e){}
 }
 
-// -------------------- nozzle helpers --------------------
-export function nozzleById(id){
-  return NOZ[id] || null;
-}
-
+// -------------------- nozzle / active nozzle (legacy helpers) --------------------
 export function setNozzleOnLine(lineKey, nozzleId, side='right'){
   if (!state.lines) ensureSeeded();
   const L = state.lines[lineKey];
@@ -287,8 +293,7 @@ export function FL_total(gpm, items){
   return sum;
 }
 
-// ✅ COMPAT: some calc code imports FL_total_sections from store/calcShared
-// Returns total friction loss across an array of hose 'sections' (same shape as FL_total).
+// ✅ COMPAT: older calc code imports FL_total_sections from store/calcShared
 export function FL_total_sections(gpm, sections){
   return FL_total(gpm, sections);
 }
@@ -300,7 +305,6 @@ export function sumFt(items){
 
 export function splitIntoSections(items){
   if(!Array.isArray(items)) return [];
-  // Ensure each item has a stable form {size,lengthFt,cValue}
   return items
     .filter(Boolean)
     .map(s => ({
@@ -315,10 +319,7 @@ export function splitIntoSections(items){
 const KEY_PRESETS = 'pump.presets.v3';
 
 function seedPresets(){
-  return {
-    list: [],
-    activeId: null,
-  };
+  return { list: [], activeId: null };
 }
 
 export function loadPresets(){
