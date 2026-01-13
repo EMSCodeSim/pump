@@ -162,7 +162,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptLineDefaults, getConfiguredPreconnectCount } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -478,6 +478,41 @@ export async function render(container){
     </section>
 
 `;
+
+  // --- Preconnect button availability (hide 2/3 unless configured) ---
+  try {
+    const pcCount = (typeof getConfiguredPreconnectCount === 'function') ? getConfiguredPreconnectCount() : 1;
+    const b1 = container.querySelector('.linebtn[data-line="left"]');
+    const b2 = container.querySelector('.linebtn[data-line="back"]');
+    const b3 = container.querySelector('.linebtn[data-line="right"]');
+
+    if (b1){
+      b1.style.display = '';
+      b1.disabled = false;
+      b1.title = '';
+    }
+    if (b2){
+      if (pcCount < 2){
+        b2.style.display = 'none';
+        b2.disabled = true;
+      } else {
+        b2.style.display = '';
+        b2.disabled = false;
+        b2.title = '';
+      }
+    }
+    if (b3){
+      if (pcCount < 3){
+        b3.style.display = 'none';
+        b3.disabled = true;
+      } else {
+        b3.style.display = '';
+        b3.disabled = false;
+        b3.title = '';
+      }
+    }
+  } catch(_e) {}
+
 
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */

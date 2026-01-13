@@ -1,4 +1,4 @@
-import { state, NOZ_LIST, savePresets, loadPresets } from './store.js';
+import { state, NOZ_LIST, savePresets, loadPresets, getConfiguredPreconnectCount } from './store.js';
 import { getDeptNozzleIds } from './preset.js';
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
@@ -25,7 +25,7 @@ export async function render(container){
           <h3 style="margin:4px 0 8px">Department Setup & Presets (App Only)</h3>
           <p style="margin:0 0 10px; opacity:.92">
             The <b>website version</b> includes the full calculator, Practice mode, and Tables.
-            To customize your <b>department hoses/nozzles</b> and save <b>Line 1/2/3 presets</b>,
+            To customize your <b>department hoses/nozzles</b> and save <b>Preconnect 1–3 presets</b>,
             install the <b>FireOps Calc app</b>.
           </p>
 
@@ -56,27 +56,28 @@ export async function render(container){
   container.innerHTML = `
     <section class="stack">
       <section class="card">
-        <h3 style="margin:4px 0 8px">Customize Presets</h3>
-        <div class="row">
-          <div class="field"><label>Line 1 length (ft)</label><input id="s_len1" type="number"></div>
-          <div class="field"><label>Line 1 size</label>
+        <h3 style="margin:4px 0 8px">Preconnect Presets</h3>
+        <div class="status" style="margin:0 0 8px; opacity:.85">Set up 1–3 preconnects. Preconnect 2/3 will only show if configured.</div>
+        <div class="row" id="pcRow1">
+          <div class="field"><label>Preconnect 1 length (ft)</label><input id="s_len1" type="number"></div>
+          <div class="field"><label>Preconnect 1 size</label>
             <select id="s_sz1"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
           </div>
-          <div class="field"><label>Line 1 nozzle</label><select id="s_noz1"></select></div>
+          <div class="field"><label>Preconnect 1 nozzle</label><select id="s_noz1"></select></div>
         </div>
-        <div class="row">
-          <div class="field"><label>Line 2 length (ft)</label><input id="s_len2" type="number"></div>
-          <div class="field"><label>Line 2 size</label>
+        <div class="row" id="pcRow2">
+          <div class="field"><label>Preconnect 2 length (ft)</label><input id="s_len2" type="number"></div>
+          <div class="field"><label>Preconnect 2 size</label>
             <select id="s_sz2"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
           </div>
-          <div class="field"><label>Line 2 nozzle</label><select id="s_noz2"></select></div>
+          <div class="field"><label>Preconnect 2 nozzle</label><select id="s_noz2"></select></div>
         </div>
-        <div class="row">
-          <div class="field"><label>Line 3 length (ft)</label><input id="s_len3" type="number"></div>
-          <div class="field"><label>Line 3 size</label>
+        <div class="row" id="pcRow3">
+          <div class="field"><label>Preconnect 3 length (ft)</label><input id="s_len3" type="number"></div>
+          <div class="field"><label>Preconnect 3 size</label>
             <select id="s_sz3"><option value="1.75">1¾″</option><option value="2.5">2½″</option></select>
           </div>
-          <div class="field"><label>Line 3 nozzle</label><select id="s_noz3"></select></div>
+          <div class="field"><label>Preconnect 3 nozzle</label><select id="s_noz3"></select></div>
         </div>
         <div class="te-actions">
           <button class="btn" id="settingsReset">Reset Defaults</button>
@@ -88,6 +89,15 @@ export async function render(container){
   `;
 
   const $ = s => container.querySelector(s);
+
+  // Hide Preconnect 2/3 unless configured
+  try{
+    const pcCount = (typeof getConfiguredPreconnectCount === 'function') ? getConfiguredPreconnectCount() : 1;
+    const r2 = $('#pcRow2'); const r3 = $('#pcRow3');
+    if (r2) r2.style.display = (pcCount >= 2) ? '' : 'none';
+    if (r3) r3.style.display = (pcCount >= 3) ? '' : 'none';
+  }catch(_e){}
+
 
   // Fill nozzle selects, preferring Department Setup nozzle list if available
   function fillNoz(sel){
