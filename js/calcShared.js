@@ -5,7 +5,8 @@ import {
   state,
   NOZ, NOZ_LIST,
   seedDefaultsForKey,
-  COLORS,              // ✅ IMPORT COLORS
+  COLORS,   // ✅ compat re-export
+  FL,       // ✅ compat re-export
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -30,7 +31,11 @@ function saveNow(pack){
 }
 
 let __saveInterval = null;
-function markDirty(){ /* left as-is in your file if you already implement */ }
+
+// If your original file had a real markDirty implementation, keep it there.
+// Leaving as a no-op is safe if callers only use it as a hint.
+function markDirty(){}
+
 function startAutoSave(getPackFn){
   stopAutoSave();
   __saveInterval = setInterval(()=>{
@@ -40,6 +45,7 @@ function startAutoSave(getPackFn){
     }catch(_e){}
   }, 1000);
 }
+
 function stopAutoSave(){
   if (__saveInterval) clearInterval(__saveInterval);
   __saveInterval = null;
@@ -63,6 +69,10 @@ function restoreState(savedState){
 
   // IMPORTANT:
   // We do NOT restore full line objects for the preconnects (Line 1/2/3).
+  // Those should always come from Department Defaults / Presets and must not
+  // "stick" across app launches via pump.practice.v3.
+  //
+  // We only allow restoring non-preconnect runtime lines (if any exist).
   if (savedState.lines && state.lines) {
     for (const k of Object.keys(state.lines)) {
       if (!savedState.lines[k]) continue;
@@ -106,8 +116,11 @@ function injectStyle(root, cssText){
   s.textContent=cssText;
   root.appendChild(s);
 }
+
 function clearGroup(g){ while(g.firstChild) g.removeChild(g.firstChild); }
+
 function fmt(n){ return Math.round(n); }
+
 function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, m => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -116,6 +129,7 @@ function escapeHTML(s){
 
 /* =============================== Nozzle helpers =============================== */
 
+// Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
   const exact = NOZ_LIST.find(n =>
     Number(n.gpm)===Number(gpm) &&
@@ -154,7 +168,7 @@ function ensureDefaultNozzleFor(L, where){
 
   if (where === 'L'){
     if (L.nozLeft) return;
-    L.nozLeft = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+    L.nozLeft  = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
     return;
   }
 
@@ -162,7 +176,7 @@ function ensureDefaultNozzleFor(L, where){
   L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
 }
 
-/* =============================== Exports =============================== */
+/* =============================== Exports used by view.calc.main.js =============================== */
 
 export {
   PRACTICE_SAVE_KEY,
@@ -175,7 +189,9 @@ export {
   buildSnapshot,
   restoreState,
 
-  COLORS,   // ✅ RE-EXPORT COLORS
+  // ✅ compat re-exports (older files import these from calcShared.js)
+  COLORS,
+  FL,
 
   TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
   injectStyle, clearGroup, fmt, escapeHTML,
