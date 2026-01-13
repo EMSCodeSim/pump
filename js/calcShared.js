@@ -5,6 +5,7 @@ import {
   state,
   NOZ, NOZ_LIST,
   seedDefaultsForKey,
+  COLORS,              // ✅ IMPORT COLORS
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -62,10 +63,6 @@ function restoreState(savedState){
 
   // IMPORTANT:
   // We do NOT restore full line objects for the preconnects (Line 1/2/3).
-  // Those should always come from Department Defaults / Presets and must not
-  // "stick" across app launches via pump.practice.v3.
-  //
-  // We only allow restoring non-preconnect runtime lines (if any exist).
   if (savedState.lines && state.lines) {
     for (const k of Object.keys(state.lines)) {
       if (!savedState.lines[k]) continue;
@@ -119,7 +116,6 @@ function escapeHTML(s){
 
 /* =============================== Nozzle helpers =============================== */
 
-// Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
   const exact = NOZ_LIST.find(n =>
     Number(n.gpm)===Number(gpm) &&
@@ -146,25 +142,27 @@ function defaultNozzleIdForSize(size){
 function ensureDefaultNozzleFor(L, where){
   if (!L) return;
 
-  const nozId = defaultNozzleIdForSize((L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) || '1.75');
+  const nozId = defaultNozzleIdForSize(
+    (L.itemsMain && L.itemsMain[0] && L.itemsMain[0].size) || '1.75'
+  );
 
   if (where === 'main'){
     if (L.nozRight) return;
-    L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
     return;
   }
 
   if (where === 'L'){
     if (L.nozLeft) return;
-    L.nozLeft  = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+    L.nozLeft = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
     return;
   }
 
   if (L.nozRight) return;
-  L.nozRight = (NOZ && NOZ[nozId]) ? NOZ[nozId] : (NOZ_LIST||[]).find(n=>n && n.id===nozId) || null;
+  L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
 }
 
-/* =============================== Exports used by view.calc.main.js =============================== */
+/* =============================== Exports =============================== */
 
 export {
   PRACTICE_SAVE_KEY,
@@ -176,6 +174,8 @@ export {
   stopAutoSave,
   buildSnapshot,
   restoreState,
+
+  COLORS,   // ✅ RE-EXPORT COLORS
 
   TRUCK_W, TRUCK_H, PX_PER_50FT, CURVE_PULL, BRANCH_LIFT,
   injectStyle, clearGroup, fmt, escapeHTML,
