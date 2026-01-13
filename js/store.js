@@ -206,6 +206,20 @@ export function getDeptNozzles(){
   return loadDept().nozzles || [];
 }
 
+// ✅ COMPAT: older Dept UI calls these setters
+export function setDeptUiHoses(hoses){
+  const dept = loadDept();
+  dept.hoses = Array.isArray(hoses) ? hoses : dept.hoses;
+  saveDept(dept);
+  return dept.hoses;
+}
+export function setDeptUiNozzles(nozzles){
+  const dept = loadDept();
+  dept.nozzles = Array.isArray(nozzles) ? nozzles : dept.nozzles;
+  saveDept(dept);
+  return dept.nozzles;
+}
+
 export function getDeptLineDefault(key){
   const dept = loadDept();
   const candidate = dept && dept[key];
@@ -358,6 +372,11 @@ export function FL_total(gpm, items){
 
 // ✅ COMPAT: older calc code imports FL_total_sections from store/calcShared
 export function FL_total_sections(gpm, sections){
+  return FL_total(gpm, sections);
+}
+
+// ✅ COMPAT: some modules also look for FL_total_sections under this spelling
+export function FL_total_sections_compat(gpm, sections){
   return FL_total(gpm, sections);
 }
 
