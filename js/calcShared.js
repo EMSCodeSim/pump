@@ -4,7 +4,7 @@
 import {
   state,
 
-  // ✅ compat exports expected by older files importing from calcShared.js
+  // compat exports expected by older files importing from calcShared.js
   PSI_PER_FT,
   NOZ,
   NOZ_LIST,
@@ -15,19 +15,18 @@ import {
   FL_total,
   FL_total_sections,
 
-  // ✅ legacy nozzle resolver
   activeNozzle,
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
 
-const PRACTICE_SAVE_KEY = 'pump.practice.v3';
+export const PRACTICE_SAVE_KEY = 'pump.practice.v3';
 
-function safeClone(obj){
+export function safeClone(obj){
   try { return JSON.parse(JSON.stringify(obj)); } catch { return null; }
 }
 
-function loadSaved(){
+export function loadSaved(){
   try {
     const raw = sessionStorage.getItem(PRACTICE_SAVE_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -36,16 +35,16 @@ function loadSaved(){
   }
 }
 
-function saveNow(pack){
+export function saveNow(pack){
   try { sessionStorage.setItem(PRACTICE_SAVE_KEY, JSON.stringify(pack)); } catch {}
 }
 
 let __saveInterval = null;
 
 // No-op is safe; callers just signal intent
-function markDirty(){}
+export function markDirty(){}
 
-function startAutoSave(getPackFn){
+export function startAutoSave(getPackFn){
   stopAutoSave();
   __saveInterval = setInterval(()=>{
     try{
@@ -55,22 +54,22 @@ function startAutoSave(getPackFn){
   }, 1000);
 }
 
-function stopAutoSave(){
+export function stopAutoSave(){
   if (__saveInterval) clearInterval(__saveInterval);
   __saveInterval = null;
 }
 
 // Build a combined snapshot: full sim state + optional water supply snapshot
-function buildSnapshot(waterSnapshot){
+export function buildSnapshot(waterSnapshot){
   return safeClone({
     state,
     water: waterSnapshot || null
   });
 }
 
-/* ============================= CRITICAL FIX ============================= */
+/* ============================= Restore / startup rules ============================= */
 // Applies saved.state into live state (preserving object identities)
-function restoreState(savedState){
+export function restoreState(savedState){
   if (!savedState) return;
 
   // Restore supply mode if present (non-critical)
@@ -106,30 +105,39 @@ function restoreState(savedState){
     }
   } catch {}
 }
-/* ============================= END CRITICAL FIX ============================= */
 
+/* =============================== Active side helper =============================== */
+/**
+ * Older calc code expects `activeSide` from calcShared.js
+ * Return: 'right' | 'left'
+ */
+export function activeSide(line){
+  if (!line) return 'right';
+  if (line.nozLeft && !line.nozRight) return 'left';
+  return 'right';
+}
 
 /* =============================== Constants / Geometry =============================== */
 
-const TRUCK_W = 390;
-const TRUCK_H = 260;
-const PX_PER_50FT = 45;
-const CURVE_PULL = 36;
-const BRANCH_LIFT = 10;
+export const TRUCK_W = 390;
+export const TRUCK_H = 260;
+export const PX_PER_50FT = 45;
+export const CURVE_PULL = 36;
+export const BRANCH_LIFT = 10;
 
-function injectStyle(root, cssText){
+export function injectStyle(root, cssText){
   const s = document.createElement('style');
   s.textContent = cssText;
   root.appendChild(s);
 }
 
-function clearGroup(g){
+export function clearGroup(g){
   while (g.firstChild) g.removeChild(g.firstChild);
 }
 
-function fmt(n){ return Math.round(n); }
+export function fmt(n){ return Math.round(n); }
 
-function escapeHTML(s){
+export function escapeHTML(s){
   return String(s).replace(/[&<>"']/g, m => ({
     '&': '&amp;',
     '<': '&lt;',
@@ -141,7 +149,7 @@ function escapeHTML(s){
 
 /* =============================== Nozzle helpers =============================== */
 
-function findNozzleId({ gpm, NP, preferFog=true }){
+export function findNozzleId({ gpm, NP, preferFog=true }){
   const exact = NOZ_LIST.find(n =>
     Number(n.gpm) === Number(gpm) &&
     Number(n.NP)  === Number(NP) &&
@@ -158,7 +166,7 @@ function findNozzleId({ gpm, NP, preferFog=true }){
   return null;
 }
 
-function defaultNozzleIdForSize(size){
+export function defaultNozzleIdForSize(size){
   const s = String(size || '');
   if (s === '1.75') return 'chief185_50';
   if (s === '2.5')  return 'chiefXD265';
@@ -166,7 +174,7 @@ function defaultNozzleIdForSize(size){
   return 'chief185_50';
 }
 
-function ensureDefaultNozzleFor(L, where){
+export function ensureDefaultNozzleFor(L, where){
   if (!L) return;
 
   const nozId = defaultNozzleIdForSize(
@@ -189,20 +197,9 @@ function ensureDefaultNozzleFor(L, where){
   L.nozRight = NOZ?.[nozId] || NOZ_LIST.find(n => n.id === nozId) || null;
 }
 
-/* =============================== EXPORTS =============================== */
-
+/* =============================== Compat re-exports =============================== */
+// Older modules sometimes import these from calcShared.js instead of store.js
 export {
-  PRACTICE_SAVE_KEY,
-  safeClone,
-  loadSaved,
-  saveNow,
-  markDirty,
-  startAutoSave,
-  stopAutoSave,
-  buildSnapshot,
-  restoreState,
-
-  // ✅ compat re-exports expected by older modules
   PSI_PER_FT,
   COLORS,
   FL,
@@ -211,19 +208,4 @@ export {
   NOZ,
   NOZ_LIST,
   activeNozzle,
-
-  TRUCK_W,
-  TRUCK_H,
-  PX_PER_50FT,
-  CURVE_PULL,
-  BRANCH_LIFT,
-
-  injectStyle,
-  clearGroup,
-  fmt,
-  escapeHTML,
-
-  findNozzleId,
-  defaultNozzleIdForSize,
-  ensureDefaultNozzleFor,
 };
