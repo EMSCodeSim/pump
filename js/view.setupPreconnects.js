@@ -13,87 +13,117 @@ import {
   First-Time Preconnect Setup (Lines 1–3)
   - Preconnects ARE Line 1/2/3
   - Saves using setLineDefaults('line1'|'line2'|'line3', {hose,nozzle,length,elevation})
+  - FIX: Persist preconnectCount + seed newly-added preconnect with defaults so it sticks across restarts.
 */
+
+const KEY_PC_COUNT = 'pump_preconnect_count_v1';
+
+let preconnectCount = 1;
 
 function $(id) { return document.getElementById(id); }
 
 function safeMount() {
-  return $('mount') || $('cards');
+  // setup-preconnects.html should have <div id="setupMount"></div>
+  return $('setupMount') || document.querySelector('#setupMount') || null;
 }
 
-function createEl(tag, cls) {
-  const el = document.createElement(tag);
-  if (cls) el.className = cls;
-  return el;
-}
-
-function lineIdForIndex(i){
-  return i === 1 ? 'line1' : i === 2 ? 'line2' : 'line3';
-}
-function deptKeyForIndex(i){
+function deptKeyForIndex(i) {
   return i === 1 ? 'left' : i === 2 ? 'back' : 'right';
 }
 
-let preconnectCount = 1;
-
-function escapeHtml(str){
-  return String(str ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+function hasRealLineDefaults(lineObj) {
+  if (!lineObj || typeof lineObj !== 'object') return false;
+  const hose = String(lineObj.hose || '').trim();
+  const noz  = String(lineObj.nozzle || '').trim();
+  const len  = Number(lineObj.length || 0);
+  return (len > 0) || !!hose || !!noz;
 }
 
-function renderPreconnectCard(index) {
+function readSavedCount() {
+  try {
+    const v = Number(localStorage.getItem(KEY_PC_COUNT) || 0);
+    if (v >= 1 && v <= 3) return v;
+  } catch (_e) {}
+  return null;
+}
+
+function writeSavedCount(n) {
+  try { localStorage.setItem(KEY_PC_COUNT, String(n)); } catch (_e) {}
+}
+
+function computeInitialCount() {
+  // 1) Prefer persisted count (so "Add Preconnect" sticks even if values are still blank)
+  const saved = readSavedCount();
+  if (saved) return saved;
+
+  // 2) Fallback: infer from real saved defaults
+  const l2 = getLineDefaults('line2') || {};
+  const l3 = getLineDefaults('line3') || {};
+
+  let count = 1;
+  if (hasRealLineDefaults(l2)) count = 2;
+  if (hasRealLineDefaults(l3)) count = 3;
+  return count;
+}
+
+function renderPreconnectCard(i) {
+  const lineId = `line${i}`;
+  const existing = getLineDefaults(lineId) || {};
+
   const hoses = getDeptHoses();
   const nozzles = getDeptNozzles();
 
-  const lineId = lineIdForIndex(index);
-  const existing = getLineDefaults(lineId) || {};
-
-  // Name: store it in dept default label (optional)
-  const existingFull = getDeptLineDefault(deptKeyForIndex(index)) || {};
-  const existingName = existingFull.label || `Preconnect ${index}`;
-
-  const hoseVal = existing.hose || (hoses[0]?.id ?? hoses[0]?.size ?? '');
-  const lenVal  = Number(existing.length ?? 200) || 200;
-  const nozVal  = existing.nozzle || (nozzles[0]?.id ?? '');
-
-  const card = createEl('div', 'card preconnect-card');
-
+  const card = document.createElement('div');
+  card.className = 'pc-card';
   card.innerHTML = `
-    <div style="font-weight:800;margin-bottom:6px;">Preconnect ${index}</div>
-
-    <label>Name</label>
-    <input type="text" id="pc-name-${index}" placeholder="Officer Side 1¾" value="${escapeHtml(existingName)}">
-
-    <div class="grid cols2">
-      <div>
-        <label>Hose Size</label>
-        <select id="pc-hose-${index}">
-          ${hoses.map(h => {
-            const v = String(h.id ?? h.size ?? '');
-            const selected = v === String(hoseVal) ? 'selected' : '';
-            return `<option value="${escapeHtml(v)}" ${selected}>${escapeHtml(h.label)}</option>`;
-          }).join('')}
-        </select>
-      </div>
-
-      <div>
-        <label>Length (ft)</label>
-        <input type="number" id="pc-length-${index}" value="${Number(lenVal)}" min="0" step="25">
-      </div>
+    <div class="pc-card-header">
+      <div class="pc-title">Preconnect ${i}</div>
+      <div class="pc-sub">Line ${i}</div>
     </div>
 
-    <label>Nozzle</label>
-    <select id="pc-nozzle-${index}">
-      ${nozzles.map(n => {
-        const selected = String(n.id) === String(nozVal) ? 'selected' : '';
-        return `<option value="${escapeHtml(n.id)}" ${selected}>${escapeHtml(n.label || n.name || n.id)}</option>`;
-      }).join('')}
-    </select>
+    <div class="pc-grid">
+      <label class="pc-field">
+        <div class="pc-label">Name</div>
+        <input id="pc-name-${i}" type="text" placeholder="Preconnect ${i}">
+      </label>
+
+      <label class="pc-field">
+        <div class="pc-label">Hose</div>
+        <select id="pc-hose-${i}">
+          <option value="">Select…</option>
+          ${hoses.map(h => `<option value="${h.id}">${h.label}</option>`).join('')}
+        </select>
+      </label>
+
+      <label class="pc-field">
+        <div class="pc-label">Length (ft)</div>
+        <input id="pc-length-${i}" type="number" min="0" step="25" placeholder="0">
+      </label>
+
+      <label class="pc-field">
+        <div class="pc-label">Nozzle</div>
+        <select id="pc-nozzle-${i}">
+          <option value="">Select…</option>
+          ${nozzles.map(n => `<option value="${n.id}">${n.label}</option>`).join('')}
+        </select>
+      </label>
+    </div>
   `;
+
+  // Fill existing values (if any)
+  // Note: "Name" is stored as label on the dept default object; we try to read that for display.
+  try {
+    const deptKey = deptKeyForIndex(i);
+    const full = getDeptLineDefault(deptKey);
+    const label = full && typeof full === 'object' ? (full.label || '') : '';
+    if ($(`pc-name-${i}`)) $(`pc-name-${i}`).value = label || `Preconnect ${i}`;
+  } catch (_e) {
+    if ($(`pc-name-${i}`)) $(`pc-name-${i}`).value = `Preconnect ${i}`;
+  }
+
+  if ($(`pc-hose-${i}`))   $(`pc-hose-${i}`).value   = existing.hose || '';
+  if ($(`pc-length-${i}`)) $(`pc-length-${i}`).value = Number(existing.length || 0) || '';
+  if ($(`pc-nozzle-${i}`)) $(`pc-nozzle-${i}`).value = existing.nozzle || '';
 
   return card;
 }
@@ -121,29 +151,29 @@ function renderAll() {
   }
 }
 
-// Only treat line2/line3 as configured if they have REAL values
-function hasRealLineDefaults(lineObj){
-  if (!lineObj || typeof lineObj !== 'object') return false;
-  const hose = String(lineObj.hose || '').trim();
-  const noz  = String(lineObj.nozzle || '').trim();
-  const len  = Number(lineObj.length || 0);
-  return (len > 0) || !!hose || !!noz;
-}
+function seedNewPreconnectDefaults(index) {
+  // Copy Line 1 if it exists, otherwise use common defaults
+  const template = getLineDefaults('line1') || {};
+  const hose   = String(template.hose || '1.75');
+  const length = Number(template.length || 200);
+  const nozzle = String(template.nozzle || 'fog_150');
 
-function computeInitialCount(){
-  const l1 = getLineDefaults('line1') || {};
-  const l2 = getLineDefaults('line2') || {};
-  const l3 = getLineDefaults('line3') || {};
+  const lineId = `line${index}`;
+  const current = getLineDefaults(lineId) || {};
 
-  // Always show at least 1
-  let count = 1;
+  // Only seed if it's still blank-ish
+  if (!hasRealLineDefaults(current)) {
+    setLineDefaults(lineId, { hose, nozzle, length, elevation: 0 });
 
-  if (hasRealLineDefaults(l2)) count = 2;
-  if (hasRealLineDefaults(l3)) count = 3;
-
-  // If line1 is totally empty, still keep count=1 (wizard requires at least one)
-  // (No need to check l1)
-  return count;
+    // Also set a label (name) for nicer display
+    try {
+      const deptKey = deptKeyForIndex(index);
+      const full = getDeptLineDefault(deptKey);
+      if (full && typeof full === 'object') {
+        setDeptLineDefault(deptKey, { ...full, label: `Preconnect ${index}` });
+      }
+    } catch (_e) { /* ignore */ }
+  }
 }
 
 function saveAndExit() {
@@ -172,12 +202,22 @@ function saveAndExit() {
     } catch (_e) { /* non-fatal */ }
   }
 
-  localStorage.setItem('firstTimeSetupComplete', 'true');
+  // ✅ Persist count so newly added preconnects stay visible across restarts
+  writeSavedCount(preconnectCount);
+
+  // Existing flag
+  try { localStorage.setItem('firstTimeSetupComplete', 'true'); } catch (_e) {}
+
   window.location.replace('/');
 }
 
 export function render(_root) {
   preconnectCount = computeInitialCount();
+
+  // If count says we have 2/3, ensure they have something seeded so calc/menus behave consistently
+  if (preconnectCount >= 2) seedNewPreconnectDefaults(2);
+  if (preconnectCount >= 3) seedNewPreconnectDefaults(3);
+
   renderAll();
 
   const addBtn = $('addBtn');
@@ -185,6 +225,12 @@ export function render(_root) {
     addBtn.onclick = () => {
       if (preconnectCount < 3) {
         preconnectCount++;
+        // ✅ Persist immediately so it doesn't disappear if user backs out / restarts
+        writeSavedCount(preconnectCount);
+
+        // ✅ Seed defaults so it becomes a real "default" right away
+        seedNewPreconnectDefaults(preconnectCount);
+
         renderAll();
       }
     };
