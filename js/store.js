@@ -80,8 +80,8 @@ function makeDefaultLine(label = '', placeholder = false) {
   return {
     label,
     itemsMain: placeholder
-      ? [{ size: '', lengthFt: 0 }]          // IMPORTANT: placeholder lines
-      : [{ size: '1.75', lengthFt: 200 }],   // real default
+      ? [{ size: '', lengthFt: 0 }]          // placeholder lines start empty
+      : [{ size: '1.75', lengthFt: 200 }],   // real default for Preconnect 1
     elevationFt: 0,
     nozRight: placeholder ? '' : 'fog_150',
     _nozId: placeholder ? '' : 'fog_150',
@@ -99,16 +99,44 @@ function seedDefaults() {
 function loadDeptDefaults() {
   try {
     const raw = localStorage.getItem(KEY_DEPT_DEFAULTS_V1);
-    if (!raw) return seedDefaults();
+    const seeded = seedDefaults();
+    if (!raw) return seeded;
 
     const parsed = JSON.parse(raw);
-    const seeded = seedDefaults();
 
-    return {
+    // Start with stored-or-seeded values
+    const d = {
       left:  parsed.left  || seeded.left,
       back:  parsed.back  || seeded.back,
       right: parsed.right || seeded.right,
     };
+
+    // --- Migration / safety: older versions seeded Preconnect 2/3 with "real-looking" defaults
+    // which makes the setup wizard think they are already configured (disabling "+ Add Preconnect").
+    // If the user has NOT completed first-time setup, treat those legacy seeded defaults as placeholders.
+    const setupComplete = localStorage.getItem('firstTimeSetupComplete') === 'true';
+
+    function looksLikeLegacySeed(L, expectedLabel){
+      if (!L || !Array.isArray(L.itemsMain) || !L.itemsMain[0]) return false;
+      const seg = L.itemsMain[0] || {};
+      const size = String(seg.size || '').trim();
+      const len  = Number(seg.lengthFt || 0);
+      const noz  = String(L.nozRight || L._nozId || '').trim();
+      const elev = Number(L.elevationFt || 0);
+
+      const label = String(L.label || '').trim();
+      const labelOk = !expectedLabel || label === expectedLabel;
+
+      // Legacy seed signature: 1.75 @ 200 ft, fog_150, elevation 0, label matches
+      return labelOk && size === '1.75' && len === 200 && noz === 'fog_150' && elev === 0;
+    }
+
+    if (!setupComplete) {
+      if (looksLikeLegacySeed(d.back,  'Preconnect 2')) d.back  = seeded.back;
+      if (looksLikeLegacySeed(d.right, 'Preconnect 3')) d.right = seeded.right;
+    }
+
+    return d;
   } catch {
     return seedDefaults();
   }
@@ -195,9 +223,7 @@ export function getConfiguredPreconnects() {
       out.push(keys[i]); // Preconnect 1 always exists
       continue;
     }
-    if (isReal(getDeptLineDefault(keys[i]))) {
-      out.push(keys[i]);
-    }
+    if (isReal(getDeptLineDefault(keys[i]))) out.push(keys[i]);
   }
 
   return out;
@@ -252,18 +278,18 @@ function seedRuntimeLines() {
 
   const mk = key => {
     const L = d[key];
-    const seg = L.itemsMain[0];
+    const seg = (L.itemsMain && L.itemsMain[0]) ? L.itemsMain[0] : { size: '1.75', lengthFt: 200 };
     const noz = getNozzleById(L.nozRight);
 
     return {
       key,
       enabled: key === 'left',
       hoseSize: seg.size || '1.75',
-      lengthFt: seg.lengthFt || 200,
+      lengthFt: Number(seg.lengthFt || 200),
       nozzleId: noz?.id || 'fog_150',
       gpm: noz?.gpm || 150,
       nozzlePsi: noz?.np || 100,
-      elevationFt: L.elevationFt || 0,
+      elevationFt: Number(L.elevationFt || 0),
       applianceLoss: false,
     };
   };
@@ -276,9 +302,7 @@ function seedRuntimeLines() {
 }
 
 export function ensureSeeded() {
-  if (!state.lines) {
-    state.lines = seedRuntimeLines();
-  }
+  if (!state.lines) state.lines = seedRuntimeLines();
 }
 
 ensureSeeded();
