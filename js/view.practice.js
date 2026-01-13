@@ -739,6 +739,7 @@ export function render(container) {
   const workEl = container.querySelector('#work');
   const eqBox = container.querySelector('#eqBox');
   const eqToggleBtn = container.querySelector('#eqToggleBtn');
+  const guessEl = container.querySelector('#ppGuess');
 
   let scenario = null;
   let currentQ = null;
