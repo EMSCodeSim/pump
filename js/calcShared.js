@@ -4,13 +4,12 @@
 import {
   state,
 
-  // ✅ nozzle compat exports (older files import from calcShared)
+  // ✅ compat exports expected by older files importing from calcShared.js
+  PSI_PER_FT,
   NOZ,
   NOZ_LIST,
-
   seedDefaultsForKey,
 
-  // ✅ legacy / compat exports from store
   COLORS,
   FL,
   FL_total,
@@ -139,7 +138,6 @@ function escapeHTML(s){
 
 /* =============================== Nozzle helpers =============================== */
 
-// Generic finder (Fog preferred when preferFog=true)
 function findNozzleId({ gpm, NP, preferFog=true }){
   const exact = NOZ_LIST.find(n =>
     Number(n.gpm) === Number(gpm) &&
@@ -201,7 +199,8 @@ export {
   buildSnapshot,
   restoreState,
 
-  // ✅ compat re-exports that older modules import from calcShared.js
+  // ✅ compat re-exports expected by older modules
+  PSI_PER_FT,
   COLORS,
   FL,
   FL_total,
