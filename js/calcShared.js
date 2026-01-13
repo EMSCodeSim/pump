@@ -10,6 +10,7 @@ import {
   COLORS,
   FL,
   FL_total,
+  FL_total_sections,   // ✅ added
 } from './store.js';
 
 /* ========================== Practice-state persistence ========================== */
@@ -128,7 +129,7 @@ function escapeHTML(s){
     '<':'&lt;',
     '>':'&gt;',
     '"':'&quot;',
-    "'":'&#39;'
+    "'":'&#39;
   }[m]));
 }
 
@@ -173,7 +174,7 @@ function ensureDefaultNozzleFor(L, where){
 
   if (where === 'L'){
     if (L.nozLeft) return;
-    L.nozLeft = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
+    L.nozLeft  = NOZ?.[nozId] || NOZ_LIST.find(n=>n.id===nozId) || null;
     return;
   }
 
@@ -198,6 +199,7 @@ export {
   COLORS,
   FL,
   FL_total,
+  FL_total_sections, // ✅ added
 
   TRUCK_W,
   TRUCK_H,
