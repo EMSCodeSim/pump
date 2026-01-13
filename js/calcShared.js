@@ -149,7 +149,6 @@ export function escapeHTML(s){
 
 /* =============================== SVG helpers =============================== */
 
-// addLabel helper (older calc code imports this from calcShared.js)
 export function addLabel(parent, x, y, text, opts = {}){
   if (!parent) return null;
 
@@ -157,12 +156,12 @@ export function addLabel(parent, x, y, text, opts = {}){
     fontSize = 12,
     fontWeight = 700,
     fill = '#111',
-    anchor = 'middle',      // 'start'|'middle'|'end'
-    baseline = 'middle',    // 'hanging'|'middle'|'baseline' etc
+    anchor = 'middle',
+    baseline = 'middle',
     className = '',
     dx = 0,
     dy = 0,
-    rotate = null,          // number degrees
+    rotate = null,
     opacity = null,
     pointerEvents = 'none',
   } = opts || {};
@@ -189,17 +188,11 @@ export function addLabel(parent, x, y, text, opts = {}){
   return el;
 }
 
-// Common legacy aliases some files use
+// common aliases
 export const addText = addLabel;
 export const addSvgText = addLabel;
 
-/**
- * ✅ NEW: addTip helper (older calc code imports this from calcShared.js)
- * Creates a small "tooltip-like" label near a point.
- * Usage: addTip(svgGroup, x, y, "TIP", { dx: 10, dy: -10 })
- */
 export function addTip(parent, x, y, text, opts = {}){
-  // Implemented as a styled label with defaults tuned for "tips"
   const {
     dx = 10,
     dy = -10,
@@ -217,6 +210,57 @@ export function addTip(parent, x, y, text, opts = {}){
     dx, dy, fontSize, fontWeight, fill, anchor, baseline, className, opacity, rotate
   });
 }
+
+/* =============================== Breakdown helper =============================== */
+/**
+ * Named export guaranteed: breakdownText
+ * Accepts:
+ *  - (gpm:number, sections:Array<{size,lengthFt,cValue}>) OR
+ *  - (lineObj:any, side?:'left'|'right')
+ */
+export function breakdownText(a, b){
+  try {
+    // (gpm, sections)
+    if (typeof a === 'number' && Array.isArray(b)) {
+      const gpm = a;
+      const sections = b;
+      if (!gpm || !sections.length) return '';
+
+      const parts = [];
+      for (const s of sections) {
+        if (!s) continue;
+        const size = String(s.size ?? '');
+        const len  = Number(s.lengthFt ?? 0);
+        const cVal = (s.cValue != null) ? Number(s.cValue) : undefined;
+        if (!len) continue;
+        const fl = FL(gpm, size, len, cVal);
+        parts.push(`${size}" ${len}ft: ${Math.round(fl)}psi`);
+      }
+      const total = Math.round(FL_total(gpm, sections));
+      return parts.length ? `${parts.join('  |  ')}  |  Total: ${total}psi` : '';
+    }
+
+    // (lineObj, side)
+    const line = a;
+    const side = (b === 'left') ? 'left' : 'right';
+    if (!line) return '';
+
+    // Try to infer nozzle
+    let noz = null;
+    if (side === 'left') noz = line.nozLeft || null;
+    else noz = line.nozRight || null;
+
+    const gpm = Number(noz?.gpm ?? noz?.GPM ?? 0);
+    const sections = (side === 'left' ? line.itemsLeft : line.itemsMain) || [];
+    return breakdownText(gpm, sections);
+  } catch {
+    return '';
+  }
+}
+
+// aliases (won’t hurt, can help)
+export const breakdownLabel = breakdownText;
+export const breakdownString = breakdownText;
 
 /* =============================== Nozzle helpers =============================== */
 
