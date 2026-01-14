@@ -232,7 +232,7 @@ export async function render(container){
         L.nozLeft = null;
 
         // Show deployed by default on web
-        L.visible = true;
+        L.visible = false;
       };
 
       // Preconnect 1 & 2: 200' of 1 3/4" with Chief XD 185 gpm @ 50 psi
@@ -2110,7 +2110,7 @@ function refreshEditorVisualsFromFields(){
 
 function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
     const L = seedDefaultsForKey(key);
-    L.visible = true;
+    L.visible = false;
     editorContext = {key, where};
 
     // Optional: hide elevation controls when launched from Presets
@@ -2326,7 +2326,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
     }
 
-    L.visible = true; drawAll(); markDirty();
+    L.visible = false; drawAll(); markDirty();
   });
 
   /* ---------------------------- Line toggles ------------------------------ */
@@ -2595,7 +2595,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           }
 
       // Make sure line is visible & button looks active
-      L.visible = true;
+      L.visible = false;
       const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
       if (btn) btn.classList.add('active');
 
