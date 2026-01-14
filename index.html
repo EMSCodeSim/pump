@@ -128,6 +128,32 @@
       box-shadow:0 0 0 1px rgba(127,208,255,0.4),0 8px 18px rgba(0,0,0,0.9);
     }
 
+    /* Quick-access buttons under header */
+    .top-actions{
+      display:flex;
+      gap:8px;
+      margin:10px 2px 12px;
+      flex-wrap:wrap;
+    }
+    .top-action-btn{
+      border-radius:999px;
+      border:1px solid rgba(120,162,220,0.9);
+      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.28), transparent 60%), #050a14;
+      color:#e3efff;
+      padding:7px 12px;
+      font-size:13px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+      box-shadow:0 6px 14px rgba(0,0,0,0.75);
+    }
+    .top-action-btn:hover{
+      border-color:#7fd0ff;
+      color:#ffffff;
+      box-shadow:0 0 0 1px rgba(127,208,255,0.35),0 10px 22px rgba(0,0,0,0.9);
+    }
+
     /* Practice header buttons and other plain buttons inside cards */
     .card button{
       padding:7px 12px;
@@ -496,6 +522,14 @@
       </button>
     </header>
 
+    <!-- Quick access for the most common setup task -->
+    <div class="top-actions" aria-label="Quick actions">
+      <button id="deptSetupTop" type="button" class="top-action-btn" title="Edit hoses, nozzles, and line presets">
+        <span aria-hidden="true">⚙️</span>
+        <span>Department Setup</span>
+      </button>
+    </div>
+
     <main id="app" class="grid" aria-live="polite" aria-busy="false">
       <div class="card">Loading…</div>
     </main>
@@ -504,7 +538,7 @@
   <nav class="bottom-nav">
     <button class="navbtn active" data-view="calc">
       <span class="icon">⚙️</span>
-      <span>Calculations</span>
+      <span>Pump</span>
     </button>
     <button class="navbtn" data-view="practice">
       <span class="icon">🎯</span>
@@ -512,7 +546,7 @@
     </button>
     <button class="navbtn" data-view="charts">
       <span class="icon">📊</span>
-      <span>Tables</span>
+      <span>Info</span>
     </button>
     <!-- Hidden nav button for Department Setup (used as a fallback) -->
     <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
@@ -710,6 +744,7 @@
       const openAbout = document.getElementById('openAbout');
       const closeAbout = document.getElementById('closeAbout');
       const deptBtn = document.getElementById('aboutDeptBtn');
+      const deptTopBtn = document.getElementById('deptSetupTop');
       const navSettings = document.getElementById('navSettings');
 
       function open(){
@@ -739,22 +774,23 @@
       });
 
       // Department setup: prefer new Dept wizard in presets, fall back to old settings view
-      if (deptBtn) {
-        deptBtn.addEventListener('click', function(){
-          close();
-          try {
-            if (window && typeof window.fireopsOpenDeptSetup === 'function') {
-              window.fireopsOpenDeptSetup();   // new Dept wizard in preset.js
-              return;
-            }
-          } catch (err) {
-            console.warn('fireopsOpenDeptSetup failed, falling back to navSettings', err);
+      function openDeptSetup(){
+        try { close(); } catch (_) {}
+        try {
+          if (window && typeof window.fireopsOpenDeptSetup === 'function') {
+            window.fireopsOpenDeptSetup();   // new Dept wizard in preset.js
+            return;
           }
-          if (navSettings) {
-            navSettings.click();               // old view.settings.js fallback
-          }
-        });
+        } catch (err) {
+          console.warn('fireopsOpenDeptSetup failed, falling back to navSettings', err);
+        }
+        if (navSettings) {
+          navSettings.click();               // old view.settings.js fallback
+        }
       }
+
+      if (deptBtn) deptBtn.addEventListener('click', openDeptSetup);
+      if (deptTopBtn) deptTopBtn.addEventListener('click', openDeptSetup);
     })();
   </script>
 
