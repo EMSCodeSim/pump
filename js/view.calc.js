@@ -2821,12 +2821,57 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
-      // Main label: two lines (length/nozzle or wye, then PP + GPM)
-      const topLine = L.hasWye
-        ? (mainFt + '′ — via Wye')
-        : (mainFt + '′ — Nozzle ' + (L.nozRight?.NP||0) + ' psi');
-      const bottomLine = 'PP ' + Math.round(ppPsi) + ' psi • ' + Math.round(flowGpm) + ' gpm';
-      addLabel(G_labels, topLine + '\n' + bottomLine, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+// Main label: two rows
+// Row 1: "200′ 1 3/4 @ 50psi" (hose length + predominant size + nozzle pressure when applicable)
+// Row 2: "PP ___ psi • ___ gpm" (engine pump discharge pressure for this line)
+function hoseSizeForBubble(secs){
+  // Try to infer a single predominant hose diameter for label bubbles.
+  // Accepts several possible property names depending on how the section was created.
+  const raw = (secs||[]).map(s => (
+    s?.size ?? s?.dia ?? s?.diameter ?? s?.hoseSize ?? s?.hoseDia ?? s?.diam ?? ''
+  )).map(v => String(v).trim()).filter(Boolean);
+
+  const norm = (v)=>{
+    const s = String(v).toLowerCase().trim();
+    if (!s) return '';
+    // Ignore common non-size tokens
+    if (s.includes('nozzle')) return '';
+    // Fractional / common display forms
+    if (s.includes('1 3/4') || s.includes('1¾')) return '1.75';
+    if (s.includes('2 1/2') || s.includes('2½')) return '2.5';
+    if (s.includes('4') && (s.match(/\b4\b/) || s.includes('4"'))) return '4';
+    if (s.includes('5') && (s.match(/\b5\b/) || s.includes('5"'))) return '5';
+
+    const m = s.match(/(\d+(?:\.\d+)?)/);
+    if (!m) return '';
+    let n = m[1];
+    if (n === '175') n = '1.75';
+    if (n === '250') n = '2.5';
+    return n;
+  };
+
+  const sizes = raw.map(norm).filter(Boolean);
+  const uniq = Array.from(new Set(sizes));
+  const v = uniq.length === 1 ? uniq[0] : '';
+  const map = { '1.75':'1 3/4', '2.5':'2 1/2', '4':'4', '5':'5' };
+  return v ? (map[v] || v) : (sizes.length ? 'Mixed' : '—');
+}
+
+const mainSize = hoseSizeForBubble(L.itemsMain);
+const row1 = (()=>{
+  if (L.hasWye) {
+    if (single) {
+      const bn = activeNozzle(L);
+      return `${mainFt}′ ${mainSize} @ ${(bn?.NP||0)}psi`;
+    }
+    return `${mainFt}′ ${mainSize} @ Wye`;
+  }
+  return `${mainFt}′ ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
+})();
+const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
+addLabel(G_labels, row1 + '
+' + row2, geom.endX, geom.endY-34, (key==='left')?-10:(key==='back')?-22:-34);
+
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
@@ -2834,12 +2879,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathL = document.createElementNS('http://www.w3.org/2000/svg','path'); pathL.setAttribute('d', gL.d); G_branches.appendChild(pathL);
           drawSegmentedPath(G_branches, pathL, L.itemsLeft);
           // Branch A info bubble
-          const lenLeft = sumFt(L.itemsLeft||[]);
-          if(lenLeft>0 && L.nozLeft){
-            const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
-            const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
-            const txtL = (lenLeft+'′ — Nozzle '+(L.nozLeft.NP||0)+' psi') + '\n' + ('PP '+Math.round(branchPP)+' psi • '+Math.round(L.nozLeft.gpm||0)+' gpm');
-            addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
+            const lenLeft = sumFt(L.itemsLeft||[]);
+            if(lenLeft>0 && L.nozLeft){
+              const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
+              const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const brSizeL = hoseSizeForBubble(L.itemsLeft);
+              const row1L = `${lenLeft}′ ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
+              const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
+              const txtL = row1L + '\n' + row2L;
+              addLabel(G_labels, txtL, gL.endX-40, gL.endY-36, -4);
           }
           addTip(G_tips, key,'L',gL.endX,gL.endY);
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
@@ -2849,12 +2897,15 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', gR.d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           // Branch B info bubble
-          const lenRight = sumFt(L.itemsRight||[]);
-          if(lenRight>0 && L.nozRight){
-            const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-            const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
-            const txtR = (lenRight+'′ — Nozzle '+(L.nozRight.NP||0)+' psi') + '\n' + ('PP '+Math.round(branchPP)+' psi • '+Math.round(L.nozRight.gpm||0)+' gpm');
-            addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
+            const lenRight = sumFt(L.itemsRight||[]);
+            if(lenRight>0 && L.nozRight){
+              const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+              const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const brSizeR = hoseSizeForBubble(L.itemsRight);
+              const row1R = `${lenRight}′ ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
+              const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
+              const txtR = row1R + '\n' + row2R;
+              addLabel(G_labels, txtR, gR.endX+40, gR.endY-36, -4);
           }
           addTip(G_tips, key,'R',gR.endX,gR.endY);
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
