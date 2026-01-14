@@ -2311,7 +2311,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
-      if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
+      if (teNoz?.value && NOZ[teNoz.value]) L.nozRight = NOZ[teNoz.value];
+      else ensureDefaultNozzleFor(L,'R',size);
     }
 
     L.visible = true; drawAll(); markDirty();
@@ -2901,7 +2902,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
               const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
               const txtR = row1R + '\n' + row2R;
-              addLabel(G_labels, txtR, gR.endX+40, gR.endY-22, -4);
+              addLabel(G_labels, txtR, gR.endX-40, gR.endY-22, -4);
           }
           addTip(G_tips, key,'R',gR.endX,gR.endY);
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
