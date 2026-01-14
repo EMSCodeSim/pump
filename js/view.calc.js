@@ -2110,7 +2110,7 @@ function refreshEditorVisualsFromFields(){
 
 function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
     const L = seedDefaultsForKey(key);
-    L.visible = false;
+    L.visible = true;
     editorContext = {key, where};
 
     // Optional: hide elevation controls when launched from Presets
@@ -2326,7 +2326,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if (typeof teNozB!=='undefined' && teNozB && teNozB.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
     }
 
-    L.visible = false; drawAll(); markDirty();
+    L.visible = true; drawAll(); markDirty();
   });
 
   /* ---------------------------- Line toggles ------------------------------ */
@@ -2595,7 +2595,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           }
 
       // Make sure line is visible & button looks active
-      L.visible = false;
+      L.visible = true;
       const btn = container.querySelector(`.linebtn[data-line="${key}"]`);
       if (btn) btn.classList.add('active');
 
