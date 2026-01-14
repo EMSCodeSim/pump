@@ -2,7 +2,7 @@
 
 // Boot-time guard: always start with NO lines deployed.
 // Some older saved states or init paths can re-enable lines before first draw.
-let FORCE_NO_LINES_ON_BOOT = true;
+let FORCE_NO_LINES_ON_BOOT = false;
 
 // --- legacy nozzle id normalization (keeps nozzle dropdown from "sticking") ---
 function _normNozId(id){
@@ -192,10 +192,6 @@ export async function render(container){
   } catch(_e) {}
 
   const IS_APP = isNativeApp();
-
-  // Hard guarantee: start with preconnects stowed on every load
-  try { ['left','back','right'].forEach(k=>{ if (state?.lines?.[k]) state.lines[k].visible = false; }); } catch(_e) {}
-
 
   // Restore saved practice "state" early (lines/supply etc.)
   const saved_at_mount = loadSaved();
