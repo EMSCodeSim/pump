@@ -713,15 +713,19 @@ export function render(container) {
 
     <section class="card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-        <div class="field" style="max-width:220px">
+        <div class="field" style="flex:1;min-width:200px">
           <label id="answerLabel">Your answer (psi)</label>
-          <input type="text" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
+          <input type="text" id="ppGuess" placeholder="Enter pressure in psi" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
         </div>
-        <div class="field" style="max-width:200px">
-          <button class="btn" id="newScenarioBtn" style="width:100%;margin-bottom:8px">New Question</button>
+        <div class="field" style="width:170px;max-width:200px">
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL} psi)</button>
         </div>
       </div>
+
+      <div class="field" style="margin-top:10px">
+        <button class="btn" id="newScenarioBtn" style="width:100%">New Question</button>
+      </div>
+
       <div id="practiceStatus" class="status" style="margin-top:8px">No scenario loaded.</div>
     </section>
   `;
