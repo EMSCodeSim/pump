@@ -684,7 +684,7 @@ export function render(container) {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
         <div>
           <b>Practice Mode</b>
-          <div class="sub">Use the graphic info to find Pump Pressure (PP).</div>
+          <div class="sub">Use the graphic info to answer the prompt.</div>
         </div>
         <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" id="newScenarioBtn">New Question</button>
@@ -710,7 +710,7 @@ export function render(container) {
     <section class="card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="max-width:220px">
-          <label>Your PP answer (psi)</label>
+          <label id="answerLabel">Your answer (psi)</label>
           <input type="text" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
         </div>
         <div class="field" style="max-width:160px">
@@ -740,6 +740,8 @@ export function render(container) {
   const eqBox = container.querySelector('#eqBox');
   const eqToggleBtn = container.querySelector('#eqToggleBtn');
   const guessEl = container.querySelector('#ppGuess');
+  const answerLabelEl = container.querySelector('#answerLabel');
+  const checkBtnEl = container.querySelector('#checkBtn');
 
   let scenario = null;
   let currentQ = null;
@@ -991,6 +993,17 @@ export function render(container) {
 
     // Prompt
     practiceInfo.innerHTML = `<b>Prompt:</b> ${q.prompt}`;
+
+    // Update label + check button to match question type
+    if(answerLabelEl){
+      if(q.questionType === 'YN') answerLabelEl.textContent = 'Your answer (Y/N)';
+      else if((q.unitHint||'').toLowerCase() === 'gpm') answerLabelEl.textContent = 'Your answer (gpm)';
+      else answerLabelEl.textContent = 'Your answer (psi)';
+    }
+    if(checkBtnEl){
+      if(q.questionType === 'YN') checkBtnEl.textContent = 'Check (Y/N)';
+      else checkBtnEl.textContent = `Check (±${TOL})`;
+    }
 
     // Input type hints
     if(q.questionType === 'YN'){
