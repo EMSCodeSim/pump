@@ -707,7 +707,7 @@ export function render(container) {
 
       <div id="eqBox" style="margin-top:6px; display:none"></div>
 
-      <div id="practiceInfo" class="status" style="margin-top:8px">Loading first question…</div>
+      <div id="practiceInfo" class="status promptSticky">Loading first question…</div>
       <div id="work" class="math" style="margin-top:8px"></div>
     </section>
 
@@ -793,6 +793,12 @@ export function render(container) {
         CHECK: 'Not quite. Compare required PDP to the pump limit.',
       },
     },
+    revealLead: {
+      PP: 'Pump to meet the highest required pressure.',
+      ADJUST: 'Changes in flow or elevation affect friction loss and required pressure.',
+      REVERSE: 'Work backward from PDP by removing known values.',
+      CHECK: 'Pump operators must verify operations stay within equipment limits.',
+    },
   };
 
   function qKindToChip(q){
@@ -821,6 +827,57 @@ export function render(container) {
     if(q.qKind === 'ADJUST') return UI_COPY.feedback.incorrect.ADJUST;
     if(q.qKind === 'REVERSE') return UI_COPY.feedback.incorrect.REVERSE;
     return UI_COPY.feedback.incorrect.PP;
+  }
+
+  function revealLeadMsg(q){
+    if(!q) return UI_COPY.revealLead.PP;
+    if(q.questionType === 'YN') return UI_COPY.revealLead.CHECK;
+    if(q.qKind === 'ADJUST') return UI_COPY.revealLead.ADJUST;
+    if(q.qKind === 'REVERSE') return UI_COPY.revealLead.REVERSE;
+    return UI_COPY.revealLead.PP;
+  }
+
+  function diagnoseMistake(q, guessNum){
+    // Returns a short, specific hint when we can detect a common miss.
+    try{
+      if(!q || q.questionType === 'YN' || !Number.isFinite(guessNum)) return '';
+      const base = computeAll(q.scenario);
+      const expected = Number(q.answer);
+      const diff = (a,b)=>Math.abs(a-b);
+
+      // Elevation forgotten (any layout)
+      if(base.Epsi && diff(guessNum, expected - base.Epsi) <= TOL){
+        return 'Hint: elevation was not applied.';
+      }
+
+      // Wye loss forgotten
+      if(q.scenario.type === 'wye2' && diff(guessNum, expected - 10) <= TOL){
+        return 'Hint: add 10 psi for the wye.';
+      }
+
+      // Master appliance forgotten
+      if(q.scenario.type === 'master' && q.scenario.ms?.appliance && diff(guessNum, expected - q.scenario.ms.appliance) <= TOL){
+        return 'Hint: include appliance loss.';
+      }
+
+      // Pumped for lower-loss branch on wye
+      if(q.scenario.type === 'wye2'){
+        const lowerNeed = Math.min(base.needA, base.needB);
+        const usingLower = Math.round(lowerNeed + base.mainFL + 10 + base.Epsi);
+        if(diff(guessNum, usingLower) <= TOL){
+          return 'Hint: pump to the higher-loss branch (use the higher branch need).';
+        }
+      }
+
+      // Reverse: user entered total PDP instead of the component
+      if(q.qKind === 'REVERSE' && Number.isFinite(base.PDP) && diff(guessNum, base.PDP) <= TOL){
+        return 'Hint: that is the total PDP—work backward to isolate the requested value.';
+      }
+
+      return '';
+    }catch(_){
+      return '';
+    }
   }
 
   /* NEW: set an initial SVG size so the truck is fully visible before first question */
@@ -1083,15 +1140,27 @@ export function render(container) {
       else checkBtnEl.textContent = UI_COPY.buttons.checkPsi;
     }
 
-    // Input type hints
+    // Input type hints + keyboard behavior
     if(q.questionType === 'YN'){
       guessEl.placeholder = UI_COPY.input.ynPlaceholder;
+      guessEl.setAttribute('inputmode','text');
+      guessEl.setAttribute('autocomplete','off');
+      guessEl.setAttribute('autocapitalize','characters');
+      guessEl.setAttribute('spellcheck','false');
       statusEl.textContent = 'Enter Y or N, then press Check.';
     } else if((q.unitHint||'').toLowerCase() === 'gpm'){
       guessEl.placeholder = UI_COPY.input.gpmPlaceholder;
+      guessEl.setAttribute('inputmode','decimal');
+      guessEl.setAttribute('autocomplete','off');
+      guessEl.setAttribute('autocapitalize','off');
+      guessEl.setAttribute('spellcheck','false');
       statusEl.textContent = `Enter your answer (±${TOL}).`;
     } else {
       guessEl.placeholder = UI_COPY.input.psiPlaceholder;
+      guessEl.setAttribute('inputmode','decimal');
+      guessEl.setAttribute('autocomplete','off');
+      guessEl.setAttribute('autocapitalize','off');
+      guessEl.setAttribute('spellcheck','false');
       statusEl.textContent = `Enter your answer (±${TOL} psi).`;
     }
 
@@ -1119,7 +1188,21 @@ export function render(container) {
         workEl.innerHTML = '';
       }else{
         statusEl.innerHTML = `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> (Answer ${practiceAnswer})`;
-        workEl.innerHTML = rev.html || '';
+        const lead = revealLeadMsg(currentQ);
+        workEl.innerHTML = `
+          <div class="revealCompact">
+            <div class="lead">${lead}</div>
+            <div>Tap below for the full breakdown.</div>
+            <button class="btn" id="fullBreakdownBtn">Full Breakdown</button>
+          </div>
+        `;
+        const fb = container.querySelector('#fullBreakdownBtn');
+        if(fb){
+          fb.onclick = ()=>{
+            workEl.innerHTML = rev.html || '';
+            workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+          };
+        }
         workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
       }
       return;
@@ -1139,8 +1222,24 @@ export function render(container) {
       statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})`;
       workEl.innerHTML = '';
     }else{
-      statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})`;
-      workEl.innerHTML = rev.html || '';
+      const hint = diagnoseMistake(currentQ, guess);
+      statusEl.innerHTML = `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})` +
+        (hint ? `<span class="hint">${hint}</span>` : '');
+      const lead = revealLeadMsg(currentQ);
+      workEl.innerHTML = `
+        <div class="revealCompact">
+          <div class="lead">${lead}</div>
+          <div>Tap below for the full breakdown.</div>
+          <button class="btn" id="fullBreakdownBtn">Full Breakdown</button>
+        </div>
+      `;
+      const fb = container.querySelector('#fullBreakdownBtn');
+      if(fb){
+        fb.onclick = ()=>{
+          workEl.innerHTML = rev.html || '';
+          workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+        };
+      }
       workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
   });
