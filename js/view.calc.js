@@ -2869,8 +2869,7 @@ const row1 = (()=>{
   return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
 const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
-addLabel(G_labels, row1 + '
-' + row2, geom.endX, geom.endY-34, (key==='left')?-10:(key==='back')?-22:-34);
+addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-34, (key==='left')?-10:(key==='back')?-22:-34);
 
 
       if(L.hasWye){
