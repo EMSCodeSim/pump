@@ -10,6 +10,15 @@ const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
 
+// Top quick-action row (Department Setup button)
+const topActionsEl = document.querySelector('.top-actions');
+
+function updateTopActionsVisibility(viewName){
+  // Per request: show the Department Setup button only on the Pump screen.
+  if (!topActionsEl) return;
+  topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
+}
+
 const loaders = {
   calc:      () => import('./view.calc.js'),
   practice:  () => import('./view.practice.js'),
@@ -25,6 +34,8 @@ let chartsDispose = null;
 
 async function openCharts(){
   if(!chartsOverlay) return;
+  // Treat charts overlay as the "Info" screen; hide Pump-only quick actions.
+  if (topActionsEl) topActionsEl.style.display = 'none';
   chartsOverlay.style.display = 'block';
   // Lazy load charts view into the overlay without touching the current view
   chartsMount.innerHTML = '<div style="opacity:.7;padding:12px">Loading charts…</div>';
@@ -56,6 +67,7 @@ function closeCharts(){
   if(chartsDispose) { try { chartsDispose(); } catch(_){} chartsDispose = null; }
   if(chartsMount) chartsMount.innerHTML = '';
   if(chartsOverlay) chartsOverlay.style.display = 'none';
+  updateTopActionsVisibility(currentView?.name || 'calc');
 }
 
 if(chartsClose){ chartsClose.addEventListener('click', closeCharts); }
@@ -75,6 +87,8 @@ async function setView(name){
   try{
     if(currentView?.dispose) { currentView.dispose(); }
 
+    updateTopActionsVisibility(name);
+
     // Show loading immediately
     if (app) {
       app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
@@ -88,6 +102,7 @@ async function setView(name){
 
     currentView = { name, dispose: view?.dispose };
     buttons.forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+    updateTopActionsVisibility(name);
   }catch(err){
     const msg = String(err);
 
@@ -134,3 +149,4 @@ buttons.forEach(b => b.addEventListener('click', ()=> {
 }));
 
 setView('calc'); // initial
+updateTopActionsVisibility('calc');

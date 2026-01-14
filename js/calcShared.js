@@ -247,16 +247,95 @@ function straightBranch(side, startX, startY, totalPx){
 function addLabel(G_labels, text, x, y, dy=0){
   const ns='http://www.w3.org/2000/svg';
   const g = document.createElementNS(ns,'g');
-  const pad = 4;
+  const pad = 6;
   const t = document.createElementNS(ns,'text');
   t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
   g.appendChild(t); G_labels.appendChild(g);
-  const bb = t.getBBox();
+
+  // Build background + then nudge to avoid running off-screen or overlapping.
   const bg = document.createElementNS(ns,'rect');
-  bg.setAttribute('x', bb.x - pad); bg.setAttribute('y', bb.y - pad);
-  bg.setAttribute('width', bb.width + pad*2); bg.setAttribute('height', bb.height + pad*2);
-  bg.setAttribute('fill', '#eaf2ff'); bg.setAttribute('opacity', '0.92'); bg.setAttribute('stroke', '#111'); bg.setAttribute('stroke-width', '.5'); bg.setAttribute('rx','4'); bg.setAttribute('ry','4');
+  bg.setAttribute('class','lblbg');
+  bg.setAttribute('fill', '#eaf2ff');
+  bg.setAttribute('opacity', '0.94');
+  bg.setAttribute('stroke', '#111');
+  bg.setAttribute('stroke-width', '.6');
+  bg.setAttribute('rx','6');
+  bg.setAttribute('ry','6');
   g.insertBefore(bg, t);
+
+  const svg = G_labels?.ownerSVGElement || null;
+  const viewW = (svg?.viewBox?.baseVal?.width) || (typeof TRUCK_W !== 'undefined' ? TRUCK_W : 380);
+  const viewH = (svg?.viewBox?.baseVal?.height) || 9999;
+
+  function rectFromText(){
+    const bb = t.getBBox();
+    return {
+      x: bb.x - pad,
+      y: bb.y - pad,
+      w: bb.width + pad*2,
+      h: bb.height + pad*2,
+    };
+  }
+
+  function setBg(r){
+    bg.setAttribute('x', r.x);
+    bg.setAttribute('y', r.y);
+    bg.setAttribute('width', r.w);
+    bg.setAttribute('height', r.h);
+  }
+
+  // First pass size
+  let r = rectFromText();
+
+  // Clamp horizontally into viewBox
+  const margin = 2;
+  if (r.x < margin) {
+    const shift = margin - r.x;
+    t.setAttribute('x', Number(t.getAttribute('x')) + shift);
+    r = rectFromText();
+  }
+  if (r.x + r.w > viewW - margin) {
+    const shift = (viewW - margin) - (r.x + r.w);
+    t.setAttribute('x', Number(t.getAttribute('x')) + shift);
+    r = rectFromText();
+  }
+
+  // Prevent overlap with existing label bubbles (simple stacking).
+  // We look at existing rects inside this same labels group.
+  const existing = Array.from(G_labels.querySelectorAll('rect.lblbg'));
+  let safety = 0;
+  while (safety++ < 10) {
+    let collided = false;
+    for (const other of existing) {
+      // Skip our own bg (not yet in DOM when querying, but be safe)
+      if (other === bg) continue;
+      const ob = other.getBBox();
+      const ox = ob.x, oy = ob.y, ow = ob.width, oh = ob.height;
+      const intersects = !(r.x + r.w < ox || r.x > ox + ow || r.y + r.h < oy || r.y > oy + oh);
+      if (intersects) {
+        // Move this label down just below the other.
+        const delta = (oy + oh + 4) - r.y;
+        t.setAttribute('y', Number(t.getAttribute('y')) + delta);
+        r = rectFromText();
+        collided = true;
+      }
+    }
+    if (!collided) break;
+  }
+
+  // Clamp vertically (keep on screen; prefer staying within the viewBox)
+  if (r.y < margin) {
+    const shift = margin - r.y;
+    t.setAttribute('y', Number(t.getAttribute('y')) + shift);
+    r = rectFromText();
+  }
+  if (viewH !== 9999 && r.y + r.h > viewH - margin) {
+    const shift = (viewH - margin) - (r.y + r.h);
+    t.setAttribute('y', Number(t.getAttribute('y')) + shift);
+    r = rectFromText();
+  }
+
+  setBg(r);
 }
 function addTip(G_tips, key, where, x, y){
   const ns='http://www.w3.org/2000/svg';

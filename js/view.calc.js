@@ -595,7 +595,8 @@ export async function render(container){
     .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
     .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
     .simpleBox b{color:#eaf2ff}
-    .lbl{font-size:10px;fill:#0b0f14}
+    /* Larger, easier-to-read info bubbles */
+    .lbl{font-size:12px;font-weight:800;fill:#0b0f14}
     .is-hidden{display:none!important}
   `);
 
