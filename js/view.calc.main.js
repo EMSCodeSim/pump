@@ -2856,9 +2856,8 @@ const row1 = (()=>{
   }
   return `${mainFt}′ ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
-const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
-addLabel(G_labels, row1 + '
-' + row2, geom.endX, geom.endY-34, (key==='left')?-10:(key==='back')?-22:-34);
+const row2 = `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
+addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
 
       if(L.hasWye){
@@ -2875,7 +2874,7 @@ addLabel(G_labels, row1 + '
               const row1L = `${lenLeft}′ ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
               const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
               const txtL = row1L + '\n' + row2L;
-              addLabel(G_labels, txtL, gL.endX-40, gL.endY-36, -4);
+              addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
           }
           addTip(G_tips, key,'L',gL.endX,gL.endY);
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
@@ -2893,7 +2892,7 @@ addLabel(G_labels, row1 + '
               const row1R = `${lenRight}′ ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
               const txtR = row1R + '\n' + row2R;
-              addLabel(G_labels, txtR, gR.endX+40, gR.endY-36, -4);
+              addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
           }
           addTip(G_tips, key,'R',gR.endX,gR.endY);
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
