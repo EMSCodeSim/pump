@@ -241,15 +241,15 @@ export async function render(container){
                style="margin-top:8px; font-size:12px; display:flex; gap:12px; align-items:center; opacity:.85;">
             <span style="display:inline-flex; align-items:center; gap:4px;">
               <span style="width:18px; height:4px; border-radius:999px; background:#ff4b4b;"></span>
-              1&nbsp;3/4″
+              1&nbsp;3/4"
             </span>
             <span style="display:inline-flex; align-items:center; gap:4px;">
               <span style="width:18px; height:4px; border-radius:999px; background:#3b82f6;"></span>
-              2&nbsp;1/2″
+              2&nbsp;1/2"
             </span>
             <span style="display:inline-flex; align-items:center; gap:4px;">
               <span style="width:18px; height:4px; border-radius:999px; background:#fbbf24;"></span>
-              5″
+              5"
             </span>
           </div>
 
@@ -274,7 +274,7 @@ export async function render(container){
               <input type="hidden" id="teSize" value="1.75">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
-                <div class="stepVal" id="sizeLabel">1 3/4″</div>
+                <div class="stepVal" id="sizeLabel">1 3/4"</div>
                 <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
               </div>
             </div>
@@ -285,7 +285,7 @@ export async function render(container){
               <input type="hidden" id="teLen" value="50">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">50′</div>
+                <div class="stepVal" id="lenLabel">50'</div>
                 <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
               </div>
             </div>
@@ -302,7 +302,7 @@ export async function render(container){
               <input type="hidden" id="teElev" value="0">
               <div class="steppers">
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
-                <div class="stepVal" id="elevLabel">0′</div>
+                <div class="stepVal" id="elevLabel">0'</div>
             <!-- Branch controls (visible only when Wye is active) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
@@ -315,7 +315,7 @@ export async function render(container){
                   <input type="hidden" id="teLenA" value="50">
                   <div class="steppers">
                     <button type="button" class="stepBtn" id="lenAMinus">−</button>
-                    <div class="stepVal" id="lenALabel">50′</div>
+                    <div class="stepVal" id="lenALabel">50'</div>
                     <button type="button" class="stepBtn" id="lenAPlus">+</button>
                   </div>
                 </div>
@@ -324,7 +324,7 @@ export async function render(container){
                   <input type="hidden" id="teElevA" value="0">
                   <div class="steppers">
                     <button type="button" class="stepBtn" id="elevAMinus">−</button>
-                    <div class="stepVal" id="elevALabel">0′</div>
+                    <div class="stepVal" id="elevALabel">0'</div>
                     <button type="button" class="stepBtn" id="elevAPlus">+</button>
                   </div>
                 </div>
@@ -342,7 +342,7 @@ export async function render(container){
                   <input type="hidden" id="teLenB" value="50">
                   <div class="steppers">
                     <button type="button" class="stepBtn" id="lenBMinus">−</button>
-                    <div class="stepVal" id="lenBLabel">50′</div>
+                    <div class="stepVal" id="lenBLabel">50'</div>
                     <button type="button" class="stepBtn" id="lenBPlus">+</button>
                   </div>
                 </div>
@@ -351,7 +351,7 @@ export async function render(container){
                   <input type="hidden" id="teElevB" value="0">
                   <div class="steppers">
                     <button type="button" class="stepBtn" id="elevBMinus">−</button>
-                    <div class="stepVal" id="elevBLabel">0′</div>
+                    <div class="stepVal" id="elevBLabel">0'</div>
                     <button type="button" class="stepBtn" id="elevBPlus">+</button>
                   </div>
                 </div>
@@ -433,9 +433,9 @@ export async function render(container){
             <div class="field" style="min-width:150px">
               <label>Line size</label>
               <select id="hydrantLineSize">
-                <option value="1.75">1¾″ (attack)</option>
-                <option value="2.5">2½″</option>
-                <option value="5">5″ LDH</option>
+                <option value="1.75">1¾" (attack)</option>
+                <option value="2.5">2½"</option>
+                <option value="5">5" LDH</option>
               </select>
             </div>
             <div class="field" style="min-width:140px">
@@ -940,7 +940,7 @@ const activePresetLines = {};
         const sizeLabel = tip.querySelector('#sizeLabel');
         if (!mainShow){
           if (teSize) teSize.value = '1.75';
-          if (sizeLabel) sizeLabel.textContent = '1 3/4″';
+          if (sizeLabel) sizeLabel.textContent = '1 3/4"';
           if (sizeMinus) sizeMinus.disabled = true;
           if (sizePlus)  sizePlus.disabled  = true;
         }else{
@@ -1063,7 +1063,7 @@ function gateWyeBySize(){
     const sizeLabel = container.querySelector('#sizeLabel');
     if (seg==='A' || seg==='B'){
       if (teSize) teSize.value = '1.75';
-      if (sizeLabel) sizeLabel.textContent = '1 3/4″';
+      if (sizeLabel) sizeLabel.textContent = '1 3/4"';
       if (sizeMinus) sizeMinus.disabled = true;
       if (sizePlus)  sizePlus.disabled  = true;
     } else {
@@ -1897,7 +1897,7 @@ function openPresetLineActions(id){
     ['left','back','right'].forEach(key=>{
       const L = state.lines[key];
       const row = document.createElement('div'); row.className='lineRow';
-      const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'′ '+sizeLabel(s.size)).join(' + ') : 'empty';
+      const segs = L.itemsMain.length ? L.itemsMain.map(s=>s.lengthFt+'' '+sizeLabel(s.size)).join(' + ') : 'empty';
       const single = L.hasWye && isSingleWye(L);
       const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
       const flow = single ? (usedNoz?.gpm||0) : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
@@ -1922,9 +1922,9 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
+                  <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
@@ -1961,9 +1961,9 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
+                  <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
@@ -1980,7 +1980,7 @@ function openPresetLineActions(id){
           linesTable.appendChild(wrap);
 
           drawHoseBar(document.getElementById('viz_main_'+key), sectionsFor(L.itemsMain), bflow, 0, 'Main '+breakdownText(L.itemsMain)+' @ '+bflow+' gpm', 'Wye '+wye);
-          drawHoseBar(document.getElementById('viz_BR_'+key), sectionsFor(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+'′');
+          drawHoseBar(document.getElementById('viz_BR_'+key), sectionsFor(bnSegs), noz?.gpm||0, noz?.NP||0, bnTitle+' '+(sumFt(bnSegs)||0)+''');
           document.getElementById('pp_simple_'+key).innerHTML = ppExplainHTML(L);
 
         } else {
@@ -1989,9 +1989,9 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
+                  <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
@@ -2072,9 +2072,9 @@ function refreshEditorVisualsFromFields(){
     if(sizeInput && sizeLabelEl){
       const val = String(sizeInput.value||'').trim();
       let label = val;
-      if(val === '1.75') label = '1 3/4″';
-      else if(val === '2.5') label = '2 1/2″';
-      else if(val === '5') label = '5″';
+      if(val === '1.75') label = '1 3/4"';
+      else if(val === '2.5') label = '2 1/2"';
+      else if(val === '5') label = '5"';
       sizeLabelEl.textContent = label;
     }
 
@@ -2083,7 +2083,7 @@ function refreshEditorVisualsFromFields(){
     const lenLabelEl = root.querySelector('#lenLabel');
     if(lenInput && lenLabelEl){
       const v = parseInt(lenInput.value||'0',10) || 0;
-      lenLabelEl.textContent = `${v}′`;
+      lenLabelEl.textContent = `${v}'`;
     }
 
     // Elevation label
@@ -2091,7 +2091,7 @@ function refreshEditorVisualsFromFields(){
     const elevLabelEl = root.querySelector('#elevLabel');
     if(elevInput && elevLabelEl){
       const v = parseInt(elevInput.value||'0',10) || 0;
-      elevLabelEl.textContent = `${v}′`;
+      elevLabelEl.textContent = `${v}'`;
     }
   }catch(_){}
 }
@@ -2810,7 +2810,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
 // Main label: two rows
-// Row 1: "200′ 1 3/4 @ 50psi" (hose length + predominant size + nozzle pressure when applicable)
+// Row 1: "200' 1 3/4 @ 50psi" (hose length + predominant size + nozzle pressure when applicable)
 // Row 2: "PP ___ psi • ___ gpm" (engine pump discharge pressure for this line)
 function hoseSizeForBubble(secs){
   // Try to infer a single predominant hose diameter for label bubbles.
@@ -2850,11 +2850,11 @@ const row1 = (()=>{
   if (L.hasWye) {
     if (single) {
       const bn = activeNozzle(L);
-      return `${mainFt}′ ${mainSize} @ ${(bn?.NP||0)}psi`;
+      return `${mainFt}' ${mainSize} @ ${(bn?.NP||0)}psi`;
     }
-    return `${mainFt}′ ${mainSize} @ Wye`;
+    return `${mainFt}' ${mainSize} @ Wye`;
   }
-  return `${mainFt}′ ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
+  return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
 const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
 addLabel(G_labels, row1 + '
@@ -2872,7 +2872,7 @@ addLabel(G_labels, row1 + '
               const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
               const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeL = hoseSizeForBubble(L.itemsLeft);
-              const row1L = `${lenLeft}′ ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
+              const row1L = `${lenLeft}' ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
               const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
               const txtL = row1L + '\n' + row2L;
               addLabel(G_labels, txtL, gL.endX-40, gL.endY-36, -4);
@@ -2890,7 +2890,7 @@ addLabel(G_labels, row1 + '
               const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
               const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeR = hoseSizeForBubble(L.itemsRight);
-              const row1R = `${lenRight}′ ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
+              const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
               const txtR = row1R + '\n' + row2R;
               addLabel(G_labels, txtR, gR.endX+40, gR.endY-36, -4);
@@ -2987,13 +2987,13 @@ function initPlusMenus(root){
             const val = String(d).trim();
             if (!val) return null;
             const plain =
-              val === '1.75' ? '1 3/4″' :
-              val === '1.5'  ? '1 1/2″' :
-              val === '2.0'  ? '2″' :
-              val === '2.5'  ? '2 1/2″' :
-              val === '3'    ? '3″' :
-              val === '4'    ? '4″' :
-              val === '5'    ? '5″' :
+              val === '1.75' ? '1 3/4"' :
+              val === '1.5'  ? '1 1/2"' :
+              val === '2.0'  ? '2"' :
+              val === '2.5'  ? '2 1/2"' :
+              val === '3'    ? '3"' :
+              val === '4'    ? '4"' :
+              val === '5'    ? '5"' :
               val + '"';
             return { val, labelPlain: plain };
           })
@@ -3006,9 +3006,9 @@ function initPlusMenus(root){
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { val: "1.75", labelPlain: "1 3/4″" },
-      { val: "2.5",  labelPlain: "2 1/2″" },
-      { val: "5",    labelPlain: "5″" }
+      { val: "1.75", labelPlain: "1 3/4"" },
+      { val: "2.5",  labelPlain: "2 1/2"" },
+      { val: "5",    labelPlain: "5"" }
     ];
   }
 
@@ -3029,7 +3029,7 @@ function initPlusMenus(root){
   const lenPlus = root.querySelector('#lenPlus');
   const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
   function parseLen(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(teLen?.value||'0',10)||0)); }
-  function drawLen(){ if(lenLabel) lenLabel.textContent = `${parseLen()}′`; }
+  function drawLen(){ if(lenLabel) lenLabel.textContent = `${parseLen()}'`; }
   function stepLen(d){ let v = parseLen()+d; v=Math.max(LEN_MIN,Math.min(LEN_MAX,v)); if(teLen) teLen.value=String(v); drawLen(); }
   lenMinus?.addEventListener('click', ()=> stepLen(-LEN_STEP));
   lenPlus?.addEventListener('click', ()=> stepLen(+LEN_STEP));
@@ -3041,7 +3041,7 @@ function initPlusMenus(root){
   const elevPlus = root.querySelector('#elevPlus');
   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
   function parseElev(){ const v=parseInt(teElev?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); }
-  function drawElev(){ if(elevLabel) elevLabel.textContent = `${parseElev()}′`; }
+  function drawElev(){ if(elevLabel) elevLabel.textContent = `${parseElev()}'`; }
   function stepElev(d){ let v=parseElev()+d; v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); if(teElev) teElev.value=String(v); drawElev(); }
   elevMinus?.addEventListener('click', ()=> stepElev(-ELEV_STEP));
   elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
@@ -3139,7 +3139,7 @@ function initBranchPlusMenus(root){
 
   function makeLen(elHidden, elLabel, minusBtn, plusBtn){
     function parse(){ return Math.max(LEN_MIN, Math.min(LEN_MAX, parseInt(elHidden?.value||'50',10)||50)); }
-    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}'`; }
     function step(d){ let v = parse() + d; v = Math.max(LEN_MIN, Math.min(LEN_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
     minusBtn?.addEventListener('click', ()=> step(-LEN_STEP));
     plusBtn?.addEventListener('click', ()=> step(+LEN_STEP));
@@ -3148,7 +3148,7 @@ function initBranchPlusMenus(root){
 
   function makeElev(elHidden, elLabel, minusBtn, plusBtn){
     function parse(){ const v = parseInt(elHidden?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); }
-    function draw(){ if(elLabel) elLabel.textContent = `${parse()}′`; }
+    function draw(){ if(elLabel) elLabel.textContent = `${parse()}'`; }
     function step(d){ let v = parse() + d; v = Math.max(ELEV_MIN, Math.min(ELEV_MAX, v)); if(elHidden) elHidden.value = String(v); draw(); }
     minusBtn?.addEventListener('click', ()=> step(-ELEV_STEP));
     plusBtn?.addEventListener('click', ()=> step(+ELEV_STEP));
