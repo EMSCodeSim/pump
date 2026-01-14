@@ -8,11 +8,11 @@
   },
   "templates": [
     {
-      "id": "tender_can_supply_from_diagram",
+      "id": "tender_can_supply_from_diagram_3000_15",
       "topic": "tender_shuttle",
       "layout": "from_current_diagram",
       "type": "MULTIPART",
-      "weight": 12,
+      "weight": 10,
       "chip": "TENDER SHUTTLE",
       "prompt": "Answer both parts:",
       "parts": [
@@ -38,6 +38,108 @@
         }
       ],
       "revealLead": "First determine required flow, then compare to sustained tender flow (tank \u00f7 turnaround)."
+    },
+    {
+      "id": "tender_sustained_then_decide_2000_12",
+      "topic": "tender_shuttle",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 8,
+      "chip": "TENDER SHUTTLE",
+      "prompt": "Answer both parts:",
+      "parts": [
+        {
+          "id": "p1_sustained",
+          "prompt": "A tender carries 2000 gallons and has a 12 minute round trip. What sustained flow can it supply (gpm)?",
+          "answerKey": "tenderSustainedGpm",
+          "unit": "gpm",
+          "answerType": "number",
+          "uses": {
+            "tender": {
+              "tankGallons": 2000,
+              "turnaroundMinutes": 12
+            }
+          }
+        },
+        {
+          "id": "p2_can_supply",
+          "prompt": "Can 1 tender supply the required gpm from the diagram? (Y/N)",
+          "answerKey": "tenderCanSupply",
+          "unit": "YN",
+          "answerType": "yn",
+          "uses": {
+            "tender": {
+              "tankGallons": 2000,
+              "turnaroundMinutes": 12
+            }
+          }
+        }
+      ],
+      "revealLead": "Compute sustained tender flow first, then compare to the required flow from the diagram."
+    },
+    {
+      "id": "tender_count_needed_3000_15",
+      "topic": "tender_shuttle",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 8,
+      "chip": "TENDER SHUTTLE",
+      "prompt": "Answer both parts:",
+      "parts": [
+        {
+          "id": "p1_flow",
+          "prompt": "Based on the diagram, how many gpm is flowing?",
+          "answerKey": "totalGpm",
+          "unit": "gpm",
+          "answerType": "number"
+        },
+        {
+          "id": "p2_count",
+          "prompt": "Using 3000-gallon tenders with a 15 minute round trip, what is the minimum number of tenders needed to sustain this flow?",
+          "answerKey": "tenderCountNeeded",
+          "unit": "tenders",
+          "answerType": "number",
+          "uses": {
+            "tender": {
+              "tankGallons": 3000,
+              "turnaroundMinutes": 15
+            }
+          }
+        }
+      ],
+      "revealLead": "Minimum tenders = required flow \u00f7 sustained flow per tender (round up)."
+    },
+    {
+      "id": "tender_max_turnaround_3000",
+      "topic": "tender_shuttle",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 6,
+      "chip": "TENDER SHUTTLE",
+      "prompt": "Answer both parts:",
+      "parts": [
+        {
+          "id": "p1_flow",
+          "prompt": "Based on the diagram, how many gpm is flowing?",
+          "answerKey": "totalGpm",
+          "unit": "gpm",
+          "answerType": "number"
+        },
+        {
+          "id": "p2_max_turn",
+          "prompt": "One tender carries 3000 gallons. What is the maximum round trip time (minutes) to sustain this required flow?",
+          "answerKey": "tenderMaxTurnaround",
+          "unit": "min",
+          "answerType": "number",
+          "uses": {
+            "tender": {
+              "tankGallons": 3000,
+              "turnaroundMinutes": 15
+            }
+          }
+        }
+      ],
+      "revealLead": "Max turnaround (min) = tank gallons \u00f7 required gpm."
     }
   ]
 }
