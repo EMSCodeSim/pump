@@ -467,6 +467,39 @@
       margin:0 0 6px 0;
       color:var(--muted);
     }
+
+	    /* Startup categories (Pump / Practice / Info) */
+	    .qs-home{display:grid;gap:10px;margin-top:10px}
+	    .qs-big{
+	      width:100%;
+	      text-align:left;
+	      padding:12px 12px;
+	      border-radius:14px;
+	      border:1px solid rgba(120,162,220,0.55);
+	      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.22), transparent 60%), #050a14;
+	      color:#e9f1ff;
+	      cursor:pointer;
+	      box-shadow:0 10px 22px rgba(0,0,0,0.65);
+	    }
+	    .qs-big:hover{border-color:var(--accent);box-shadow:0 0 0 1px rgba(127,208,255,0.28),0 12px 26px rgba(0,0,0,0.8)}
+	    .qs-big-title{font-weight:900;font-size:16px;margin-bottom:4px}
+	    .qs-big-sub{color:var(--muted);font-size:13px;line-height:1.35}
+
+	    .qs-detail{margin-top:6px}
+	    .qs-detail-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+	    .qs-back{
+	      border-radius:999px;
+	      border:1px solid #2a4066;
+	      background:#050a14;
+	      color:#e9f1ff;
+	      padding:6px 10px;
+	      font-size:12px;
+	      cursor:pointer;
+	      flex-shrink:0;
+	    }
+	    .qs-back:hover{border-color:var(--accent);color:#fff}
+	    .qs-actions{display:grid;gap:8px;margin-top:8px}
+	    .qs-mini{margin-top:8px;color:var(--muted);font-size:12px}
     .qs-link{
       margin-top:4px;
       margin-bottom:8px;
@@ -484,7 +517,7 @@
       border-color:var(--accent);
       color:#fff;
     }
-    .qs-checkbox{
+	    .qs-checkbox{
       display:flex;
       align-items:center;
       gap:6px;
@@ -614,34 +647,90 @@
   <!-- Quick Start overlay -->
   <div id="quickStartModal" class="qs-modal hidden" role="dialog" aria-modal="true" aria-label="Quick start guide">
     <div class="qs-window">
-      <h2>FireOps Calc — First-Time Setup</h2>
-      <p class="qs-sub">Before you start calculating, set up your engine’s <b>preconnects</b>. You can do 1–3 total.</p>
+      <h2>FireOps Calc — Start Here</h2>
+      <p class="qs-sub">Pick a section to see what’s inside. Each one includes a quick walkthrough and a button to jump you straight into the app.</p>
 
-      <section>
-        <h3>1. Set up Preconnects (required)</h3>
-        <p>Create your department’s standard preconnects. These replace “Line 1/2/3” and will be used everywhere in the app.</p>
-        <button class="qs-link" type="button" data-qsgoto="preconnects">Open Preconnect Setup</button>
+      <!-- Home: 3 big category buttons -->
+      <div id="qsHome" class="qs-home" aria-label="Startup categories">
+        <button class="qs-big" type="button" data-qscat="pump">
+          <div class="qs-big-title">⚙️ Pump</div>
+          <div class="qs-big-sub">Real-world pumping calculations: preconnects, hydrant/tender supply, wye &amp; elevation.</div>
+        </button>
+        <button class="qs-big" type="button" data-qscat="practice">
+          <div class="qs-big-title">🎯 Practice</div>
+          <div class="qs-big-sub">Pump test prep with mixed questions and scenarios. Build speed and confidence.</div>
+        </button>
+        <button class="qs-big" type="button" data-qscat="info">
+          <div class="qs-big-title">📊 Info</div>
+          <div class="qs-big-sub">Reference tables + how-to. Quick math, rules of thumb, and fireground info.</div>
+        </button>
+      </div>
+
+      <!-- Detail: Pump -->
+      <section id="qsDetailPump" class="qs-detail" hidden>
+        <div class="qs-detail-head">
+          <button class="qs-back" type="button" data-qsback>← Back</button>
+          <h3 style="margin:0">Pump</h3>
+        </div>
+        <p class="qs-sub" style="margin-top:8px">This is the main calculator. Set up your engine once, then run fast, consistent numbers on the fireground.</p>
+        <div class="qs-detail-body">
+          <h4 style="margin:10px 0 6px">Walkthrough</h4>
+          <ol style="margin:0 0 10px 18px">
+            <li><b>Set up preconnects</b> (required): add 1–3 lines so “Line 1/2/3” matches your engine.</li>
+            <li><b>Deploy a line</b>: toggle Line 1–3 on, then use the <b>+</b> at the nozzle end to edit length/nozzle/elevation.</li>
+            <li><b>Pick a water supply</b>: Hydrant % drop or Tender shuttle.</li>
+            <li>Tap <b>Why?</b> to see the pressure breakdown (NP + FL + elevation + appliance loss).</li>
+          </ol>
+          <div class="qs-actions">
+            <button class="qs-link" type="button" data-qsgoto="preconnects">Open Preconnect Setup</button>
+            <button class="qs-link" type="button" data-qsgoto="calc">Go to Pump</button>
+          </div>
+          <div class="qs-mini">Tip: If your lines don’t match your engine, run Preconnect Setup again (you can change it anytime).</div>
+        </div>
       </section>
 
-      <section>
-        <h3>2. Calculations</h3>
-        <p>Fast field-ready pressure calculations using your saved preconnects, quick length/nozzle changes, and water supply tools.</p>
-        <button class="qs-link" type="button" data-qsgoto="calc">Open Calculations</button>
+      <!-- Detail: Practice -->
+      <section id="qsDetailPractice" class="qs-detail" hidden>
+        <div class="qs-detail-head">
+          <button class="qs-back" type="button" data-qsback>← Back</button>
+          <h3 style="margin:0">Practice</h3>
+        </div>
+        <p class="qs-sub" style="margin-top:8px">Practice mode is for pump test prep: mixed questions, fast repetition, and instant feedback.</p>
+        <div class="qs-detail-body">
+          <h4 style="margin:10px 0 6px">Walkthrough</h4>
+          <ol style="margin:0 0 10px 18px">
+            <li>Pick a question type or use mixed mode.</li>
+            <li>Answer, then hit <b>Check</b> to see the breakdown.</li>
+            <li>Use <b>New Question</b> to grind reps and build speed.</li>
+          </ol>
+          <div class="qs-actions">
+            <button class="qs-link" type="button" data-qsgoto="practice">Go to Practice</button>
+          </div>
+        </div>
       </section>
 
-      <section>
-        <h3>3. Practice</h3>
-        <p>Use the visual pump simulator to practice layouts and see PDP update live. Great for keeping pump skills sharp.</p>
-        <button class="qs-link" type="button" data-qsgoto="practice">Open Practice Mode</button>
+      <!-- Detail: Info -->
+      <section id="qsDetailInfo" class="qs-detail" hidden>
+        <div class="qs-detail-head">
+          <button class="qs-back" type="button" data-qsback>← Back</button>
+          <h3 style="margin:0">Info</h3>
+        </div>
+        <p class="qs-sub" style="margin-top:8px">Quick reference: tables, formulas, and the full how-to guide.</p>
+        <div class="qs-detail-body">
+          <h4 style="margin:10px 0 6px">What’s inside</h4>
+          <ul style="margin:0 0 10px 18px">
+            <li>Nozzles, hose friction, rules of thumb</li>
+            <li>Water supply math (hydrant &amp; tender)</li>
+            <li>Fireground reference (more coming soon)</li>
+          </ul>
+          <div class="qs-actions">
+            <button class="qs-link" type="button" data-qsgoto="charts">Open Info</button>
+            <a class="qs-link" href="/how-to.html" style="display:inline-flex;align-items:center;justify-content:center">Open How-to</a>
+          </div>
+        </div>
       </section>
 
-      <section>
-        <h3>4. Tables</h3>
-        <p>Reference tables for nozzles, hose coefficients, rules of thumb, and water supply formulas.</p>
-        <button class="qs-link" type="button" data-qsgoto="charts">Open Tables</button>
-      </section>
-
-      <label class="qs-check">
+	      <label class="qs-checkbox">
         <input type="checkbox" id="qsDontShow" />
         Do not show this again
       </label>
@@ -656,9 +745,14 @@
   <!-- Quick Start wiring -->
   <script>
     (function(){
-      const GUIDE_VERSION = 2;
+	      // Bump this when the onboarding UI changes so existing users see it once
+	      const GUIDE_VERSION = 3;
       const MODAL_KEY = 'fireops_quickstart_seen_version';
       const modal = document.getElementById('quickStartModal');
+	      const home = document.getElementById('qsHome');
+	      const pump = document.getElementById('qsDetailPump');
+	      const practice = document.getElementById('qsDetailPractice');
+	      const info = document.getElementById('qsDetailInfo');
       const dontShowBox = document.getElementById('qsDontShow');
       const closeBtn = document.getElementById('qsCloseBtn');
 
@@ -667,7 +761,7 @@
         if (btn) btn.click();
       }
 
-      function go(screen){
+	      function go(screen){
         switch(screen){
           case 'preconnects':
             window.location.href = '/setup-preconnects.html';
@@ -687,12 +781,28 @@
           case 'practice':
             navClick('.bottom-nav .navbtn[data-view="practice"]');
             break;
-          case 'tables':
+	          case 'tables':
+	          case 'charts':
             navClick('.bottom-nav .navbtn[data-view="charts"]');
             break;
         }
         hide();
       }
+
+	      function showHome(){
+	        if (home) home.hidden = false;
+	        if (pump) pump.hidden = true;
+	        if (practice) practice.hidden = true;
+	        if (info) info.hidden = true;
+	      }
+
+	      function showDetail(cat){
+	        if (!home || !pump || !practice || !info) return;
+	        home.hidden = true;
+	        pump.hidden = cat !== 'pump';
+	        practice.hidden = cat !== 'practice';
+	        info.hidden = cat !== 'info';
+	      }
 
       function hide(){
         if (!modal) return;
@@ -709,19 +819,31 @@
           suppressed = Number(localStorage.getItem(MODAL_KEY) || '0') >= GUIDE_VERSION;
         }catch(e){}
         if (!suppressed){
+	          showHome();
           modal.classList.remove('hidden');
         }
       }
 
-      if (modal){
-        // link buttons
-        modal.addEventListener('click', function(evt){
-          const t = evt.target;
-          if (t && t.matches('[data-qsgoto]')){
-            const dest = t.getAttribute('data-qsgoto');
-            go(dest);
-          }
-        });
+	      if (modal){
+	        // button routing inside the modal
+	        modal.addEventListener('click', function(evt){
+	          const t = evt.target && evt.target.closest && evt.target.closest('button,[data-qsgoto]');
+	          if (!t) return;
+
+	          if (t.matches('[data-qscat]')){
+	            const cat = t.getAttribute('data-qscat');
+	            showDetail(cat);
+	            return;
+	          }
+	          if (t.matches('[data-qsback]')){
+	            showHome();
+	            return;
+	          }
+	          if (t.matches('[data-qsgoto]')){
+	            const dest = t.getAttribute('data-qsgoto');
+	            go(dest);
+	          }
+	        });
         if (closeBtn){
           closeBtn.addEventListener('click', hide);
         }
