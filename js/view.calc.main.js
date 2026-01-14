@@ -391,9 +391,9 @@ export async function render(container){
         <div class="controlBlock">
           <div class="controlRow">
             <div class="lineGroup">
-              <button class="linebtn" data-line="left">Preconnect 1</button>
-              <button class="linebtn" data-line="back">Preconnect 2</button>
-              <button class="linebtn" data-line="right">Preconnect 3</button>
+              <button class="linebtn" data-line="left">Line 1</button>
+              <button class="linebtn" data-line="back">Line 2</button>
+              <button class="linebtn" data-line="right">Line 3</button>
               <button class="presetsbtn" id="presetsBtn">Presets</button>
             </div>
           </div>
@@ -1818,7 +1818,7 @@ function openPresetLineActions(id){
     const vis = Object.entries(state.lines).filter(([_k,l])=>l.visible);
     let totalGPM = 0, maxPDP = -Infinity, maxKey = null;
 
-    // Department lines (Preconnect 1/2/3)
+    // Department lines (Line 1/2/3)
     vis.forEach(([key, L])=>{
       const single = L.hasWye && isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
@@ -2547,7 +2547,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   function applyPresetToCalc(preset){
     if (!preset) return;
 
-    // --- Special case: direct Preconnect 1/2/3 edits from the Dept line editor ----
+    // --- Special case: direct Line 1/2/3 edits from the Dept line editor ----
     if (preset.kind === 'lineEdit'){
       const src = (preset && typeof preset.payload === 'object' && preset.payload)
         ? preset.payload
@@ -2925,7 +2925,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
     container.querySelector('#hydrantBtn')?.classList.toggle('active', state.supply==='pressurized');
     container.querySelector('#tenderBtn')?.classList.toggle('active', state.supply==='static');
 
-    // Line button states (Preconnect 1/2/3)
+    // Line button states (Line 1/2/3)
     ['left','back','right'].forEach(k => {
       const L = state.lines[k];
       const btn = container.querySelector(`.linebtn[data-line="${k}"]`);
