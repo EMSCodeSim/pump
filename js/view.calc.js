@@ -2796,16 +2796,37 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const mainFt = sumFt(L.itemsMain);
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
+      // Per-line flow + pump pressure (PDP) used for label bubbles
+      const single = L.hasWye && isSingleWye(L);
+      const usedNoz = single ? activeNozzle(L) : (L.hasWye ? null : L.nozRight);
+      const flowGpm = single ? (usedNoz?.gpm||0)
+                    : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
+      const mainFL = FL_total_sections_175(flowGpm, L.itemsMain);
+      let ppPsi = 0;
+      if (single) {
+        const side = activeSide(L);
+        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
+        const bnNoz  = activeNozzle(L);
+        const branchFL = FL_total_sections_175(bnNoz?.gpm||0, bnSegs);
+        ppPsi = (bnNoz?.NP||0) + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+      } else if (L.hasWye) {
+        const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
+        const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
+        ppPsi = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+      } else {
+        ppPsi = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+      }
+
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
       drawSegmentedPath(G_hoses, base, L.itemsMain);
       addTip(G_tips, key,'main',geom.endX,geom.endY);
 
-      // Main label: if Wye present, show 'via Wye' (no nozzle mention)
-      const single = L.hasWye && isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : L.hasWye ? null : L.nozRight;
-      const flowGpm = single ? (usedNoz?.gpm||0) : (L.hasWye ? (L.nozLeft.gpm + L.nozRight.gpm) : L.nozRight.gpm);
-      const npLabel = L.hasWye ? ' — via Wye' : (' — Nozzle '+(L.nozRight?.NP||0)+' psi');
-      addLabel(G_labels, mainFt+'′ @ '+flowGpm+' gpm'+npLabel, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+      // Main label: two lines (length/nozzle or wye, then PP + GPM)
+      const topLine = L.hasWye
+        ? (mainFt + '′ — via Wye')
+        : (mainFt + '′ — Nozzle ' + (L.nozRight?.NP||0) + ' psi');
+      const bottomLine = 'PP ' + Math.round(ppPsi) + ' psi • ' + Math.round(flowGpm) + ' gpm';
+      addLabel(G_labels, topLine + '\n' + bottomLine, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
@@ -2815,7 +2836,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           // Branch A info bubble
           const lenLeft = sumFt(L.itemsLeft||[]);
           if(lenLeft>0 && L.nozLeft){
-            const txtL = lenLeft+'′ @ '+(L.nozLeft.gpm||0)+' gpm — Nozzle '+(L.nozLeft.NP||0)+' psi';
+            const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
+            const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+            const txtL = (lenLeft+'′ — Nozzle '+(L.nozLeft.NP||0)+' psi') + '\n' + ('PP '+Math.round(branchPP)+' psi • '+Math.round(L.nozLeft.gpm||0)+' gpm');
             addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
           }
           addTip(G_tips, key,'L',gL.endX,gL.endY);
@@ -2828,7 +2851,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
           // Branch B info bubble
           const lenRight = sumFt(L.itemsRight||[]);
           if(lenRight>0 && L.nozRight){
-            const txtR = lenRight+'′ @ '+(L.nozRight.gpm||0)+' gpm — Nozzle '+(L.nozRight.NP||0)+' psi';
+            const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+            const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+            const txtR = (lenRight+'′ — Nozzle '+(L.nozRight.NP||0)+' psi') + '\n' + ('PP '+Math.round(branchPP)+' psi • '+Math.round(L.nozRight.gpm||0)+' gpm');
             addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
           }
           addTip(G_tips, key,'R',gR.endX,gR.endY);

@@ -249,7 +249,39 @@ function addLabel(G_labels, text, x, y, dy=0){
   const g = document.createElementNS(ns,'g');
   const pad = 6;
   const t = document.createElementNS(ns,'text');
-  t.setAttribute('class','lbl'); t.setAttribute('x', x); t.setAttribute('y', y+dy); t.setAttribute('text-anchor','middle'); t.textContent = text;
+  t.setAttribute('class','lbl');
+  t.setAttribute('x', x);
+  t.setAttribute('y', y+dy);
+  t.setAttribute('text-anchor','middle');
+
+  // Support 2-line labels by passing a string with a '\n' newline.
+  // Example: "Line 1\nLine 2"
+  if (Array.isArray(text)) {
+    // Treat as explicit lines
+    t.textContent = '';
+    text.forEach((line, i) => {
+      const sp = document.createElementNS(ns, 'tspan');
+      sp.setAttribute('x', x);
+      if (i > 0) sp.setAttribute('dy', '1.15em');
+      sp.textContent = String(line);
+      t.appendChild(sp);
+    });
+  } else {
+    const s = String(text ?? '');
+    if (s.includes('\n')) {
+      const lines = s.split(/\n/g);
+      t.textContent = '';
+      lines.forEach((line, i) => {
+        const sp = document.createElementNS(ns, 'tspan');
+        sp.setAttribute('x', x);
+        if (i > 0) sp.setAttribute('dy', '1.15em');
+        sp.textContent = line;
+        t.appendChild(sp);
+      });
+    } else {
+      t.textContent = s;
+    }
+  }
   g.appendChild(t); G_labels.appendChild(g);
 
   // Build background + then nudge to avoid running off-screen or overlapping.
