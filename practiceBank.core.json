@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "packId": "core_dopumper",
+  "title": "Core DO Pumper Pack",
+  "defaults": {
+    "tolerancePsi": 5,
+    "pumpLimitPsi": 150
+  },
+  "templates": [
+    {
+      "id": "tender_can_supply_from_diagram",
+      "topic": "tender_shuttle",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 12,
+      "chip": "TENDER SHUTTLE",
+      "prompt": "Answer both parts:",
+      "parts": [
+        {
+          "id": "p1_flow",
+          "prompt": "Based on the diagram, how many gpm is flowing?",
+          "answerKey": "totalGpm",
+          "unit": "gpm",
+          "answerType": "number"
+        },
+        {
+          "id": "p2_can_supply",
+          "prompt": "You have 1 tender carrying 3000 gallons with a 15 minute round trip. Can it supply the required gpm? (Y/N)",
+          "answerKey": "tenderCanSupply",
+          "unit": "YN",
+          "answerType": "yn",
+          "uses": {
+            "tender": {
+              "tankGallons": 3000,
+              "turnaroundMinutes": 15
+            }
+          }
+        }
+      ],
+      "revealLead": "First determine required flow, then compare to sustained tender flow (tank \u00f7 turnaround)."
+    }
+  ]
+}
