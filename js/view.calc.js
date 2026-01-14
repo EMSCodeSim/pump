@@ -2746,15 +2746,18 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       console.warn('setupPresets failed', e);
     }
   } else {
-    // Web: Presets are app-only. Clicking takes the user to the explainer/store link.
-    const b = container.querySelector('#presetsBtn');
-    if (b) {
-      b.textContent = 'Presets (App)';
-      b.addEventListener('click', (e)=>{
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.href = '/app-only-presets.html';
+    // Web: enable presets editor too (session edits only unless user saves).
+    try {
+      setupPresets({
+        isApp: false,
+        triggerButtonId: 'presetsBtn',
+        appStoreUrl: 'https://play.google.com/store/apps/details?id=com.fireopscalc.app',
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=com.fireopscalc.app',
+        getLineState: getLineStateFromCalc,
+        applyPresetToCalc
       });
+    } catch (e) {
+      console.warn('setupPresets failed (web)', e);
     }
   }
   function enhanceTenderListStyle() {
