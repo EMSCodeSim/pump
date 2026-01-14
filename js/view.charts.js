@@ -1,5 +1,9 @@
 // ./js/view.charts.js
-// Phone-friendly Charts view, with "Common GPM" bubbles removed.
+// Phone-friendly Charts/Tables view, expanded with clean submenus:
+// - Nozzles
+// - Hose Friction
+// - Rules of Thumb
+// - More -> Equations, Water Supply, Wildland, HazMat, NFPA/Standards links
 
 import { COEFF } from './store.js';
 
@@ -9,7 +13,12 @@ import { COEFF } from './store.js';
  *   1) Nozzles  (Smooth Bore | Fog | Specialty)  ← SB first, default selected
  *   2) Hose Friction Loss (horizontal hose-size buttons; FL per 100')
  *   3) Rules of Thumb
- * - Mobile polish: bigger tap targets, 16px inputs to prevent iOS zoom, responsive grids.
+ *   4) More (submenu):
+ *      - Equations
+ *      - Water Supply
+ *      - Wildland
+ *      - HazMat
+ *      - NFPA / Standards (links only)
  */
 
 export async function render(container){
@@ -18,15 +27,16 @@ export async function render(container){
 
       <!-- Section launchers -->
       <section class="card">
-        <div class="controls" style="display:flex; gap:6px; flex-wrap:nowrap">
+        <div class="controls" style="display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px">
           <button class="btn primary" id="btnShowNozzles" type="button">Nozzles</button>
           <button class="btn" id="btnShowFL" type="button">Hose Friction</button>
-          <button class="btn" id="btnShowRules" type="button">Rules of Thumb</button>
+          <button class="btn" id="btnShowRules" type="button">Rules</button>
+          <button class="btn" id="btnShowMore" type="button">More</button>
         </div>
         <div class="status" style="margin-top:8px">Pick a topic to view details.</div>
       </section>
 
-      <!-- NOZZLES (hidden until pressed) -->
+      <!-- NOZZLES -->
       <section class="card" id="nozzlesCard" style="display:none">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap">
           <div class="ink-strong" style="font-weight:700">Nozzles</div>
@@ -37,19 +47,15 @@ export async function render(container){
           </div>
         </div>
 
-        <!-- Smooth Bore -->
         <div id="nozzlesSB" class="nozzWrap" style="margin-top:10px"></div>
-        <!-- Fog -->
         <div id="nozzlesFog" class="nozzWrap" style="margin-top:10px; display:none"></div>
-        <!-- Specialty -->
         <div id="nozzlesSpecial" class="nozzWrap" style="margin-top:10px; display:none"></div>
       </section>
 
-      <!-- FL (hidden until pressed) -->
+      <!-- FL -->
       <section class="card" id="flCard" style="display:none">
         <div class="ink-strong" style="font-weight:700; margin-bottom:8px">Friction Loss (per 100′)</div>
 
-        <!-- Standard vs Low-friction toggle -->
         <div class="flModeRow" style="margin-bottom:8px">
           <div class="seg" role="tablist" aria-label="Hose friction mode">
             <button class="segBtn segOn" data-flmode="standard" role="tab" aria-selected="true" type="button">
@@ -61,7 +67,6 @@ export async function render(container){
           </div>
         </div>
 
-        <!-- Horizontal hose-size buttons -->
         <div class="hoseRow" role="tablist" aria-label="Hose size"></div>
 
         <div id="flTableWrap" style="margin-top:8px"></div>
@@ -70,7 +75,7 @@ export async function render(container){
         </div>
       </section>
 
-      <!-- RULES OF THUMB (hidden until pressed) -->
+      <!-- RULES -->
       <section class="card" id="rulesCard" style="display:none">
         <div class="ink-strong" style="font-weight:700; margin-bottom:8px">Rules of Thumb</div>
         <div id="rulesList"></div>
@@ -79,43 +84,77 @@ export async function render(container){
         </div>
       </section>
 
+      <!-- MORE (submenu) -->
+      <section class="card" id="moreCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">More</div>
+        <div class="moreGrid">
+          <button class="btn" id="btnShowEq" type="button">Equations</button>
+          <button class="btn" id="btnShowWS" type="button">Water Supply</button>
+          <button class="btn" id="btnShowWL" type="button">Wildland</button>
+          <button class="btn" id="btnShowHM" type="button">HazMat</button>
+          <button class="btn" id="btnShowNFPA" type="button">NFPA / Standards</button>
+        </div>
+        <div class="mini" style="opacity:.9; margin-top:10px">
+          NFPA items are link-out only (copyright). Wildland and ERG links open official sources.
+        </div>
+      </section>
+
+      <!-- EQUATIONS -->
+      <section class="card" id="eqCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">Equations</div>
+        <div id="eqList"></div>
+      </section>
+
+      <!-- WATER SUPPLY -->
+      <section class="card" id="wsCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">Water Supply</div>
+        <div id="wsList"></div>
+      </section>
+
+      <!-- WILDLAND -->
+      <section class="card" id="wlCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">Wildland</div>
+        <div id="wlList"></div>
+      </section>
+
+      <!-- HAZMAT -->
+      <section class="card" id="hmCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">HazMat (Quick)</div>
+        <div id="hmList"></div>
+      </section>
+
+      <!-- NFPA / STANDARDS (LINKS) -->
+      <section class="card" id="nfpaCard" style="display:none">
+        <div class="ink-strong" style="font-weight:700; margin-bottom:8px">NFPA / Standards (Links)</div>
+        <div id="nfpaList"></div>
+      </section>
+
     </section>
   `;
 
   injectLocalStyles(container, `
-/* Charts: keep launcher buttons on one row (iPhone-friendly) */
-.controls{display:flex;gap:6px;flex-wrap:nowrap}
-.controls .btn{flex:1 1 0;min-width:0;white-space:nowrap}
+/* Launcher row stays 1-line but can scroll if needed */
+.controls{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.controls .btn{flex:0 0 auto;min-width:0;white-space:nowrap}
 @media (max-width: 420px){
-  .controls .btn{padding:8px 6px;font-size:13px;line-height:1.1}
+  .controls .btn{padding:8px 10px;font-size:13px;line-height:1.1}
 }
 `);
   // ====== Local styles (original + mobile polish)
   injectLocalStyles(container, `
-    /* Prevent iOS zoom; bigger tap targets + clearer focus */
     input, select, textarea, button { font-size:16px; }
     .btn, .segBtn, .hoser { min-height:44px; padding:10px 14px; touch-action: manipulation; }
     .btn:focus-visible, .segBtn:focus-visible, .hoser:focus-visible {
       outline: 3px solid rgba(110,203,255,.85); outline-offset: 2px;
     }
 
-    /* Layout */
     .ink-strong { color: #ffffff; }
     .seg { display:inline-flex; background:#0f141c; border:1px solid rgba(255,255,255,.12); border-radius:12px; overflow:hidden }
-    .segBtn {
-      appearance:none; background:transparent; color:#cfe6ff; border:0;
-      font-weight:700; cursor:pointer;
-    }
+    .segBtn { appearance:none; background:transparent; color:#cfe6ff; border:0; font-weight:700; cursor:pointer; }
     .segBtn.segOn { background:#1a2738; color:#fff; }
 
-    /* Responsive nozzle card grid */
-    .nozzWrap {
-      display:grid; gap:10px;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    }
-    @media (max-width: 480px) {
-      .nozzWrap { grid-template-columns: 1fr; }
-    }
+    .nozzWrap { display:grid; gap:10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    @media (max-width: 480px) { .nozzWrap { grid-template-columns: 1fr; } }
     .nozzCard { background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; }
     .groupHeader {
       grid-column:1/-1; margin:2px 0 6px 0; color:#fff; font-weight:800; letter-spacing:.2px;
@@ -124,7 +163,6 @@ export async function render(container){
     .nozzTitle { color:#fff; font-weight:700; margin-bottom:4px; }
     .nozzSub { color:#cfe6ff; font-size:14px; }
 
-    /* Hose row buttons */
     .hoseRow { display:flex; gap:8px; flex-wrap:wrap; }
     .hoseRow .hoser {
       appearance:none; border:1px solid rgba(255,255,255,.14); background:#131b26; color:#fff;
@@ -132,7 +170,6 @@ export async function render(container){
     }
     .hoseRow .hoser.on { background:#2a8cff; }
 
-    /* FL table */
     .flTable { width:100%; border-collapse:separate; border-spacing:0; overflow:hidden; border-radius:12px; }
     .flTable th, .flTable td { padding:12px; text-align:left; font-size:15px; }
     .flTable thead th { background:#162130; color:#fff; border-bottom:1px solid rgba(255,255,255,.1); position:sticky; top:0; z-index:1; }
@@ -141,7 +178,6 @@ export async function render(container){
     .flTable .muted { color:#a9bed9; }
     .flTable tr.hi td { outline:2px solid #2a8cff; outline-offset:-2px; }
 
-    /* Rules list */
     .rulesList { display:grid; gap:8px; }
     .rule {
       background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;
@@ -155,11 +191,15 @@ export async function render(container){
     .ruleTitle { color:#fff; font-weight:800; margin:0 0 2px 0; }
     .ruleText { color:#dfeaff; margin:0; line-height:1.35; }
 
-    /* Reduce horizontal bounce on small screens */
-    @media (max-width: 420px) {
-      .controls { gap:6px; }
-      .btn.primary { flex: 1 1 auto; }
-    }
+    /* More submenu grid */
+    .moreGrid{display:grid; gap:8px; grid-template-columns: repeat(2, minmax(0, 1fr));}
+    @media (max-width: 420px){ .moreGrid{grid-template-columns:1fr;} }
+
+    /* Link buttons inside cards */
+    .linkRow{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+    .btn.small{min-height:40px; padding:8px 12px; font-weight:800}
+    .btn.ghost{background:#131b26; border:1px solid rgba(255,255,255,.14)}
+    .btn.ghost:hover{filter:brightness(1.05)}
   `);
 
   // ====== Data
@@ -194,7 +234,6 @@ export async function render(container){
     { label:'ChiefXD 185@50', gpm:185, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 200@50', gpm:200, NP:50, note:'Low-pressure' },
     { label:'ChiefXD 265@50', gpm:265, NP:50, note:'Low-pressure (2½" capable)' },
-    // Optional 100 psi legacy
     { label:'Fog 95@100',  gpm:95,  NP:100, note:'Legacy in some depts' },
     { label:'Fog 125@100', gpm:125, NP:100, note:'Legacy in some depts' },
     { label:'Fog 150@100', gpm:150, NP:100, note:'Legacy in some depts' },
@@ -208,7 +247,6 @@ export async function render(container){
     { label:'Master Fog 1250@100', gpm:1250, NP:100, note:'Monitor/deck gun' },
   ];
 
-  // Specialty / special purpose nozzles
   const SPECIALTY_NOZZLES = [
     { label:'Piercing nozzle ~125 gpm', gpm:125, NP:100, note:'Penetrates roofs/walls; often 80–100 psi NP.' },
     { label:'Bresnan cellar nozzle ~250 gpm', gpm:250, NP:50, note:'Rotating cellar/basement nozzle.' },
@@ -216,70 +254,128 @@ export async function render(container){
     { label:'Foam/air-aspirating nozzle', gpm:95, NP:100, note:'Used with Class A/B foam eductors.' },
   ];
 
-  // Rules of Thumb (expanded)
+  // Rules of Thumb (your existing list + kept)
   const RULES = [
-    // Existing appliance / elevation / standpipe / sprinkler / NP rules
     { tag:'Appliances',    title:'Add 10 psi over 350 gpm', text:'For appliance losses when total flow exceeds ~350 gpm, add 10 psi.' },
     { tag:'Master Stream', title:'Add 25 psi',              text:'Typical appliance loss for deck gun/monitor/master stream devices.' },
     { tag:'Standpipes',    title:'Add 25 psi + elevation',  text:'Add 25 psi for the system plus elevation (head) losses.' },
     { tag:'Sprinklers',    title:'Pump at 150 psi',         text:'A common starting point; follow FDC signage and SOGs.' },
     { tag:'Elevation',     title:'±5 psi per 10 ft',        text:'Add going uphill; subtract going downhill or per floor (~10 ft).' },
     { tag:'Relay Pump',    title:'Residual 20–50 psi',      text:'Maintain 20–50 psi residual at the receiving engine.' },
+
     { tag:'Handline SB',   title:'NP 50 psi',               text:'Smooth-bore handline nozzle pressure.' },
     { tag:'Master SB',     title:'NP 80 psi',               text:'Smooth-bore master stream nozzle pressure.' },
-    { tag:'Piercing',      title:'NP 80 psi',               text:'Piercing nozzle nozzle pressure (check local spec).' },
-    { tag:'Cellar',        title:'NP 80 psi',               text:'Cellar nozzle nozzle pressure.' },
 
-    // Hydrant residual drop
-    { tag:'Hydrant',       title:'Residual drop rule',      text:'~10% drop = good; 15–20% = caution; 25%+ = system near max capacity.' },
+    { tag:'Hydrant',       title:'Residual drop rule',      text:'~10% drop = good; 15–20% = caution; 25%+ = system near max capacity (common hydrant test guidance).' },
 
-    // Supply line max efficient flow
     { tag:'Supply',        title:'Supply line max flow',    text:'5″: ~1000–1500 gpm; 4″: ~800–1000 gpm; 2½″: ~300–350 gpm before FL becomes excessive.' },
 
-    // Standpipe high-rise fire
-    { tag:'Standpipes',    title:'High-rise starting PDP',  text:'Common starting point is 150 psi minimum unless SOPs/signage state otherwise.' },
-
-    // Attack line quick references
-    { tag:'Attack Line',   title:'1¾″ initial PDP',         text:'Many departments start around 150 psi depending on nozzle and hose layout.' },
-    { tag:'Attack Line',   title:'2½″ target flow',         text:'A common big-line target is ~250 gpm for large fire attack.' },
-
-    // Wildland rules category
-    { tag:'Wildland',      title:'Elevation in wildland',   text:'Add 5 psi per 10 ft elevation gain in progressive hose lays.' },
-    { tag:'Wildland',      title:'Progressive lay losses',  text:'Add 10–25 psi for gated wyes and appliances in a progressive lay.' },
-    { tag:'Wildland',      title:'Forestry line flows',     text:'1″ ≈ 30–60 gpm; 1½″ ≈ 60–125 gpm (confirm with local SOPs).' },
-    { tag:'Wildland',      title:'Pump-and-roll',           text:'Maintain roughly 50–100 psi at the pump, adjusted for terrain and nozzle.' },
-
-    // Master stream effective reach + water weight
-    { tag:'Master Stream', title:'Effective reach',         text:'Best reach at correct NP: 80 psi SB, 100 psi fog; avoid under-pumping master streams.' },
-    { tag:'Master Stream', title:'500 gpm = 1 ton/min',     text:'500 gpm is roughly 1 ton of water per minute (8.33 lb/gal, 60 gal/min per 500 gpm).' },
-
-    // Foam operations
     { tag:'Foam',          title:'Class A vs Class B',      text:'Class A: ~0.1–1%; Class B: ~1–6% depending on product and fuel; always follow label/SOPs.' },
     { tag:'Foam',          title:'Eductor pressure',        text:'Most inline eductors require ~200 psi at the inlet and proper pick-up height/length.' },
 
-    // Equations & quick tips
-    { tag:'Equations',     title:'Smooth bore GPM',         text:'GPM = 29.7 × d² × √NP (d in inches, NP in psi).' },
-    { tag:'Equations',     title:'1¾″ FL rule',             text:'For many mid-range flows, FL ≈ 2Q² per 100′ (Q = gpm/100); refine with full calc when needed.' },
-    { tag:'Equations',     title:'2½″ FL rule',             text:'For 2½″ hose, FL ≈ Q² per 100′ (Q = gpm/100) as a quick estimate.' },
-    { tag:'Equations',     title:'Water weight',            text:'1 gallon of water ≈ 8.33 lb; 1 cubic foot ≈ 7.48 gallons.' },
-
-    // Fire acronyms – structure
-    { tag:'Acronyms – Structure', title:'COAL WAS WEALTH',  text:'Construction, Occupancy, Area, Life hazard, Water supply, Auxiliary appliances, Street, Weather, Exposures, Apparatus & personnel, Location & extent, Time, Height.' },
-    { tag:'Acronyms – Structure', title:'RECEO-VS',         text:'Rescue, Exposures, Confinement, Extinguishment, Overhaul, Ventilation, Salvage.' },
-
-    // Fire acronyms – wildland
-    { tag:'Acronyms – Wildland',  title:'LCES',             text:'Lookouts, Communications, Escape routes, Safety zones.' },
-    { tag:'Acronyms – Wildland',  title:'10 & 18',          text:'Know the 10 Standard Firefighting Orders and 18 Watch Out Situations (NWCG).' },
+    { tag:'Acronyms',      title:'RECEO-VS',                text:'Rescue, Exposures, Confinement, Extinguishment, Overhaul, Ventilation, Salvage.' },
   ];
 
-  // Hose sizes to display — now includes 4"
+  // New: Equations (quick reference)
+  const EQUATIONS = [
+    { tag:'PDP', title:'Pump Discharge Pressure', text:'PDP = NP + FL + Appliance + Elevation. (Add / subtract elevation as needed.)' },
+    { tag:'FL', title:'Friction loss per 100′', text:'FL_per100 = C × (GPM/100)². Total FL = FL_per100 × (Length/100).' },
+    { tag:'SB', title:'Smooth bore flow', text:'GPM = 29.7 × d² × √NP (d in inches, NP in psi). (Common field formula.)' },
+    { tag:'Fire Flow', title:'Simple required fire flow', text:'RFF ≈ (Length × Width ÷ 3) × (% involved) × (floors involved). (A common “quick” method; your SOP may differ.)' },
+    { tag:'Weight', title:'Water weight', text:'1 gal ≈ 8.33 lb. 1000 gal ≈ 8,330 lb (~4.17 tons).' },
+    { tag:'Relay', title:'Residual target', text:'In relay/supply, many crews target ~20–50 psi residual at the receiving engine (match SOP).'}
+  ];
+
+  // New: Water Supply (hydrants, drafting, tank/tender)
+  const WATER_SUPPLY = [
+    { tag:'Hydrant', title:'Static / Residual / Pitot', text:'Record static at residual hydrant, flow from another hydrant, then record residual while flowing. Use pitot pressure to estimate flow.' },
+    { tag:'Hydrant', title:'Pitot flow (outlet stream)', text:'Q ≈ 29.83 × Cd × d² × √P  (Q gpm, d inches, P pitot psi). Cd depends on outlet / stream shape.' },
+    { tag:'Hydrant', title:'Project to 20 psi residual', text:'Common projection method uses static & residual readings to estimate available flow at 20 psi residual (check local method/worksheet).' },
+    { tag:'Hydrant', title:'Residual drop guidance', text:'Some guidance recommends achieving enough discharge to create ~25% residual drop for “satisfactory” test conditions.' },
+    { tag:'Drafting', title:'Draft lift reminders', text:'Prime early, keep hard suction airtight, minimize elbows, and watch net lift (altitude matters).' },
+    { tag:'Tender', title:'1,000 gallons is heavy', text:'1,000 gal ≈ 8,330 lb. Know axle limits and fill sites.' },
+    { tag:'Relay', title:'Engine spacing idea', text:'Spacing depends on flow and hose size; set target residual and let friction loss drive spacing.' },
+  ];
+
+  // New: Wildland (links + quick safety)
+  const WILDLAND = [
+    { tag:'Safety', title:'LCES', text:'Lookouts, Communications, Escape routes, Safety zones.' },
+    { tag:'Orders', title:'10 Standard Firefighting Orders', text:'Wildland “10s” – official NWCG page link below.' },
+    { tag:'Watch Outs', title:'18 Watch Out Situations', text:'Official NWCG link below.' },
+    { tag:'Ops', title:'Progressive hose lay', text:'Add pressure for terrain + appliances; keep hose lays organized and protect line from burnover.' },
+  ];
+
+  // New: HazMat quick (ERG links, basic steps)
+  const HAZMAT = [
+    { tag:'Approach', title:'Isolation first', text:'Size up from a distance, use binoculars, uphill/upwind, isolate, deny entry, and request HazMat early.' },
+    { tag:'ID', title:'UN/NA number + placard', text:'Use 4-digit ID + placard class to find the correct ERG guide.' },
+    { tag:'ERG', title:'Use Green Pages for distances', text:'ERG green pages provide initial isolation + protective action distances for TIH materials.' },
+    { tag:'PPE', title:'PPE is product-driven', text:'Default to defensive ops until product confirmed; use ERG and HazMat tech guidance.' },
+  ];
+
+  // New: NFPA / Standards (links only)
+  const NFPA_LINKS = [
+    {
+      tag:'NFPA',
+      title:'Free Access to NFPA codes & standards (official)',
+      text:'NFPA provides free online access (account required). Use this to quickly look up exact language.',
+      links: [
+        { label:'Open Free Access', url:'https://www.nfpa.org/for-professionals/codes-and-standards/list-of-codes-and-standards/free-access' },
+      ]
+    },
+    {
+      tag:'NFPA',
+      title:'NFPA 1710 (career dept organization & deployment)',
+      text:'Deployment / staffing / response performance topics. Link goes to NFPA standard page (not the full text).',
+      links: [
+        { label:'NFPA 1710 page', url:'https://www.nfpa.org/codes-and-standards/nfpa-1710-standard-development/1710' },
+      ]
+    },
+    {
+      tag:'NFPA',
+      title:'NFPA fire flow blog (water supply concepts)',
+      text:'NFPA article discussing required fire flow concept and water supply planning.',
+      links: [
+        { label:'Open article', url:'https://www.nfpa.org/news-blogs-and-articles/blogs/2022/03/22/calculating-the-required-fire-flow' },
+      ]
+    },
+    {
+      tag:'NFPA',
+      title:'NFPA 291 (hydrant flow testing)',
+      text:'Hydrant flow testing concepts; follow local water authority + training. (Link-out to reference sources.)',
+      links: [
+        { label:'Hydrant testing ref', url:'https://www.mtas.tennessee.edu/reference/conducting-fire-flow-test' },
+        { label:'WSRB overview', url:'https://www1.wsrb.com/resources/hydrant-flow-testing' },
+      ]
+    },
+    {
+      tag:'ERG',
+      title:'Emergency Response Guidebook (ERG) 2024 (official)',
+      text:'Official PHMSA ERG page + PDF. Best quick HazMat reference on scene.',
+      links: [
+        { label:'ERG official page', url:'https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg' },
+        { label:'ERG 2024 PDF', url:'https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2024-04/ERG2024-Eng-Web-a.pdf' },
+      ]
+    },
+    {
+      tag:'NWCG',
+      title:'NWCG wildland safety (official)',
+      text:'Official wildland firefighter safety references.',
+      links: [
+        { label:'10 Standard Orders', url:'https://www.nwcg.gov/6mfs/operational-engagement/10-standard-firefighting-orders' },
+        { label:'18 Watch Outs', url:'https://www.nwcg.gov/publications/18-watch-out-situations-pms-118' },
+        { label:'LCES', url:'https://www.nwcg.gov/6mfs/operational-engagement/lookouts-lces' },
+      ]
+    },
+  ];
+
+  // Hose sizes to display — includes 4"
   const HOSE_ORDER = ['1.75','2.5','4','5'];
   const HOSE_LABEL = s =>
     s==='1.75' ? '1¾"' :
     s==='2.5'  ? '2½"' :
     `${s}"`;
 
-  // FL ranges: aligned with common nozzle GPMs (incl. 185 & 265)
   const GPM_SETS = {
     '1.75': [95, 125, 150, 160, 175, 185, 200],
     '2.5':  [150, 185, 200, 250, 265, 300, 325, 400, 500, 600],
@@ -289,7 +385,7 @@ export async function render(container){
 
   // Low-friction C values (approximate; adjust as needed)
   const LOW_C = {
-    '1.75': 13,   // lower FL "combat-ready" style 1¾"
+    '1.75': 13,
     '2.5':  1.5,
     '4':    0.8,
     '5':    0.05,
@@ -299,10 +395,18 @@ export async function render(container){
   const btnShowNozzles = container.querySelector('#btnShowNozzles');
   const btnShowFL = container.querySelector('#btnShowFL');
   const btnShowRules = container.querySelector('#btnShowRules');
+  const btnShowMore = container.querySelector('#btnShowMore');
 
   const nozzCard = container.querySelector('#nozzlesCard');
   const flCard = container.querySelector('#flCard');
   const rulesCard = container.querySelector('#rulesCard');
+  const moreCard = container.querySelector('#moreCard');
+
+  const eqCard = container.querySelector('#eqCard');
+  const wsCard = container.querySelector('#wsCard');
+  const wlCard = container.querySelector('#wlCard');
+  const hmCard = container.querySelector('#hmCard');
+  const nfpaCard = container.querySelector('#nfpaCard');
 
   const fogWrap = container.querySelector('#nozzlesFog');
   const sbWrap  = container.querySelector('#nozzlesSB');
@@ -311,22 +415,28 @@ export async function render(container){
   const flTableWrap = container.querySelector('#flTableWrap');
   const rulesList = container.querySelector('#rulesList');
 
+  const eqList = container.querySelector('#eqList');
+  const wsList = container.querySelector('#wsList');
+  const wlList = container.querySelector('#wlList');
+  const hmList = container.querySelector('#hmList');
+  const nfpaList = container.querySelector('#nfpaList');
+
   const flModeButtons = Array.from(container.querySelectorAll('[data-flmode]'));
   let currentFLMode = 'standard'; // 'standard' | 'low'
 
   // ====== Render helpers
-  function showOnly(card){
-    nozzCard.style.display  = (card === nozzCard) ? 'block' : 'none';
-    flCard.style.display    = (card === flCard)   ? 'block' : 'none';
-    rulesCard.style.display = (card === rulesCard)? 'block' : 'none';
+  function hideAll(){
+    [nozzCard, flCard, rulesCard, moreCard, eqCard, wsCard, wlCard, hmCard, nfpaCard].forEach(c => c.style.display = 'none');
+  }
+  function show(card){
+    hideAll();
+    card.style.display = 'block';
   }
 
-  // Get C based on current mode
   function getCoeff(sizeKey){
     if (currentFLMode === 'low') {
       const cLow = LOW_C[sizeKey];
       if (cLow != null) return cLow;
-      // If no low-friction C defined, fall back to standard so the table still works
     }
     return COEFF[sizeKey];
   }
@@ -400,6 +510,7 @@ export async function render(container){
   function renderHoseButtons(){
     hoseRow.innerHTML = '';
     const available = HOSE_ORDER.filter(s => getCoeff(s) != null);
+
     HOSE_ORDER.forEach((s, i)=>{
       const b = document.createElement('button');
       const hasC = getCoeff(s) != null;
@@ -422,7 +533,6 @@ export async function render(container){
     });
 
     if(available.length){
-      // select the first hose that has a C in this mode
       renderFLTable(available[0]);
       hoseRow.querySelectorAll('.hoser').forEach(btn => {
         btn.classList.toggle('on', btn.dataset.size === String(available[0]));
@@ -456,9 +566,56 @@ export async function render(container){
 
   // --- RULES
   function renderRules(){
-    rulesList.innerHTML = `
+    rulesList.innerHTML = renderPills(RULES);
+  }
+
+  // --- More sections
+  function renderEquations(){
+    eqList.innerHTML = renderPills(EQUATIONS);
+  }
+  function renderWaterSupply(){
+    wsList.innerHTML = renderPills(WATER_SUPPLY);
+  }
+  function renderWildland(){
+    wlList.innerHTML = renderPills(WILDLAND, [
+      { label:'10 Standard Orders (NWCG)', url:'https://www.nwcg.gov/6mfs/operational-engagement/10-standard-firefighting-orders' },
+      { label:'18 Watch Outs (NWCG)', url:'https://www.nwcg.gov/publications/18-watch-out-situations-pms-118' },
+      { label:'LCES (NWCG)', url:'https://www.nwcg.gov/6mfs/operational-engagement/lookouts-lces' },
+    ]);
+  }
+  function renderHazmat(){
+    hmList.innerHTML = renderPills(HAZMAT, [
+      { label:'ERG Official Page', url:'https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg' },
+      { label:'ERG 2024 PDF', url:'https://www.phmsa.dot.gov/sites/phmsa.dot.gov/files/2024-04/ERG2024-Eng-Web-a.pdf' },
+    ]);
+  }
+  function renderNfpa(){
+    nfpaList.innerHTML = `
       <div class="rulesList">
-        ${RULES.map(r => `
+        ${NFPA_LINKS.map(item => `
+          <div class="rule">
+            <span class="pill">${escapeHTML(item.tag)}</span>
+            <div style="flex:1">
+              <div class="ruleTitle">${escapeHTML(item.title)}</div>
+              <p class="ruleText">${escapeHTML(item.text)}</p>
+              ${item.links?.length ? `
+                <div class="linkRow">
+                  ${item.links.map(l => `
+                    <button class="btn small ghost" type="button" data-openurl="${escapeHTML(l.url)}">${escapeHTML(l.label)}</button>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function renderPills(list, links=null){
+    const body = `
+      <div class="rulesList">
+        ${list.map(r => `
           <div class="rule">
             <span class="pill">${escapeHTML(r.tag)}</span>
             <div>
@@ -469,6 +626,12 @@ export async function render(container){
         `).join('')}
       </div>
     `;
+    const linkRow = links?.length ? `
+      <div class="linkRow" style="margin-top:10px">
+        ${links.map(l => `<button class="btn small ghost" type="button" data-openurl="${escapeHTML(l.url)}">${escapeHTML(l.label)}</button>`).join('')}
+      </div>
+    ` : '';
+    return body + linkRow;
   }
 
   // ====== Interactions
@@ -484,29 +647,54 @@ export async function render(container){
     sbWrap.style.display='grid';
     fogWrap.style.display='none';
     specialWrap.style.display='none';
-    showOnly(nozzCard);
+    show(nozzCard);
   });
 
   btnShowFL.addEventListener('click', ()=>{
-    // ensure mode buttons reflect current mode and tables are fresh
     setFLMode(currentFLMode);
-    showOnly(flCard);
+    show(flCard);
   });
 
   btnShowRules.addEventListener('click', ()=>{
     renderRules();
-    showOnly(rulesCard);
+    show(rulesCard);
   });
+
+  btnShowMore.addEventListener('click', ()=>{
+    show(moreCard);
+  });
+
+  // More submenu buttons
+  const btnShowEq = container.querySelector('#btnShowEq');
+  const btnShowWS = container.querySelector('#btnShowWS');
+  const btnShowWL = container.querySelector('#btnShowWL');
+  const btnShowHM = container.querySelector('#btnShowHM');
+  const btnShowNFPA = container.querySelector('#btnShowNFPA');
+
+  btnShowEq.addEventListener('click', ()=>{ renderEquations(); show(eqCard); });
+  btnShowWS.addEventListener('click', ()=>{ renderWaterSupply(); show(wsCard); });
+  btnShowWL.addEventListener('click', ()=>{ renderWildland(); show(wlCard); });
+  btnShowHM.addEventListener('click', ()=>{ renderHazmat(); show(hmCard); });
+  btnShowNFPA.addEventListener('click', ()=>{ renderNfpa(); show(nfpaCard); });
 
   // Nozzle segmented control (SB | Fog | Specialty)
   container.addEventListener('click', (e)=>{
-    const t = e.target.closest('.segBtn'); if(!t) return;
-    const type = t.dataset.type;
-    // Ignore seg buttons that aren't for nozzles (i.e., FL mode buttons)
+    const seg = e.target.closest('.segBtn'); if(!seg) return;
+
+    // Open URL buttons
+    const openBtn = e.target.closest('[data-openurl]');
+    if(openBtn){
+      const url = openBtn.getAttribute('data-openurl');
+      if(url) window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    // Only nozzle seg buttons use data-type
+    const type = seg.dataset.type;
     if(!type) return;
 
     container.querySelectorAll('.segBtn[data-type]').forEach(b=>{
-      const on = b === t;
+      const on = b === seg;
       b.classList.toggle('segOn', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
@@ -539,11 +727,6 @@ export async function render(container){
 export default { render };
 
 /* ========== helpers ========== */
-function buildRange(start, end, step){
-  const arr = [];
-  for(let g=start; g<=end; g+=step) arr.push(g);
-  return arr;
-}
 function injectLocalStyles(root, cssText){
   const style = document.createElement('style');
   style.textContent = cssText;
