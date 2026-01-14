@@ -307,7 +307,7 @@ export async function render(container){
               <label>Diameter</label>
               <input type="hidden" id="teSize" value="1.75">
               <div class="steppers">
-                <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">-</button>
+                <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
                 <div class="stepVal" id="sizeLabel">1 3/4"</div>
                 <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
               </div>
@@ -318,7 +318,7 @@ export async function render(container){
               <label>Length (ft)</label>
               <input type="hidden" id="teLen" value="50">
               <div class="steppers">
-                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">-</button>
+                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
                 <div class="stepVal" id="lenLabel">50'</div>
                 <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
               </div>
@@ -335,7 +335,7 @@ export async function render(container){
               <label>Elevation (ft)</label>
               <input type="hidden" id="teElev" value="0">
               <div class="steppers">
-                <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">-</button>
+                <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0'</div>
             <!-- Branch controls (visible only when Wye is active) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
@@ -348,7 +348,7 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenA" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenAMinus">-</button>
+                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
                     <div class="stepVal" id="lenALabel">50'</div>
                     <button type="button" class="stepBtn" id="lenAPlus">+</button>
                   </div>
@@ -357,7 +357,7 @@ export async function render(container){
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevA" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevAMinus">-</button>
+                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
                     <div class="stepVal" id="elevALabel">0'</div>
                     <button type="button" class="stepBtn" id="elevAPlus">+</button>
                   </div>
@@ -375,7 +375,7 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenB" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenBMinus">-</button>
+                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
                     <div class="stepVal" id="lenBLabel">50'</div>
                     <button type="button" class="stepBtn" id="lenBPlus">+</button>
                   </div>
@@ -384,7 +384,7 @@ export async function render(container){
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevB" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevBMinus">-</button>
+                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
                     <div class="stepVal" id="elevBLabel">0'</div>
                     <button type="button" class="stepBtn" id="elevBPlus">+</button>
                   </div>
@@ -454,8 +454,8 @@ export async function render(container){
       <!-- KPIs & answer box -->
       <section class="card">
         <div class="kpis">
-          <div class="kpi"><div>Total Flow</div><b id="GPM">-- gpm</b></div>
-          <div class="kpi"><div>Max PP</div><b id="PDP">-- psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
+          <div class="kpi"><div>Total Flow</div><b id="GPM">— gpm</b></div>
+          <div class="kpi"><div>Max PP</div><b id="PDP">— psi</b><button id="whyBtn" class="whyBtn">Why?</button></div>
         </div>
 
         <div id="supplySummary" class="supplySummary" style="margin-top:10px; display:none;"></div>
@@ -464,14 +464,14 @@ export async function render(container){
         <div id="hydrantHelper" class="helperPanel" style="display:none; margin-top:10px; background:#0e151e; border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px;">
           <div style="color:#fff; font-weight:800; margin-bottom:6px">Hydrant Residual %Drop</div>
           <div class="mini" style="color:#a9bed9; margin-bottom:8px">
-            0-10% -> 3x, 11-15% -> 2x, 16-25% -> 1x, >25% -> 0x of same-size lines
+            0–10% → 3×, 11–15% → 2×, 16–25% → 1×, >25% → 0× of same-size lines
           </div>
           <div class="row" style="display:flex; gap:10px; flex-wrap:wrap">
             <div class="field" style="min-width:150px">
               <label>Line size</label>
               <select id="hydrantLineSize">
-                <option value="1.75">13/4" (attack)</option>
-                <option value="2.5">21/2"</option>
+                <option value="1.75">1¾" (attack)</option>
+                <option value="2.5">2½"</option>
                 <option value="5">5" LDH</option>
               </select>
             </div>
@@ -510,7 +510,7 @@ export async function render(container){
     </div>
   </div>
 
-  <!-- Per-tender list with timers will render here -->
+  <!-- Per‑tender list with timers will render here -->
   <div id="tenderList" style="margin-top:10px"></div>
 </div>
 
@@ -616,7 +616,7 @@ export async function render(container){
   const presetButtonsRow = container.querySelector('#presetLineButtonsRow');
 
 
-  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1-3
+  // Extra lines created from presets (Foam, Blitz, etc.) that flow in addition to Lines 1–3
   
   const STORAGE_DEPT_KEY = 'fireops_dept_equipment_v1';
 
@@ -724,7 +724,7 @@ export async function render(container){
       console.warn('getDeptNozzleIds failed', e);
     }
 
-    // ALSO include any nozzle ids referenced by Department Line Defaults (Lines 1-3).
+    // ALSO include any nozzle ids referenced by Department Line Defaults (Lines 1–3).
     // This prevents a custom_noz_* default from being seeded correctly but then not
     // showing up in the Calc nozzle dropdown because it wasn't manually checked in
     // the Dept Nozzles list.
@@ -822,7 +822,7 @@ export async function render(container){
       });
       dept.hosesSelected = hoseDiameters.slice();
     } else {
-      // No department selection -> show default hose sizes
+      // No department selection → show default hose sizes
       DEFAULT_HOSES.forEach(h => hosesAll.push({ ...h }));
       dept.hosesSelected = [];
     }
@@ -1037,7 +1037,7 @@ function gateWyeBySize(){
     });
     if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
 
-    // Branch sections -- show only selected branch when wye is on
+    // Branch sections — show only selected branch when wye is on
     if (seg==='A'){ showEl(branchASection); hideEl(branchBSection); }
     else if (seg==='B'){ showEl(branchBSection); hideEl(branchASection); }
     else { hideEl(branchASection); hideEl(branchBSection); }
@@ -1083,7 +1083,7 @@ function gateWyeBySize(){
       if (sizePlus)  sizePlus.disabled  = false;
     }
 
-    // Update "Where" label
+    // Update “Where” label
     const teWhere = container.querySelector('#teWhere');
     if (teWhere){
       teWhere.value = seg === 'main'
@@ -1100,11 +1100,11 @@ function updateSegSwitchVisibility(){
       segSwitch.style.display = 'none';
     }
     if (!wyeOn){
-      // Wye turned OFF -> back to main and hide both branches
+      // Wye turned OFF → back to main and hide both branches
       setSeg('main');
       return;
     }
-    // Wye turned ON -> keep whatever segment matches the clicked "+" (main, A, or B)
+    // Wye turned ON → keep whatever segment matches the clicked "+" (main, A, or B)
     setSeg(currentSeg);
   }
 
@@ -1121,7 +1121,7 @@ function updateSegSwitchVisibility(){
    * Build nozzle <option> HTML using the SAME list as Department Setup.
    *
    * Source of truth:
-   *   - loadDeptForBuilders() -> dept.nozzlesAll
+   *   - loadDeptForBuilders() → dept.nozzlesAll
    *     (already built from NOZ_LIST + dept custom nozzles + dept selections)
    *
    * Behavior:
@@ -1260,7 +1260,7 @@ function refreshNozzleSelectOptions() {
     [teNoz, teNozA, teNozB].forEach(sel => {
       if (!sel) return;
 
-      // Try to preserve current selection if it's still valid
+      // Try to preserve current selection if it’s still valid
       const previous = sel.value;
       sel.innerHTML = nozzleOptionsHTML;
 
@@ -1341,7 +1341,7 @@ function refreshNozzleSelectOptions() {
         if (!isTrip) return;
         const v = parseFloat(t.value);
         if (v > 0) {
-          if (tTripAllEl && (tTripAllEl.getAttribute('data-min') === '0' || tTripAllEl.textContent === '--' || !tTripAllEl.textContent)) {
+          if (tTripAllEl && (tTripAllEl.getAttribute('data-min') === '0' || tTripAllEl.textContent === '—' || !tTripAllEl.textContent)) {
             tTripAllEl.setAttribute('data-min', String(v));
             tTripAllEl.textContent = String(v);
             __tripAutofilled = true;
@@ -1614,7 +1614,7 @@ function openPresetLineActions(id){
   function prettyHoseSize(d){
     const s = String(d ?? '').trim();
     if (s === '' || s === 'null' || s === 'undefined') return '';
-    if (s === '1.75' || s === '1 3/4' || s === '13/4') return '1 3/4"';
+    if (s === '1.75' || s === '1 3/4' || s === '1¾') return '1 3/4"';
     if (s === '1.5'  || s === '1 1/2')                return '1 1/2"';
     if (s === '2.5'  || s === '2 1/2')                return '2 1/2"';
     if (s === '3')                                     return '3"';
@@ -1856,7 +1856,7 @@ function openPresetLineActions(id){
     });
 
     
-    // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1-3
+    // Extra preset lines (Foam, Blitz, etc.) that flow in addition to Lines 1–3
     Object.values(activePresetLines).forEach(pl => {
       if (!pl || !pl.config) return;
       const cfg = pl.config;
@@ -1885,7 +1885,7 @@ function openPresetLineActions(id){
     });
     state.lastMaxKey = maxKey;
     const anyLines = vis.length || Object.keys(activePresetLines).length;
-    GPMel.textContent = anyLines ? (Math.round(totalGPM)+' gpm') : '-- gpm';
+    GPMel.textContent = anyLines ? (Math.round(totalGPM)+' gpm') : '— gpm';
     PDPel.classList.remove('orange','red');
     if(anyLines){
       const v = Math.round(maxPDP);
@@ -1893,7 +1893,7 @@ function openPresetLineActions(id){
       if(v>250) PDPel.classList.add('red');
       else if(v>200) PDPel.classList.add('orange');
     }else{
-      PDPel.textContent = '-- psi';
+      PDPel.textContent = '— psi';
     }
 
     // Keep quick preset buttons in sync
@@ -1934,20 +1934,20 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 13/4"
-                  <span class="legSwatch sw25"></span> 21/2"
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
                   <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm -- Wye ${wye} psi</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch A ${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm -- NP ${L.nozLeft.NP} psi</div>
+                  <div class="barTitle">Branch A ${breakdownText(L.itemsLeft)} @ ${L.nozLeft.gpm} gpm — NP ${L.nozLeft.NP} psi</div>
                   <div class="hosebar" id="viz_L_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Branch B ${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm -- NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Branch B ${breakdownText(L.itemsRight)} @ ${L.nozRight.gpm} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_R_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -1973,16 +1973,16 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 13/4"
-                  <span class="legSwatch sw25"></span> 21/2"
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
                   <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm -- via Wye</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">${bnTitle} ${breakdownText(bnSegs)} @ ${noz.gpm} gpm -- NP ${noz.NP} psi</div>
+                  <div class="barTitle">${bnTitle} ${breakdownText(bnSegs)} @ ${noz.gpm} gpm — NP ${noz.NP} psi</div>
                   <div class="hosebar" id="viz_BR_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -2001,12 +2001,12 @@ function openPresetLineActions(id){
               <summary>Line math</summary>
               <div class="hoseviz">
                 <div class="hoseLegend">
-                  <span class="legSwatch sw175"></span> 13/4"
-                  <span class="legSwatch sw25"></span> 21/2"
+                  <span class="legSwatch sw175"></span> 1¾"
+                  <span class="legSwatch sw25"></span> 2½"
                   <span class="legSwatch sw5"></span> 5"
                 </div>
                 <div class="barWrap">
-                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm -- NP ${L.nozRight.NP} psi</div>
+                  <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
                   <div class="hosebar" id="viz_main_${key}"></div>
                 </div>
                 <div class="simpleBox" id="pp_simple_${key}"></div>
@@ -2134,7 +2134,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
-    teTitle.textContent = (L.label || key.toUpperCase())+' -- '+whereLabel;
+    teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
@@ -2227,7 +2227,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
   } catch(_){}
 
 
-  // Change of diameter in editor -> update default nozzle (when applicable)
+  // Change of diameter in editor → update default nozzle (when applicable)
   teSize?.addEventListener('change', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext;
@@ -2240,7 +2240,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       ensureDefaultNozzleFor(L,'L',size);
       if (L.nozLeft?.id && teNoz) teNoz.value = L.nozLeft.id;
     } else if (where==='R'){
-      // Branch B keeps its "Fog 185 @ 50" rule if empty; otherwise honor size default
+      // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
   });
@@ -2548,12 +2548,12 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Apply a saved preset back into the calc.
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
-  //   is added on top of Lines 1-3.
+  //   is added on top of Lines 1–3.
   
   // Apply a saved preset back into the calc.
   // - kind === 'lineEdit' -> update Lines 1/2/3 directly
   // - all other presets -> create extra preset lines (Foam, Blitz, etc.) whose flow
-  //   is added on top of Lines 1-3.
+  //   is added on top of Lines 1–3.
   
   function applyPresetToCalc(preset){
     if (!preset) return;
@@ -2681,7 +2681,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         if (gpm && pdp) return { directGpm: gpm, directPdp: pdp };
       }
 
-      // Foam (from view.lineFoam.js) - use water GPM + PDP
+      // Foam (from view.lineFoam.js) – use water GPM + PDP
       if (lt === 'foam') {
         const gpm = typeof lc.waterGpm === 'number' ? lc.waterGpm : null;
         const pdp = typeof lc.pdp === 'number' ? lc.pdp : null;
@@ -2789,7 +2789,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     clearGroup(G_hoses); clearGroup(G_branches); clearGroup(G_tips); clearGroup(G_labels); clearGroup(G_supply);
 
     const visibleKeys = ['left','back','right'].filter(k=>state.lines[k].visible);
-    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' * ')) : 'No lines deployed (v-preset)';
+    topInfo.textContent = visibleKeys.length ? ('Deployed: '+visibleKeys.map(k=>state.lines[k].label).join(' • ')) : 'No lines deployed (v-preset)';
 
     ['left','back','right'].filter(k=>state.lines[k].visible).forEach(key=>{
       const L = state.lines[key]; const dir = key==='left'?-1:key==='right'?1:0;
@@ -2823,7 +2823,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
 // Main label: two rows
 // Row 1: "200' 1 3/4 @ 50psi" (hose length + predominant size + nozzle pressure when applicable)
-// Row 2: "PP ___ psi * ___ gpm" (engine pump discharge pressure for this line)
+// Row 2: "PP ___ psi • ___ gpm" (engine pump discharge pressure for this line)
 function hoseSizeForBubble(secs){
   // Try to infer a single predominant hose diameter for label bubbles.
   // Accepts several possible property names depending on how the section was created.
@@ -2837,8 +2837,8 @@ function hoseSizeForBubble(secs){
     // Ignore common non-size tokens
     if (s.includes('nozzle')) return '';
     // Fractional / common display forms
-    if (s.includes('1 3/4') || s.includes('13/4')) return '1.75';
-    if (s.includes('2 1/2') || s.includes('21/2')) return '2.5';
+    if (s.includes('1 3/4') || s.includes('1¾')) return '1.75';
+    if (s.includes('2 1/2') || s.includes('2½')) return '2.5';
     if (s.includes('4') && (s.match(/\b4\b/) || s.includes('4"'))) return '4';
     if (s.includes('5') && (s.match(/\b5\b/) || s.includes('5"'))) return '5';
 
@@ -2854,7 +2854,7 @@ function hoseSizeForBubble(secs){
   const uniq = Array.from(new Set(sizes));
   const v = uniq.length === 1 ? uniq[0] : '';
   const map = { '1.75':'1 3/4', '2.5':'2 1/2', '4':'4', '5':'5' };
-  return v ? (map[v] || v) : (sizes.length ? 'Mixed' : '--');
+  return v ? (map[v] || v) : (sizes.length ? 'Mixed' : '—');
 }
 
 const mainSize = hoseSizeForBubble(L.itemsMain);
@@ -2868,7 +2868,7 @@ const row1 = (()=>{
   }
   return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
-const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi * ${Math.round(flowGpm)} gpm`);
+const row2 = (L.hasWye ? `Total ${Math.round(flowGpm)} gpm` : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
 addLabel(G_labels, row1 + '
 ' + row2, geom.endX, geom.endY-34, (key==='left')?-10:(key==='back')?-22:-34);
 
@@ -2885,7 +2885,7 @@ addLabel(G_labels, row1 + '
               const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeL = hoseSizeForBubble(L.itemsLeft);
               const row1L = `${lenLeft}' ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
-              const row2L = `PP ${Math.round(branchPP)} psi * ${Math.round(L.nozLeft.gpm||0)} gpm`;
+              const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
               const txtL = row1L + '\n' + row2L;
               addLabel(G_labels, txtL, gL.endX-40, gL.endY-36, -4);
           }
@@ -2903,7 +2903,7 @@ addLabel(G_labels, row1 + '
               const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeR = hoseSizeForBubble(L.itemsRight);
               const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
-              const row2R = `PP ${Math.round(branchPP)} psi * ${Math.round(L.nozRight.gpm||0)} gpm`;
+              const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
               const txtR = row1R + '\n' + row2R;
               addLabel(G_labels, txtR, gR.endX+40, gR.endY-36, -4);
           }
