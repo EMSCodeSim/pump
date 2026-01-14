@@ -2847,17 +2847,23 @@ function hoseSizeForBubble(secs){
 
 const mainSize = hoseSizeForBubble(L.itemsMain);
 const row1 = (()=>{
+  // Row 1 always shows: length + hose size + nozzle pressure (when applicable)
+  // For Wye mains, we show "@ Wye" (no nozzle on the trunk line).
   if (L.hasWye) {
-    if (single) {
-      const bn = activeNozzle(L);
-      return `${mainFt}′ ${mainSize} @ ${(bn?.NP||0)}psi`;
-    }
-    return `${mainFt}′ ${mainSize} @ Wye`;
+    return `${mainFt}' ${mainSize} @ Wye`;
   }
-  return `${mainFt}′ ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
+  return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
-const row2 = `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
-addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-6, (key==='left')?-10:(key==='back')?-22:-34);
+
+// Row 2 rules:
+// - If a Wye is used, do NOT show PP on the trunk line bubble (engine -> wye). Show total flow instead.
+// - For non-wye lines, show PP + GPM.
+const row2 = L.hasWye
+  ? `Total ${Math.round(flowGpm)} gpm`
+  : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
+
+// Lift bubbles higher so they don't get covered by the + hit target.
+addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-14:(key==='back')?-26:-38);
 
 
       if(L.hasWye){
@@ -2871,10 +2877,10 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-6, (key==='left')?-1
               const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
               const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeL = hoseSizeForBubble(L.itemsLeft);
-              const row1L = `${lenLeft}′ ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
+              const row1L = `${lenLeft}' ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
               const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
               const txtL = row1L + '\n' + row2L;
-              addLabel(G_labels, txtL, gL.endX-40, gL.endY-10, -4);
+              addLabel(G_labels, txtL, gL.endX-40, gL.endY-22, -4);
           }
           addTip(G_tips, key,'L',gL.endX,gL.endY);
         } else addTip(G_tips, key,'L',geom.endX-20,geom.endY-20);
@@ -2889,10 +2895,10 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-6, (key==='left')?-1
               const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
               const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
               const brSizeR = hoseSizeForBubble(L.itemsRight);
-              const row1R = `${lenRight}′ ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
+              const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
               const txtR = row1R + '\n' + row2R;
-              addLabel(G_labels, txtR, gR.endX+40, gR.endY-10, -4);
+              addLabel(G_labels, txtR, gR.endX+40, gR.endY-22, -4);
           }
           addTip(G_tips, key,'R',gR.endX,gR.endY);
         } else addTip(G_tips, key,'R',geom.endX+20,geom.endY-20);
