@@ -1915,6 +1915,7 @@ function openPresetLineActions(id){
         const bflow = flow;
         const wrap = document.createElement('div');
 
+const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(it => String(it?.size||'') === '5');
         if(L.hasWye && !single){
           const wye = (L.wyeLoss ?? 10);
           wrap.innerHTML = `
@@ -1923,8 +1924,7 @@ function openPresetLineActions(id){
               <div class="hoseviz">
                 <div class="hoseLegend">
                   <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw25"></span> 2½″                  ${show5 ? `${show5 ? `<span class="legSwatch sw5"></span> 5″` : ``}` : ``}
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — Wye ${wye} psi</div>
@@ -1962,8 +1962,7 @@ function openPresetLineActions(id){
               <div class="hoseviz">
                 <div class="hoseLegend">
                   <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw25"></span> 2½″                  ${show5 ? `${show5 ? `<span class="legSwatch sw5"></span> 5″` : ``}` : ``}
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — via Wye</div>
@@ -1990,8 +1989,7 @@ function openPresetLineActions(id){
               <div class="hoseviz">
                 <div class="hoseLegend">
                   <span class="legSwatch sw175"></span> 1¾″
-                  <span class="legSwatch sw25"></span> 2½″
-                  <span class="legSwatch sw5"></span> 5″
+                  <span class="legSwatch sw25"></span> 2½″                  ${show5 ? `${show5 ? `<span class="legSwatch sw5"></span> 5″` : ``}` : ``}
                 </div>
                 <div class="barWrap">
                   <div class="barTitle">Main ${breakdownText(L.itemsMain)} @ ${bflow} gpm — NP ${L.nozRight.NP} psi</div>
