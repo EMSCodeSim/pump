@@ -651,8 +651,13 @@ export function render(container) {
       }
 
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
-      .status { font-size: 14px; color: #0f172a; }
-      .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
+      .status { font-size: 14px; color: #e5e7eb; }
+            .sub { font-size: 13px; color: #cbd5e1; opacity: .9; }
+      .promptRow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+      .qChip { padding:4px 10px; border-radius:999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.18); color:#ffffff; font-size:12px; letter-spacing:.5px; text-transform:uppercase; }
+      .promptText { color:#ffffff; font-size:15px; }
+      .promptText b { color:#ffffff; }
+.math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
       .btn.primary { background: #0ea5e9; border-color: #0284c7; color: white; }
 
@@ -687,8 +692,7 @@ export function render(container) {
           <div class="sub">Use the graphic info to answer the prompt.</div>
         </div>
         <div class="practice-actions" style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn primary" id="newScenarioBtn">New Question</button>
-          <button class="btn" id="eqToggleBtn">Equations</button>
+<button class="btn" id="eqToggleBtn">Equations</button>
           <button class="btn" id="revealBtn">Reveal</button>
         </div>
       </div>
@@ -713,7 +717,8 @@ export function render(container) {
           <label id="answerLabel">Your answer (psi)</label>
           <input type="text" id="ppGuess" placeholder="e.g., 145" inputmode="decimal" step="1" style="font-size:16px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
         </div>
-        <div class="field" style="max-width:160px">
+        <div class="field" style="max-width:200px">
+          <button class="btn" id="newScenarioBtn" style="width:100%;margin-bottom:8px">New Question</button>
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL} psi)</button>
         </div>
       </div>
@@ -1058,9 +1063,9 @@ export function render(container) {
     drawScenario(scenario);
 
     // Prompt
-    practiceInfo.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">`+
-      `<span style="padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.15);font-size:12px;letter-spacing:.4px;text-transform:uppercase">${qKindToChip(q)}</span>`+
-      `<span><b>Prompt:</b> ${q.prompt}</span>`+
+    practiceInfo.innerHTML = `<div class="promptRow">`+
+      `<span class="qChip">${qKindToChip(q)}</span>`+
+      `<span class="promptText"><b>Prompt:</b> ${q.prompt}</span>`+
     `</div>`;
 
     // Update label + check button to match question type
