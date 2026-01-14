@@ -683,7 +683,11 @@ export function render(container) {
 
       /* NEW: ensure the SVG fills and paints cleanly before first question */
       #overlayPractice{width:100%;display:block}
-    </style>
+    
+    .partLabel{display:block;font-size:13px;opacity:.9;margin-bottom:4px;color:#e6f3ff}
+    .partPrompt{font-size:13px;opacity:.95;margin:4px 0 6px;color:#ffffff}
+    .revealLead{font-weight:700;margin-top:6px;color:#ffffff}
+</style>
 
     <section class="card">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between">
@@ -714,8 +718,7 @@ export function render(container) {
     <section class="card">
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="flex:1;min-width:200px">
-          <label id="answerLabel">Your answer (psi)</label>
-          <input type="text" id="ppGuess" placeholder="Enter pressure in psi" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="decimal">
+          <div id="answersWrap"></div>
         </div>
         <div class="field" style="width:170px;max-width:200px">
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL} psi)</button>
@@ -748,8 +751,9 @@ export function render(container) {
   const workEl = container.querySelector('#work');
   const eqBox = container.querySelector('#eqBox');
   const eqToggleBtn = container.querySelector('#eqToggleBtn');
-  const guessEl = container.querySelector('#ppGuess');
-  const answerLabelEl = container.querySelector('#answerLabel');
+  const answersWrapEl = container.querySelector('#answersWrap');
+  let guessEl = null; // set by renderAnswerUI()
+  const answerLabelEl = null; // legacy label removed
   const checkBtnEl = container.querySelector('#checkBtn');
 
   let scenario = null;
@@ -801,8 +805,205 @@ export function render(container) {
     },
   };
 
+
+  // ----- JSON practice bank (for future flexibility) -----
+  const DEFAULT_PRACTICE_BANK = {
+    version: 1,
+    packId: 'core_dopumper',
+    defaults: { tolerancePsi: TOL, pumpLimitPsi: 150 },
+    templates: [
+      {
+        id: 'tender_can_supply_from_diagram',
+        topic: 'tender_shuttle',
+        layout: 'from_current_diagram',
+        type: 'MULTIPART',
+        weight: 12,
+        chip: 'TENDER SHUTTLE',
+        prompt: 'Answer both parts:',
+        parts: [
+          {
+            id: 'p1_flow',
+            prompt: 'Based on the diagram, how many gpm is flowing?',
+            answerKey: 'totalGpm',
+            unit: 'gpm',
+            answerType: 'number'
+          },
+          {
+            id: 'p2_can_supply',
+            prompt: 'You have 1 tender carrying 3000 gallons with a 15 minute round trip. Can it supply the required gpm? (Y/N)',
+            answerKey: 'tenderCanSupply',
+            unit: 'YN',
+            answerType: 'yn',
+            uses: { tender: { tankGallons: 3000, turnaroundMinutes: 15 } }
+          }
+        ],
+        revealLead: 'First determine required flow, then compare to sustained tender flow (tank ÷ turnaround).'
+      }
+    ]
+  };
+
+  async function loadPracticeBank(){
+    try{
+      const res = await fetch('./practice/practiceBank.core.json', { cache: 'no-store' });
+      if(!res.ok) throw new Error('bad status');
+      const bank = await res.json();
+      if(!bank || !Array.isArray(bank.templates)) throw new Error('bad json');
+      return bank;
+    }catch(_){
+      return DEFAULT_PRACTICE_BANK;
+    }
+  }
+
+  function pickBankTemplate(bank){
+    const list = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
+    if(!list.length) return null;
+    const sum = list.reduce((a,t)=>a+t.weight,0);
+    let r = Math.random()*sum;
+    for(const t of list){ if((r-=t.weight)<=0) return t; }
+    return list[list.length-1];
+  }
+
+  function computeDerivedForBankQuestion(q){
+    const S = q.layout;
+    const base = q.base || computeAll(S);
+    const totalGpm =
+      (S.type==='single') ? base.flow :
+      (S.type==='wye2')   ? base.flow :
+      (S.type==='master') ? base.totalGPM : 0;
+
+    return {
+      totalGpm: Math.round(totalGpm),
+      PDP: base.PDP,
+      mainFL: base.mainFL,
+      higherNeed: base.higherNeed,
+      _base: base
+    };
+  }
+
+  function evaluateBankTemplate(template, derived){
+    const parts = (template.parts||[]).map(p => {
+      let ans = null;
+
+      // Stable derived values from the current diagram
+      if(p.answerKey === 'totalGpm') ans = derived.totalGpm;
+      if(p.answerKey === 'PDP') ans = derived.PDP;
+
+      // Tender shuttle helpers (simple model: sustained gpm = tank ÷ turnaround)
+      const tank = p?.uses?.tender?.tankGallons ?? 3000;
+      const tmin = p?.uses?.tender?.turnaroundMinutes ?? 15;
+      const sustained = tank / tmin;
+
+      if(p.answerKey === 'tenderSustainedGpm'){
+        ans = Math.round(sustained * 10) / 10;
+      }
+      if(p.answerKey === 'tenderCanSupply'){
+        ans = sustained >= derived.totalGpm ? 'Y' : 'N';
+      }
+      if(p.answerKey === 'tenderCountNeeded'){
+        ans = Math.max(1, Math.ceil(derived.totalGpm / sustained));
+      }
+      if(p.answerKey === 'tenderMaxTurnaround'){
+        ans = Math.round((tank / Math.max(1, derived.totalGpm)) * 10) / 10;
+      }
+
+      return {
+        id: p.id,
+        prompt: p.prompt,
+        unit: p.unit,
+        answerType: p.answerType,
+        answer: ans,
+        uses: p.uses || null
+      };
+    });
+
+    return {
+      questionType: 'MULTI',
+      qKind: 'MULTI',
+      chip: template.chip || 'MULTIPART',
+      prompt: template.prompt || 'Answer both parts:',
+      revealLead: template.revealLead || '',
+      parts
+    };
+  }
+
+  function renderAnswerUI(q){
+    if(!answersWrapEl) return;
+
+    if(q.questionType === 'MULTI'){
+      const parts = Array.isArray(q.parts) ? q.parts : [];
+      const html = parts.map((p, i)=>{
+        const unitRaw = (p.unit || '');
+        const unit = unitRaw.toLowerCase();
+        const isYN = (p.answerType === 'yn') || unit === 'yn' || unit === 'y/n';
+        const isGpm = unit === 'gpm';
+        const isMin = unit === 'min' || unit === 'mins' || unit === 'minute' || unit === 'minutes';
+        const isTenders = unit === 'tenders' || unit === 'tender';
+        const label = isYN ? `Part ${i+1} (Y / N)`
+                    : isGpm ? `Part ${i+1} (gpm)`
+                    : isMin ? `Part ${i+1} (min)`
+                    : isTenders ? `Part ${i+1} (tenders)`
+                    : unitRaw ? `Part ${i+1} (${unitRaw})`
+                    : `Part ${i+1}`;
+        const placeholder = isYN ? 'Enter Y or N'
+                          : isGpm ? 'Enter flow in gpm'
+                          : isTenders ? 'Enter number of tenders'
+                          : isMin ? 'Enter minutes'
+                          : 'Enter answer';
+        const inputmode = isYN ? 'text' : 'decimal';
+        const extra = isYN ? 'autocapitalize="characters"' : '';
+        const mt = i===0 ? '' : 'margin-top:10px';
+        return `
+          <div class="partBlock" style="${mt}">
+            <label class="partLabel">${label}</label>
+            <div class="partPrompt">${p.prompt || ''}</div>
+            <input class="partInput" data-part="${i}" type="text" inputmode="${inputmode}" autocomplete="off" spellcheck="false" placeholder="${placeholder}"
+              style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" ${extra}>
+          </div>
+        `;
+      }).join('');
+      answersWrapEl.innerHTML = html || '<div style="opacity:.85">No parts defined.</div>';
+      guessEl = answersWrapEl.querySelector('input.partInput') || null;
+      return;
+    }
+
+
+    const isYN = q.questionType === 'YN';
+    const isGpm = !isYN && String(q.unitHint||'').toLowerCase() === 'gpm';
+    const label = isYN ? UI_COPY.input.ynLabel : (isGpm ? UI_COPY.input.gpmLabel : UI_COPY.input.psiLabel);
+    const ph = isYN ? UI_COPY.input.ynPlaceholder : (isGpm ? UI_COPY.input.gpmPlaceholder : UI_COPY.input.psiPlaceholder);
+    const inputmode = isYN ? 'text' : 'decimal';
+
+    answersWrapEl.innerHTML = `
+      <label class="partLabel">${label}</label>
+      <input type="text" id="ppGuess" placeholder="${ph}" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="${inputmode}" autocomplete="off" spellcheck="false" ${isYN?'autocapitalize="characters"':''}>
+    `;
+    guessEl = answersWrapEl.querySelector('#ppGuess');
+  }
+
+  function gradeMultipart(q){
+    const inputs = Array.from(answersWrapEl?.querySelectorAll('input.partInput') || []);
+    const results = [];
+    for(const inp of inputs){
+      const idx = Number(inp.getAttribute('data-part'));
+      const part = q.parts[idx];
+      const raw = (inp.value||'').trim().toUpperCase();
+
+      if(part.answerType === 'yn'){
+        const v = raw.startsWith('Y') ? 'Y' : raw.startsWith('N') ? 'N' : '';
+        results.push({ idx, ok: v && v === String(part.answer).toUpperCase(), user: v || raw, answer: part.answer });
+      }else{
+        const n = Number(raw);
+        const ok = Number.isFinite(n) && Math.abs(n - Number(part.answer)) <= (DEFAULT_PRACTICE_BANK.defaults?.tolerancePsi ?? TOL);
+        results.push({ idx, ok, user: n, answer: part.answer });
+      }
+    }
+    return { allOk: results.length && results.every(r=>r.ok), results };
+  }
+
+
   function qKindToChip(q){
     if(!q) return '';
+    if(q.chip) return q.chip;
     if(q.questionType === 'YN') return UI_COPY.chips.CHECK;
     if(q.qKind === 'ADJUST') return UI_COPY.chips.ADJUST;
     if(q.qKind === 'REVERSE') return UI_COPY.chips.REVERSE;
@@ -1119,14 +1320,15 @@ export function render(container) {
     }
 
     const rev = buildRevealForQuestion(q);
-    practiceAnswer = rev.total;
+    practiceAnswer = (currentQ.questionType === 'MULTI') ? null : rev.total;
 
     drawScenario(scenario);
+    renderAnswerUI(currentQ);
 
     // Prompt
     practiceInfo.innerHTML = `<div class="promptRow">`+
-      `<span class="qChip">${qKindToChip(q)}</span>`+
-      `<span class="promptText"><b>Prompt:</b> ${q.prompt}</span>`+
+      `<span class="qChip">${qKindToChip(currentQ)}</span>`+
+      `<span class="promptText"><b>Prompt:</b> ${currentQ.prompt}</span>`+
     `</div>`;
 
     // Update label + check button to match question type
@@ -1173,9 +1375,43 @@ export function render(container) {
 
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
     const raw = (guessEl?.value || '').trim();
-    if(!currentQ || practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
+    if(!currentQ){ statusEl.textContent = 'Generate a problem first.'; return; }
+    if(currentQ.questionType !== 'MULTI' && practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
 
     const rev = buildRevealForQuestion(currentQ);
+
+    // MULTIPART (multi-part) grading
+    if(currentQ.questionType === 'MULTI'){
+      const graded = gradeMultipart(currentQ);
+
+      if(graded.allOk){
+        const badges = graded.results.map(r => `Part ${r.idx+1} ✅`).join('  ');
+        statusEl.innerHTML = `<span class="ok">✅ Correct.</span> ${badges}`;
+        workEl.innerHTML = '';
+      }else{
+        const badges = graded.results.map(r => `Part ${r.idx+1} ${r.ok ? '✅' : '❌'}`).join('  ');
+        statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> ${badges}`;
+
+        const lines = (currentQ.parts||[]).map((p,i)=>{
+          const unit = p.unit ? ` ${p.unit}` : '';
+          return `<div style="margin-top:6px"><b>Part ${i+1} answer:</b> ${p.answer}${unit}</div>`;
+        }).join('');
+
+        const tender = (currentQ.parts||[]).map(p=>p?.uses?.tender).find(Boolean);
+        let tenderLine = '';
+        if(tender && tender.tankGallons && tender.turnaroundMinutes){
+          const sustained = Math.round((tender.tankGallons / tender.turnaroundMinutes) * 10) / 10;
+          tenderLine = `<div style="margin-top:8px"><b>Tender sustained flow:</b> ${tender.tankGallons} ÷ ${tender.turnaroundMinutes} = ${sustained} gpm</div>`;
+        }
+
+        workEl.innerHTML = `
+          <div class="revealLead">${currentQ.revealLead || ''}</div>
+          ${tenderLine}
+          ${lines}
+        `;
+      }
+      return;
+    }
 
     // Y/N decision questions
     if(currentQ.questionType === 'YN'){
