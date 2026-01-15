@@ -954,7 +954,12 @@ export function render(container) {
         ans = pdp <= pumpLimit ? 'Y' : 'N';
       }
 
-      return { id:p.id, prompt:p.prompt, unit:p.unit, answerType:p.answerType, answer:ans, uses:p.uses||null };
+      const usesOut = p.uses ? JSON.parse(JSON.stringify(p.uses)) : null;
+      // If this is a foam question and solutionGpm was omitted in JSON, inject the diagram flow so reveals can show the math.
+      if(usesOut && usesOut.foam){
+        if(usesOut.foam.solutionGpm == null) usesOut.foam.solutionGpm = foamFlow;
+      }
+      return { id:p.id, prompt:p.prompt, unit:p.unit, answerType:p.answerType, answer:ans, uses:usesOut };
     });
 
     return {
