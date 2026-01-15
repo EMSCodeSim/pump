@@ -888,7 +888,7 @@ export function render(container) {
       if(p.answerKey === 'totalGpm') ans = derived.totalGpm;
       if(p.answerKey === 'PDP') ans = derived.PDP;
 
-      // Tender shuttle helpers (simple model: sustained gpm = tank ÷ turnaround)
+      // ----- Tender shuttle (simple model: sustained gpm = tank ÷ turnaround) -----
       const tank = p?.uses?.tender?.tankGallons ?? 3000;
       const tmin = p?.uses?.tender?.turnaroundMinutes ?? 15;
       const sustained = tank / tmin;
@@ -906,21 +906,63 @@ export function render(container) {
         ans = Math.round((tank / Math.max(1, derived.totalGpm)) * 10) / 10;
       }
 
-      return {
-        id: p.id,
-        prompt: p.prompt,
-        unit: p.unit,
-        answerType: p.answerType,
-        answer: ans,
-        uses: p.uses || null
-      };
+      // ----- Foam helpers -----
+      const foamPct = p?.uses?.foam?.percent ?? null;
+      const foamFlow = p?.uses?.foam?.solutionGpm ?? derived.totalGpm;
+      const foamMin  = p?.uses?.foam?.minutes ?? null;
+      const foamOnboard = p?.uses?.foam?.onboardGallons ?? null;
+
+      if(p.answerKey === 'foamConcentrateGpm' && foamPct != null){
+        ans = Math.round((foamFlow * (foamPct/100)) * 10) / 10;
+      }
+      if(p.answerKey === 'foamConcentrateGallons' && foamPct != null && foamMin != null){
+        const concGpm = (foamFlow * (foamPct/100));
+        ans = Math.round((concGpm * foamMin) * 10) / 10;
+      }
+      if(p.answerKey === 'foamEnoughYN' && foamPct != null && foamMin != null && foamOnboard != null){
+        const concGpm = (foamFlow * (foamPct/100));
+        const need = concGpm * foamMin;
+        ans = foamOnboard >= need ? 'Y' : 'N';
+      }
+
+      // ----- Standpipe helpers (simplified) -----
+      const floorsUp = p?.uses?.standpipe?.floorsUp ?? null;
+      const psiPerFloor = p?.uses?.standpipe?.psiPerFloor ?? 5;
+      const outletPsi = p?.uses?.standpipe?.outletPsi ?? null;
+      const flowGpm = p?.uses?.standpipe?.flowGpm ?? 150;
+      const hoseLenFt = p?.uses?.standpipe?.hoseLenFt ?? 150;
+      const hoseSize = p?.uses?.standpipe?.hoseSize ?? '1.75';
+      const applianceLoss = p?.uses?.standpipe?.applianceLossPsi ?? 0;
+      const pumpLimit = p?.uses?.standpipe?.pumpLimitPsi ?? 150;
+
+      function standpipeHoseFL(){
+        const len100 = hoseLenFt / 100;
+        if(String(hoseSize) === '2.5') return FL_25(flowGpm) * len100;
+        return FL_175(flowGpm) * len100;
+      }
+
+      if(p.answerKey === 'standpipePDP' && floorsUp != null && outletPsi != null){
+        const elevPsi = floorsUp * psiPerFloor;
+        const fl = standpipeHoseFL();
+        ans = Math.round(outletPsi + applianceLoss + elevPsi + fl);
+      }
+
+      if(p.answerKey === 'standpipeAcceptableYN' && floorsUp != null && outletPsi != null){
+        const elevPsi = floorsUp * psiPerFloor;
+        const fl = standpipeHoseFL();
+        const pdp = Math.round(outletPsi + applianceLoss + elevPsi + fl);
+        ans = pdp <= pumpLimit ? 'Y' : 'N';
+      }
+
+      return { id:p.id, prompt:p.prompt, unit:p.unit, answerType:p.answerType, answer:ans, uses:p.uses||null };
     });
 
     return {
       questionType: 'MULTI',
       qKind: 'MULTI',
+      unitHint: '',
       chip: template.chip || 'MULTIPART',
-      prompt: template.prompt || 'Answer both parts:',
+      prompt: template.prompt || 'Answer all parts:',
       revealLead: template.revealLead || '',
       parts
     };
@@ -938,16 +980,19 @@ export function render(container) {
         const isGpm = unit === 'gpm';
         const isMin = unit === 'min' || unit === 'mins' || unit === 'minute' || unit === 'minutes';
         const isTenders = unit === 'tenders' || unit === 'tender';
+        const isGal = unit === 'gal' || unit === 'gallons';
         const label = isYN ? `Part ${i+1} (Y / N)`
                     : isGpm ? `Part ${i+1} (gpm)`
                     : isMin ? `Part ${i+1} (min)`
                     : isTenders ? `Part ${i+1} (tenders)`
+                    : isGal ? `Part ${i+1} (gal)`
                     : unitRaw ? `Part ${i+1} (${unitRaw})`
                     : `Part ${i+1}`;
         const placeholder = isYN ? 'Enter Y or N'
                           : isGpm ? 'Enter flow in gpm'
                           : isTenders ? 'Enter number of tenders'
                           : isMin ? 'Enter minutes'
+                          : isGal ? 'Enter gallons'
                           : 'Enter answer';
         const inputmode = isYN ? 'text' : 'decimal';
         const extra = isYN ? 'autocapitalize="characters"' : '';
@@ -965,8 +1010,6 @@ export function render(container) {
       guessEl = answersWrapEl.querySelector('input.partInput') || null;
       return;
     }
-
-
     const isYN = q.questionType === 'YN';
     const isGpm = !isYN && String(q.unitHint||'').toLowerCase() === 'gpm';
     const label = isYN ? UI_COPY.input.ynLabel : (isGpm ? UI_COPY.input.gpmLabel : UI_COPY.input.psiLabel);
@@ -1404,9 +1447,18 @@ export function render(container) {
           tenderLine = `<div style="margin-top:8px"><b>Tender sustained flow:</b> ${tender.tankGallons} ÷ ${tender.turnaroundMinutes} = ${sustained} gpm</div>`;
         }
 
+        const foam = (currentQ.parts||[]).map(p=>p?.uses?.foam).find(Boolean);
+        let foamLine = '';
+        if(foam && foam.percent!=null){
+          const sol = foam.solutionGpm ?? 0;
+          const conc = Math.round((sol * (foam.percent/100)) * 10) / 10;
+          foamLine = `<div style="margin-top:8px"><b>Foam concentrate flow:</b> ${sol} × ${foam.percent}% = ${conc} gpm</div>`;
+        }
+
         workEl.innerHTML = `
           <div class="revealLead">${currentQ.revealLead || ''}</div>
           ${tenderLine}
+          ${foamLine}
           ${lines}
         `;
       }
