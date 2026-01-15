@@ -683,9 +683,24 @@ export function render(container) {
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
       .status { font-size: 14px; color: #e5e7eb; }
             .sub { font-size: 13px; color: #cbd5e1; opacity: .9; }
-      .promptRow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-      .qChip { padding:4px 10px; border-radius:999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.18); color:#ffffff; font-size:12px; letter-spacing:.5px; text-transform:uppercase; }
-      .promptText { color:#ffffff; font-size:15px; }
+      
+      .promptCard{
+        background: rgba(0,0,0,.30);
+        border: 2px solid rgba(56,189,248,.55);
+        box-shadow: 0 8px 22px rgba(0,0,0,.35);
+        border-radius: 16px;
+        padding: 12px 14px;
+      }
+      .bankMeta{
+        margin-top:8px;
+        font-size:13px;
+        opacity:.95;
+        color:#e6f3ff;
+      }
+      .bankMeta b{ color:#ffffff; }
+.promptRow { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+      .qChip { padding:6px 12px; border-radius:999px; background: rgba(56,189,248,.18); border:1px solid rgba(56,189,248,.55); color:#e6f3ff; font-size:13px; letter-spacing:.6px; text-transform:uppercase; font-weight:700; }
+      .promptText { color:#ffffff; font-size:18px; line-height:1.25; }
       .promptText b { color:#ffffff; }
 .math { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; font-size: 14px; line-height: 1.4; }
       .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #cbd5e1; background: white; cursor: pointer; }
