@@ -8,6 +8,168 @@
   },
   "templates": [
     {
+      "id": "foam_from_diagram_3pct_10min_20gal",
+      "topic": "foam",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 9,
+      "chip": "FOAM + ATTACK PACKAGE",
+      "prompt": "Answer all parts (use the diagram flow):",
+      "parts": [
+        {
+          "id": "p1_conc_gpm",
+          "prompt": "The attack package in the diagram is flowing. At 3% foam, how many gpm of concentrate is required?",
+          "answerKey": "foamConcentrateGpm",
+          "unit": "gpm",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 3,
+              "minutes": 10,
+              "onboardGallons": 20
+            }
+          }
+        },
+        {
+          "id": "p2_conc_gal",
+          "prompt": "How many gallons of concentrate are needed for 10 minutes?",
+          "answerKey": "foamConcentrateGallons",
+          "unit": "gal",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 3,
+              "minutes": 10,
+              "onboardGallons": 20
+            }
+          }
+        },
+        {
+          "id": "p3_enough",
+          "prompt": "You have 20 gallons of concentrate on board. Is that enough? (Y/N)",
+          "answerKey": "foamEnoughYN",
+          "unit": "YN",
+          "answerType": "yn",
+          "uses": {
+            "foam": {
+              "percent": 3,
+              "minutes": 10,
+              "onboardGallons": 20
+            }
+          }
+        }
+      ],
+      "revealLead": "Use the diagram flow as solution gpm. Concentrate gpm = solution gpm \u00d7 percent. Gallons needed = concentrate gpm \u00d7 minutes."
+    },
+    {
+      "id": "foam_from_diagram_1pct_15min_10gal",
+      "topic": "foam",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 8,
+      "chip": "FOAM + ATTACK PACKAGE",
+      "prompt": "Answer all parts (use the diagram flow):",
+      "parts": [
+        {
+          "id": "p1_conc_gpm",
+          "prompt": "At 1% foam, how many gpm of concentrate is required for the diagram flow?",
+          "answerKey": "foamConcentrateGpm",
+          "unit": "gpm",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 1,
+              "minutes": 15,
+              "onboardGallons": 10
+            }
+          }
+        },
+        {
+          "id": "p2_conc_gal",
+          "prompt": "How many gallons of concentrate are needed for 15 minutes?",
+          "answerKey": "foamConcentrateGallons",
+          "unit": "gal",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 1,
+              "minutes": 15,
+              "onboardGallons": 10
+            }
+          }
+        },
+        {
+          "id": "p3_enough",
+          "prompt": "You have 10 gallons of concentrate. Is that enough? (Y/N)",
+          "answerKey": "foamEnoughYN",
+          "unit": "YN",
+          "answerType": "yn",
+          "uses": {
+            "foam": {
+              "percent": 1,
+              "minutes": 15,
+              "onboardGallons": 10
+            }
+          }
+        }
+      ],
+      "revealLead": "Use the diagram flow as solution gpm. Concentrate gpm = solution gpm \u00d7 percent. Gallons needed = concentrate gpm \u00d7 minutes."
+    },
+    {
+      "id": "foam_from_diagram_6pct_5min_40gal",
+      "topic": "foam",
+      "layout": "from_current_diagram",
+      "type": "MULTIPART",
+      "weight": 7,
+      "chip": "FOAM + ATTACK PACKAGE",
+      "prompt": "Answer all parts (use the diagram flow):",
+      "parts": [
+        {
+          "id": "p1_conc_gpm",
+          "prompt": "At 6% foam, how many gpm of concentrate is required for the diagram flow?",
+          "answerKey": "foamConcentrateGpm",
+          "unit": "gpm",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 6,
+              "minutes": 5,
+              "onboardGallons": 40
+            }
+          }
+        },
+        {
+          "id": "p2_conc_gal",
+          "prompt": "How many gallons of concentrate are needed for 5 minutes?",
+          "answerKey": "foamConcentrateGallons",
+          "unit": "gal",
+          "answerType": "number",
+          "uses": {
+            "foam": {
+              "percent": 6,
+              "minutes": 5,
+              "onboardGallons": 40
+            }
+          }
+        },
+        {
+          "id": "p3_enough",
+          "prompt": "You have 40 gallons of concentrate. Is that enough? (Y/N)",
+          "answerKey": "foamEnoughYN",
+          "unit": "YN",
+          "answerType": "yn",
+          "uses": {
+            "foam": {
+              "percent": 6,
+              "minutes": 5,
+              "onboardGallons": 40
+            }
+          }
+        }
+      ],
+      "revealLead": "Use the diagram flow as solution gpm. Concentrate gpm = solution gpm \u00d7 percent. Gallons needed = concentrate gpm \u00d7 minutes."
+    },
+    {
       "id": "tender_can_supply_from_diagram",
       "topic": "tender_shuttle",
       "layout": "from_current_diagram",
