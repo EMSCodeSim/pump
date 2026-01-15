@@ -236,8 +236,7 @@ function makeQuestion(){
 
   const qKind = weightedPick([
     { v:'PP',     w:35 },
-    { v:'ADJUST', w:25 },
-    { v:'REVERSE',w:20 },
+        { v:'REVERSE',w:20 },
     { v:'CHECK',  w:20 }
   ]);
 
@@ -272,7 +271,7 @@ function makeQuestion(){
   }
 
   // ADJUST
-  if(qKind==='ADJUST'){
+  if(false && qKind==='ADJUST'){
     const S2 = structuredClone ? structuredClone(baseS) : JSON.parse(JSON.stringify(baseS));
     let changeText = '';
 
@@ -347,7 +346,7 @@ function makeQuestion(){
 
     const b2 = computeAll(S2);
     q.scenario = S2;
-    q.prompt = `[${S2.type.toUpperCase()} • ADJUST] Adjustment: ${changeText} What is the NEW PDP?`;
+    q.prompt = `[${S2.type.toUpperCase()} • ADJUST]  ${changeText} What is the NEW PDP?`;
     q.answer = b2.PDP;
     return q;
   }
@@ -420,7 +419,7 @@ function buildRevealForQuestion(q){
     return { total: q.answer, html: q.revealHtml };
   }
 
-  // Default: reuse existing PP breakdown (works for PP and ADJUST)
+  // Default: reuse existing PP breakdown (works for PP)
   if(q.questionType==='YN'){
     return { total: q.answer, html: q.revealHtml || '' };
   }
@@ -794,9 +793,28 @@ export function render(container) {
   // Start question bank load once (shared across renders)
   if(!bankLoadStarted){
     bankLoadStarted = true;
+
+    // Safety: never leave UI stuck on "loading"
+    const safety = setTimeout(()=>{
+      if(bankStatus === 'loading'){
+        practiceBank = DEFAULT_PRACTICE_BANK;
+        bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
+      }
+    }, 3000);
+
     loadPracticeBank()
-      .then(b=>{ practiceBank = b; bankStatus = `loaded (${(b?.templates||[]).length} templates)`; })
-      .catch(()=>{ practiceBank = DEFAULT_PRACTICE_BANK; bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`; });
+      .then(b=>{
+        clearTimeout(safety);
+        practiceBank = b;
+        bankStatus = (b === DEFAULT_PRACTICE_BANK)
+          ? `fallback (${(b?.templates||[]).length} templates)`
+          : `loaded (${(b?.templates||[]).length} templates)`;
+      })
+      .catch(()=>{
+        clearTimeout(safety);
+        practiceBank = DEFAULT_PRACTICE_BANK;
+        bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
+      });
   }
 
 
@@ -804,8 +822,7 @@ export function render(container) {
   const UI_COPY = {
     chips: {
       PP: 'PDP CALCULATION',
-      ADJUST: 'ADJUSTMENT',
-      REVERSE: 'REVERSE CALCULATION',
+            REVERSE: 'REVERSE CALCULATION',
       CHECK: 'DECISION CHECK',
     },
     input: {
@@ -824,22 +841,19 @@ export function render(container) {
     feedback: {
       correct: {
         PP: 'Correct. This is the required pump discharge pressure.',
-        ADJUST: 'Correct. Pump pressure adjusted appropriately.',
-        REVERSE: 'Correct. You isolated the correct value.',
+                REVERSE: 'Correct. You isolated the correct value.',
         CHECK_Y: 'Correct. This setup is within safe operating limits.',
         CHECK_N: 'Correct. This setup exceeds safe operating limits.',
       },
       incorrect: {
         PP: 'Not quite. Review nozzle pressure, friction loss, and elevation.',
-        ADJUST: 'Not quite. Recalculate using the updated setup.',
-        REVERSE: 'Not quite. Work backward from the total PDP.',
+                REVERSE: 'Not quite. Work backward from the total PDP.',
         CHECK: 'Not quite. Compare required PDP to the pump limit.',
       },
     },
     revealLead: {
       PP: 'Pump to meet the highest required pressure.',
-      ADJUST: 'Changes in flow or elevation affect friction loss and required pressure.',
-      REVERSE: 'Work backward from PDP by removing known values.',
+            REVERSE: 'Work backward from PDP by removing known values.',
       CHECK: 'Pump operators must verify operations stay within equipment limits.',
     },
   };
@@ -882,11 +896,21 @@ export function render(container) {
   };
 
   async function loadPracticeBank(){
+    // Loads from /practice/practiceBank.core.json (site-root) and falls back safely.
+    // Includes a short timeout so "loading" never sticks forever.
+    const TIMEOUT_MS = 2500;
+
     try{
-      const res = await fetch('./practice/practiceBank.core.json', { cache: 'no-store' });
-      if(!res.ok) throw new Error('bad status');
+      const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
+
+      const res = await fetch('/practice/practiceBank.core.json', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+      clearTimeout(t);
+
+      if(!res.ok) throw new Error('bank http ' + res.status);
       const bank = await res.json();
-      if(!bank || !Array.isArray(bank.templates)) throw new Error('bad json');
+      if(!bank || !Array.isArray(bank.templates)) throw new Error('bank json missing templates');
+
       return bank;
     }catch(_){
       return DEFAULT_PRACTICE_BANK;
