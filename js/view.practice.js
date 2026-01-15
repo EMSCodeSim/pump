@@ -203,6 +203,30 @@ function makeQuestion(){
   const baseS = generateScenarioBase();
   const base = computeAll(baseS);
 
+  // Derived values for JSON-bank questions
+  const derived = {
+    totalGpm: (base?.flow != null ? base.flow : base?.totalGPM),
+    PDP: base?.PDP
+  };
+
+  // Allow forcing bank questions with ?bank=1
+  const forceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search));
+  const bankProb = forceBank ? 1 : 0.55;
+
+  // Occasionally pull a multi-part question from the JSON bank
+  if(practiceBank && Array.isArray(practiceBank.templates) && practiceBank.templates.length && (forceBank || Math.random() < bankProb)){
+    const t = pickBankTemplate(practiceBank);
+    if(t && t.type === 'MULTIPART'){
+      const bankQ = evaluateBankTemplate(t, derived);
+      // attach diagram scenario
+      bankQ.scenario = baseS;
+      bankQ.bankId = t.id || '';
+      lastBankId = bankQ.bankId;
+      return bankQ;
+    }
+  }
+
+
   const qKind = weightedPick([
     { v:'PP',     w:35 },
     { v:'ADJUST', w:25 },
@@ -760,6 +784,16 @@ export function render(container) {
   let currentQ = null;
   let practiceAnswer = null;
   let eqVisible = false;
+
+  let practiceBank = null;
+  let bankStatus = 'loading';
+  let lastBankId = '';
+
+  // Load question bank (JSON). Falls back to DEFAULT_PRACTICE_BANK.
+  loadPracticeBank()
+    .then(b=>{ practiceBank = b; bankStatus = `loaded (${(b?.templates||[]).length} templates)`; })
+    .catch(()=>{ practiceBank = DEFAULT_PRACTICE_BANK; bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`; });
+
 
   // ----- UI copy (consistent across question types) -----
   const UI_COPY = {
@@ -1359,6 +1393,7 @@ export function render(container) {
   // ---------- interactions ----------
   function makePractice(){
     const q = makeQuestion();
+    if(!q.bankId) lastBankId = '';
     currentQ = q;
     scenario = q.scenario;
 
