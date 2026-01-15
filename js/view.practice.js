@@ -36,7 +36,14 @@ const sizeLabel = (sz) => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${s
 
 // ---------- constants ----------
 const ns = 'http://www.w3.org/2000/svg';
-const TOL = 5; // ± psi for "Check"
+const TOL = 5; 
+// ----- Question bank state (module-scope so helpers can access) -----
+let practiceBank = null;
+let bankStatus = 'loading';
+let lastBankId = '';
+let bankLoadStarted = false;
+
+// ± psi for "Check"
 const TRUCK_W = 390;
 const TRUCK_H = 260;
 const PX_PER_50FT = 45;
@@ -784,15 +791,13 @@ export function render(container) {
   let currentQ = null;
   let practiceAnswer = null;
   let eqVisible = false;
-
-  let practiceBank = null;
-  let bankStatus = 'loading';
-  let lastBankId = '';
-
-  // Load question bank (JSON). Falls back to DEFAULT_PRACTICE_BANK.
-  loadPracticeBank()
-    .then(b=>{ practiceBank = b; bankStatus = `loaded (${(b?.templates||[]).length} templates)`; })
-    .catch(()=>{ practiceBank = DEFAULT_PRACTICE_BANK; bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`; });
+  // Start question bank load once (shared across renders)
+  if(!bankLoadStarted){
+    bankLoadStarted = true;
+    loadPracticeBank()
+      .then(b=>{ practiceBank = b; bankStatus = `loaded (${(b?.templates||[]).length} templates)`; })
+      .catch(()=>{ practiceBank = DEFAULT_PRACTICE_BANK; bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`; });
+  }
 
 
   // ----- UI copy (consistent across question types) -----
