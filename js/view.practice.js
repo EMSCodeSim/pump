@@ -1376,7 +1376,11 @@ export function render(container) {
     // Prompt
     practiceInfo.innerHTML = `<div class="promptRow">`+
       `<span class="qChip">${qKindToChip(currentQ)}</span>`+
-      `<span class="promptText"><b>Prompt:</b> ${currentQ.prompt}</span>`+
+      `<span class="promptText"><b>Prompt:</b> ${currentQ.prompt}
+        <div style="margin-top:6px;font-size:12px;opacity:.9;">
+          <b>Bank:</b> ${bankStatus}${lastBankId ? ` • <b>ID:</b> ${lastBankId}` : ''}
+          ${currentQ.questionType==='MULTI' ? ' • <b>Type:</b> Multi-part' : ''}
+        </div></span>`+
     `</div>`;
 
     // Update label + check button to match question type
