@@ -7,12 +7,12 @@ android {
         applicationId "com.fireopscalc.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
-        versionName "2.0"
+        versionCode 20
+        versionName "2.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/master/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
@@ -26,7 +26,8 @@ android {
 
 repositories {
     flatDir{
-        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+        // Keep Cordova plugin libs (Capacitor uses this); DO NOT include app-level "libs" to avoid legacy jars.
+        dirs '../capacitor-cordova-android-plugins/src/main/libs'
     }
 }
 
@@ -34,10 +35,16 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+
+    // ✅ Play Billing v6+ (required by Play Console)
+    implementation "com.android.billingclient:billing:6.1.0"
+
     implementation project(':capacitor-android')
+
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+
     implementation project(':capacitor-cordova-android-plugins')
 }
 
