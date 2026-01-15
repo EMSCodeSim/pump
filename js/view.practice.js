@@ -218,7 +218,7 @@ function makeQuestion(){
 
   // Allow forcing bank questions with ?bank=1
   const forceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search));
-  const bankProb = forceBank ? 1 : 0.55;
+  const bankProb = forceBank ? 1 : 0.8;
 
   // Occasionally pull a multi-part question from the JSON bank
   if(practiceBank && Array.isArray(practiceBank.templates) && practiceBank.templates.length && (forceBank || Math.random() < bankProb)){
