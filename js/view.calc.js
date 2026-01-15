@@ -2841,8 +2841,9 @@ function hoseSizeForBubble(secs){
     // Fractional / common display forms
     if (s.includes('1 3/4') || s.includes('1¾')) return '1.75';
     if (s.includes('2 1/2') || s.includes('2½')) return '2.5';
+    if (s === '2.5' || s.startsWith('2.5') || s.includes('2.5"') || s.includes('2.5″')) return '2.5';
     if (s.includes('4') && (s.match(/\b4\b/) || s.includes('4"'))) return '4';
-    if (s.includes('5') && (s.match(/\b5\b/) || s.includes('5"'))) return '5';
+    if (s.includes('5') && (s.match(/(^|\s)5(\s|$)/) || s.includes('5"') || s.includes('5″'))) return '5';
 
     const m = s.match(/(\d+(?:\.\d+)?)/);
     if (!m) return '';
