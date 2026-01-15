@@ -1,6 +1,9 @@
 // Tiny router + lazy loading
 import { renderAdOnce } from './ads-guards.js';
 
+// Trial / paywall (native app only)
+import { renderPaywall, tryPurchasePro, tryRestorePro } from './paywall.js';
+
 // === AdSense (web-only) ===
 // Replace slot IDs with your real AdSense ad unit slot IDs after approval.
 const ADS_CLIENT = 'ca-pub-9414291143716298';
@@ -9,6 +12,83 @@ const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
+
+// --------------------------- Paywall config ---------------------------
+// Option A: hard paywall after 5 days for NEW installs only.
+// Existing users are grandfathered free.
+const PRO_PRODUCT_ID = 'fireops_calc_pro_199'; // <-- set this same ID in Play Console
+const TRIAL_DAYS = 5;
+const KEY_INSTALL_TS = 'fireops_install_ts_v1';
+const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
+const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
+
+function isNativeApp(){
+  try{
+    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
+    const p = window?.Capacitor?.getPlatform?.();
+    if (p && p !== 'web') return true;
+  }catch(_e){}
+  const proto = (window?.location?.protocol || '').toLowerCase();
+  return proto === 'capacitor:';
+}
+
+function hasAnyExistingUserData(){
+  // Heuristics: if any of these exist, the user has used prior versions.
+  // This keeps current users free when you ship the paywall update.
+  const keys = [
+    'fireops_dept_equipment_v1',
+    'fireops_quickstart_seen_version',
+    'fireops_practice_v1',
+    'PRACTICE_SAVE_KEY',
+    'fireops_presets_v1',
+  ];
+  try{
+    for (const k of keys){
+      if (localStorage.getItem(k) != null) return true;
+    }
+  }catch(_e){}
+  return false;
+}
+
+function initTrialFlags(){
+  // Install timestamp
+  let ts = 0;
+  try{ ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0; }catch(_e){}
+  if (!ts) {
+    // If storage already contains data from previous builds, treat as existing user and grandfather.
+    const existing = hasAnyExistingUserData();
+    if (existing) {
+      try{ localStorage.setItem(KEY_GRANDFATHERED, '1'); }catch(_e){}
+    }
+    try{ localStorage.setItem(KEY_INSTALL_TS, String(Date.now())); }catch(_e){}
+  }
+}
+
+function isGrandfathered(){
+  try{ return localStorage.getItem(KEY_GRANDFATHERED) === '1'; }catch(_e){}
+  return false;
+}
+
+function isProUnlocked(){
+  try{ return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; }catch(_e){}
+  return false;
+}
+
+function daysSinceInstall(){
+  try{
+    const ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0;
+    if (!ts) return 0;
+    return Math.floor((Date.now() - ts) / (24*60*60*1000));
+  }catch(_e){}
+  return 0;
+}
+
+function shouldBlockWithPaywall(){
+  if (!isNativeApp()) return false;              // web stays free
+  if (isGrandfathered()) return false;           // keep current users free
+  if (isProUnlocked()) return false;             // already paid
+  return daysSinceInstall() >= TRIAL_DAYS;       // trial expired
+}
 
 // Top quick-action row (Department Setup button)
 const topActionsEl = document.querySelector('.top-actions');
@@ -85,6 +165,42 @@ function withTimeout(promise, ms, label){
 
 async function setView(name){
   try{
+    // Trial/paywall gate (native app only)
+    initTrialFlags();
+    if (shouldBlockWithPaywall()) {
+      if(currentView?.dispose) { try{ currentView.dispose(); }catch(_e){} }
+
+      // Hide Pump-only quick actions while paywall is up
+      if (topActionsEl) topActionsEl.style.display = 'none';
+
+      if (app) {
+        app.innerHTML = '';
+        await renderPaywall(app, {
+          priceText: '$1.99 one-time',
+          trialDays: TRIAL_DAYS,
+          productId: PRO_PRODUCT_ID,
+          onPurchase: async () => {
+            const ok = await tryPurchasePro(PRO_PRODUCT_ID);
+            if (ok) {
+              try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
+              setView('calc');
+            }
+          },
+          onRestore: async () => {
+            const ok = await tryRestorePro(PRO_PRODUCT_ID);
+            if (ok) {
+              try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
+              setView('calc');
+            }
+          }
+        });
+      }
+
+      currentView = { name: 'paywall', dispose: null };
+      buttons.forEach(b=>b.classList.remove('active'));
+      return;
+    }
+
     if(currentView?.dispose) { currentView.dispose(); }
 
     updateTopActionsVisibility(name);
