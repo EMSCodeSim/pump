@@ -814,6 +814,8 @@ export function render(container) {
       if(bankStatus === 'loading'){
         practiceBank = DEFAULT_PRACTICE_BANK;
         bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
+        updateBankMeta();
+        updateBankMeta();
       }
     }, 3000);
 
@@ -824,16 +826,30 @@ export function render(container) {
         bankStatus = (b === DEFAULT_PRACTICE_BANK)
           ? `fallback (${(b?.templates||[]).length} templates)`
           : `loaded (${(b?.templates||[]).length} templates)`;
+        updateBankMeta();
       })
       .catch(()=>{
         clearTimeout(safety);
         practiceBank = DEFAULT_PRACTICE_BANK;
         bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
+        updateBankMeta();
+        updateBankMeta();
       });
   }
 
 
-  // ----- UI copy (consistent across question types) -----
+  
+  function updateBankMeta(){
+    try{
+      const s = document.getElementById('bankStatusText');
+      if(s) s.textContent = bankStatus;
+      const idEl = document.getElementById('bankIdText');
+      if(idEl) idEl.innerHTML = lastBankId ? ` • <b>ID:</b> ${lastBankId}` : '';
+      // bankTypeText is tied to current question, leave it as-is.
+    }catch(_){}
+  }
+
+// ----- UI copy (consistent across question types) -----
   const UI_COPY = {
     chips: {
       PP: 'PDP CALCULATION',
@@ -1453,14 +1469,20 @@ export function render(container) {
     renderAnswerUI(currentQ);
 
     // Prompt
-    practiceInfo.innerHTML = `<div class="promptRow">`+
-      `<span class="qChip">${qKindToChip(currentQ)}</span>`+
-      `<span class="promptText"><b>Prompt:</b> ${currentQ.prompt}
-        <div style="margin-top:6px;font-size:12px;opacity:.9;">
-          <b>Bank:</b> ${bankStatus}${lastBankId ? ` • <b>ID:</b> ${lastBankId}` : ''}
-          ${currentQ.questionType==='MULTI' ? ' • <b>Type:</b> Multi-part' : ''}
-        </div></span>`+
-    `</div>`;
+    practiceInfo.innerHTML =
+      `<div class="promptCard">`+
+        `<div class="promptRow">`+
+          `<span class="qChip">${qKindToChip(currentQ)}</span>`+
+          `<div class="promptText">`+
+            `<div><b>Prompt:</b> ${currentQ.prompt}</div>`+
+            `<div class="bankMeta">`+
+              `<b>Bank:</b> <span id="bankStatusText">${bankStatus}</span>`+
+              `<span id="bankIdText">${lastBankId ? ` • <b>ID:</b> ${lastBankId}` : ''}</span>`+
+              `<span id="bankTypeText">${currentQ.questionType==='MULTI' ? ' • <b>Type:</b> Multi-part' : ''}</span>`+
+            `</div>`+
+          `</div>`+
+        `</div>`+
+      `</div>`;
 
     // Update label + check button to match question type
     if(answerLabelEl){
