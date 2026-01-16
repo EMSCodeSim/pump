@@ -674,10 +674,41 @@ export function render(container) {
     <style>
       .practice-actions .btn { min-height: 40px; }
 
-      /* Make New Question stand out more */
+      /* Make Next Question (New Question) stand out more */
       .practice-actions #newScenarioBtn {
-        font-weight: 600;
-        min-width: 120px;
+        background: #d40000;
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.18);
+        font-weight: 800;
+        letter-spacing: .3px;
+        min-width: 140px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        box-shadow:
+          0 10px 24px rgba(212,0,0,0.28),
+          0 0 0 2px rgba(212,0,0,0.35);
+      }
+
+      .practice-actions #newScenarioBtn:active {
+        transform: scale(0.98);
+      }
+
+      .practice-actions #newScenarioBtn:focus {
+        outline: none;
+        box-shadow:
+          0 10px 24px rgba(212,0,0,0.28),
+          0 0 0 3px rgba(255,255,255,0.22),
+          0 0 0 6px rgba(212,0,0,0.30);
+      }
+
+      .practice-actions #newScenarioBtn:active { transform: scale(0.98); }
+
+      .practice-actions #newScenarioBtn:focus {
+        outline: none;
+        box-shadow:
+          0 10px 24px rgba(212,0,0,0.28),
+          0 0 0 3px rgba(255,255,255,0.22),
+          0 0 0 6px rgba(212,0,0,0.30);
       }
 
       .stage { min-height: 180px; display:flex; align-items:center; justify-content:center; }
