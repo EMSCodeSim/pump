@@ -2,7 +2,15 @@
 import { renderAdOnce } from './ads-guards.js';
 
 // Trial / paywall (native app only)
-import { renderPaywall, tryPurchasePro, tryRestorePro } from './paywall.js';
+import {
+  initBilling,
+  buyProduct,
+  restorePurchases,
+  renderTrialIntroModal,
+  renderPaywall,
+  tryPurchasePro,
+  tryRestorePro
+} from './paywall.js';
 
 // === AdSense (web-only) ===
 // Replace slot IDs with your real AdSense ad unit slot IDs after approval.
@@ -21,6 +29,7 @@ const TRIAL_DAYS = 5;
 const KEY_INSTALL_TS = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
+const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
 
 function isNativeApp(){
   try{
@@ -72,6 +81,15 @@ function isGrandfathered(){
 function isProUnlocked(){
   try{ return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; }catch(_e){}
   return false;
+}
+
+function hasShownTrialIntro(){
+  try{ return localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === '1'; }catch(_e){}
+  return false;
+}
+
+function markTrialIntroShown(){
+  try{ localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, '1'); }catch(_e){}
 }
 
 function daysSinceInstall(){
@@ -167,6 +185,38 @@ async function setView(name){
   try{
     // Trial/paywall gate (native app only)
     initTrialFlags();
+
+    // Initialize billing once per app session (native only).
+    if (isNativeApp()) {
+      initBilling({
+        productId: PRO_PRODUCT_ID,
+        onEntitlement: (owned) => {
+          if (owned) {
+            try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
+          }
+        }
+      });
+
+      // Show a one-time "no-risk trial" explainer for NEW users.
+      if (!isGrandfathered() && !isProUnlocked() && !shouldBlockWithPaywall() && !hasShownTrialIntro()) {
+        markTrialIntroShown();
+        renderTrialIntroModal({
+          trialDays: TRIAL_DAYS,
+          priceText: '$1.99 one-time',
+          onContinue: () => {},
+          onBuyNow: async () => {
+            // Prefer cordova-plugin-purchase; fall back to other IAP plugins.
+            try {
+              await buyProduct(PRO_PRODUCT_ID);
+            } catch (_e) {
+              // Fallback path
+              await tryPurchasePro(PRO_PRODUCT_ID);
+            }
+          }
+        });
+      }
+    }
+
     if (shouldBlockWithPaywall()) {
       if(currentView?.dispose) { try{ currentView.dispose(); }catch(_e){} }
 
@@ -180,17 +230,20 @@ async function setView(name){
           trialDays: TRIAL_DAYS,
           productId: PRO_PRODUCT_ID,
           onPurchase: async () => {
-            const ok = await tryPurchasePro(PRO_PRODUCT_ID);
-            if (ok) {
-              try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
-              setView('calc');
-            }
+            // Prefer cordova-plugin-purchase; fall back to other IAP plugins.
+            try{ await buyProduct(PRO_PRODUCT_ID); }catch(_e){ await tryPurchasePro(PRO_PRODUCT_ID); }
+            // Entitlement callback should set KEY_PRO_UNLOCKED; but set it defensively.
+            try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
+            setView('calc');
           },
           onRestore: async () => {
-            const ok = await tryRestorePro(PRO_PRODUCT_ID);
+            let ok = false;
+            try{ ok = await restorePurchases(PRO_PRODUCT_ID); }catch(_e){ ok = await tryRestorePro(PRO_PRODUCT_ID); }
             if (ok) {
               try{ localStorage.setItem(KEY_PRO_UNLOCKED, '1'); }catch(_e){}
               setView('calc');
+            } else {
+              throw new Error('No purchase found for this account.');
             }
           }
         });
