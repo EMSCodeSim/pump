@@ -1,432 +1,373 @@
-/* paywall.js
-   FireOps Calc paywall + billing helpers (Cordova/Capacitor + cordova-plugin-purchase v13)
-   - Safe on WEB (won't break page load)
-   - Safe if plugin missing (shows message, disables buy)
-*/
+// js/paywall.js
+// Safe on web (does nothing) and only enables purchases on native builds.
+// Works with cordova-plugin-purchase v13+ where ordering may require an Offer.
 
-const LS_TRIAL_START = "fireops_trial_start_ms";
-const LS_UNLOCKED = "fireops_unlocked";
-const DEFAULT_TRIAL_DAYS = 5;
+const PRODUCT_ID_UNLOCK = "fireopscalc_unlock_199"; // <-- make sure this EXACTLY matches Play Console product id
 
-function nowMs() {
-  return Date.now();
+function isNativeApp() {
+  // Capacitor: native builds use capacitor:// or file://
+  const proto = (window.location && window.location.protocol) ? window.location.protocol : "";
+  return proto === "capacitor:" || proto === "file:";
 }
 
-function clampInt(n, fallback) {
-  const x = Number(n);
-  return Number.isFinite(x) ? Math.floor(x) : fallback;
+function log(...args) {
+  // keep logs in native debugging; harmless on web
+  try { console.log("[paywall]", ...args); } catch {}
 }
 
-function isProbablyNative() {
-  try {
-    // Capacitor native check
-    const cap = window.Capacitor;
-    if (cap?.isNativePlatform?.()) return true;
+function safeStr(err) {
+  try { return (err && (err.message || err.toString())) || String(err); } catch { return "Unknown error"; }
+}
 
-    // Older Capacitor pattern
-    const platform = cap?.getPlatform?.();
-    if (platform && platform !== "web") return true;
+function getStore() {
+  // cordova-plugin-purchase typically exposes window.CdvPurchase
+  return window.CdvPurchase && window.CdvPurchase.store ? window.CdvPurchase.store : null;
+}
 
-    // Cordova check
-    if (typeof window.cordova !== "undefined") return true;
-
-    return false;
-  } catch {
-    return false;
-  }
+function getPlatformInfo() {
+  return {
+    proto: (window.location && window.location.protocol) || "",
+    hasCdvPurchase: !!window.CdvPurchase,
+    hasStore: !!getStore(),
+    userAgent: navigator.userAgent
+  };
 }
 
 /**
- * Cordova Purchase plugin (cordova-plugin-purchase) is usually exposed at window.CdvPurchase
- * We must NOT use window.store (name collision risk with your own store.js).
+ * Initialize billing (native only). Safe to call on web.
+ * Returns { ok:boolean, reason?:string }
  */
-function getCdv() {
-  try {
-    return window.CdvPurchase || null;
-  } catch {
-    return null;
+export async function initBilling({ debug = false } = {}) {
+  if (!isNativeApp()) {
+    if (debug) log("initBilling skipped (web)", getPlatformInfo());
+    return { ok: false, reason: "web" };
   }
-}
 
-function getPurchaseStore() {
-  const cdv = getCdv();
-  const s = cdv?.store || null;
-  // sanity check to avoid picking up your own app "store"
-  if (!s) return null;
-  if (typeof s.register !== "function") return null;
-  if (typeof s.refresh !== "function") return null;
-  return s;
-}
+  // Wait for cordova deviceready if it exists (capacitor + cordova plugin case)
+  await waitForDeviceReady(4000);
 
-function safeJsonParse(str, fallback) {
+  const store = getStore();
+  if (!store) {
+    log("No purchase store found", getPlatformInfo());
+    return { ok: false, reason: "no_store" };
+  }
+
   try {
-    return JSON.parse(str);
-  } catch {
-    return fallback;
+    // Verbosity in v13+
+    try { store.verbosity = store.DEBUG; } catch {}
+
+    // Register product (works in most versions)
+    try {
+      store.register([
+        {
+          id: PRODUCT_ID_UNLOCK,
+          type: window.CdvPurchase?.ProductType?.NON_CONSUMABLE || "non consumable",
+        }
+      ]);
+    } catch (e) {
+      // Some versions use store.register({id,type})
+      try {
+        store.register({
+          id: PRODUCT_ID_UNLOCK,
+          type: window.CdvPurchase?.ProductType?.NON_CONSUMABLE || "non consumable",
+        });
+      } catch (e2) {
+        log("register failed (continuing)", safeStr(e2));
+      }
+    }
+
+    // When approved/owned, mark unlocked
+    store.when(PRODUCT_ID_UNLOCK).approved((p) => {
+      try {
+        log("approved", p?.id);
+        setUnlocked(true);
+        try { p.finish(); } catch {}
+        try { store.refresh(); } catch {}
+      } catch (e) {
+        log("approved handler error", safeStr(e));
+      }
+    });
+
+    store.when(PRODUCT_ID_UNLOCK).verified(() => {
+      try {
+        log("verified");
+        setUnlocked(true);
+      } catch {}
+    });
+
+    store.error((err) => {
+      log("store error", safeStr(err));
+    });
+
+    // Initialize / refresh
+    try {
+      if (typeof store.initialize === "function") {
+        // v13 uses initialize(platforms)
+        await store.initialize([store.PLATFORM_GOOGLE_PLAY, store.PLATFORM_APPLE_APPSTORE].filter(Boolean));
+      }
+    } catch (e) {
+      log("store.initialize failed (continuing)", safeStr(e));
+    }
+
+    try { store.refresh(); } catch {}
+
+    if (debug) log("initBilling complete", getPlatformInfo());
+    return { ok: true };
+  } catch (e) {
+    log("initBilling failed", safeStr(e));
+    return { ok: false, reason: safeStr(e) };
   }
 }
 
 export function isUnlocked() {
-  try {
-    return localStorage.getItem(LS_UNLOCKED) === "1";
-  } catch {
-    return false;
-  }
+  return localStorage.getItem("fireopscalc_unlocked") === "1";
 }
 
-export function setUnlocked(flag) {
+export function setUnlocked(v) {
   try {
-    localStorage.setItem(LS_UNLOCKED, flag ? "1" : "0");
-  } catch {
-    // ignore
-  }
-}
-
-export function getOrStartTrialDays(trialDays = DEFAULT_TRIAL_DAYS) {
-  trialDays = clampInt(trialDays, DEFAULT_TRIAL_DAYS);
-
-  try {
-    const raw = localStorage.getItem(LS_TRIAL_START);
-    let start = raw ? Number(raw) : 0;
-    if (!Number.isFinite(start) || start <= 0) {
-      start = nowMs();
-      localStorage.setItem(LS_TRIAL_START, String(start));
-    }
-    const elapsedDays = (nowMs() - start) / (1000 * 60 * 60 * 24);
-    const remaining = Math.max(0, trialDays - elapsedDays);
-    return {
-      trialDays,
-      startMs: start,
-      elapsedDays,
-      remainingDays: remaining,
-      isExpired: remaining <= 0,
-    };
-  } catch {
-    // if localStorage blocked, just behave permissively
-    return {
-      trialDays,
-      startMs: nowMs(),
-      elapsedDays: 0,
-      remainingDays: trialDays,
-      isExpired: false,
-    };
-  }
-}
-
-/**
- * Initialize billing. SAFE on web: returns { ok:false, reason:"not-native" } without breaking load.
- * @param {object} opts
- * @param {string} opts.productId - e.g. "fireopscalc_unlock"
- * @param {number} opts.trialDays
- */
-export async function initBilling(opts = {}) {
-  const productId = String(opts.productId || "").trim();
-  const trialDays = clampInt(opts.trialDays, DEFAULT_TRIAL_DAYS);
-
-  // Never block web
-  if (!isProbablyNative()) {
-    return { ok: false, reason: "not-native", productId, trialDays };
-  }
-
-  const cdv = getCdv();
-  const purchaseStore = getPurchaseStore();
-  if (!cdv || !purchaseStore) {
-    return { ok: false, reason: "plugin-missing", productId, trialDays };
-  }
-  if (!productId) {
-    return { ok: false, reason: "no-product-id", productId, trialDays };
-  }
-
-  // Make everything defensive
-  try {
-    // Optional: quieter logs in prod
-    try {
-      if (purchaseStore.verbosity) purchaseStore.verbosity = cdv.LogLevel?.QUIET ?? purchaseStore.verbosity;
-    } catch {}
-
-    // Register product (NON-CONSUMABLE one-time)
-    purchaseStore.register([
-      {
-        id: productId,
-        type: cdv.ProductType?.NON_CONSUMABLE || "non consumable",
-        platform: cdv.Platform?.GOOGLE_PLAY || "google_play",
-      },
-    ]);
-
-    // If store.initialize exists (v13), call it
-    try {
-      if (typeof purchaseStore.initialize === "function" && cdv.Platform?.GOOGLE_PLAY) {
-        // do not await forever
-        const initPromise = purchaseStore.initialize([cdv.Platform.GOOGLE_PLAY]);
-        await promiseWithTimeout(initPromise, 8000);
-      }
-    } catch {
-      // ignore; refresh below still helps
-    }
-
-    // Hooks: if owned/verified, unlock
-    try {
-      purchaseStore.when(productId).owned(() => setUnlocked(true));
-    } catch {}
-    try {
-      purchaseStore.when(productId).approved((p) => {
-        // Some setups require verify/finish
-        try {
-          if (typeof p.verify === "function") p.verify();
-          else if (typeof p.finish === "function") p.finish();
-        } catch {}
-      });
-    } catch {}
-    try {
-      purchaseStore.when(productId).verified((p) => {
-        setUnlocked(true);
-        try {
-          if (typeof p.finish === "function") p.finish();
-        } catch {}
-      });
-    } catch {}
-
-    // Always refresh, but never block app start
-    try {
-      await promiseWithTimeout(purchaseStore.refresh(), 8000);
-    } catch {
-      // ignore
-    }
-
-    // If product already shows owned, unlock
-    try {
-      const prod = purchaseStore.get(productId);
-      if (prod?.owned) setUnlocked(true);
-    } catch {}
-
-    return { ok: true, reason: "ready", productId, trialDays };
-  } catch (err) {
-    return { ok: false, reason: "init-error", productId, trialDays, error: String(err?.message || err) };
-  }
-}
-
-function promiseWithTimeout(promise, ms) {
-  if (!promise || typeof promise.then !== "function") return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error("timeout")), ms);
-    promise
-      .then((v) => {
-        clearTimeout(t);
-        resolve(v);
-      })
-      .catch((e) => {
-        clearTimeout(t);
-        reject(e);
-      });
-  });
-}
-
-/**
- * Attempts to purchase the product.
- * Works with either:
- *  - product.order()
- *  - store.order(productId)
- */
-export async function purchaseNow(productId) {
-  productId = String(productId || "").trim();
-  if (!productId) throw new Error("Missing productId");
-
-  // On web: fail gracefully (do not break page)
-  if (!isProbablyNative()) {
-    throw new Error("Purchases only work in the installed app (Google Play).");
-  }
-
-  const purchaseStore = getPurchaseStore();
-  if (!purchaseStore) {
-    throw new Error("Purchase system not available (plugin missing).");
-  }
-
-  // Refresh first (best practice), but don’t hang
-  try {
-    await promiseWithTimeout(purchaseStore.refresh(), 6000);
+    localStorage.setItem("fireopscalc_unlocked", v ? "1" : "0");
   } catch {}
-
-  const prod = safeGetProduct(productId);
-
-  // Try product.order() first
-  if (prod && typeof prod.order === "function") {
-    await prod.order();
-    return;
-  }
-
-  // Fallback: store.order(productId)
-  if (typeof purchaseStore.order === "function") {
-    await purchaseStore.order(productId);
-    return;
-  }
-
-  throw new Error("No purchase method found (expected product.order() or store.order())");
-}
-
-function safeGetProduct(productId) {
-  try {
-    const s = getPurchaseStore();
-    if (!s) return null;
-    return s.get(productId) || null;
-  } catch {
-    return null;
-  }
 }
 
 /**
- * Show paywall modal.
- * IMPORTANT: This function NEVER blocks app load. If you call it on web, it will show
- * a message and disable the Buy button.
+ * Decide whether to block the app after trial expires.
+ * Safe on web.
  */
-export function showPaywallModal({
-  productId,
-  trialDays = DEFAULT_TRIAL_DAYS,
-  title = "5-Day Free Trial — No Risk",
-  subtitle = "FireOps Calc is free to use for the next 5 days.",
-  priceLine = "$1.99 one-time purchase — no subscription, no auto-billing.",
-  onContinue = null,
-  onPurchased = null,
-} = {}) {
-  const native = isProbablyNative();
+export function shouldBlockWithPaywall({ trialDays = 5 } = {}) {
+  // Web: never block (you said desktop/web should stay free for edits)
+  if (!isNativeApp()) return false;
 
-  // Remove existing
-  const old = document.getElementById("fireops-paywall-overlay");
-  if (old) old.remove();
+  // If unlocked, never block
+  if (isUnlocked()) return false;
 
-  const overlay = document.createElement("div");
-  overlay.id = "fireops-paywall-overlay";
-  overlay.style.cssText = `
-    position: fixed; inset: 0; z-index: 99999;
-    background: rgba(0,0,0,0.55);
-    display: flex; align-items: center; justify-content: center;
-    padding: 16px;
-  `;
+  const key = "fireopscalc_first_run_ts";
+  let first = Number(localStorage.getItem(key) || "0");
+  if (!first) {
+    first = Date.now();
+    try { localStorage.setItem(key, String(first)); } catch {}
+  }
+  const elapsedDays = (Date.now() - first) / (1000 * 60 * 60 * 24);
+  return elapsedDays >= trialDays;
+}
+
+/**
+ * Show the 5-day trial intro modal (native only).
+ * Includes "Unlock Now" and "Continue Free Trial".
+ */
+export function showTrialIntroModal({ priceText = "$1.99", onClose } = {}) {
+  // Never show this on web
+  if (!isNativeApp()) return;
+
+  // Only show once per install
+  const seenKey = "fireopscalc_trial_modal_seen";
+  if (localStorage.getItem(seenKey) === "1") return;
+  localStorage.setItem(seenKey, "1");
+
+  const wrap = document.createElement("div");
+  wrap.style.position = "fixed";
+  wrap.style.inset = "0";
+  wrap.style.zIndex = "9999";
+  wrap.style.display = "flex";
+  wrap.style.alignItems = "center";
+  wrap.style.justifyContent = "center";
+  wrap.style.padding = "18px";
+  wrap.style.background = "rgba(0,0,0,0.55)";
 
   const card = document.createElement("div");
-  card.style.cssText = `
-    width: min(520px, 100%);
-    background: rgba(10, 16, 24, 0.98);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 16px;
-    padding: 18px 16px;
-    color: #eaf2ff;
-    box-shadow: 0 18px 60px rgba(0,0,0,0.55);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  `;
+  card.style.width = "min(520px, 100%)";
+  card.style.borderRadius = "18px";
+  card.style.padding = "18px";
+  card.style.background = "#0b1320";
+  card.style.border = "1px solid rgba(255,255,255,0.12)";
+  card.style.boxShadow = "0 18px 60px rgba(0,0,0,0.5)";
+  card.style.color = "#e8f0ff";
 
-  const trial = getOrStartTrialDays(trialDays);
-  const daysLeft = Math.ceil(trial.remainingDays);
+  const title = document.createElement("div");
+  title.textContent = "5-Day Free Trial — No Risk";
+  title.style.fontSize = "22px";
+  title.style.fontWeight = "800";
+  title.style.marginBottom = "10px";
 
-  card.innerHTML = `
-    <div style="font-size:14px; opacity:0.85; margin-bottom:6px;">FireOps Calc — Start Here</div>
-    <div style="font-size:26px; font-weight:800; color:#7fd0ff; margin-bottom:10px;">${escapeHtml(title)}</div>
-    <div style="font-size:16px; margin-bottom:10px;">${escapeHtml(subtitle)}</div>
-    <div style="font-size:16px; margin-bottom:12px;">
-      After the trial, unlock with a <b>$1.99 one-time</b> purchase — <b>no subscription</b>, <b>no auto-billing</b>.
-    </div>
+  const p1 = document.createElement("div");
+  p1.textContent = "FireOps Calc is free to use for the next 5 days.";
+  p1.style.opacity = "0.9";
+  p1.style.marginBottom = "10px";
 
-    <div style="font-size:14px; opacity:0.9; margin-bottom:10px;">
-      Trial status: <b>${trial.isExpired ? "Expired" : `${daysLeft} day(s) left`}</b>
-    </div>
+  const p2 = document.createElement("div");
+  p2.textContent = `After the trial, you can unlock the app with a one-time ${priceText} purchase — no subscription, no auto-billing.`;
+  p2.style.opacity = "0.9";
+  p2.style.marginBottom = "12px";
 
-    <div id="fireops-paywall-msg" style="
-      display:none; margin: 10px 0 14px 0;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,80,80,0.35);
-      background: rgba(255,80,80,0.12);
-      color: #ffd1d1;
-      font-size: 14px;
-    "></div>
+  const note = document.createElement("div");
+  note.textContent = "Purchases only work when installed from Google Play / App Store (Internal/Closed/Production). Not sideloaded.";
+  note.style.fontSize = "12px";
+  note.style.opacity = "0.75";
+  note.style.marginBottom = "12px";
 
-    <div style="display:flex; gap:10px; margin-top: 12px;">
-      <button id="fireops-paywall-continue" style="
-        flex:1;
-        padding: 12px 12px;
-        border-radius: 14px;
-        border: 1px solid rgba(255,255,255,0.18);
-        background: rgba(255,255,255,0.06);
-        color: #eaf2ff;
-        font-weight: 700;
-        font-size: 16px;
-      ">Continue Free Trial</button>
+  const errorBox = document.createElement("div");
+  errorBox.style.display = "none";
+  errorBox.style.marginTop = "10px";
+  errorBox.style.padding = "10px";
+  errorBox.style.borderRadius = "12px";
+  errorBox.style.border = "1px solid rgba(255,80,80,0.35)";
+  errorBox.style.background = "rgba(255,80,80,0.10)";
+  errorBox.style.color = "#ffd0d0";
+  errorBox.style.fontWeight = "700";
 
-      <button id="fireops-paywall-buy" style="
-        flex:1;
-        padding: 12px 12px;
-        border-radius: 14px;
-        border: 1px solid rgba(80,160,255,0.45);
-        background: rgba(60,140,255,0.9);
-        color: #06121f;
-        font-weight: 900;
-        font-size: 16px;
-      ">Unlock Now — $1.99 one-time</button>
-    </div>
-
-    <div style="margin-top:10px; font-size:12px; opacity:0.7; line-height:1.35;">
-      Purchases only work when installed from <b>Google Play</b> (Internal/Closed/Production). Not sideloaded.
-    </div>
-  `;
-
-  overlay.appendChild(card);
-  document.body.appendChild(overlay);
-
-  const msg = card.querySelector("#fireops-paywall-msg");
-  const btnContinue = card.querySelector("#fireops-paywall-continue");
-  const btnBuy = card.querySelector("#fireops-paywall-buy");
-
-  function showMsg(text) {
-    if (!msg) return;
-    msg.style.display = "block";
-    msg.textContent = text;
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.style.display = "block";
   }
 
-  function close() {
-    overlay.remove();
-  }
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "10px";
+  row.style.marginTop = "12px";
 
-  btnContinue?.addEventListener("click", () => {
-    close();
+  const btnTrial = document.createElement("button");
+  btnTrial.textContent = "Continue Free Trial";
+  btnTrial.style.flex = "1";
+  btnTrial.style.padding = "12px 14px";
+  btnTrial.style.borderRadius = "14px";
+  btnTrial.style.border = "1px solid rgba(255,255,255,0.18)";
+  btnTrial.style.background = "transparent";
+  btnTrial.style.color = "#e8f0ff";
+  btnTrial.style.fontWeight = "800";
+
+  const btnBuy = document.createElement("button");
+  btnBuy.textContent = `Unlock Now — ${priceText} one-time`;
+  btnBuy.style.flex = "1";
+  btnBuy.style.padding = "12px 14px";
+  btnBuy.style.borderRadius = "14px";
+  btnBuy.style.border = "0";
+  btnBuy.style.background = "#2a77ff";
+  btnBuy.style.color = "white";
+  btnBuy.style.fontWeight = "900";
+
+  btnTrial.onclick = () => {
+    try { document.body.removeChild(wrap); } catch {}
+    if (typeof onClose === "function") onClose();
+  };
+
+  btnBuy.onclick = async () => {
     try {
-      onContinue && onContinue();
-    } catch {}
-  });
-
-  // If web, disable buying and show message (do NOT break page load)
-  if (!native) {
-    btnBuy.disabled = true;
-    btnBuy.style.opacity = "0.5";
-    btnBuy.style.cursor = "not-allowed";
-    showMsg("Purchases are only available in the installed app (Google Play).");
-    return { close, setMessage: showMsg };
-  }
-
-  btnBuy?.addEventListener("click", async () => {
-    btnBuy.disabled = true;
-    btnBuy.style.opacity = "0.7";
-    try {
-      await purchaseNow(productId);
-      // If purchase completes, plugin should mark owned/verified; we also unlock defensively
-      setUnlocked(true);
-      close();
-      try {
-        onPurchased && onPurchased();
-      } catch {}
+      btnBuy.disabled = true;
+      btnBuy.style.opacity = "0.75";
+      await startPurchaseFlow();
+      // If it succeeded, modal can close
+      if (isUnlocked()) {
+        try { document.body.removeChild(wrap); } catch {}
+        if (typeof onClose === "function") onClose();
+      } else {
+        showError("Purchase did not complete (not unlocked yet).");
+      }
     } catch (e) {
+      showError("Purchase failed: " + safeStr(e));
+    } finally {
       btnBuy.disabled = false;
       btnBuy.style.opacity = "1";
-      showMsg(`Purchase failed: ${String(e?.message || e)}`);
     }
-  });
+  };
 
-  return { close, setMessage: showMsg };
+  card.appendChild(title);
+  card.appendChild(p1);
+  card.appendChild(p2);
+  card.appendChild(note);
+  row.appendChild(btnTrial);
+  row.appendChild(btnBuy);
+  card.appendChild(row);
+  card.appendChild(errorBox);
+  wrap.appendChild(card);
+
+  document.body.appendChild(wrap);
 }
 
-function escapeHtml(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+/**
+ * Purchase flow that supports both:
+ * - store.order(PRODUCT_ID)
+ * - store.order(offer)
+ */
+export async function startPurchaseFlow() {
+  if (!isNativeApp()) throw new Error("Not running as a native app (web cannot purchase).");
+
+  await waitForDeviceReady(4000);
+
+  const store = getStore();
+  if (!store) throw new Error("No purchase store found (CdvPurchase.store missing).");
+
+  // Try init if needed
+  try {
+    if (typeof store.refresh === "function") store.refresh();
+  } catch {}
+
+  // 1) Old-style: store.order(productId)
+  if (typeof store.order === "function") {
+    try {
+      log("Trying store.order(productId)...");
+      const res = await store.order(PRODUCT_ID_UNLOCK);
+      return res;
+    } catch (e) {
+      log("store.order(productId) failed, trying offer-based flow...", safeStr(e));
+      // fall through to offer-based attempt
+    }
+  }
+
+  // 2) New-style: order an Offer
+  // Get product and its default offer
+  const product = typeof store.get === "function" ? store.get(PRODUCT_ID_UNLOCK) : null;
+  if (!product) {
+    throw new Error("Product not found in store. Check product id and that it is active in Play Console.");
+  }
+
+  const offer =
+    (typeof product.getOffer === "function" && product.getOffer()) ||
+    (product.offers && product.offers[0]) ||
+    null;
+
+  if (!offer) {
+    throw new Error("No offer found for product (expected product.getOffer() or product.offers[0]).");
+  }
+
+  if (typeof store.order !== "function") {
+    throw new Error("No purchase method found (expected store.order()).");
+  }
+
+  log("Trying store.order(offer)...");
+  return await store.order(offer);
+}
+
+/**
+ * Restore purchases (useful on iOS especially)
+ */
+export async function restorePurchases() {
+  if (!isNativeApp()) return;
+  await waitForDeviceReady(4000);
+  const store = getStore();
+  if (!store) return;
+  try { store.refresh(); } catch {}
+}
+
+async function waitForDeviceReady(timeoutMs = 3000) {
+  // If cordova exists, wait for deviceready once.
+  if (!window.cordova) return;
+
+  if (window.__fireopscalc_deviceready) return;
+
+  await new Promise((resolve) => {
+    let done = false;
+    const t = setTimeout(() => {
+      if (done) return;
+      done = true;
+      window.__fireopscalc_deviceready = true;
+      resolve();
+    }, timeoutMs);
+
+    document.addEventListener("deviceready", () => {
+      if (done) return;
+      done = true;
+      clearTimeout(t);
+      window.__fireopscalc_deviceready = true;
+      resolve();
+    }, { once: true });
+  });
 }
