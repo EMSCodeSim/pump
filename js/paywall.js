@@ -1,10 +1,14 @@
 // js/paywall.js
 // SAFE paywall + billing helpers (cordova-plugin-purchase)
-// Adds:
-//  - Disable trial once purchase succeeds (local unlock flag)
+// Goals:
+//  - NEVER break web build
+//  - Trial disables forever once purchase succeeds (local unlock)
 //  - Auto-unlock if already purchased (owned check after refresh/ready)
+//  - "Pay Now" button ALWAYS gives feedback, and waits for store readiness
 //
-// IMPORTANT: Must NOT crash web build. All native/plugin calls are guarded.
+// IMPORTANT:
+//  - Uses window.CdvPurchase.store (not "store") to avoid colliding with your own store.js
+//  - Product ID must match Play Console exactly (ex: "fireops.pro")
 
 const UNLOCK_KEY = 'fireops_pro_unlocked_v1';
 
@@ -39,7 +43,6 @@ function isNativeCapacitor() {
 function getStore() {
   const s = window?.CdvPurchase?.store;
   if (!s) return null;
-  // sanity
   if (typeof s.register !== 'function') return null;
   return s;
 }
@@ -73,9 +76,52 @@ function getProduct(store, productId) {
   } catch (_) {}
   try {
     const list = store?.products;
-    if (Array.isArray(list)) return list.find(x => x && (x.id === productId || x.productId === productId)) || null;
+    if (Array.isArray(list)) {
+      return list.find(x => x && (x.id === productId || x.productId === productId)) || null;
+    }
   } catch (_) {}
   return null;
+}
+
+// Wait for store readiness (covers the "tap did nothing" case)
+async function waitForStoreReady(store, timeoutMs = 8000) {
+  // If store.ready is a function that accepts a callback (common)
+  try {
+    if (typeof store.ready === 'function') {
+      await new Promise((resolve, reject) => {
+        let done = false;
+        const t = setTimeout(() => {
+          if (done) return;
+          done = true;
+          reject(new Error('Billing store not ready (timeout).'));
+        }, timeoutMs);
+
+        try {
+          store.ready(() => {
+            if (done) return;
+            done = true;
+            clearTimeout(t);
+            resolve(true);
+          });
+        } catch (e) {
+          clearTimeout(t);
+          reject(e);
+        }
+      });
+      return true;
+    }
+  } catch (_) {}
+
+  // Fallback: poll a bit
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    // Some versions expose store.isReady / store._ready; we can’t rely on it,
+    // so we just wait a bit.
+    await new Promise(r => setTimeout(r, 250));
+    // If products are populated, we assume “ready enough”
+    if (Array.isArray(store?.products) && store.products.length) return true;
+  }
+  throw new Error('Billing store not ready (timeout).');
 }
 
 // Auto-unlock check: refresh then see if owned
@@ -83,12 +129,7 @@ async function autoUnlockIfOwned(store, productId) {
   try {
     if (!store) return false;
 
-    // Refresh receipts/products
-    try {
-      if (typeof store.refresh === 'function') store.refresh();
-    } catch (_) {}
-
-    // Give store time to update
+    try { if (typeof store.refresh === 'function') store.refresh(); } catch (_) {}
     await new Promise(r => setTimeout(r, 700));
 
     const p = getProduct(store, productId);
@@ -116,7 +157,7 @@ export function initBilling(cfg = {}) {
     _cfg = { ..._cfg, ...cfg };
     const productId = _cfg.productId;
 
-    // Always reflect local unlock immediately (so trial is disabled even before billing is ready)
+    // Always reflect local unlock immediately (trial disabled even before billing is ready)
     if (isUnlockedLocal()) {
       try { _cfg.onEntitlement?.(true); } catch (_) {}
     }
@@ -157,22 +198,20 @@ export function initBilling(cfg = {}) {
     try {
       store.when(productId).approved(p => {
         try { p.finish?.(); } catch (_) {}
-        markUnlocked();                 // ✅ disables trial forever
+        markUnlocked(); // ✅ disables trial forever
       });
       store.when(productId).verified(p => {
         try { p.finish?.(); } catch (_) {}
-        markUnlocked();                 // ✅ disables trial forever
+        markUnlocked(); // ✅ disables trial forever
       });
       store.when(productId).owned(() => {
-        markUnlocked();                 // ✅ auto-unlock if owned event fires
+        markUnlocked(); // ✅ auto-unlock if owned event fires
       });
     } catch (e) {
       warn('store.when hooks failed (continuing)', e);
     }
 
-    try {
-      store.error(e => warn('store.error', e));
-    } catch (_) {}
+    try { store.error(e => warn('store.error', e)); } catch (_) {}
 
     // Initialize/refresh and auto-unlock if already purchased
     try {
@@ -181,7 +220,9 @@ export function initBilling(cfg = {}) {
         .then(async () => {
           _billingReady = true;
           try { store.refresh?.(); } catch (_) {}
-          await autoUnlockIfOwned(store, productId); // ✅ auto-unlock on startup
+          // wait for readiness, then check owned
+          try { await waitForStoreReady(store, 8000); } catch (_) {}
+          await autoUnlockIfOwned(store, productId);
         })
         .catch(e => {
           _billingReady = false;
@@ -201,7 +242,7 @@ export function initBilling(cfg = {}) {
 
 /**
  * Buy product (safe on web; returns {ok,message})
- * On success -> marks unlocked locally.
+ * On success -> marks unlocked locally (via events or owned check).
  */
 export async function buyProduct(productId) {
   try {
@@ -223,11 +264,18 @@ export async function buyProduct(productId) {
     // Ensure init attempt (safe)
     initBilling({ productId });
 
+    // Make sure the store is READY before ordering (fixes “tap does nothing”)
+    await waitForStoreReady(store, 8000);
+
     // Try store.order(productId)
     if (typeof store.order === 'function') {
+      // This should open Google Play purchase UI
       await store.order(productId);
-      // Some flows don’t immediately fire events; set local unlock if it becomes owned shortly
+
+      // Some flows don’t immediately fire events; give it time + re-check owned
+      await new Promise(r => setTimeout(r, 1200));
       await autoUnlockIfOwned(store, productId);
+
       return { ok: true };
     }
 
@@ -235,6 +283,7 @@ export async function buyProduct(productId) {
     const prod = getProduct(store, productId);
     if (prod && typeof prod.order === 'function') {
       await prod.order();
+      await new Promise(r => setTimeout(r, 1200));
       await autoUnlockIfOwned(store, productId);
       return { ok: true };
     }
@@ -270,6 +319,7 @@ export async function restorePurchases(productId) {
 
     initBilling({ productId });
 
+    try { await waitForStoreReady(store, 8000); } catch (_) {}
     const owned = await autoUnlockIfOwned(store, productId);
     return { ok: true, owned };
   } catch (e) {
@@ -288,7 +338,7 @@ export async function tryRestorePro(productId) { return restorePurchases(product
 ------------------------------------------------------------------- */
 export function renderTrialIntroModal({
   daysLeft = 5,
-  priceText = '$1.99',
+  priceText = '$1.99 one-time',
   productId = _cfg.productId,
   onClose,
   onBuyNow,
@@ -316,6 +366,18 @@ export function renderTrialIntroModal({
     box-shadow:0 14px 40px rgba(0,0,0,.5);
   `;
 
+  const status = document.createElement('div');
+  status.style.cssText = `
+    display:none;
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid rgba(125,200,255,.25);
+    background:rgba(125,200,255,.10);
+    color:#d7f0ff;
+    font-weight:800;
+  `;
+
   const err = document.createElement('div');
   err.style.cssText = `
     display:none;
@@ -328,10 +390,16 @@ export function renderTrialIntroModal({
     font-weight:800;
   `;
 
+  function showStatus(msg) {
+    status.textContent = String(msg || '');
+    status.style.display = 'block';
+  }
+  function hideStatus() { status.style.display = 'none'; }
   function showErr(msg) {
-    err.textContent = 'Purchase failed: ' + String(msg || 'Unknown error');
+    err.textContent = String(msg || 'Unknown error');
     err.style.display = 'block';
   }
+  function clearErr() { err.style.display = 'none'; }
 
   card.innerHTML = `
     <div style="font-size:22px;font-weight:900;color:#79b6ff;margin-bottom:6px;">
@@ -363,35 +431,72 @@ export function renderTrialIntroModal({
     </div>
   `;
 
+  card.appendChild(status);
   card.appendChild(err);
   overlay.appendChild(card);
   document.body.appendChild(overlay);
+
+  const btnContinue = card.querySelector('#trialContinue');
+  const btnPay = card.querySelector('#trialPayNow');
 
   const close = () => {
     overlay.remove();
     try { onClose?.(); } catch (_) {}
   };
 
-  card.querySelector('#trialContinue').onclick = close;
+  btnContinue.onclick = close;
 
-  card.querySelector('#trialPayNow').onclick = async () => {
-    err.style.display = 'none';
+  btnPay.onclick = async () => {
+    clearErr();
+    hideStatus();
+
+    // Hard feedback so user KNOWS the tap registered
+    btnPay.disabled = true;
+    btnPay.style.opacity = '0.75';
+    showStatus('Opening Google Play purchase…');
+
     try {
-      // Prefer app.js provided handler
+      let res;
+
       if (typeof onBuyNow === 'function') {
-        await onBuyNow();
+        res = await onBuyNow();
       } else {
-        await buyProduct(productId);
+        res = await buyProduct(productId);
+      }
+
+      if (res && res.ok === false) {
+        throw new Error(res.message || 'Purchase failed');
       }
 
       // If now unlocked, close modal
-      if (isUnlockedLocal()) close();
-      else {
-        // Some stores unlock via async events; check again after a moment
-        setTimeout(() => { if (isUnlockedLocal()) close(); }, 900);
+      if (isUnlockedLocal()) {
+        close();
+        return;
       }
+
+      // Events/receipt can be slightly delayed
+      showStatus('Waiting for confirmation…');
+      await new Promise(r => setTimeout(r, 1400));
+
+      if (isUnlockedLocal()) {
+        close();
+        return;
+      }
+
+      // Try a restore-style check as a last step
+      const rr = await restorePurchases(productId);
+      if (rr?.owned && isUnlockedLocal()) {
+        close();
+        return;
+      }
+
+      showErr('Purchase not confirmed yet. If you completed checkout, tap Restore Purchase (or reopen the app).');
     } catch (e) {
-      showErr(e?.message || e);
+      showErr('Purchase failed: ' + (e?.message || e));
+    } finally {
+      btnPay.disabled = false;
+      btnPay.style.opacity = '1';
+      // keep status visible if there was an error; otherwise it will close
     }
   };
 
@@ -428,6 +533,9 @@ export function renderPaywall(mountEl, opts = {}) {
         ${_lastError ? 'Purchase failed: ' + String(_lastError) : ''}
       </div>
 
+      <div id="pwStatus" style="display:none;margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid rgba(125,200,255,.25);background:rgba(125,200,255,.10);color:#d7f0ff;font-weight:800;">
+      </div>
+
       <div style="display:flex;flex-direction:column;gap:10px;">
         <button id="pwRestore" class="btn">Restore Purchase</button>
         <button id="pwBuy" class="btn primary">Unlock Now — ${priceText}</button>
@@ -436,21 +544,31 @@ export function renderPaywall(mountEl, opts = {}) {
   `;
 
   const pwErr = mountEl.querySelector('#pwErr');
+  const pwStatus = mountEl.querySelector('#pwStatus');
   const setErr = (m) => {
     if (!pwErr) return;
     pwErr.style.display = 'block';
     pwErr.textContent = 'Purchase failed: ' + String(m || 'Unknown error');
   };
+  const setStatus = (m) => {
+    if (!pwStatus) return;
+    pwStatus.style.display = 'block';
+    pwStatus.textContent = String(m || '');
+  };
 
   mountEl.querySelector('#pwBuy')?.addEventListener('click', async () => {
     try {
+      setStatus('Opening Google Play purchase…');
+
       if (opts.onPurchase) {
         await opts.onPurchase();
       } else {
         const res = await buyProduct(productId);
         if (!res.ok) throw new Error(res.message || 'Purchase failed');
       }
+
       if (isUnlockedLocal()) mountEl.innerHTML = '';
+      else setErr('Purchase not confirmed yet. Try Restore Purchase or reopen the app.');
     } catch (e) {
       setErr(e?.message || e);
     }
@@ -458,13 +576,17 @@ export function renderPaywall(mountEl, opts = {}) {
 
   mountEl.querySelector('#pwRestore')?.addEventListener('click', async () => {
     try {
+      setStatus('Checking purchases…');
+
       if (opts.onRestore) {
         await opts.onRestore();
       } else {
         const res = await restorePurchases(productId);
         if (!res.ok) throw new Error(res.message || 'Restore failed');
       }
+
       if (isUnlockedLocal()) mountEl.innerHTML = '';
+      else setErr('No purchase found for this Google account.');
     } catch (e) {
       setErr(e?.message || e);
     }
