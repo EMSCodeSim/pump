@@ -1,345 +1,447 @@
-// paywall.js
-// 5-day free trial + $1.99 one-time unlock (Android/iOS via cordova-plugin-purchase)
-//
-// CRITICAL DESIGN GOAL:
-// This file MUST be safe to load on the web (including iOS Safari).
-// If the billing plugin is missing, everything should degrade gracefully
-// and NEVER block the app from loading.
+/* paywall.js
+   - Safe on WEB (no plugin): all functions no-op and NEVER block app load
+   - Native (Capacitor + cordova-plugin-purchase): registers product, refreshes, orders, restores
+*/
 
-const TRIAL_KEY = 'fireopscalc_trial_start_ms';
-const UNLOCK_KEY = 'fireopscalc_unlocked_v1';
+let _initOnce = false;
+let _readyPromise = null;
+let _lastProductId = null;
+let _entitlementCb = null;
 
-// Product id in Google Play Console (Managed Product)
-export const PRODUCT_ID = 'fireops_calc_unlock';
-
-// 5 days
-const TRIAL_MS = 5 * 24 * 60 * 60 * 1000;
-
-// ---------- Safe localStorage wrappers (Safari private mode can throw) ----------
-function lsGet(key) {
+function isNativeLike() {
   try {
-    return window?.localStorage?.getItem(key) ?? null;
-  } catch (e) {
-    return null;
-  }
+    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
+    const p = window?.Capacitor?.getPlatform?.();
+    if (p && p !== 'web') return true;
+  } catch (_e) {}
+  return (String(location?.protocol || '').toLowerCase() === 'capacitor:');
 }
 
-function lsSet(key, value) {
+function getCdv() {
+  // cordova-plugin-purchase v13+ exposes window.CdvPurchase
+  return window?.CdvPurchase || null;
+}
+
+function getStore() {
+  const cdv = getCdv();
+  if (cdv?.store) return cdv.store;
+  // legacy (older versions) sometimes expose window.store
+  if (window?.store) return window.store;
+  return null;
+}
+
+function getProductTypeEnum() {
+  // v13+: CdvPurchase.ProductType.NON_CONSUMABLE
+  const cdv = getCdv();
+  if (cdv?.ProductType) return cdv.ProductType;
+  // legacy fallback: store.NON_CONSUMABLE etc.
+  const store = getStore();
+  if (store) return store;
+  return null;
+}
+
+function safeOwned(product) {
+  if (!product) return false;
+  // Common shapes:
+  // - v13: product.owned (boolean)
+  // - some builds: product.isOwned (function) / product.owned (function)
   try {
-    window?.localStorage?.setItem(key, value);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function lsRemove(key) {
+    if (typeof product.owned === 'boolean') return product.owned;
+    if (typeof product.owned === 'function') return !!product.owned();
+    if (typeof product.isOwned === 'function') return !!product.isOwned();
+    if (typeof product.isOwned === 'boolean') return product.isOwned;
+  } catch (_e) {}
+  // Some stores expose .state
   try {
-    window?.localStorage?.removeItem(key);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-// ---------- Platform detection ----------
-export function isNativeApp() {
-  try {
-    // Capacitor sets window.Capacitor; Cordova sets window.cordova.
-    const cap = window?.Capacitor;
-    if (cap?.isNativePlatform?.()) return true;
-    if (window?.cordova) return true;
-    return false;
-  } catch (e) {
-    return false;
-  }
-}
-
-// ---------- Trial state ----------
-export function initTrialFlags() {
-  // Always set the trial start (if missing) but never throw.
-  const existing = lsGet(TRIAL_KEY);
-  if (!existing) {
-    lsSet(TRIAL_KEY, String(Date.now()));
-  }
-}
-
-export function markUnlocked() {
-  lsSet(UNLOCK_KEY, '1');
-}
-
-export function clearUnlockedForTesting() {
-  lsRemove(UNLOCK_KEY);
-}
-
-export function getTrialState() {
-  const unlocked = lsGet(UNLOCK_KEY) === '1';
-
-  // If localStorage is blocked (private mode), behave as: NOT unlocked, trial active
-  // but with no persistent start. Use session time as start.
-  const rawStart = lsGet(TRIAL_KEY);
-  const startMs = rawStart ? Number(rawStart) : Date.now();
-
-  const now = Date.now();
-  const elapsed = now - startMs;
-  const remainingMs = Math.max(0, TRIAL_MS - elapsed);
-  const trialActive = remainingMs > 0;
-
-  return {
-    unlocked,
-    startMs,
-    now,
-    elapsed,
-    remainingMs,
-    trialActive,
-    daysRemaining: Math.ceil(remainingMs / (24 * 60 * 60 * 1000))
-  };
-}
-
-export function shouldBlockWithPaywall() {
-  // Only block inside the native app. Web should always be usable.
-  if (!isNativeApp()) return false;
-
-  const s = getTrialState();
-  if (s.unlocked) return false;
-  if (s.trialActive) return false;
-  return true;
-}
-
-// ---------- Billing plugin helpers ----------
-function getCdvPurchase() {
-  try {
-    return window?.CdvPurchase ?? null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function getPluginStore() {
-  // DO NOT fall back to window.store.
-  // Your app may have its own "store" module; that name collides with cordova-plugin-purchase.
-  const cp = getCdvPurchase();
-  return cp?.store ?? null;
-}
-
-function storeHasOrdering(store) {
-  if (!store) return false;
-  // v13 has store.order(productId)
-  if (typeof store.order === 'function') return true;
-  // Some configs expose get(productId).order()
-  const p = typeof store.get === 'function' ? store.get(PRODUCT_ID) : null;
-  if (p && typeof p.order === 'function') return true;
+    if (String(product.state || '').toLowerCase() === 'owned') return true;
+  } catch (_e) {}
   return false;
 }
 
-async function ensureStoreReady({ timeoutMs = 2500 } = {}) {
-  // Never wait forever.
-  const store = getPluginStore();
-  if (!store) return { ok: false, reason: 'CdvPurchase.store not found' };
+function findProduct(store, productId) {
+  if (!store || !productId) return null;
 
-  // If register/initialize exists, call it safely.
+  // v13 store.get(id)
   try {
-    if (typeof store.register === 'function') {
-      // For managed one-time unlock, NON_CONSUMABLE.
-      const productType = (getCdvPurchase()?.ProductType?.NON_CONSUMABLE) ?? 'non consumable';
-      store.register({ id: PRODUCT_ID, type: productType });
+    if (typeof store.get === 'function') {
+      const p = store.get(productId);
+      if (p) return p;
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (_e) {}
 
-  // Refresh if possible.
+  // legacy store.products
   try {
-    if (typeof store.refresh === 'function') {
-      store.refresh();
+    const list = store.products || store._products || [];
+    if (Array.isArray(list)) {
+      return list.find(p => p && (p.id === productId || p.productId === productId)) || null;
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (_e) {}
 
-  // Wait a little for products to populate (optional).
-  await new Promise((resolve) => setTimeout(resolve, Math.max(0, timeoutMs)));
-
-  return { ok: true };
+  return null;
 }
 
-async function tryOrderProduct() {
-  const store = getPluginStore();
-  if (!store) {
-    throw new Error('No purchase method found (CdvPurchase.store missing)');
+function setStatusText(container, text, isError = false) {
+  if (!container) return;
+  let el = container.querySelector('.paywall-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'paywall-status';
+    el.style.margin = '10px 0 0';
+    el.style.padding = '10px 12px';
+    el.style.borderRadius = '12px';
+    el.style.border = '1px solid rgba(255,255,255,0.12)';
+    el.style.background = 'rgba(0,0,0,0.25)';
+    el.style.fontSize = '13px';
+    el.style.lineHeight = '1.25';
+    container.appendChild(el);
   }
-
-  // Prefer store.order(productId)
-  if (typeof store.order === 'function') {
-    return store.order(PRODUCT_ID);
-  }
-
-  // Fallback: store.get(productId).order()
-  if (typeof store.get === 'function') {
-    const p = store.get(PRODUCT_ID);
-    if (p && typeof p.order === 'function') {
-      return p.order();
-    }
-  }
-
-  throw new Error('No purchase method found (expected store.order() or store.get(id).order())');
+  el.style.borderColor = isError ? 'rgba(255,80,80,0.55)' : 'rgba(255,255,255,0.12)';
+  el.style.color = isError ? '#ffd2d2' : 'rgba(255,255,255,0.85)';
+  el.textContent = text || '';
 }
 
-function attachUnlockListenersOnce() {
-  const store = getPluginStore();
-  if (!store || store.__fireops_listeners_attached) return;
-  store.__fireops_listeners_attached = true;
+async function ensureReady(productId) {
+  // WEB: resolve instantly
+  if (!isNativeLike()) return { store: null, product: null, owned: false, mode: 'web' };
 
-  // v13: store.when('product').approved(...)
-  try {
-    if (typeof store.when === 'function') {
-      store.when(PRODUCT_ID)
-        .approved((p) => {
+  const store = getStore();
+  const cdv = getCdv();
+  const ProductType = getProductTypeEnum();
+
+  // Native but plugin missing: resolve instantly (do NOT block app)
+  if (!store || !ProductType) return { store: null, product: null, owned: false, mode: 'native_no_plugin' };
+
+  // single shared ready promise
+  if (_readyPromise && _lastProductId === productId) return _readyPromise;
+
+  _lastProductId = productId;
+
+  _readyPromise = new Promise((resolve) => {
+    try {
+      // Reduce noise; you can bump this to DEBUG when troubleshooting
+      try { store.verbosity = (store.INFO ?? store.verbosity ?? 1); } catch (_e) {}
+
+      // Register product as NON_CONSUMABLE (one-time purchase)
+      try {
+        if (typeof store.register === 'function') {
+          store.register({
+            id: productId,
+            type: ProductType.NON_CONSUMABLE || ProductType.NON_RENEWING_SUBSCRIPTION || ProductType.PAID_SUBSCRIPTION
+          });
+        }
+      } catch (_e) {}
+
+      // Wire entitlement handlers (multiple API shapes supported)
+      try {
+        const when = (typeof store.when === 'function') ? store.when(productId) : null;
+
+        if (when?.approved) {
+          when.approved((p) => {
+            try { p?.finish?.(); } catch (_e) {}
+            const owned = safeOwned(p) || true;
+            try { _entitlementCb?.(owned); } catch (_e) {}
+          });
+        }
+
+        if (when?.verified) {
+          when.verified((p) => {
+            const owned = safeOwned(p);
+            try { _entitlementCb?.(owned); } catch (_e) {}
+          });
+        }
+
+        if (when?.owned) {
+          when.owned((p) => {
+            const owned = safeOwned(p) || true;
+            try { _entitlementCb?.(owned); } catch (_e) {}
+          });
+        }
+
+      } catch (_e) {}
+
+      // Refresh / initialize store
+      const finish = () => {
+        const p = findProduct(store, productId);
+        resolve({ store, product: p, owned: safeOwned(p), mode: 'native_ready' });
+      };
+
+      try {
+        if (typeof store.ready === 'function') {
+          store.ready(() => {
+            // refresh to fetch products + receipts
+            try {
+              if (typeof store.refresh === 'function') store.refresh();
+              else if (typeof store.update === 'function') store.update();
+            } catch (_e) {}
+            // allow some microtask time for product list
+            setTimeout(finish, 250);
+          });
+        } else {
+          // no ready() hook: attempt refresh then resolve
           try {
-            if (typeof p.verify === 'function') p.verify();
-            if (typeof p.finish === 'function') p.finish();
-          } catch (e) {}
-          markUnlocked();
-          window.dispatchEvent(new CustomEvent('fireops:unlocked'));
-        })
-        .verified((p) => {
-          try { if (typeof p.finish === 'function') p.finish(); } catch (e) {}
-          markUnlocked();
-          window.dispatchEvent(new CustomEvent('fireops:unlocked'));
-        });
+            if (typeof store.refresh === 'function') store.refresh();
+            else if (typeof store.update === 'function') store.update();
+          } catch (_e) {}
+          setTimeout(finish, 250);
+        }
+      } catch (_e) {
+        // never block; resolve anyway
+        setTimeout(finish, 0);
+      }
+    } catch (_e) {
+      resolve({ store: null, product: null, owned: false, mode: 'native_error' });
     }
-  } catch (e) {
-    // ignore
+  });
+
+  return _readyPromise;
+}
+
+/* =======================
+   Public API (used by app.js)
+   ======================= */
+
+export function initBilling({ productId, onEntitlement } = {}) {
+  // Always safe; never throws
+  _entitlementCb = (typeof onEntitlement === 'function') ? onEntitlement : null;
+
+  // Prevent repeated heavy init
+  if (_initOnce && _lastProductId === productId) return;
+
+  _initOnce = true;
+  _lastProductId = productId || _lastProductId;
+
+  // Kick off readiness in background (non-blocking)
+  try { ensureReady(productId); } catch (_e) {}
+}
+
+export async function buyProduct(productId) {
+  const { store, product, mode } = await ensureReady(productId);
+
+  if (!store) {
+    throw new Error(
+      mode === 'native_no_plugin'
+        ? 'Purchases unavailable: billing plugin not detected in this build.'
+        : 'Purchases unavailable on web. Install from Google Play to buy.'
+    );
   }
+
+  // Try the most compatible ordering paths
+  try {
+    // v13 supports store.order(productId)
+    if (typeof store.order === 'function') {
+      return await store.order(productId);
+    }
+  } catch (_e) {}
+
+  try {
+    // Some builds have product.order()
+    const p = product || findProduct(store, productId);
+    if (p && typeof p.order === 'function') {
+      return await p.order();
+    }
+  } catch (_e) {}
+
+  throw new Error('Purchase failed: No purchase method found (expected product.order() or store.order()).');
 }
 
-// ---------- UI: Trial modal ----------
-function formatDaysLeft(days) {
-  if (days <= 0) return '0 days';
-  if (days === 1) return '1 day';
-  return `${days} days`;
+export async function restorePurchases(productId) {
+  const { store } = await ensureReady(productId);
+  if (!store) return false;
+
+  try {
+    // v13 sometimes uses store.refresh() to re-check ownership
+    if (typeof store.restorePurchases === 'function') {
+      await store.restorePurchases();
+    } else if (typeof store.refresh === 'function') {
+      store.refresh();
+    } else if (typeof store.update === 'function') {
+      store.update();
+    }
+  } catch (_e) {}
+
+  // Give it a moment to process receipts
+  await new Promise(r => setTimeout(r, 400));
+
+  const p = findProduct(store, productId);
+  const owned = safeOwned(p);
+  try { if (owned) _entitlementCb?.(true); } catch (_e) {}
+  return owned;
 }
 
-function modalTemplate({ daysRemaining, errorText }) {
-  const errHtml = errorText
-    ? `<div class="trial-error">${escapeHtml(errorText)}</div>`
-    : '';
+/* Fallbacks (if you ever switch to another IAP plugin later) */
+export async function tryPurchasePro(productId) {
+  // For now, just try the main path
+  return buyProduct(productId);
+}
 
-  return `
-  <div class="trial-backdrop">
-    <div class="trial-modal">
-      <div class="trial-title">5-Day Free Trial — No Risk</div>
-      <div class="trial-text">FireOps Calc is free to use for the next <b>${formatDaysLeft(daysRemaining)}</b>.</div>
-      <div class="trial-text">After the trial, you can unlock the app with a <b>$1.99 one-time purchase</b> — no subscription, no auto-billing.</div>
-      <div class="trial-subtext">Purchases only work when installed from Google Play / App Store (internal/closed/production). Not sideloaded.</div>
-      ${errHtml}
-      <div class="trial-actions">
-        <button id="trial-continue" class="trial-btn trial-btn-secondary">Continue Free Trial</button>
-        <button id="trial-buy" class="trial-btn trial-btn-primary">Unlock Now — $1.99 one-time</button>
+export async function tryRestorePro(productId) {
+  return restorePurchases(productId);
+}
+
+/* =======================
+   UI helpers
+   ======================= */
+
+export function renderTrialIntroModal({ trialDays = 5, priceText = '$1.99 one-time', onContinue, onBuyNow } = {}) {
+  // Never block app even if something goes wrong
+  try {
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.zIndex = '99999';
+    overlay.style.background = 'rgba(0,0,0,0.65)';
+    overlay.style.backdropFilter = 'blur(6px)';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.padding = '16px';
+
+    const card = document.createElement('div');
+    card.style.width = 'min(520px, 92vw)';
+    card.style.borderRadius = '16px';
+    card.style.border = '1px solid rgba(255,255,255,0.14)';
+    card.style.background = '#0b1320';
+    card.style.boxShadow = '0 14px 40px rgba(0,0,0,0.85)';
+    card.style.padding = '16px';
+
+    card.innerHTML = `
+      <div style="opacity:.8;font-weight:700;margin-bottom:6px;">FireOps Calc — Start Here</div>
+      <div style="font-size:22px;font-weight:900;margin-bottom:8px;color:#8fd0ff;">${trialDays}-Day Free Trial — No Risk</div>
+      <div style="opacity:.9;line-height:1.35;margin-bottom:10px;">
+        FireOps Calc is free to use for the next <b>${trialDays} days</b>.
+        <br><br>
+        After the trial, you can unlock the app with a <b>${priceText}</b> — <b>no subscription, no auto-billing</b>.
+        <div style="margin-top:8px;opacity:.7;font-size:13px;">
+          Purchases only work when installed from Google Play (Internal/Closed/Production). Not sideloaded.
+        </div>
+      </div>
+    `;
+
+    const btnRow = document.createElement('div');
+    btnRow.style.display = 'grid';
+    btnRow.style.gridTemplateColumns = '1fr';
+    btnRow.style.gap = '10px';
+    btnRow.style.marginTop = '12px';
+
+    const btnContinue = document.createElement('button');
+    btnContinue.textContent = 'Continue Free Trial';
+    btnContinue.style.padding = '12px 14px';
+    btnContinue.style.borderRadius = '12px';
+    btnContinue.style.border = '1px solid rgba(255,255,255,0.12)';
+    btnContinue.style.background = 'rgba(255,255,255,0.06)';
+    btnContinue.style.color = '#fff';
+    btnContinue.style.fontWeight = '800';
+
+    const btnBuy = document.createElement('button');
+    btnBuy.textContent = `Unlock Now — ${priceText}`;
+    btnBuy.style.padding = '12px 14px';
+    btnBuy.style.borderRadius = '12px';
+    btnBuy.style.border = '1px solid rgba(143,208,255,0.55)';
+    btnBuy.style.background = 'rgba(143,208,255,0.20)';
+    btnBuy.style.color = '#cfeaff';
+    btnBuy.style.fontWeight = '900';
+
+    btnContinue.onclick = () => {
+      try { onContinue?.(); } catch (_e) {}
+      overlay.remove();
+    };
+
+    btnBuy.onclick = async () => {
+      btnBuy.disabled = true;
+      btnBuy.style.opacity = '0.75';
+      setStatusText(card, 'Opening Google Play purchase…');
+      try {
+        await (onBuyNow?.());
+        setStatusText(card, 'Purchase started. Complete it in Google Play.', false);
+      } catch (e) {
+        setStatusText(card, `Purchase failed: ${String(e?.message || e)}`, true);
+      } finally {
+        btnBuy.disabled = false;
+        btnBuy.style.opacity = '1';
+      }
+    };
+
+    btnRow.appendChild(btnContinue);
+    btnRow.appendChild(btnBuy);
+    card.appendChild(btnRow);
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+  } catch (_e) {}
+}
+
+export async function renderPaywall(mountEl, { trialDays = 5, priceText = '$1.99 one-time', productId, onPurchase, onRestore } = {}) {
+  // Mount-only UI; never throws; never blocks app load
+  if (!mountEl) return;
+
+  mountEl.innerHTML = `
+    <div class="card" style="padding:16px;">
+      <div style="opacity:.8;font-weight:700;margin-bottom:6px;">FireOps Calc</div>
+      <div style="font-size:22px;font-weight:900;margin-bottom:8px;color:#8fd0ff;">Trial Ended</div>
+      <div style="opacity:.9;line-height:1.35;margin-bottom:12px;">
+        Your <b>${trialDays}-day free trial</b> has ended.
+        <br><br>
+        Unlock FireOps Calc with a <b>${priceText}</b> — <b>no subscription, no auto-billing</b>.
+        <div style="margin-top:8px;opacity:.7;font-size:13px;">
+          Purchases only work when installed from Google Play (Internal/Closed/Production). Not sideloaded.
+        </div>
+      </div>
+
+      <div class="paywall-actions" style="display:grid;gap:10px;">
+        <button class="btn" id="pwRestore">Restore Purchase</button>
+        <button class="btn primary" id="pwBuy">Unlock Now — ${priceText}</button>
       </div>
     </div>
-  </div>`;
-}
-
-function injectModalStylesOnce() {
-  if (document.getElementById('fireops-trial-style')) return;
-  const style = document.createElement('style');
-  style.id = 'fireops-trial-style';
-  style.textContent = `
-    .trial-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99999;padding:18px;}
-    .trial-modal{width:min(520px,100%);background:#0b1220;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px 16px;color:#eaf2ff;box-shadow:0 20px 60px rgba(0,0,0,.55);}
-    .trial-title{font-size:22px;font-weight:800;margin-bottom:10px;color:#7fd3ff;letter-spacing:.2px;}
-    .trial-text{font-size:15px;line-height:1.35;margin:8px 0;color:rgba(234,242,255,.92);}
-    .trial-subtext{font-size:12px;line-height:1.35;margin-top:8px;color:rgba(234,242,255,.65);}
-    .trial-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;}
-    .trial-btn{flex:1;min-width:180px;border-radius:14px;border:1px solid rgba(255,255,255,.12);padding:12px 14px;font-size:15px;font-weight:800;cursor:pointer;}
-    .trial-btn-secondary{background:transparent;color:#eaf2ff;}
-    .trial-btn-primary{background:#2b8cff;color:white;border-color:rgba(43,140,255,.55);}
-    .trial-error{margin-top:12px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,80,80,.35);background:rgba(255,80,80,.12);color:#ffd6d6;font-weight:700;}
   `;
-  document.head.appendChild(style);
-}
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+  const buyBtn = mountEl.querySelector('#pwBuy');
+  const restoreBtn = mountEl.querySelector('#pwRestore');
+  const card = mountEl.querySelector('.card');
 
-function removeExistingModal() {
-  const existing = document.querySelector('.trial-backdrop');
-  if (existing) existing.remove();
-}
-
-export async function showTrialModal({ force = false } = {}) {
-  // Web never blocks, but you may still want to show messaging in-app.
-  if (!force && !shouldBlockWithPaywall()) return;
-
-  const state = getTrialState();
-
-  injectModalStylesOnce();
-  removeExistingModal();
-
-  const wrapper = document.createElement('div');
-  wrapper.innerHTML = modalTemplate({ daysRemaining: state.daysRemaining, errorText: '' });
-  const backdrop = wrapper.firstElementChild;
-  document.body.appendChild(backdrop);
-
-  const btnContinue = document.getElementById('trial-continue');
-  const btnBuy = document.getElementById('trial-buy');
-
-  btnContinue?.addEventListener('click', () => {
-    removeExistingModal();
-  });
-
-  btnBuy?.addEventListener('click', async () => {
-    if (btnBuy) btnBuy.disabled = true;
-
-    try {
-      if (!isNativeApp()) {
-        throw new Error('Purchases only work inside the installed app.');
-      }
-
-      const store = getPluginStore();
-      if (!store) {
-        throw new Error('Purchase system not available (plugin not detected).');
-      }
-
-      attachUnlockListenersOnce();
-
-      await ensureStoreReady({ timeoutMs: 700 });
-
-      if (!storeHasOrdering(store)) {
-        throw new Error('No purchase method found (expected store.order() or store.get(id).order()).');
-      }
-
-      await tryOrderProduct();
-
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      const s2 = getTrialState();
-      if (s2.unlocked) {
-        removeExistingModal();
-      }
-    } catch (e) {
-      const msg = (e && e.message) ? e.message : String(e);
-      removeExistingModal();
-      const wrapper2 = document.createElement('div');
-      wrapper2.innerHTML = modalTemplate({ daysRemaining: getTrialState().daysRemaining, errorText: `Purchase failed: ${msg}` });
-      document.body.appendChild(wrapper2.firstElementChild);
-
-      document.getElementById('trial-continue')?.addEventListener('click', removeExistingModal);
-      document.getElementById('trial-buy')?.addEventListener('click', () => showTrialModal({ force: true }));
-    } finally {
-      if (btnBuy) btnBuy.disabled = false;
+  // Show plugin status info (but do not block)
+  try {
+    const env = await ensureReady(productId);
+    if (env.mode === 'native_no_plugin') {
+      setStatusText(card, 'Billing plugin not detected in this build. Run: npx cap sync android and rebuild.', true);
+    } else if (env.mode === 'web') {
+      setStatusText(card, 'Web version is free. Purchases only work in the installed app from Google Play.', false);
     }
-  });
+  } catch (_e) {}
 
-  const onUnlocked = () => {
-    removeExistingModal();
-    window.removeEventListener('fireops:unlocked', onUnlocked);
-  };
-  window.addEventListener('fireops:unlocked', onUnlocked);
+  if (buyBtn) {
+    buyBtn.onclick = async () => {
+      buyBtn.disabled = true;
+      restoreBtn && (restoreBtn.disabled = true);
+      setStatusText(card, 'Starting purchase…');
+      try {
+        await (onPurchase?.());
+        setStatusText(card, 'Purchase complete.', false);
+      } catch (e) {
+        setStatusText(card, `Purchase failed: ${String(e?.message || e)}`, true);
+      } finally {
+        buyBtn.disabled = false;
+        restoreBtn && (restoreBtn.disabled = false);
+      }
+    };
+  }
+
+  if (restoreBtn) {
+    restoreBtn.onclick = async () => {
+      restoreBtn.disabled = true;
+      buyBtn && (buyBtn.disabled = true);
+      setStatusText(card, 'Restoring purchase…');
+      try {
+        await (onRestore?.());
+        setStatusText(card, 'Restore complete.', false);
+      } catch (e) {
+        setStatusText(card, `Restore failed: ${String(e?.message || e)}`, true);
+      } finally {
+        restoreBtn.disabled = false;
+        buyBtn && (buyBtn.disabled = false);
+      }
+    };
+  }
 }
