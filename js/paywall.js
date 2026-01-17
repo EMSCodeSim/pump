@@ -79,6 +79,21 @@ export function initBilling({ productId, onEntitlement } = {}){
       logErr('store.register failed:', e);
     }
 
+    // v13+ requires initialize() (safe no-op on older versions).
+    try{
+      if (typeof store.initialize === 'function' && store.PLATFORM?.GOOGLE_PLAY) {
+        const r = store.initialize([store.PLATFORM.GOOGLE_PLAY]);
+        // initialize may return a Promise in v13+
+        if (r && typeof r.then === 'function') {
+          r.then(() => log('store.initialize resolved')).catch(e => logErr('store.initialize failed:', e));
+        } else {
+          log('store.initialize called');
+        }
+      }
+    }catch(e){
+      logErr('store.initialize exception:', e);
+    }
+
     // Global error handler
     try{
       store.error((e) => {
@@ -152,7 +167,16 @@ export async function buyProduct(productId){
 
   log('order:', id);
   try{
-    await store.order(id);
+    // ✅ v13+ FIX: product.order()
+    const p = (typeof store.get === 'function') ? store.get(id) : null;
+    if (p && typeof p.order === 'function') {
+      await p.order();
+    } else if (typeof store.order === 'function') {
+      // Older plugin versions
+      await store.order(id);
+    } else {
+      throw new Error('No purchase method found (expected product.order() or store.order()).');
+    }
   }catch(e){
     // Many "cancel" flows throw errors; log them clearly.
     logErr('order failed:', e);
@@ -228,174 +252,43 @@ export async function tryRestorePro(productId){
     alert('In-app purchase plugin not installed yet. (cordova-plugin-purchase recommended)');
     return false;
   }
-  if (typeof plugin.restorePurchases === 'function'){
-    const res = await plugin.restorePurchases();
-    const items = res?.purchases || res?.items || res || [];
-    if (Array.isArray(items)) return items.some(p => (p.productId||p.id) === productId);
-    return false;
+  if (typeof plugin.restore === 'function'){
+    await plugin.restore();
+    return true;
   }
-  if (typeof plugin.getPurchasedProducts === 'function'){
-    const res = await plugin.getPurchasedProducts();
-    const items = res?.products || res?.purchases || res || [];
-    if (Array.isArray(items)) return items.some(p => (p.productId||p.id) === productId);
-    return false;
+  if (typeof plugin.restorePurchases === 'function'){
+    await plugin.restorePurchases();
+    return true;
   }
   alert('Restore API not found on plugin. Check your IAP plugin docs and update paywall.js.');
   return false;
 }
 
-// ------------------------------ UI components ------------------------------
-
-export async function renderPaywall(container, opts = {}){
-  const priceText = opts.priceText || '$1.99 one-time';
-  const trialDays = Number(opts.trialDays || 5);
-  const productId = String(opts.productId || '');
-
-  container.innerHTML = `
-    <div class="card" style="max-width:720px;margin:18px auto;">
-      <div style="font-weight:900;font-size:20px;margin-bottom:6px;">Unlock FireOps Calc Pro</div>
-      <div style="opacity:.85;line-height:1.35;margin-bottom:12px;">
-        Your <b>${esc(trialDays)}-day free trial</b> has ended.
-        Unlock Pro for <b>${esc(priceText)}</b> (one-time purchase) to keep using the app.
-      </div>
-
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0;">
-        <button class="btn primary" id="proBuyBtn" type="button">Unlock Pro (${esc(priceText)})</button>
-        <button class="btn" id="proRestoreBtn" type="button">Restore Purchase</button>
-      </div>
-
-      <div style="opacity:.75;font-size:13px;line-height:1.35;">
-        <div style="margin-top:8px;"><b>Product ID:</b> <span class="pill">${esc(productId)}</span></div>
-        <div style="margin-top:8px;">If you already paid on this Google account, tap <b>Restore Purchase</b>.</div>
-      </div>
-
-      <div id="proMsg" style="margin-top:12px;opacity:.9;"></div>
-    </div>
-  `;
-
-  const msg = container.querySelector('#proMsg');
-  const buyBtn = container.querySelector('#proBuyBtn');
-  const restoreBtn = container.querySelector('#proRestoreBtn');
-
-  const setMsg = (t, isErr=false)=>{
-    if (!msg) return;
-    const border = isErr ? 'rgba(255,107,107,.6)' : 'rgba(70,176,255,.35)';
-    msg.innerHTML = `<div style="padding:10px 12px;border-radius:12px;border:1px solid ${border};background:#050913;">${esc(t)}</div>`;
-  };
-
-  if (!isNativeApp()) {
-    setMsg('Paywall is disabled on the website.');
-  }
-
-  buyBtn?.addEventListener('click', async ()=>{
-    buyBtn.disabled = true;
-    try{
-      setMsg('Opening Google Play purchase…');
-      await (opts.onPurchase?.());
-    }catch(e){
-      logErr('Paywall purchase error:', e);
-      setMsg('Purchase failed: ' + String(e?.message || e), true);
-    }finally{
-      buyBtn.disabled = false;
+export function showPurchaseError(msg){
+  try{
+    const el = document.getElementById('purchaseError');
+    if (el){
+      el.textContent = msg;
+      el.style.display = 'block';
+      return;
     }
-  });
-
-  restoreBtn?.addEventListener('click', async ()=>{
-    restoreBtn.disabled = true;
-    try{
-      setMsg('Checking purchases…');
-      await (opts.onRestore?.());
-    }catch(e){
-      logErr('Paywall restore error:', e);
-      setMsg('Restore failed: ' + String(e?.message || e), true);
-    }finally{
-      restoreBtn.disabled = false;
-    }
-  });
+  }catch(_e){}
+  alert(msg);
 }
 
-export function renderTrialIntroModal({
-  title = '5-Day Free Trial — No Risk',
-  trialDays = 5,
-  priceText = '$1.99 one-time',
-  onContinue,
-  onBuyNow,
-} = {}){
-  // Show only on native. (Website stays free and shouldn't show purchase UI.)
-  if (!isNativeApp()) return { close: ()=>{} };
-
-  const overlay = document.createElement('div');
-  overlay.style.cssText = [
-    'position:fixed',
-    'inset:0',
-    'background:rgba(0,0,0,.65)',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'z-index:99999',
-    'padding:16px'
-  ].join(';');
-
-  overlay.innerHTML = `
-    <div class="card" style="max-width:620px;width:100%;">
-      <div style="font-weight:900;font-size:20px;margin-bottom:8px;">${esc(title)}</div>
-      <div style="opacity:.9;line-height:1.45;margin-bottom:14px;">
-        FireOps Calc is free to use for the next <b>${esc(trialDays)} days</b>.<br><br>
-        After the trial, you can unlock the app with a <b>one-time ${esc(priceText)}</b> purchase —
-        <b>no subscription</b>, no auto-billing.
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;">
-        <button class="btn" id="trialContinueBtn" type="button">Continue Free Trial</button>
-        <button class="btn primary" id="trialBuyBtn" type="button">Unlock Now — ${esc(priceText)}</button>
-      </div>
-      <div id="trialMsg" style="margin-top:12px;opacity:.9;"></div>
-    </div>
-  `;
-
-  function close(){
-    try{ overlay.remove(); }catch(_e){}
-  }
-
-  overlay.addEventListener('click', (e)=>{
-    // click outside card closes (continue trial)
-    if (e.target === overlay) {
-      onContinue?.();
-      close();
+export function hidePurchaseError(){
+  try{
+    const el = document.getElementById('purchaseError');
+    if (el){
+      el.textContent = '';
+      el.style.display = 'none';
     }
-  });
+  }catch(_e){}
+}
 
-  const contBtn = overlay.querySelector('#trialContinueBtn');
-  const buyBtn = overlay.querySelector('#trialBuyBtn');
-  const msgEl = overlay.querySelector('#trialMsg');
-  const setMsg = (t, isErr=false)=>{
-    if (!msgEl) return;
-    const border = isErr ? 'rgba(255,107,107,.6)' : 'rgba(70,176,255,.35)';
-    msgEl.innerHTML = `<div style="padding:10px 12px;border-radius:12px;border:1px solid ${border};background:#050913;">${esc(t)}</div>`;
-  };
-
-  contBtn?.addEventListener('click', ()=>{
-    onContinue?.();
-    close();
-  });
-
-  buyBtn?.addEventListener('click', async ()=>{
-    if (!onBuyNow) return;
-    buyBtn.disabled = true;
-    if (contBtn) contBtn.disabled = true;
-    setMsg('Opening Google Play purchase…');
-    try{
-      await onBuyNow();
-      // If purchase succeeds, entitlement handler should update the UI.
-      // We still close the modal to avoid blocking.
-      close();
-    }catch(e){
-      logErr('Trial modal purchase error:', e);
-      setMsg('Purchase failed: ' + String(e?.message || e), true);
-      buyBtn.disabled = false;
-      if (contBtn) contBtn.disabled = false;
-    }
-  });
-
-  document.body.appendChild(overlay);
-  return { close, setMsg };
+export function formatError(e){
+  const code = e?.code ?? e?.errorCode ?? '';
+  const msg = e?.message ?? e?.error ?? String(e ?? '');
+  if (code) return `${code}: ${msg}`;
+  return msg || 'Unknown error';
 }
