@@ -1,383 +1,220 @@
-// paywall.js — FireOps Calc
-// UI is injected by JS (no paywall.html file)
+/* paywall.js
+   FireOps Calc — IAP helper for cordova-plugin-purchase (store)
+   - Robust “native app” detection (Capacitor often uses http(s)://localhost)
+   - Auto-unlock if already purchased
+   - Restore purchases support
+*/
 
-let _productId = null;
-let _store = null;
-let _inited = false;
-let _initPromise = null;
+let _billingReady = false;
+let _opts = {
+  productId: "fireops.pro",
+  debug: false,
+  onEntitlementChanged: null, // (isPro:boolean) => void
+  onLog: null,               // (msg:string) => void
+};
+
+function log(msg) {
+  try {
+    if (_opts?.debug) console.log("[paywall]", msg);
+    if (typeof _opts?.onLog === "function") _opts.onLog(msg);
+  } catch (_) {}
+}
+
+function getStore() {
+  // cordova-plugin-purchase exposes `store`
+  return globalThis.store || globalThis.CdvPurchase?.store || null;
+}
 
 function isNativePlatform() {
-  // Best signal: Capacitor API
-  try {
-    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
-    if (window?.Capacitor?.getPlatform) return window.Capacitor.getPlatform() !== "web";
-  } catch {}
+  // Works for Capacitor + Cordova
+  const w = globalThis;
 
-  // Cordova plugins generally inject window.cordova + deviceready
-  if (window?.cordova) return true;
+  // Cordova present
+  if (w.cordova) return true;
 
-  // Some versions of cordova-plugin-purchase expose these globals even if protocol is https:
-  if (window?.CdvPurchase?.store || window?.store) return true;
-
-  // Fallback: protocol heuristic
-  const proto = window?.location?.protocol || "";
-  return proto === "capacitor:" || proto === "file:"; // classic capacitor/cordova
-}
-
-function _sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function _waitForPurchaseLib(timeoutMs = 4500) {
-  // Wait until cordova-plugin-purchase globals appear.
-  if (!isNativePlatform()) return false;
-
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const s = _getStore();
-    if (s) return true;
-    await _sleep(100);
+  // Capacitor present
+  const Cap = w.Capacitor;
+  if (Cap) {
+    try {
+      if (typeof Cap.isNativePlatform === "function") return !!Cap.isNativePlatform();
+      if (typeof Cap.getPlatform === "function") return Cap.getPlatform() !== "web";
+    } catch (_) {}
   }
-  return !!_getStore();
+
+  // Capacitor webview usually uses localhost (http/https)
+  try {
+    const h = w.location?.hostname || "";
+    if (h === "localhost" || h === "127.0.0.1") return true;
+  } catch (_) {}
+
+  // Fallback: capacitor/ionic/file schemes
+  try {
+    const p = w.location?.protocol || "";
+    if (p === "capacitor:" || p === "ionic:" || p === "file:") return true;
+  } catch (_) {}
+
+  return false;
 }
 
-async function _waitForDeviceReady(timeoutMs = 2500) {
-  // Web build: no deviceready.
-  if (!isNativePlatform()) return false;
-
-  // If cordova is present already, we’re basically ready.
-  if (window.cordova && window.cordova.platformId) return true;
-
-  let fired = false;
-  await Promise.race([
-    new Promise((resolve) => {
-      document.addEventListener(
-        "deviceready",
-        () => {
-          fired = true;
-          resolve(true);
-        },
-        { once: true }
-      );
-    }),
-    (async () => {
-      await _sleep(timeoutMs);
-      return false;
-    })(),
-  ]);
-
-  // Even if deviceready didn’t fire, plugin globals may still exist.
-  return fired || !!(window.cordova && window.cordova.platformId) || !!_getStore();
+function setProUnlocked(isPro) {
+  try {
+    if (typeof _opts?.onEntitlementChanged === "function") {
+      _opts.onEntitlementChanged(!!isPro);
+    }
+  } catch (_) {}
 }
 
-function _getStore() {
-  // cordova-plugin-purchase exposes either window.store or window.CdvPurchase.store depending on version
-  return window?.store || window?.CdvPurchase?.store || null;
+function ensureStoreOrExplain() {
+  const s = getStore();
+  if (!s) {
+    log("Store not found (cordova-plugin-purchase not available).");
+    return {
+      ok: false,
+      reason:
+        "In-app purchases aren’t available in this build.\n\n" +
+        "Make sure you're testing the installed Android app (not the website) " +
+        "and that cordova-plugin-purchase is installed + synced into Android.",
+    };
+  }
+  return { ok: true, store: s };
 }
 
-function _platformKey() {
-  const s = _getStore();
-  if (!s) return null;
-  return s?.PLATFORM?.GOOGLE_PLAY || "android";
-}
+export async function initBilling(options = {}) {
+  _opts = { ..._opts, ...options };
+  _billingReady = false;
 
-function _typeNonConsumable() {
-  const s = _getStore();
-  if (!s) return null;
-  return s?.NON_CONSUMABLE || s?.ProductType?.NON_CONSUMABLE || "non consumable";
-}
+  const chk = ensureStoreOrExplain();
+  if (!chk.ok) return false;
 
-export async function initBilling(productId, { onApproved } = {}) {
-  _productId = productId;
+  const store = chk.store;
 
   if (!isNativePlatform()) {
-    // Web build: do nothing, but don’t crash
-    _inited = false;
-    _store = null;
+    log("Not detected as native platform (blocking billing init).");
     return false;
   }
 
-  if (_initPromise) return _initPromise;
+  try {
+    // Register product
+    log(`Registering product: ${_opts.productId}`);
+    store.register({
+      id: _opts.productId,
+      type: store.NON_CONSUMABLE,
+    });
 
-  _initPromise = (async () => {
-    await _waitForDeviceReady();
-    await _waitForPurchaseLib();
-
-    const store = _getStore();
-    _store = store;
-
-    if (!store) {
-      console.warn("[paywall] Purchase store not found (cordova-plugin-purchase not available).");
-      _inited = false;
-      return false;
+    // Optional verbosity
+    if (_opts.debug && store.verbosity != null) {
+      store.verbosity = store.DEBUG;
     }
 
-    try {
-      // Logging (safe across versions)
-      try {
-        store.verbosity = store.DEBUG;
-      } catch {}
+    // When product updates, check ownership
+    store.when(_opts.productId).updated((p) => {
+      const owned =
+        !!p?.owned ||
+        p?.state === store.APPROVED ||
+        p?.state === store.OWNED;
 
-      const platform = _platformKey();
-      const type = _typeNonConsumable();
+      log(`Product updated. owned=${owned} state=${p?.state}`);
+      if (owned) setProUnlocked(true);
+    });
 
-      // Register product
-      try {
-        store.register([
-          {
-            id: productId,
-            type,
-            platform,
-          },
-        ]);
-      } catch (e) {
-        // Older versions accept single object
-        store.register({ id: productId, type, platform });
-      }
+    // Approval => finish + unlock
+    store.when(_opts.productId).approved((p) => {
+      log("Purchase approved. Finishing + unlocking.");
+      try { p.finish(); } catch (_) {}
+      setProUnlocked(true);
+    });
 
-      // Wire handlers
-      try {
-        store.when(productId).approved((p) => {
-          console.log("[paywall] approved:", productId);
-          try {
-            // finish/acknowledge
-            if (p && typeof p.finish === "function") p.finish();
-          } catch {}
-          try {
-            if (typeof onApproved === "function") onApproved(p);
-          } catch (cbErr) {
-            console.warn("[paywall] onApproved callback error:", cbErr);
-          }
-        });
-      } catch (e) {
-        console.warn("[paywall] store.when().approved not available:", e);
-      }
-
-      try {
-        store.error((err) => console.warn("[paywall] store error:", err));
-      } catch {}
-
-      // Initialize + refresh
-      try {
-        await store.initialize([platform]);
-      } catch (e) {
-        try {
-          await store.initialize(platform);
-        } catch (e2) {
-          console.warn("[paywall] store.initialize failed:", e2);
-          _inited = false;
-          return false;
-        }
-      }
-
+    store.ready(() => {
+      _billingReady = true;
+      log("Store ready. Refreshing purchases…");
       try {
         store.refresh();
-      } catch {}
+      } catch (e) {
+        log("store.refresh() error: " + (e?.message || e));
+      }
+    });
 
-      _inited = true;
-
-      // Auto-check ownership right after init
-      try {
-        const owned = await checkOwned(productId);
-        if (owned && typeof onApproved === "function") {
-          // Already purchased on this account/device → auto-unlock
-          onApproved(null);
-        }
-      } catch {}
-
-      return true;
+    // Initialize (Google Play)
+    // Some versions use store.initialize(), some use store.refresh() only.
+    try {
+      if (typeof store.initialize === "function") {
+        store.initialize([store.GOOGLE_PLAY]);
+      } else {
+        // fallback: just refresh
+        store.refresh();
+      }
     } catch (e) {
-      console.warn("[paywall] initBilling failed:", e);
-      _inited = false;
-      return false;
+      log("Store init error: " + (e?.message || e));
     }
-  })();
 
-  return _initPromise;
-}
-
-export async function checkOwned(productId = _productId) {
-  if (!productId) return false;
-  if (!isNativePlatform()) return false;
-
-  if (!_inited) {
-    await initBilling(productId, {});
-  }
-
-  const store = _getStore();
-  if (!store) return false;
-
-  try {
-    const p = store.get(productId);
-    if (!p) return false;
-
-    if (typeof p.owned === "boolean") return p.owned;
-    if (typeof p.isOwned === "boolean") return p.isOwned;
-    if (typeof p.isOwned === "function") return !!p.isOwned();
-
-    if (p?.transactions?.length) return true;
-
-    return false;
-  } catch (e) {
-    console.warn("[paywall] checkOwned error:", e);
-    return false;
-  }
-}
-
-export async function buyProduct(productId = _productId) {
-  if (!productId) throw new Error("No productId set");
-
-  if (!isNativePlatform()) {
-    const proto = window?.location?.protocol || "";
-    const host = window?.location?.host || "";
-    alert(
-      "Purchases only work inside the installed Google Play app (not the website).\n\n" +
-        `Detected: protocol=${proto} host=${host}`
-    );
-    return false;
-  }
-
-  if (!_inited) {
-    await initBilling(productId, {});
-  }
-
-  const store = _getStore();
-  if (!store) {
-    alert(
-      "Billing not available. Make sure:\n" +
-        "• This build is installed from Google Play (Internal/Closed/Production)\n" +
-        "• cordova-plugin-purchase is installed and synced into Android\n"
-    );
-    return false;
-  }
-
-  try {
-    console.log("[paywall] ordering:", productId);
-    await store.order(productId);
     return true;
   } catch (e) {
-    console.warn("[paywall] order failed:", e);
-    alert(`Purchase failed: ${e?.message || e}`);
+    log("initBilling exception: " + (e?.message || e));
     return false;
   }
 }
 
-/* ---------- UI helpers (modal injection) ---------- */
-
-function _ensureModalRoot() {
-  let root = document.getElementById("paywall-modal-root");
-  if (root) return root;
-  root = document.createElement("div");
-  root.id = "paywall-modal-root";
-  document.body.appendChild(root);
-  return root;
+export function canPurchase() {
+  if (!isNativePlatform()) return false;
+  const s = getStore();
+  return !!s;
 }
 
-export function closeAllPaywallModals() {
-  const root = document.getElementById("paywall-modal-root");
-  if (root) root.innerHTML = "";
+export async function buyProduct(productId) {
+  const pid = productId || _opts.productId;
+
+  const chk = ensureStoreOrExplain();
+  if (!chk.ok) {
+    alert(chk.reason);
+    return { ok: false, error: chk.reason };
+  }
+
+  if (!isNativePlatform()) {
+    const msg =
+      "Purchases only work inside the installed Android app.\n\n" +
+      "If you’re testing in a browser (website), it can’t open Google Play Billing.";
+    alert(msg);
+    return { ok: false, error: msg };
+  }
+
+  const store = chk.store;
+
+  try {
+    log(`Ordering product: ${pid}`);
+    store.order(pid);
+    return { ok: true };
+  } catch (e) {
+    const msg = e?.message || String(e);
+    log("Order failed: " + msg);
+    alert("Purchase failed to start: " + msg);
+    return { ok: false, error: msg };
+  }
 }
 
-export function renderTrialIntroModal({
-  title = "5-Day Free Trial — No Risk",
-  subtitle = "FireOps Calc is free for 5 days. You can unlock full access anytime with a one-time purchase.",
-  priceLine = "Pay Now — $1.99 one-time",
-  onContinue,
-  onPayNow,
-} = {}) {
-  const root = _ensureModalRoot();
-  root.innerHTML = "";
+export async function restorePurchases() {
+  const chk = ensureStoreOrExplain();
+  if (!chk.ok) {
+    alert(chk.reason);
+    return { ok: false, error: chk.reason };
+  }
 
-  const overlay = document.createElement("div");
-  overlay.style.cssText = `
-    position:fixed; inset:0; background:rgba(0,0,0,0.55);
-    display:flex; align-items:center; justify-content:center;
-    z-index:99999; padding:16px;
-  `;
+  if (!isNativePlatform()) {
+    const msg =
+      "Restore only works inside the installed Android app (not the website).";
+    alert(msg);
+    return { ok: false, error: msg };
+  }
 
-  const card = document.createElement("div");
-  card.style.cssText = `
-    width:min(520px, 100%);
-    background:#0b1220;
-    border:1px solid rgba(255,255,255,0.12);
-    border-radius:16px;
-    box-shadow:0 20px 60px rgba(0,0,0,0.5);
-    padding:18px;
-    color:#eaf2ff;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  `;
+  const store = chk.store;
 
-  const h = document.createElement("div");
-  h.style.cssText = "font-size:20px; font-weight:800; margin-bottom:6px;";
-  h.textContent = title;
-
-  const p = document.createElement("div");
-  p.style.cssText = "opacity:0.9; margin-bottom:10px; line-height:1.35;";
-  p.textContent = subtitle;
-
-  const note = document.createElement("div");
-  note.style.cssText = "opacity:0.75; font-size:12px; margin-bottom:14px;";
-  note.textContent =
-    "Purchases only work in the installed Google Play app (Internal/Closed/Production). Not sideloaded.";
-
-  const btnRow = document.createElement("div");
-  btnRow.style.cssText = "display:flex; flex-direction:column; gap:10px;";
-
-  const btnContinue = document.createElement("button");
-  btnContinue.textContent = "Continue Free Trial";
-  btnContinue.style.cssText = `
-    width:100%;
-    padding:12px 14px;
-    border-radius:12px;
-    border:1px solid rgba(255,255,255,0.18);
-    background:rgba(255,255,255,0.06);
-    color:#fff;
-    font-weight:700;
-  `;
-
-  const btnPay = document.createElement("button");
-  btnPay.textContent = priceLine;
-  btnPay.style.cssText = `
-    width:100%;
-    padding:12px 14px;
-    border-radius:12px;
-    border:0;
-    background:linear-gradient(180deg,#3aa0ff,#1d6bff);
-    color:#fff;
-    font-weight:900;
-  `;
-
-  btnContinue.onclick = () => {
-    try {
-      if (typeof onContinue === "function") onContinue();
-    } finally {
-      closeAllPaywallModals();
-    }
-  };
-
-  btnPay.onclick = async () => {
-    btnPay.disabled = true;
-    const original = priceLine;
-    btnPay.textContent = "Opening Google Play…";
-    try {
-      if (typeof onPayNow === "function") {
-        await onPayNow();
-      } else {
-        await buyProduct(_productId);
-      }
-    } finally {
-      btnPay.disabled = false;
-      btnPay.textContent = original;
-    }
-  };
-
-  btnRow.appendChild(btnContinue);
-  btnRow.appendChild(btnPay);
-
-  card.appendChild(h);
-  card.appendChild(p);
-  card.appendChild(note);
-  card.appendChild(btnRow);
-  overlay.appendChild(card);
-  root.appendChild(overlay);
+  try {
+    log("Restoring purchases (refresh)...");
+    store.refresh();
+    return { ok: true };
+  } catch (e) {
+    const msg = e?.message || String(e);
+    log("Restore failed: " + msg);
+    alert("Restore failed: " + msg);
+    return { ok: false, error: msg };
+  }
 }
