@@ -43,7 +43,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
 
     // ✅ Play Billing (Google Play in-app purchases)
-    implementation "com.android.billingclient:billing:6.1.0"
+    implementation "com.android.billingclient:billing:7.0.0"
+
 
     implementation project(':capacitor-android')
     implementation project(':capacitor-cordova-android-plugins')
