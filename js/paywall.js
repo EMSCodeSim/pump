@@ -1,11 +1,19 @@
 /* paywall.js
    FireOps Calc — IAP helper for cordova-plugin-purchase (store)
-   - Robust “native app” detection (Capacitor often uses http(s)://localhost)
-   - Auto-unlock if already purchased
-   - Restore purchases support
+
+   FIX: avoids collision with your app's internal js/store.js by preferring
+   CdvPurchase.store and only using globalThis.store if it actually looks like
+   the billing store (has order/register/when).
+
+   Exports:
+   - initBilling(options)
+   - canPurchase()
+   - buyProduct(productId)
+   - restorePurchases()
 */
 
 let _billingReady = false;
+
 let _opts = {
   productId: "fireops.pro",
   debug: false,
@@ -20,13 +28,29 @@ function log(msg) {
   } catch (_) {}
 }
 
+function looksLikeBillingStore(s) {
+  return (
+    !!s &&
+    (typeof s.order === "function" ||
+      typeof s.register === "function" ||
+      typeof s.when === "function")
+  );
+}
+
 function getStore() {
-  // cordova-plugin-purchase exposes `store`
-  return globalThis.store || globalThis.CdvPurchase?.store || null;
+  // IMPORTANT: avoid collision with your app's own global `store`
+  // cordova-plugin-purchase v13+ => globalThis.CdvPurchase.store
+  const s1 = globalThis.CdvPurchase?.store;
+  if (looksLikeBillingStore(s1)) return s1;
+
+  // Some older setups expose a legacy global `store`
+  const s0 = globalThis.store;
+  if (looksLikeBillingStore(s0)) return s0;
+
+  return null;
 }
 
 function isNativePlatform() {
-  // Works for Capacitor + Cordova
   const w = globalThis;
 
   // Cordova present
@@ -41,13 +65,13 @@ function isNativePlatform() {
     } catch (_) {}
   }
 
-  // Capacitor webview usually uses localhost (http/https)
+  // Capacitor WebView commonly uses localhost with http(s)
   try {
     const h = w.location?.hostname || "";
     if (h === "localhost" || h === "127.0.0.1") return true;
   } catch (_) {}
 
-  // Fallback: capacitor/ionic/file schemes
+  // Other native schemes
   try {
     const p = w.location?.protocol || "";
     if (p === "capacitor:" || p === "ionic:" || p === "file:") return true;
@@ -67,12 +91,12 @@ function setProUnlocked(isPro) {
 function ensureStoreOrExplain() {
   const s = getStore();
   if (!s) {
-    log("Store not found (cordova-plugin-purchase not available).");
+    log("Billing store not found (cordova-plugin-purchase not available or not initialized).");
     return {
       ok: false,
       reason:
         "In-app purchases aren’t available in this build.\n\n" +
-        "Make sure you're testing the installed Android app (not the website) " +
+        "Make sure you're testing the INSTALLED Android app (not the website) " +
         "and that cordova-plugin-purchase is installed + synced into Android.",
     };
   }
@@ -94,19 +118,17 @@ export async function initBilling(options = {}) {
   }
 
   try {
-    // Register product
     log(`Registering product: ${_opts.productId}`);
     store.register({
       id: _opts.productId,
       type: store.NON_CONSUMABLE,
     });
 
-    // Optional verbosity
     if (_opts.debug && store.verbosity != null) {
       store.verbosity = store.DEBUG;
     }
 
-    // When product updates, check ownership
+    // Track entitlement
     store.when(_opts.productId).updated((p) => {
       const owned =
         !!p?.owned ||
@@ -117,30 +139,26 @@ export async function initBilling(options = {}) {
       if (owned) setProUnlocked(true);
     });
 
-    // Approval => finish + unlock
+    // Approval -> finish -> unlock
     store.when(_opts.productId).approved((p) => {
       log("Purchase approved. Finishing + unlocking.");
       try { p.finish(); } catch (_) {}
       setProUnlocked(true);
     });
 
+    // Ready
     store.ready(() => {
       _billingReady = true;
       log("Store ready. Refreshing purchases…");
-      try {
-        store.refresh();
-      } catch (e) {
-        log("store.refresh() error: " + (e?.message || e));
-      }
+      try { store.refresh(); } catch (e) { log("store.refresh() error: " + (e?.message || e)); }
     });
 
-    // Initialize (Google Play)
-    // Some versions use store.initialize(), some use store.refresh() only.
+    // Initialize for Google Play
     try {
       if (typeof store.initialize === "function") {
         store.initialize([store.GOOGLE_PLAY]);
       } else {
-        // fallback: just refresh
+        // Some versions don't require initialize, refresh is enough
         store.refresh();
       }
     } catch (e) {
@@ -156,8 +174,7 @@ export async function initBilling(options = {}) {
 
 export function canPurchase() {
   if (!isNativePlatform()) return false;
-  const s = getStore();
-  return !!s;
+  return !!getStore();
 }
 
 export async function buyProduct(productId) {
@@ -180,13 +197,30 @@ export async function buyProduct(productId) {
   const store = chk.store;
 
   try {
+    // If user taps quickly, store might not be “ready” yet
+    if (!_billingReady) {
+      try { store.refresh(); } catch (_) {}
+    }
+
+    // Hard guard: prevents the exact error you're seeing
+    if (typeof store.order !== "function") {
+      // Try alternate call form, if available in this plugin version
+      const alt = globalThis.CdvPurchase;
+      if (typeof alt?.order === "function") {
+        log(`Ordering via CdvPurchase.order: ${pid}`);
+        alt.order(pid);
+        return { ok: true };
+      }
+      throw new Error("Billing store present but order() is missing (store collision or plugin not initialized).");
+    }
+
     log(`Ordering product: ${pid}`);
     store.order(pid);
     return { ok: true };
   } catch (e) {
     const msg = e?.message || String(e);
     log("Order failed: " + msg);
-    alert("Purchase failed to start: " + msg);
+    alert("Purchase failed: " + msg);
     return { ok: false, error: msg };
   }
 }
@@ -199,17 +233,14 @@ export async function restorePurchases() {
   }
 
   if (!isNativePlatform()) {
-    const msg =
-      "Restore only works inside the installed Android app (not the website).";
+    const msg = "Restore only works inside the installed Android app (not the website).";
     alert(msg);
     return { ok: false, error: msg };
   }
 
-  const store = chk.store;
-
   try {
     log("Restoring purchases (refresh)...");
-    store.refresh();
+    chk.store.refresh();
     return { ok: true };
   } catch (e) {
     const msg = e?.message || String(e);
