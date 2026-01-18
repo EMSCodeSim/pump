@@ -7,27 +7,54 @@ let _inited = false;
 let _initPromise = null;
 
 function isNativePlatform() {
+  // Best signal: Capacitor API
+  try {
+    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
+    if (window?.Capacitor?.getPlatform) return window.Capacitor.getPlatform() !== "web";
+  } catch {}
+
+  // Cordova plugins generally inject window.cordova + deviceready
+  if (window?.cordova) return true;
+
+  // Some versions of cordova-plugin-purchase expose these globals even if protocol is https:
+  if (window?.CdvPurchase?.store || window?.store) return true;
+
+  // Fallback: protocol heuristic
   const proto = window?.location?.protocol || "";
-  return proto === "capacitor:" || proto === "file:"; // capacitor/android builds
+  return proto === "capacitor:" || proto === "file:"; // classic capacitor/cordova
 }
 
 function _sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function _waitForDeviceReady(timeoutMs = 2500) {
-  // Capacitor often fires deviceready quickly; web never does.
+async function _waitForPurchaseLib(timeoutMs = 4500) {
+  // Wait until cordova-plugin-purchase globals appear.
   if (!isNativePlatform()) return false;
 
-  if (window.cordova && window.cordova.platformId) return true; // already there
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const s = _getStore();
+    if (s) return true;
+    await _sleep(100);
+  }
+  return !!_getStore();
+}
 
-  let done = false;
+async function _waitForDeviceReady(timeoutMs = 2500) {
+  // Web build: no deviceready.
+  if (!isNativePlatform()) return false;
+
+  // If cordova is present already, we’re basically ready.
+  if (window.cordova && window.cordova.platformId) return true;
+
+  let fired = false;
   await Promise.race([
     new Promise((resolve) => {
       document.addEventListener(
         "deviceready",
         () => {
-          done = true;
+          fired = true;
           resolve(true);
         },
         { once: true }
@@ -39,7 +66,8 @@ async function _waitForDeviceReady(timeoutMs = 2500) {
     })(),
   ]);
 
-  return done || !!(window.cordova && window.cordova.platformId);
+  // Even if deviceready didn’t fire, plugin globals may still exist.
+  return fired || !!(window.cordova && window.cordova.platformId) || !!_getStore();
 }
 
 function _getStore() {
@@ -48,7 +76,6 @@ function _getStore() {
 }
 
 function _platformKey() {
-  // cordova-plugin-purchase uses store.PLATFORM.GOOGLE_PLAY in newer versions
   const s = _getStore();
   if (!s) return null;
   return s?.PLATFORM?.GOOGLE_PLAY || "android";
@@ -57,7 +84,6 @@ function _platformKey() {
 function _typeNonConsumable() {
   const s = _getStore();
   if (!s) return null;
-  // Common constants across versions:
   return s?.NON_CONSUMABLE || s?.ProductType?.NON_CONSUMABLE || "non consumable";
 }
 
@@ -75,6 +101,7 @@ export async function initBilling(productId, { onApproved } = {}) {
 
   _initPromise = (async () => {
     await _waitForDeviceReady();
+    await _waitForPurchaseLib();
 
     const store = _getStore();
     _store = store;
@@ -91,10 +118,10 @@ export async function initBilling(productId, { onApproved } = {}) {
         store.verbosity = store.DEBUG;
       } catch {}
 
-      // Register product
       const platform = _platformKey();
       const type = _typeNonConsumable();
 
+      // Register product
       try {
         store.register([
           {
@@ -113,7 +140,7 @@ export async function initBilling(productId, { onApproved } = {}) {
         store.when(productId).approved((p) => {
           console.log("[paywall] approved:", productId);
           try {
-            // finish/ack
+            // finish/acknowledge
             if (p && typeof p.finish === "function") p.finish();
           } catch {}
           try {
@@ -134,7 +161,6 @@ export async function initBilling(productId, { onApproved } = {}) {
       try {
         await store.initialize([platform]);
       } catch (e) {
-        // Some versions: store.initialize(platform)
         try {
           await store.initialize(platform);
         } catch (e2) {
@@ -154,7 +180,8 @@ export async function initBilling(productId, { onApproved } = {}) {
       try {
         const owned = await checkOwned(productId);
         if (owned && typeof onApproved === "function") {
-          onApproved(null); // treat as already unlocked
+          // Already purchased on this account/device → auto-unlock
+          onApproved(null);
         }
       } catch {}
 
@@ -171,11 +198,9 @@ export async function initBilling(productId, { onApproved } = {}) {
 
 export async function checkOwned(productId = _productId) {
   if (!productId) return false;
-
   if (!isNativePlatform()) return false;
 
   if (!_inited) {
-    // if someone calls checkOwned first, try to init (best effort)
     await initBilling(productId, {});
   }
 
@@ -186,12 +211,10 @@ export async function checkOwned(productId = _productId) {
     const p = store.get(productId);
     if (!p) return false;
 
-    // Different versions expose ownership differently
     if (typeof p.owned === "boolean") return p.owned;
     if (typeof p.isOwned === "boolean") return p.isOwned;
     if (typeof p.isOwned === "function") return !!p.isOwned();
 
-    // Fallback: check transactions if present
     if (p?.transactions?.length) return true;
 
     return false;
@@ -205,18 +228,26 @@ export async function buyProduct(productId = _productId) {
   if (!productId) throw new Error("No productId set");
 
   if (!isNativePlatform()) {
-    alert("Purchases only work inside the installed Google Play app (not the website).");
+    const proto = window?.location?.protocol || "";
+    const host = window?.location?.host || "";
+    alert(
+      "Purchases only work inside the installed Google Play app (not the website).\n\n" +
+        `Detected: protocol=${proto} host=${host}`
+    );
     return false;
   }
 
-  // Ensure billing is initialized and store exists
   if (!_inited) {
     await initBilling(productId, {});
   }
 
   const store = _getStore();
   if (!store) {
-    alert("Billing not available. Make sure this build is installed from Google Play (Internal/Closed/Production).");
+    alert(
+      "Billing not available. Make sure:\n" +
+        "• This build is installed from Google Play (Internal/Closed/Production)\n" +
+        "• cordova-plugin-purchase is installed and synced into Android\n"
+    );
     return false;
   }
 
@@ -326,6 +357,7 @@ export function renderTrialIntroModal({
 
   btnPay.onclick = async () => {
     btnPay.disabled = true;
+    const original = priceLine;
     btnPay.textContent = "Opening Google Play…";
     try {
       if (typeof onPayNow === "function") {
@@ -335,7 +367,7 @@ export function renderTrialIntroModal({
       }
     } finally {
       btnPay.disabled = false;
-      btnPay.textContent = priceLine;
+      btnPay.textContent = original;
     }
   };
 
