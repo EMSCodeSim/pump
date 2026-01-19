@@ -1,9 +1,20 @@
-/* paywall.js — Payment test + production-safe
-   - Prevent store collision (CdvPurchase.store first)
-   - Wait for store.ready() before ordering
-   - Provide UI helpers:
+/* paywall.js
+   FireOps Calc — billing + UI helpers
+
+   Fixes:
+   - Avoid collision with your app's internal js/store.js by preferring CdvPurchase.store
+   - Wait for store.ready() before ordering (prevents “Pay Now closes but nothing happens”)
+   - Includes UI:
        renderTrialIntroModal()
        renderPaywall()
+
+   Exports:
+   - initBilling(options)
+   - canPurchase()
+   - buyProduct(productId)
+   - restorePurchases(productId) -> boolean
+   - renderTrialIntroModal(opts)
+   - renderPaywall(mountEl, opts)
 */
 
 let _billingReady = false;
@@ -34,6 +45,7 @@ function looksLikeBillingStore(s) {
 }
 
 function getStore() {
+  // IMPORTANT: prefer plugin store to avoid collision with your app's internal global store
   const s1 = globalThis.CdvPurchase?.store;
   if (looksLikeBillingStore(s1)) return s1;
 
@@ -56,7 +68,7 @@ function isNativePlatform() {
     } catch (_) {}
   }
 
-  // Capacitor WebView often uses http(s)://localhost
+  // Capacitor native WebView commonly uses http(s)://localhost
   try {
     const h = (w.location?.hostname || "").toLowerCase();
     if (h === "localhost" || h === "127.0.0.1") return true;
@@ -83,12 +95,28 @@ function ensureStoreOrExplain() {
   if (!s) {
     const reason =
       "In-app purchases aren’t available in this build.\n\n" +
-      "Make sure you're testing the INSTALLED Android app from the Play Store Internal Testing link " +
-      "(not the website / not Android Studio debug), and that Play Billing is included.";
-    log("Billing store not found.");
+      "Make sure:\n" +
+      "• You installed from the Play Console Internal Testing opt-in link\n" +
+      "• fireops.pro is Active in Monetize → Products\n" +
+      "• Your Gmail is added under Setup → License testing\n";
     return { ok: false, reason };
   }
   return { ok: true, store: s };
+}
+
+function ensureReadyPromise() {
+  if (_readyPromise) return;
+  _readyPromise = new Promise((resolve) => { _readyResolve = resolve; });
+}
+
+async function waitForReady(ms = 6000) {
+  if (_billingReady) return true;
+  if (!_readyPromise) return false;
+
+  return await Promise.race([
+    _readyPromise.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), ms))
+  ]);
 }
 
 function getProduct(pid) {
@@ -108,21 +136,6 @@ function isOwned(pid) {
   return false;
 }
 
-function ensureReadyPromise() {
-  if (_readyPromise) return;
-  _readyPromise = new Promise((resolve) => { _readyResolve = resolve; });
-}
-
-async function waitForReady(ms = 6000) {
-  if (_billingReady) return true;
-  if (!_readyPromise) return false;
-
-  return await Promise.race([
-    _readyPromise.then(() => true),
-    new Promise((resolve) => setTimeout(() => resolve(false), ms))
-  ]);
-}
-
 /* ========================= Billing ========================= */
 
 export async function initBilling(options = {}) {
@@ -139,31 +152,27 @@ export async function initBilling(options = {}) {
   const pid = _opts.productId;
 
   try {
-    log("Registering product: " + pid);
+    log("Registering: " + pid);
     store.register({ id: pid, type: store.NON_CONSUMABLE });
 
     if (_opts.debug && store.verbosity != null) store.verbosity = store.DEBUG;
 
     store.when(pid).updated((p) => {
       const owned = !!p?.owned || p?.state === store.APPROVED || p?.state === store.OWNED;
-      log("Product updated. owned=" + owned + " state=" + p?.state);
       if (owned) setEntitlement(true);
     });
 
     store.when(pid).approved((p) => {
-      log("Approved. Finishing.");
       try { p.finish(); } catch (_) {}
       setEntitlement(true);
     });
 
     store.ready(() => {
-      log("Store READY");
       _billingReady = true;
       try { _readyResolve && _readyResolve(); } catch (_) {}
       try { store.refresh(); } catch (_) {}
     });
 
-    // Init / refresh
     try {
       if (typeof store.initialize === "function") store.initialize([store.GOOGLE_PLAY]);
       else store.refresh();
@@ -187,7 +196,10 @@ export async function buyProduct(productId) {
   const pid = productId || _opts.productId;
 
   const chk = ensureStoreOrExplain();
-  if (!chk.ok) { alert(chk.reason); return { ok: false, error: chk.reason }; }
+  if (!chk.ok) {
+    alert(chk.reason);
+    return { ok: false, error: chk.reason };
+  }
 
   if (!isNativePlatform()) {
     const msg = "Purchases only work inside the installed Android app (not the website).";
@@ -198,30 +210,24 @@ export async function buyProduct(productId) {
   const store = chk.store;
 
   try {
-    // Ensure billing is initialized and READY
     ensureReadyPromise();
+
+    // wait for store.ready()
     if (!_billingReady) {
       try { store.refresh(); } catch (_) {}
       const ready = await waitForReady(6000);
-      if (!ready) {
-        throw new Error(
-          "Billing not ready yet. (Common causes: installed not from Internal Testing link, " +
-          "product not Active, or tester account not set.)"
-        );
-      }
+      if (!ready) throw new Error("Billing not ready yet (store.ready() did not fire).");
     }
 
     if (typeof store.order !== "function") {
       const alt = globalThis.CdvPurchase;
       if (typeof alt?.order === "function") {
-        log("Ordering via CdvPurchase.order: " + pid);
         alt.order(pid);
         return { ok: true };
       }
       throw new Error("Billing store present but order() is missing.");
     }
 
-    log("Ordering product: " + pid);
     store.order(pid);
     return { ok: true };
   } catch (e) {
@@ -231,7 +237,6 @@ export async function buyProduct(productId) {
   }
 }
 
-// Returns true/false after refresh
 export async function restorePurchases(productId) {
   const pid = productId || _opts.productId;
 
@@ -245,7 +250,6 @@ export async function restorePurchases(productId) {
     ensureReadyPromise();
     try { store.refresh(); } catch (_) {}
 
-    // wait for ready + refresh callbacks
     await waitForReady(3000);
 
     const ok = await new Promise((resolve) => {
@@ -272,6 +276,7 @@ let _modalEl = null;
 
 function ensureStyles() {
   if (document.getElementById("fireops-paywall-styles")) return;
+
   const css = `
   .fo-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:99999; padding:18px; }
   .fo-card{ width:min(520px,96vw); background:#111827; color:#fff; border:1px solid rgba(255,255,255,.12); border-radius:16px; box-shadow:0 20px 70px rgba(0,0,0,.45); padding:16px; }
@@ -282,7 +287,7 @@ function ensureStyles() {
   .fo-btn{ border-radius:12px; padding:12px 14px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.08); color:#fff; font-weight:900; cursor:pointer; }
   .fo-btn.primary{ background:#2563eb; border-color:#2563eb; }
   .fo-btn.ghost{ background:transparent; }
-  .fo-note{ margin-top:10px; font-size:12px; opacity:.7; }
+  .fo-note{ margin-top:10px; font-size:12px; opacity:.75; line-height:1.35; }
   .fo-divider{ height:1px; background:rgba(255,255,255,.12); margin:12px 0; }
   `;
   const style = document.createElement("style");
@@ -322,7 +327,9 @@ export function renderTrialIntroModal(opts = {}) {
       <button class="fo-btn ghost" id="fo-continue">Continue Trial</button>
       <button class="fo-btn primary" id="fo-buynow">Pay Now</button>
     </div>
-    <div class="fo-note" id="fo-status">Ready: <span style="opacity:.85">${_billingReady ? "YES" : "NO"}</span></div>
+    <div class="fo-note" id="fo-status">
+      Billing ready: <b>${_billingReady ? "YES" : "NO"}</b>
+    </div>
   `;
 
   overlay.appendChild(card);
@@ -337,20 +344,15 @@ export function renderTrialIntroModal(opts = {}) {
   });
 
   card.querySelector("#fo-buynow")?.addEventListener("click", async () => {
-    // IMPORTANT: do NOT auto-close. Only close if the user taps outside or hits Continue.
+    // IMPORTANT: do NOT auto-close. Keep it open so you can see errors.
+    const statusEl = card.querySelector("#fo-status");
     try {
-      const statusEl = card.querySelector("#fo-status");
-      if (statusEl) statusEl.innerHTML = 'Starting purchase…';
-
+      if (statusEl) statusEl.innerHTML = "Starting purchase…";
       if (opts.onBuyNow) await opts.onBuyNow();
       else await buyProduct(_opts.productId);
-
-      // leave modal open; purchase sheet should appear
-      if (statusEl) statusEl.innerHTML = 'If the purchase sheet didn’t open, billing may not be ready.';
+      if (statusEl) statusEl.innerHTML = "If the purchase sheet didn’t open, billing may not be ready.";
     } catch (e) {
-      const statusEl = card.querySelector("#fo-status");
-      if (statusEl) statusEl.innerHTML = 'Error: ' + (e?.message || String(e));
-      // keep modal open so you can read the error
+      if (statusEl) statusEl.innerHTML = "Error: " + (e?.message || String(e));
     }
   });
 }
@@ -366,9 +368,9 @@ export async function renderPaywall(mountEl, opts = {}) {
 
   mountEl.innerHTML = `
     <div class="fo-card" style="margin:16px auto; max-width:560px;">
-      <div class="fo-title">Unlock Pro</div>
+      <div class="fo-title">Trial ended</div>
       <div class="fo-sub">
-        Full paywall screen (trial ended after ${trialDays} days).
+        Your ${trialDays}-day trial is over. Unlock Pro to keep using FireOps Calc.
       </div>
       <div class="fo-divider"></div>
       <div class="fo-sub" style="margin-bottom:10px;">
