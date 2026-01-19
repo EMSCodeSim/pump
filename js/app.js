@@ -21,6 +21,18 @@ const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
 const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
 
+// ===== INTERNAL TEST MODE (force paywall) =====
+// To enable on your test device (in the installed internal-test app):
+//   localStorage.setItem('fireops_paydebug', '1'); location.reload();
+// To disable:
+//   localStorage.removeItem('fireops_paydebug'); location.reload();
+function isPayDebugEnabled() {
+  try {
+    return localStorage.getItem('fireops_paydebug') === '1';
+  } catch (_e) {}
+  return false;
+}
+
 function isNativeApp() {
   try {
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
@@ -82,8 +94,10 @@ function daysSinceInstall() {
   } catch (_e) {}
   return 0;
 }
+
 function shouldBlockWithPaywall() {
   if (!isNativeApp()) return false;        // web stays free
+  if (isPayDebugEnabled()) return true;    // 🔥 INTERNAL TEST: force paywall now
   if (isGrandfathered()) return false;     // existing users free
   if (isProUnlocked()) return false;       // already paid
   return daysSinceInstall() >= TRIAL_DAYS; // trial expired
@@ -213,7 +227,7 @@ async function setView(name) {
           }
         }
 
-        // Hard paywall after trial expires
+        // Hard paywall after trial expires (or paydebug)
         if (shouldBlockWithPaywall()) {
           if (currentView?.dispose) { try { currentView.dispose(); } catch (_e) {} }
 
