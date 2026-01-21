@@ -274,8 +274,12 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
     if (typeof _store.requestPayment === "function") {
       await _store.requestPayment(offer || p || productId);
-      if (getProductOwned(_store, productId)) setProUnlockedLocal();
-      return { ok: true };
+      const owned = await waitForOwnership(_store, productId);
+      if (owned) {
+        setProUnlockedLocal();
+        return { ok: true };
+      }
+      throw new Error("Purchase did not complete (no ownership detected).");
     }
 
     throw new Error("Purchase API not found (store.order/requestPayment missing).");
@@ -393,15 +397,16 @@ export function renderTrialIntroModal({
   };
 
   btnPay.onclick = async () => {
-    if (typeof onPay === "function") return onPay();
-
-    // Default pay behavior
     try {
       btnPay.disabled = true;
       btnPay.textContent = "Opening purchase…";
-      await buyProduct(PRO_PRODUCT_ID);
-      setProUnlockedLocal();
-      closeAllPaywallUI();
+      if (typeof _onPay === "function") {
+        await _onPay();
+      } else {
+        await buyProduct(PRO_PRODUCT_ID);
+        setProUnlockedLocal();
+        closeAllPaywallUI();
+      }
     } catch (e) {
       btnPay.disabled = false;
       btnPay.textContent = `Pay Now — ${priceText}`;
@@ -463,13 +468,24 @@ export function renderPaywall({
   };
 
   document.getElementById("pw-pay").onclick = async () => {
-    if (typeof onPay === "function") return onPay();
-
+    const btn = document.getElementById("pw-pay");
     try {
-      await buyProduct(PRO_PRODUCT_ID);
-      setProUnlockedLocal();
-      closeAllPaywallUI();
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Opening purchase…";
+      }
+      if (typeof onPay === "function") {
+        await onPay();
+      } else {
+        await buyProduct(PRO_PRODUCT_ID);
+        setProUnlockedLocal();
+        closeAllPaywallUI();
+      }
     } catch (e) {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = `Pay Now — ${priceText}`;
+      }
       alert(`Purchase failed: ${e && e.message ? e.message : String(e)}`);
     }
   };
