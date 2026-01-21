@@ -1,322 +1,466 @@
-// paywall.js — FireOps Calc paywall UI + purchase bridge
-// Updated: safer billing-store detection + real purchase success gating
+/* paywall.js
+   FireOps Calc Paywall + Billing bridge (Cordova/Capacitor compatible)
+   - Avoids collision with your app's own "store" (window.store)
+   - Prefers cordova-plugin-purchase v13+ (window.CdvPurchase.store)
+   - Falls back to legacy window.store ONLY if it looks like the billing store
+*/
 
-const PRO_PRODUCT_ID = 'fireops.pro';
-const TRIAL_DAYS = 5;
+/* =========================
+   Config
+========================= */
+export const PRO_PRODUCT_ID = "fireops.pro"; // must match Play Console Product ID
+export const TRIAL_DAYS = 5;
 
-const KEY_INSTALL_TS = 'fireops_install_ts_v1';
-const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
-const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
-const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
+const KEY_INSTALL_TS = "fireops_install_ts_v1";
+const KEY_PRO_UNLOCKED = "fireops_pro_unlocked_v1";
+const KEY_TRIAL_INTRO_SHOWN = "fireops_trial_intro_shown_v1";
 
-function nowMs() { return Date.now(); }
+/* =========================
+   Internal state
+========================= */
+let _store = null;
+let _billingReady = false;
+let _lastBillingError = "";
 
-function ensureInstallTs() {
-  try {
-    let ts = localStorage.getItem(KEY_INSTALL_TS);
-    if (!ts) {
-      ts = String(nowMs());
-      localStorage.setItem(KEY_INSTALL_TS, ts);
-    }
-    return Number(ts) || nowMs();
-  } catch (_e) {
-    return nowMs();
-  }
+/* =========================
+   Environment helpers
+========================= */
+function isNativeApp() {
+  // Works for Capacitor + Cordova WebView cases
+  const cap = window.Capacitor;
+  if (cap && typeof cap.isNativePlatform === "function") return !!cap.isNativePlatform();
+  if (cap && cap.getPlatform && cap.getPlatform() !== "web") return true;
+
+  // Cordova
+  return !!window.cordova;
 }
 
-function daysSince(ms) {
-  return (nowMs() - ms) / (1000 * 60 * 60 * 24);
+function nowMs() {
+  return Date.now();
 }
 
-function inTrialWindow(trialDays = TRIAL_DAYS) {
-  const ts = ensureInstallTs();
-  return daysSince(ts) < trialDays;
+function getInstallTs() {
+  const v = Number(localStorage.getItem(KEY_INSTALL_TS) || "0");
+  if (v > 0) return v;
+  const ts = nowMs();
+  localStorage.setItem(KEY_INSTALL_TS, String(ts));
+  return ts;
 }
 
-function isProUnlocked() {
-  try { return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; } catch (_e) { return false; }
+function trialDaysUsed() {
+  const usedMs = nowMs() - getInstallTs();
+  return Math.floor(usedMs / (24 * 60 * 60 * 1000));
 }
 
-function isGrandfathered() {
-  try { return localStorage.getItem(KEY_GRANDFATHERED) === '1'; } catch (_e) { return false; }
+function trialExpired() {
+  return trialDaysUsed() >= TRIAL_DAYS;
 }
 
-function looksLikeBillingStore(store) {
-  // Heuristics: cordova-plugin-purchase store usually has register/when/ready/refresh/order
-  if (!store) return false;
-  const hasRegister = typeof store.register === 'function';
-  const hasWhen = typeof store.when === 'function';
-  const hasReady = typeof store.ready === 'function' || typeof store.onReady === 'function';
-  const hasRefresh = typeof store.refresh === 'function';
-  return (hasRegister || hasWhen) && (hasReady || hasRefresh);
+function setProUnlockedLocal() {
+  localStorage.setItem(KEY_PRO_UNLOCKED, "1");
+}
+
+function setProLockedLocal() {
+  localStorage.removeItem(KEY_PRO_UNLOCKED);
+}
+
+export function isProUnlocked() {
+  return localStorage.getItem(KEY_PRO_UNLOCKED) === "1";
+}
+
+/* =========================
+   Billing store detection
+========================= */
+function looksLikeBillingStore(s) {
+  if (!s) return false;
+  // Billing stores typically have initialize/ready/register/when/product APIs
+  const hasInit = typeof s.initialize === "function" || typeof s.init === "function";
+  const hasRegister = typeof s.register === "function";
+  const hasWhen = typeof s.when === "function";
+  const hasReady = typeof s.ready === "function";
+  const hasProducts = typeof s.get === "function" || Array.isArray(s.products);
+  return (hasInit && hasRegister) || (hasWhen && hasReady && hasProducts);
 }
 
 function getBillingStore() {
-  // cordova-plugin-purchase (recommended): window.CdvPurchase.store
-  const s = window?.CdvPurchase?.store;
-  if (s) return s;
+  // Prefer cordova-plugin-purchase v13+ global
+  const cdp = window.CdvPurchase;
+  if (cdp && cdp.store) return cdp.store;
 
-  // Some builds expose it as window.store (but many apps also use window.store for state),
-  // so ONLY accept window.store if it clearly looks like the billing store *and* has order().
-  const w = window?.store;
-  if (w && looksLikeBillingStore(w) && typeof w.order === "function") return w;
+  // Some builds expose window.store for billing (legacy),
+  // BUT your app also uses "store", so only accept it if it looks like billing.
+  const legacy = window.store;
+  if (looksLikeBillingStore(legacy)) return legacy;
 
   return null;
 }
 
-function getProductFromStore(store, productId) {
+function getProductOwned(storeObj) {
   try {
-    if (typeof store.get === "function") return store.get(productId);
-  } catch (_) {}
-  try {
-    const list = store?.products || store?.products?.all || store?.products?.list;
-    if (Array.isArray(list)) return list.find(p => p && (p.id === productId || p.productId === productId));
-  } catch (_) {}
-  return null;
-}
+    // v13+: store.get(id) returns Product with .owned boolean
+    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(PRO_PRODUCT_ID) : null;
+    if (p && typeof p.owned === "boolean") return p.owned;
 
-function isOwnedInStore(store, productId) {
-  const p = getProductFromStore(store, productId);
-  if (!p) return false;
-  if (p.owned === true) return true;
-  if (p.isOwned === true) return true;
-  if (typeof p.owned === "function" && p.owned()) return true;
-  if (typeof p.isOwned === "function" && p.isOwned()) return true;
-  if (String(p.state || "").toLowerCase() === "owned") return true;
+    // Some variants: product.state / product.isOwned
+    if (p && typeof p.isOwned === "function") return !!p.isOwned();
+    if (p && typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
+  } catch (_) {}
   return false;
 }
 
-let __billingInitPromise = null;
-export async function initBilling(productId = PRO_PRODUCT_ID) {
-  if (__billingInitPromise) return __billingInitPromise;
+/* =========================
+   Billing init
+========================= */
+export async function initBilling({ verbose = false } = {}) {
+  _billingReady = false;
+  _lastBillingError = "";
+  _store = getBillingStore();
 
-  __billingInitPromise = (async () => {
-    const store = getBillingStore();
-    if (!store) return { ok: false, reason: "Billing store not found" };
+  if (!isNativeApp()) {
+    _lastBillingError = "Not running inside the installed app (web detected).";
+    if (verbose) console.warn("[paywall] billing not available on web");
+    return { ok: false, reason: _lastBillingError };
+  }
 
-    // Register product once (ignore if already registered)
-    try {
-      const NON_CONSUMABLE =
-        store?.NON_CONSUMABLE ||
-        store?.ProductType?.NON_CONSUMABLE ||
-        store?.ProductType?.NON_CONSUMABLE_PRODUCT ||
-        "non consumable";
+  if (!_store) {
+    _lastBillingError =
+      "Billing library not found (CdvPurchase/store missing). Check plugin + android build.";
+    if (verbose) console.warn("[paywall] " + _lastBillingError);
+    return { ok: false, reason: _lastBillingError };
+  }
 
-      if (typeof store.register === "function") {
-        try { store.register({ id: productId, type: NON_CONSUMABLE }); } catch (_) {}
+  try {
+    // Register product (handle both v13 and older signatures)
+    // v13 ProductType: window.CdvPurchase.ProductType
+    const cdp = window.CdvPurchase;
+    const ProductType = cdp && cdp.ProductType ? cdp.ProductType : null;
+
+    // If ProductType exists, use NON_CONSUMABLE (one-time unlock)
+    const typeVal = ProductType && ProductType.NON_CONSUMABLE ? ProductType.NON_CONSUMABLE : "non-consumable";
+
+    if (typeof _store.register === "function") {
+      // Many versions accept: { id, type, platform? }
+      try {
+        _store.register({ id: PRO_PRODUCT_ID, type: typeVal });
+      } catch (e) {
+        // Some older versions use store.register({ id, alias, type })
+        _store.register({ id: PRO_PRODUCT_ID, alias: PRO_PRODUCT_ID, type: typeVal });
       }
-    } catch (_) {}
+    }
 
-    // Wire up lifecycle handlers once
-    try {
-      if (typeof store.when === "function") {
-        store.when(productId).approved((tx) => {
-          try { if (tx && typeof tx.verify === "function") tx.verify(); } catch (_) {}
-        });
+    // Wire events (best-effort across versions)
+    if (typeof _store.when === "function") {
+      _store.when(PRO_PRODUCT_ID).approved((p) => {
+        try {
+          // Finish transaction if needed
+          if (p && typeof p.verify === "function") p.verify();
+          if (p && typeof p.finish === "function") p.finish();
+        } catch (_) {}
+        setProUnlockedLocal();
+        _billingReady = true;
+      });
 
-        store.when(productId).verified((receipt) => {
-          try { if (receipt && typeof receipt.finish === "function") receipt.finish(); } catch (_) {}
-          try {
-            localStorage.setItem(KEY_PRO_UNLOCKED, "1");
-            localStorage.setItem(KEY_INSTALL_TS, ""); // disable trial timer after purchase
-          } catch (_) {}
-        });
+      _store.when(PRO_PRODUCT_ID).verified((p) => {
+        try {
+          if (p && typeof p.finish === "function") p.finish();
+        } catch (_) {}
+        setProUnlockedLocal();
+        _billingReady = true;
+      });
+
+      _store.when(PRO_PRODUCT_ID).owned(() => {
+        setProUnlockedLocal();
+        _billingReady = true;
+      });
+
+      _store.when(PRO_PRODUCT_ID).cancelled(() => {
+        // user cancelled – do nothing
+        _billingReady = true;
+      });
+
+      _store.error((err) => {
+        _lastBillingError = (err && (err.message || err.code || String(err))) || "Billing error";
+        if (verbose) console.warn("[paywall] store.error:", err);
+      });
+    }
+
+    // Initialize
+    if (typeof _store.initialize === "function") {
+      // v13 requires platforms; if available, try Google Play
+      const Platform = window.CdvPurchase && window.CdvPurchase.Platform ? window.CdvPurchase.Platform : null;
+      if (Platform && Platform.GOOGLE_PLAY) {
+        await _store.initialize([Platform.GOOGLE_PLAY]);
+      } else {
+        await _store.initialize();
       }
-    } catch (_) {}
+    } else if (typeof _store.init === "function") {
+      await _store.init();
+    }
 
-    // Some versions need initialize(); safe to try
-    try {
-      if (typeof store.initialize === "function") {
-        const p = store?.Platform;
-        const platforms = [];
-        if (p?.GOOGLE_PLAY) platforms.push(p.GOOGLE_PLAY);
-        else if (p?.GOOGLE_PLAYSTORE) platforms.push(p.GOOGLE_PLAYSTORE);
-        else if (p?.ANDROID) platforms.push(p.ANDROID);
-        else platforms.push("android-playstore");
-        try { await store.initialize(platforms); } catch (_) {}
-      }
-    } catch (_) {}
+    // Ready callback (if available)
+    if (typeof _store.ready === "function") {
+      _store.ready(() => {
+        _billingReady = true;
+        if (getProductOwned(_store)) setProUnlockedLocal();
+      });
+    } else {
+      // If no ready(), treat as ready after init attempt
+      _billingReady = true;
+      if (getProductOwned(_store)) setProUnlockedLocal();
+    }
 
-    // Refresh to pull owned state
-    try { if (typeof store.refresh === "function") store.refresh(); } catch (_) {}
+    // Final owned check
+    if (getProductOwned(_store)) setProUnlockedLocal();
 
-    return { ok: true, store };
-  })();
-
-  return __billingInitPromise;
+    return { ok: true };
+  } catch (e) {
+    _billingReady = false;
+    _lastBillingError = e && e.message ? e.message : String(e);
+    if (verbose) console.warn("[paywall] initBilling failed:", e);
+    return { ok: false, reason: _lastBillingError };
+  }
 }
 
+/* =========================
+   Purchase actions
+========================= */
 export async function buyProduct(productId = PRO_PRODUCT_ID) {
-  // If already unlocked, return fast
-  if (isProUnlocked() || localStorage.getItem(KEY_GRANDFATHERED) === "1") {
+  if (!isNativeApp()) {
+    throw new Error("Purchases only work inside the installed Google Play app (not the website).");
+  }
+
+  if (!_store) _store = getBillingStore();
+  if (!_store) throw new Error("Billing store not available (CdvPurchase/store missing).");
+
+  // If already owned, unlock immediately
+  if (getProductOwned(_store) || isProUnlocked()) {
+    setProUnlockedLocal();
     return { ok: true, alreadyOwned: true };
   }
 
-  const init = await initBilling(productId);
-  if (!init.ok) return init;
-
-  const store = init.store;
-
-  // If Play says it's already owned, unlock immediately
+  // Attempt purchase across plugin API variants
   try {
-    if (isOwnedInStore(store, productId)) {
-      localStorage.setItem(KEY_PRO_UNLOCKED, "1");
-      localStorage.setItem(KEY_INSTALL_TS, "");
-      return { ok: true, alreadyOwned: true };
-    }
-  } catch (_) {}
-
-  const waitForOwned = (timeoutMs = 60000) => new Promise((resolve) => {
-    const t0 = Date.now();
-    const timer = setInterval(() => {
-      const owned =
-        isProUnlocked() ||
-        localStorage.getItem(KEY_PRO_UNLOCKED) === "1" ||
-        isOwnedInStore(store, productId);
-
-      if (owned) {
-        clearInterval(timer);
-        resolve({ ok: true });
-      } else if (Date.now() - t0 > timeoutMs) {
-        clearInterval(timer);
-        resolve({ ok: false, reason: "Timed out waiting for purchase" });
-      }
-    }, 400);
-  });
-
-  try {
-    if (typeof store.order === "function") {
-      const r = store.order(productId);
-      if (r && typeof r.then === "function") await r;
-    } else if (typeof store.requestPayment === "function") {
-      await store.requestPayment(productId);
-    } else {
-      return { ok: false, reason: "Purchase API not available (store.order missing)" };
-    }
-  } catch (e) {
-    const msg = (e && (e.message || e.error || e.code)) ? String(e.message || e.error || e.code) : "Purchase cancelled/failed";
-    return { ok: false, reason: msg, error: e };
-  }
-
-  const result = await waitForOwned();
-  if (result.ok) {
-    try { localStorage.setItem(KEY_INSTALL_TS, ""); } catch (_) {}
-  }
-  return result;
-}
-
-export async function restorePurchases(productId = PRO_PRODUCT_ID) {
-  const init = await initBilling(productId);
-  if (!init.ok) return init;
-
-  const store = init.store;
-
-  try {
-    if (typeof store.refresh === "function") store.refresh();
-  } catch (_e) {}
-
-  // Wait briefly for refresh to populate owned flags
-  await new Promise(r => setTimeout(r, 900));
-
-  try {
-    if (isOwnedInStore(store, productId)) {
-      localStorage.setItem(KEY_PRO_UNLOCKED, "1");
-      localStorage.setItem(KEY_INSTALL_TS, "");
+    // Common: store.order(productId)
+    if (typeof _store.order === "function") {
+      await _store.order(productId);
+      // post-check
+      if (getProductOwned(_store)) setProUnlockedLocal();
       return { ok: true };
     }
-  } catch (_e) {}
 
-  return { ok: false, reason: "Not owned" };
+    // v13 sometimes wants an "offer" rather than an id
+    const p = typeof _store.get === "function" ? _store.get(productId) : null;
+    const offer =
+      p && typeof p.getOffer === "function"
+        ? p.getOffer()
+        : p && Array.isArray(p.offers) && p.offers.length
+          ? p.offers[0]
+          : null;
+
+    if (typeof _store.requestPayment === "function") {
+      await _store.requestPayment(offer || p || productId);
+      if (getProductOwned(_store)) setProUnlockedLocal();
+      return { ok: true };
+    }
+
+    throw new Error("Purchase API not found (store.order/requestPayment missing).");
+  } catch (e) {
+    // Bubble a clean message
+    const msg = e && e.message ? e.message : String(e);
+    throw new Error(msg);
+  }
 }
 
-export function renderPaywall(rootEl, opts) {
-  const productId = opts?.productId || PRO_PRODUCT_ID;
-  const trialDays = opts?.trialDays || TRIAL_DAYS;
+export async function restorePurchases() {
+  if (!isNativeApp()) return { ok: false, reason: "web" };
+  if (!_store) _store = getBillingStore();
+  if (!_store) return { ok: false, reason: "no_store" };
 
-  const wrap = document.createElement('div');
-  wrap.style.position = 'fixed';
-  wrap.style.inset = '0';
-  wrap.style.zIndex = '9999';
-  wrap.style.display = 'flex';
-  wrap.style.alignItems = 'center';
-  wrap.style.justifyContent = 'center';
-  wrap.style.background = 'rgba(0,0,0,.55)';
+  try {
+    if (typeof _store.restorePurchases === "function") {
+      await _store.restorePurchases();
+    } else if (typeof _store.refresh === "function") {
+      await _store.refresh();
+    } else if (typeof _store.update === "function") {
+      await _store.update();
+    }
 
-  const card = document.createElement('div');
-  card.style.width = 'min(520px, 92vw)';
-  card.style.borderRadius = '16px';
-  card.style.background = '#111827';
-  card.style.color = 'white';
-  card.style.padding = '18px 16px';
-  card.style.boxShadow = '0 12px 30px rgba(0,0,0,.35)';
-  card.style.fontFamily = 'system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+    if (getProductOwned(_store)) {
+      setProUnlockedLocal();
+      return { ok: true, restored: true };
+    }
+    return { ok: true, restored: false };
+  } catch (e) {
+    return { ok: false, reason: e && e.message ? e.message : String(e) };
+  }
+}
 
-  const inTrial = inTrialWindow(trialDays);
+/* =========================
+   UI (Trial + Paywall)
+========================= */
 
-  card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-      <div style="font-size:18px;font-weight:800;">5-Day Free Trial — No Risk</div>
-      <button id="pwClose" style="background:transparent;border:none;color:#9ca3af;font-size:18px;cursor:pointer;">✕</button>
-    </div>
-    <div style="margin-top:10px;opacity:.9;line-height:1.35">
-      FireOps Calc is free for ${trialDays} days. You can unlock full access with a one-time purchase.
-    </div>
-    <ul style="margin:12px 0 14px 18px;opacity:.9">
-      <li>No subscription</li>
-      <li>One-time unlock: $1.99</li>
-      <li>Restore works if you reinstall</li>
-    </ul>
-    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
-      <button id="pwTrial" style="padding:10px 12px;border-radius:12px;border:1px solid #374151;background:#111827;color:#e5e7eb;cursor:pointer;">
-        ${inTrial ? 'Continue Trial' : 'Close'}
-      </button>
-      <button id="pwBuy" style="padding:10px 14px;border-radius:12px;border:none;background:#2563eb;color:white;font-weight:800;cursor:pointer;">
-        Pay Now — $1.99 one-time
-      </button>
-      <button id="pwRestore" style="padding:10px 12px;border-radius:12px;border:1px solid #374151;background:#0b1220;color:#e5e7eb;cursor:pointer;">
-        Restore
-      </button>
-    </div>
-    <div style="margin-top:10px;font-size:12px;opacity:.65;">
-      If the purchase sheet doesn’t open, billing may still be initializing. Try again in 30 seconds.
+// Returns { showIntro, expired, daysUsed }
+export function getTrialStatus() {
+  const days = trialDaysUsed();
+  const expired = trialExpired();
+  const introShown = localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === "1";
+  return { showIntro: !introShown && !isProUnlocked(), expired, daysUsed: days };
+}
+
+function ensureRoot() {
+  let root = document.getElementById("paywall-root");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "paywall-root";
+    document.body.appendChild(root);
+  }
+  return root;
+}
+
+function closeAllPaywallUI() {
+  const root = document.getElementById("paywall-root");
+  if (root) root.innerHTML = "";
+  document.body.classList.remove("show-paywall");
+}
+
+export function renderTrialIntroModal({
+  priceText = "$1.99 one-time",
+  onContinue = null,
+  onPay = null,
+} = {}) {
+  const root = ensureRoot();
+  document.body.classList.add("show-paywall");
+
+  root.innerHTML = `
+    <div class="pw-backdrop" style="
+      position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9998;
+      display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="pw-card" style="
+        width:min(520px, 96vw); background:#0f172a; color:#e5e7eb; border-radius:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.5); padding:18px; border:1px solid rgba(255,255,255,.12);">
+        <div style="font-size:20px; font-weight:800; margin-bottom:6px;">5-Day Free Trial — No Risk</div>
+        <div style="opacity:.9; line-height:1.35; margin-bottom:12px;">
+          FireOps Calc is free for 5 days. You can unlock full access anytime with a one-time purchase.
+        </div>
+
+        <div style="opacity:.75; font-size:12px; margin:10px 0 14px;">
+          If the purchase sheet doesn’t open, billing may not be ready yet.
+        </div>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <button id="pw-continue" style="
+            padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
+            background:transparent; color:#e5e7eb; font-weight:700;">
+            Continue Free Trial
+          </button>
+
+          <button id="pw-pay" style="
+            padding:12px 14px; border-radius:12px; border:none;
+            background:#2563eb; color:white; font-weight:800; min-width:180px;">
+            Pay Now — ${priceText}
+          </button>
+        </div>
+      </div>
     </div>
   `;
 
-  wrap.appendChild(card);
-  rootEl.appendChild(wrap);
+  localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, "1");
 
-  const $ = (id) => card.querySelector(id);
+  const btnContinue = document.getElementById("pw-continue");
+  const btnPay = document.getElementById("pw-pay");
 
-  $('#pwClose').onclick = () => { try { wrap.remove(); } catch(_e){}; opts?.onClose?.(); };
-  $('#pwTrial').onclick = () => { try { wrap.remove(); } catch(_e){}; opts?.onContinueTrial?.(); };
-
-  $('#pwBuy').onclick = async () => {
-    try {
-      // Prefer the host app’s onPurchase (so it decides routing)
-      if (opts?.onPurchase) await opts.onPurchase();
-      else {
-        const r = await buyProduct(productId);
-        if (!r.ok) throw new Error(r.reason || 'Purchase failed');
-        wrap.remove();
-        opts?.onClose?.();
-      }
-    } catch (e) {
-      alert(`Purchase failed: ${e?.message || e}`);
-    }
+  btnContinue.onclick = () => {
+    closeAllPaywallUI();
+    if (typeof onContinue === "function") onContinue();
   };
 
-  $('#pwRestore').onclick = async () => {
+  btnPay.onclick = async () => {
+    if (typeof onPay === "function") return onPay();
+
+    // Default pay behavior
     try {
-      if (opts?.onRestore) await opts.onRestore();
-      else {
-        const r = await restorePurchases(productId);
-        if (!r.ok) throw new Error(r.reason || 'Nothing to restore');
-        alert('Restored! Pro unlocked.');
-        wrap.remove();
-        opts?.onClose?.();
-      }
+      btnPay.disabled = true;
+      btnPay.textContent = "Opening purchase…";
+      await buyProduct(PRO_PRODUCT_ID);
+      setProUnlockedLocal();
+      closeAllPaywallUI();
     } catch (e) {
-      alert(`Restore failed: ${e?.message || e}`);
+      btnPay.disabled = false;
+      btnPay.textContent = `Pay Now — ${priceText}`;
+      alert(`Purchase failed: ${e && e.message ? e.message : String(e)}`);
     }
   };
+}
+
+// Hard paywall after trial ends (if not purchased)
+export function renderPaywall({
+  priceText = "$1.99 one-time",
+  onPay = null,
+  onClose = null,
+} = {}) {
+  const root = ensureRoot();
+  document.body.classList.add("show-paywall");
+
+  root.innerHTML = `
+    <div class="pw-backdrop" style="
+      position:fixed; inset:0; background:rgba(0,0,0,.70); z-index:9998;
+      display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="pw-card" style="
+        width:min(560px, 96vw); background:#0b1220; color:#e5e7eb; border-radius:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.6); padding:18px; border:1px solid rgba(255,255,255,.12);">
+        <div style="font-size:20px; font-weight:900; margin-bottom:6px;">Trial ended</div>
+        <div style="opacity:.92; line-height:1.35; margin-bottom:12px;">
+          Unlock Pro to keep using FireOps Calc.
+        </div>
+
+        <ul style="margin:0 0 14px 18px; opacity:.9;">
+          <li>No subscription</li>
+          <li>One-time unlock: ${priceText}</li>
+          <li>Restore works if you reinstall</li>
+        </ul>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+          <button id="pw-close" style="
+            padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
+            background:transparent; color:#e5e7eb; font-weight:700;">
+            Close
+          </button>
+
+          <button id="pw-pay" style="
+            padding:12px 14px; border-radius:12px; border:none;
+            background:#2563eb; color:white; font-weight:900; min-width:200px;">
+            Pay Now — ${priceText}
+          </button>
+        </div>
+
+        <div style="margin-top:10px; opacity:.65; font-size:12px;">
+          ${_lastBillingError ? `Billing note: ${_lastBillingError}` : ""}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("pw-close").onclick = () => {
+    if (typeof onClose === "function") onClose();
+  };
+
+  document.getElementById("pw-pay").onclick = async () => {
+    if (typeof onPay === "function") return onPay();
+
+    try {
+      await buyProduct(PRO_PRODUCT_ID);
+      setProUnlockedLocal();
+      closeAllPaywallUI();
+    } catch (e) {
+      alert(`Purchase failed: ${e && e.message ? e.message : String(e)}`);
+    }
+  };
+}
+
+/* =========================
+   Gate helper
+========================= */
+export function shouldBlockForPaywall() {
+  if (isProUnlocked()) return false;
+  return trialExpired();
 }
