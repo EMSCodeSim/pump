@@ -1,307 +1,205 @@
-// app.js
-// Tiny router + lazy loading (Paywall is lazy-loaded ONLY on native)
+// app.js (updated)
+// Fixes:
+// 1) Do NOT unlock/navigate after calling store.order(). Wait until OWNED.
+// 2) Uses paywall.js purchaseAndWait() which avoids the store.js name collision.
+// 3) Trial modal "Pay Now" path only unlocks after OWNED.
 
-import { renderAdOnce } from './ads-guards.js';
+import { buildCalcView } from './calc/view.calc.js';
+import { buildPracticeView } from './practice/view.practice.js';
+import { buildInfoView } from './info/view.info.js';
+import * as pw from './paywall.js';
 
-// === AdSense (web-only) ===
-const ADS_CLIENT = 'ca-pub-9414291143716298';
-const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
-
-const app = document.getElementById('app');
-const buttons = Array.from(document.querySelectorAll('.navbtn'));
-let currentView = null; // { name, dispose?() }
-
-// --------------------------- Paywall config ---------------------------
-// Play Console product id (no underscores)
 const PRO_PRODUCT_ID = 'fireops.pro';
-const TRIAL_DAYS = 5;
 
+// Paywall config
+// Option A: hard paywall after 5 days for NEW installs only.
+// Existing users are grandfathered free.
+const TRIAL_DAYS = 5;
 const KEY_INSTALL_TS = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
 const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
 
-function isNativeApp() {
-  try {
-    // Preferred: Capacitor API
-    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
-    const p = window?.Capacitor?.getPlatform?.();
-    if (p && p !== 'web') return true;
-  } catch (_e) {}
+let currentView = null; // { name, dispose() }
 
-  // Capacitor Android often runs http(s)://localhost inside native WebView
-  try {
-    const host = (window?.location?.hostname || '').toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-  } catch (_e) {}
+function nowMs() { return Date.now(); }
 
-  // Fallback: native schemes
-  const proto = (window?.location?.protocol || '').toLowerCase();
-  return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
+function daysBetween(msA, msB) {
+  const diff = Math.max(0, msB - msA);
+  return diff / (1000 * 60 * 60 * 24);
 }
 
-function hasAnyExistingUserData() {
-  const keys = [
-    'fireops_dept_equipment_v1',
-    'fireops_quickstart_seen_version',
-    'fireops_practice_v1',
-    'PRACTICE_SAVE_KEY',
-    'fireops_presets_v1',
-  ];
-  try {
-    for (const k of keys) {
-      if (localStorage.getItem(k) != null) return true;
-    }
-  } catch (_e) {}
-  return false;
+function getInstallTs() {
+  const v = Number(localStorage.getItem(KEY_INSTALL_TS) || 0);
+  return Number.isFinite(v) && v > 0 ? v : 0;
 }
 
-function initTrialFlags() {
-  let ts = 0;
-  try { ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0; } catch (_e) {}
+function ensureInstallTs() {
+  let ts = getInstallTs();
   if (!ts) {
-    const existing = hasAnyExistingUserData();
-    if (existing) {
-      try { localStorage.setItem(KEY_GRANDFATHERED, '1'); } catch (_e) {}
-    }
-    try { localStorage.setItem(KEY_INSTALL_TS, String(Date.now())); } catch (_e) {}
+    ts = nowMs();
+    localStorage.setItem(KEY_INSTALL_TS, String(ts));
   }
+  return ts;
 }
 
 function isGrandfathered() {
-  try { return localStorage.getItem(KEY_GRANDFATHERED) === '1'; } catch (_e) {}
-  return false;
+  return localStorage.getItem(KEY_GRANDFATHERED) === '1';
 }
-function isProUnlocked() {
-  try { return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; } catch (_e) {}
-  return false;
+
+function setGrandfathered() {
+  localStorage.setItem(KEY_GRANDFATHERED, '1');
 }
-function hasShownTrialIntro() {
-  try { return localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === '1'; } catch (_e) {}
-  return false;
+
+function isProUnlockedLocal() {
+  return localStorage.getItem(KEY_PRO_UNLOCKED) === '1';
 }
-function markTrialIntroShown() {
-  try { localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, '1'); } catch (_e) {}
-}
-function daysSinceInstall() {
+
+async function isProOwnedStore() {
   try {
-    const ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0;
-    if (!ts) return 0;
-    return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
-  } catch (_e) {}
-  return 0;
-}
-
-function shouldBlockWithPaywall() {
-  if (!isNativeApp()) return false;        // web stays free
-  if (isGrandfathered()) return false;     // existing users free
-  if (isProUnlocked()) return false;       // already paid
-  return daysSinceInstall() >= TRIAL_DAYS; // trial expired
-}
-
-// ---- Lazy paywall module loader (native only) ----
-let _paywallMod = null;
-async function getPaywall() {
-  if (!isNativeApp()) return null;
-  if (_paywallMod) return _paywallMod;
-  _paywallMod = await import('./paywall.js');
-  return _paywallMod;
-}
-
-// Top quick-action row (Department Setup button)
-const topActionsEl = document.querySelector('.top-actions');
-
-function updateTopActionsVisibility(viewName) {
-  if (!topActionsEl) return;
-  topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
-}
-
-const loaders = {
-  calc:     () => import('./view.calc.js'),
-  practice: () => import('./view.practice.js'),
-  charts:   () => import('./view.charts.js'),
-  settings: () => import('./view.settings.js'),
-};
-
-// === Charts overlay support ===
-let chartsOverlay = document.getElementById('chartsOverlay');
-let chartsMount = document.getElementById('chartsMount');
-let chartsClose = document.getElementById('closeCharts');
-let chartsDispose = null;
-
-async function openCharts() {
-  if (!chartsOverlay) return;
-  if (topActionsEl) topActionsEl.style.display = 'none';
-  chartsOverlay.style.display = 'block';
-
-  chartsMount.innerHTML = '<div style="opacity:.7;padding:12px">Loading charts…</div>';
-  try {
-    const mod = await loaders.charts();
-    const res = await mod.render(chartsMount);
-    chartsDispose = res?.dispose || null;
-
-    try {
-      renderAdOnce({
-        key: 'tables_bottom',
-        container: chartsMount,
-        position: 'bottom',
-        client: ADS_CLIENT,
-        slot: SLOT_TABLES_BOTTOM,
-        format: 'auto',
-        style: 'display:block; margin:16px 0;',
-      });
-    } catch (_e) {}
-  } catch (err) {
-    chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
+    const ok = await pw.isProOwned(PRO_PRODUCT_ID);
+    return !!ok;
+  } catch {
+    return false;
   }
 }
 
-function closeCharts() {
-  if (chartsDispose) { try { chartsDispose(); } catch (_e) {} chartsDispose = null; }
-  if (chartsMount) chartsMount.innerHTML = '';
-  if (chartsOverlay) chartsOverlay.style.display = 'none';
-  updateTopActionsVisibility(currentView?.name || 'calc');
+async function shouldBlockForPaywall() {
+  // If pro is unlocked locally, allow
+  if (isProUnlockedLocal()) return false;
+
+  // If store says owned, allow (and cache locally)
+  const owned = await isProOwnedStore();
+  if (owned) {
+    localStorage.setItem(KEY_PRO_UNLOCKED, '1');
+    return false;
+  }
+
+  // Grandfathered users: allow
+  if (isGrandfathered()) return false;
+
+  const installTs = ensureInstallTs();
+  const ageDays = daysBetween(installTs, nowMs());
+
+  // Hard paywall after trial
+  return ageDays >= TRIAL_DAYS;
 }
 
-if (chartsClose) chartsClose.addEventListener('click', closeCharts);
-if (chartsOverlay) chartsOverlay.addEventListener('click', (e) => { if (e.target === chartsOverlay) closeCharts(); });
+function setView(name) {
+  if (currentView?.dispose) {
+    try { currentView.dispose(); } catch {}
+  }
+  currentView = null;
 
-// ---- view swapping for calc/practice/settings ----
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
-  ]);
+  const root = document.getElementById('app');
+  if (!root) return;
+
+  root.innerHTML = '';
+
+  if (name === 'calc') {
+    currentView = buildCalcView(root);
+  } else if (name === 'practice') {
+    currentView = buildPracticeView(root);
+  } else if (name === 'info') {
+    currentView = buildInfoView(root);
+  } else {
+    currentView = buildCalcView(root);
+  }
 }
 
-async function setView(name) {
-  try {
-    initTrialFlags();
+function showTrialIntroIfNeeded() {
+  // Only show once per install
+  if (localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === '1') return;
+  localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, '1');
 
-    // Native-only: billing init + trial intro + paywall
-    if (isNativeApp()) {
-      const pw = await getPaywall();
+  pw.renderTrialIntroModal({
+    productId: PRO_PRODUCT_ID,
+    trialDays: TRIAL_DAYS,
+    onContinue: () => {
+      // continue free trial
+    },
+    onPayNow: async () => {
+      // paywall.js only calls this after the purchase is confirmed as OWNED
+      try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
+      setView('calc');
+    }
+  });
+}
 
-      if (pw) {
-        // Init billing (safe: never block app if it fails)
-        try {
-          pw.initBilling?.({
-            productId: PRO_PRODUCT_ID,
-            // FIX: correct callback name
-            onEntitlementChanged: (owned) => {
-              if (owned) {
-                try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-              }
-            }
-          });
-        } catch (_e) {}
+async function showPaywallAfterTrial() {
+  const root = document.getElementById('app');
+  if (!root) return;
+  root.innerHTML = '';
 
-        // First-time: show “Risk-Free Trial” popup (new users only)
-        if (!isGrandfathered() && !isProUnlocked() && !shouldBlockWithPaywall() && !hasShownTrialIntro()) {
-          markTrialIntroShown();
-          try {
-            pw.renderTrialIntroModal?.({
-              trialDays: TRIAL_DAYS,
-              priceText: '$1.99 one-time',
-              onContinue: () => {},
-              onBuyNow: async () => {
-                await pw.buyProduct(PRO_PRODUCT_ID);
-              }
-            });
-          } catch (_e) {}
+  const paywallNode = pw.renderHardPaywall({
+    productId: PRO_PRODUCT_ID,
+    onPurchase: async () => {
+      // IMPORTANT: store.order() only starts the purchase flow.
+      // Do NOT unlock or navigate away until Google Play reports the item as OWNED.
+      let ok = false;
+      try {
+        if (pw.purchaseAndWait) {
+          ok = await pw.purchaseAndWait(PRO_PRODUCT_ID);
+        } else {
+          // fallback for older paywall.js
+          await pw.buyProduct(PRO_PRODUCT_ID);
+          ok = pw.checkOwned ? await pw.checkOwned() : false;
         }
+      } catch (e) {
+        alert('Purchase failed: ' + (e?.message || e));
+        ok = false;
+      }
 
-        // Hard paywall after trial expires
-        if (shouldBlockWithPaywall()) {
-          if (currentView?.dispose) { try { currentView.dispose(); } catch (_e) {} }
-          if (topActionsEl) topActionsEl.style.display = 'none';
-
-          if (app) {
-            app.innerHTML = '';
-            await pw.renderPaywall(app, {
-              priceText: '$1.99 one-time',
-              trialDays: TRIAL_DAYS,
-              productId: PRO_PRODUCT_ID,
-              onPurchase: async () => {
-                await pw.buyProduct(PRO_PRODUCT_ID);
-                try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-                setView('calc');
-              },
-              onRestore: async () => {
-                const ok = await pw.restorePurchases(PRO_PRODUCT_ID);
-                if (ok) {
-                  try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-                  setView('calc');
-                } else {
-                  throw new Error('No purchase found for this account.');
-                }
-              }
-            });
-          }
-
-          currentView = { name: 'paywall', dispose: null };
-          buttons.forEach(b => b.classList.remove('active'));
-          return;
+      if (ok) {
+        try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
+        setView('calc');
+      } else {
+        alert('Purchase not completed. If the Google Play sheet did not open, billing may not be ready yet.');
+        // stay on paywall
+      }
+    },
+    onRestore: async () => {
+      try {
+        const ok = await pw.restorePurchases(PRO_PRODUCT_ID);
+        if (ok) {
+          localStorage.setItem(KEY_PRO_UNLOCKED, '1');
+          setView('calc');
+        } else {
+          alert('No purchase found to restore for this Google account.');
         }
+      } catch (e) {
+        alert('Restore failed: ' + (e?.message || e));
       }
     }
+  });
 
-    // Normal view loading
-    if (currentView?.dispose) { currentView.dispose(); }
-
-    updateTopActionsVisibility(name);
-
-    if (app) app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
-
-    const mod = await withTimeout(loaders[name](), 6000, `Load view "${name}"`);
-    const view = await withTimeout(mod.render(app), 6000, `Render view "${name}"`);
-
-    currentView = { name, dispose: view?.dispose };
-    buttons.forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    updateTopActionsVisibility(name);
-  } catch (err) {
-    const msg = String(err);
-    if (app) {
-      app.innerHTML = `
-        <div class="card">
-          <div style="font-weight:800;margin-bottom:6px;">App failed to load</div>
-          <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
-
-          <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
-          <button class="btn" id="btnReload" style="margin-left:8px;">Hard Reload</button>
-
-          <div style="opacity:.7;margin-top:10px;font-size:.9em;">
-            If this keeps happening on web, clear site data for fireopscalc.com (cache + storage).
-          </div>
-        </div>
-      `;
-
-      const s = document.getElementById('btnSetup');
-      if (s) s.onclick = () => window.location.href = '/setup-preconnects.html';
-
-      const r = document.getElementById('btnReload');
-      if (r) r.onclick = () => window.location.reload();
-    }
-  }
+  root.appendChild(paywallNode);
 }
 
-// Intercept bottom-nav clicks: open overlay for Charts, swap view for others
-buttons.forEach(b => b.addEventListener('click', () => {
-  const v = b.dataset.view;
+async function boot() {
+  // First: install timestamp
+  ensureInstallTs();
 
-  if (v === 'charts') {
-    openCharts();
+  // If the user is already pro (store owned), cache it
+  const owned = await isProOwnedStore();
+  if (owned) {
+    localStorage.setItem(KEY_PRO_UNLOCKED, '1');
+  }
+
+  // If NOT grandfathered, and they installed before you introduced trial logic,
+  // you can grandfather them by setting KEY_GRANDFATHERED once.
+  // (Leave this off unless you intentionally want that behavior.)
+
+  // Show trial intro on first run (only if not blocked)
+  const blocked = await shouldBlockForPaywall();
+  if (!blocked) {
+    showTrialIntroIfNeeded();
+    setView('calc');
     return;
   }
 
-  // If coming back to calc from practice, force a full page reload
-  if (v === 'calc' && currentView?.name === 'practice') {
-    window.location.reload();
-    return;
-  }
+  // Otherwise show hard paywall
+  await showPaywallAfterTrial();
+}
 
-  setView(v);
-}));
-
-setView('calc');
-updateTopActionsVisibility('calc');
+boot();
