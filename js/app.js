@@ -217,23 +217,16 @@ async function setView(name) {
 
           if (app) {
             app.innerHTML = '';
-            await pw.renderPaywall(app, {
+            await pw.renderPaywall({
               priceText: '$1.99 one-time',
-              trialDays: TRIAL_DAYS,
-              productId: PRO_PRODUCT_ID,
-              onPurchase: async () => {
+              onPay: async () => {
                 await pw.buyProduct(PRO_PRODUCT_ID);
                 setView('calc');
               },
-              onRestore: async () => {
-                const res = await pw.restorePurchases(PRO_PRODUCT_ID);
-                const ok = !!(res && res.ok && res.restored);
-                if (ok) {
-setView('calc');
-                } else {
-                  throw new Error('No purchase found for this account.');
-                }
-              }
+              onClose: () => {
+                // Keep user on paywall view if trial expired; they can close the overlay
+                // but the gate will immediately re-render the paywall if they try to access locked areas.
+              },
             });
           }
 
