@@ -252,18 +252,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
   // Attempt purchase across plugin API variants
   try {
-    // Common: store.order(productId)
-    if (typeof _store.order === "function") {
-      await _store.order(productId);
-      const owned = await waitForOwnership(_store, productId);
-      if (owned) {
-        setProUnlockedLocal();
-        return { ok: true };
-      }
-      throw new Error("Purchase did not complete (no ownership detected).");
-    }
-
-    // v13 sometimes wants an "offer" rather than an id
+    // Prefer v13+ requestPayment flow when available (it reliably triggers the Play purchase sheet)
     const p = typeof _store.get === "function" ? _store.get(productId) : null;
     const offer =
       p && typeof p.getOffer === "function"
@@ -274,6 +263,17 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
     if (typeof _store.requestPayment === "function") {
       await _store.requestPayment(offer || p || productId);
+      const owned = await waitForOwnership(_store, productId);
+      if (owned) {
+        setProUnlockedLocal();
+        return { ok: true };
+      }
+      throw new Error("Purchase did not complete (no ownership detected).");
+    }
+
+    // Fallback: store.order(productId)
+    if (typeof _store.order === "function") {
+      await _store.order(productId);
       const owned = await waitForOwnership(_store, productId);
       if (owned) {
         setProUnlockedLocal();
