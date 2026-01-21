@@ -95,10 +95,10 @@ function getBillingStore() {
   return null;
 }
 
-function getProductOwned(storeObj) {
+function getProductOwned(storeObj, productId = PRO_PRODUCT_ID) {
   try {
     // v13+: store.get(id) returns Product with .owned boolean
-    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(PRO_PRODUCT_ID) : null;
+    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
     if (p && typeof p.owned === "boolean") return p.owned;
 
     // Some variants: product.state / product.isOwned
@@ -107,6 +107,18 @@ function getProductOwned(storeObj) {
   } catch (_) {}
   return false;
 }
+
+async function waitForOwnership(storeObj, productId = PRO_PRODUCT_ID, timeoutMs = 45000) {
+  const startTs = Date.now();
+  while (Date.now() - startTs < timeoutMs) {
+    try {
+      if (getProductOwned(storeObj, productId)) return true;
+    } catch (_e) {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+  return false;
+}
+
 
 /* =========================
    Billing init
@@ -233,7 +245,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
   if (!_store) throw new Error("Billing store not available (CdvPurchase/store missing).");
 
   // If already owned, unlock immediately
-  if (getProductOwned(_store) || isProUnlocked()) {
+  if (getProductOwned(_store, productId) || isProUnlocked()) {
     setProUnlockedLocal();
     return { ok: true, alreadyOwned: true };
   }
@@ -243,9 +255,12 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
     // Common: store.order(productId)
     if (typeof _store.order === "function") {
       await _store.order(productId);
-      // post-check
-      if (getProductOwned(_store)) setProUnlockedLocal();
-      return { ok: true };
+      const owned = await waitForOwnership(_store, productId);
+      if (owned) {
+        setProUnlockedLocal();
+        return { ok: true };
+      }
+      throw new Error("Purchase did not complete (no ownership detected).");
     }
 
     // v13 sometimes wants an "offer" rather than an id
@@ -259,7 +274,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
     if (typeof _store.requestPayment === "function") {
       await _store.requestPayment(offer || p || productId);
-      if (getProductOwned(_store)) setProUnlockedLocal();
+      if (getProductOwned(_store, productId)) setProUnlockedLocal();
       return { ok: true };
     }
 
@@ -271,7 +286,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
   }
 }
 
-export async function restorePurchases() {
+export async function restorePurchases(productId = PRO_PRODUCT_ID) {
   if (!isNativeApp()) return { ok: false, reason: "web" };
   if (!_store) _store = getBillingStore();
   if (!_store) return { ok: false, reason: "no_store" };
@@ -285,7 +300,7 @@ export async function restorePurchases() {
       await _store.update();
     }
 
-    if (getProductOwned(_store)) {
+    if (getProductOwned(_store, productId)) {
       setProUnlockedLocal();
       return { ok: true, restored: true };
     }
@@ -324,10 +339,13 @@ function closeAllPaywallUI() {
 }
 
 export function renderTrialIntroModal({
+  trialDays = 5,
   priceText = "$1.99 one-time",
   onContinue = null,
   onPay = null,
+  onBuyNow = null,
 } = {}) {
+  const _onPay = onPay || onBuyNow;
   const root = ensureRoot();
   document.body.classList.add("show-paywall");
 

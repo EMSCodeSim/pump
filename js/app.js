@@ -190,8 +190,7 @@ async function setView(name) {
             // FIX: correct callback name
             onEntitlementChanged: (owned) => {
               if (owned) {
-                try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-              }
+}
             }
           });
         } catch (_e) {}
@@ -204,7 +203,7 @@ async function setView(name) {
               trialDays: TRIAL_DAYS,
               priceText: '$1.99 one-time',
               onContinue: () => {},
-              onBuyNow: async () => {
+              onPay: async () => {
                 await pw.buyProduct(PRO_PRODUCT_ID);
               }
             });
@@ -224,14 +223,13 @@ async function setView(name) {
               productId: PRO_PRODUCT_ID,
               onPurchase: async () => {
                 await pw.buyProduct(PRO_PRODUCT_ID);
-                try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
                 setView('calc');
               },
               onRestore: async () => {
-                const ok = await pw.restorePurchases(PRO_PRODUCT_ID);
+                const res = await pw.restorePurchases(PRO_PRODUCT_ID);
+                const ok = !!(res && res.ok && res.restored);
                 if (ok) {
-                  try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-                  setView('calc');
+setView('calc');
                 } else {
                   throw new Error('No purchase found for this account.');
                 }
