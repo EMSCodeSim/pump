@@ -1,9 +1,6 @@
 // store.js
-// Central app state, nozzle catalog, presets, and hydraulic helpers.
-// - Lines start hidden; supply starts 'off' (user chooses).
-// - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
-// - Appliance loss: +10 psi only if total GPM > 350.
-// - Exports restored for other views: COEFF, loadPresets, savePresets.
+// Older working store logic + compatibility exports for newer modules.
+// This fixes missing exports: FL, COLORS, getConfiguredPreconnectCount, getDeptLineDefaults.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'static' | 'relay'
@@ -50,7 +47,7 @@ export const store = (() => {
     // department equipment selections
     deptSelectedHoses: Array.isArray(from.deptSelectedHoses) ? from.deptSelectedHoses.map(String) : [],
     deptSelectedNozzles: Array.isArray(from.deptSelectedNozzles) ? from.deptSelectedNozzles.map(String) : [],
-    // custom items (best-effort; catalog is still NOZ for calculations)
+    // custom items
     customHoses: Array.isArray(from.customHoses) ? from.customHoses : [],
     customNozzles: Array.isArray(from.customNozzles) ? from.customNozzles : [],
     // department hose "catalog" shown in Dept Setup
@@ -72,19 +69,16 @@ export function saveStore(){
 
 export function setSelectedHoses(ids){
   store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  // Dept UI hoses are a simple list used by dropdowns
   setDeptUiHoses(getDeptHoses());
   saveStore();
 }
 
 export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
-  // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
   setDeptUiNozzles(store.deptSelectedNozzles);
   saveStore();
 }
 
-// Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
 export function addCustomHose(label, diameter, cValue){
   const id = `custom_hose_${Date.now()}`;
   const hose = { id, label:String(label||'Custom hose'), diameter:String(diameter||''), c:Number(cValue||0) };
@@ -98,10 +92,7 @@ export function addCustomNozzle(label, gpm, np){
   const noz = { id, name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
   store.customNozzles.push(noz);
 
-  // Keep Department equipment storage in sync.
-  // Calc/presets read custom nozzles from the shared dept-equipment key
-  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
-  // store.customNozzles, Department Setup and Calc can drift apart.
+  // Sync into dept equipment storage for consistency
   try {
     const KEY = 'fireops_dept_equipment_v1';
     if (typeof localStorage !== 'undefined') {
@@ -128,16 +119,11 @@ export function addCustomNozzle(label, gpm, np){
 }
 
 export function getDeptHoses(){
-  // Use Dept UI list if present; otherwise show chart-matching hoses.
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
   return HOSES_MATCHING_CHARTS.slice();
 }
 
-
-
 // Department-scoped UI lists for hoses and nozzles.
-// These are populated when Department Setup is saved, and
-// reused by line editors / calc as a single source of truth.
 export let DEPT_UI_NOZZLES = [];
 export let DEPT_UI_HOSES = [];
 
@@ -148,7 +134,6 @@ export function setDeptUiNozzles(list) {
 export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
-
 
 /* =========================
  * Hose ID → diameter normalization
@@ -172,21 +157,15 @@ const HOSE_ID_TO_DIA = {
   'h_lf_5':     '5',
 };
 
-// Resolve a hose input (id or diameter) into { dia, c, kind }.
-// - dia is the diameter string used by COEFF keys (e.g. '1.75', '2.0', '2.5', '5')
-// - c is optional friction-loss coefficient override (for custom hoses)
-// - kind is 'built' | 'lowfriction' | 'custom' | 'diameter'
 function resolveHoseMeta(input){
   const raw = (input == null ? '' : String(input)).trim();
   if (!raw) return { dia:'', c:null, kind:'diameter' };
 
-  // Built-in / low-friction ids
   if (HOSE_ID_TO_DIA[raw]) {
     const dia = HOSE_ID_TO_DIA[raw];
     return { dia, c: null, kind: raw.startsWith('h_lf_') ? 'lowfriction' : 'built' };
   }
 
-  // Custom hose ids (canonical storage is fireops_dept_equipment_v1.customHoses)
   if (raw.startsWith('custom_hose_')) {
     try{
       const deptRaw = localStorage.getItem('fireops_dept_equipment_v1');
@@ -198,11 +177,10 @@ function resolveHoseMeta(input){
         const c   = Number(found.c ?? found.C ?? found.flC ?? found.coeff ?? null);
         return { dia: normalizeHoseDiameter(dia), c: Number.isFinite(c) ? c : null, kind:'custom' };
       }
-    }catch(_e){ /* ignore */ }
+    }catch(_e){ }
     return { dia:'', c:null, kind:'custom' };
   }
 
-  // Already a diameter string
   if (/^\d+(?:\.\d+)?$/.test(raw)) {
     return { dia: normalizeHoseDiameter(raw), c: null, kind:'diameter' };
   }
@@ -217,7 +195,6 @@ function normalizeHoseDiameter(input){
   const mapped = HOSE_ID_TO_DIA[s];
   if (mapped) return mapped;
 
-  // Custom hose id -> diameter
   if (s.startsWith('custom_hose_')) {
     try{
       const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
@@ -226,11 +203,10 @@ function normalizeHoseDiameter(input){
       const found = list.find(h => h && String(h.id) === s);
       const dia = found ? String(found.diameter ?? found.dia ?? found.size ?? '').trim() : '';
       if (dia) return normalizeHoseDiameter(dia);
-    }catch(_e){ /* ignore */ }
+    }catch(_e){ }
     return '';
   }
 
-  // already a diameter string
   if (/^\d+(?:\.\d+)?$/.test(s)) {
     const n = Number(s);
     if (!Number.isFinite(n)) return '';
@@ -243,17 +219,13 @@ function normalizeHoseDiameter(input){
 /* =========================
  * Nozzle ID normalization (compat)
  * ========================= */
-
-// Legacy Department Setup nozzle IDs → internal NOZ ids
 const LEGACY_NOZ_ID_MAP = {
-  // smooth bores
   'sb_78_50_160':   'sb7_8',
   'sb_1516_50_185': 'sb15_16',
   'sb_1_50_210':    'sb1',
   'sb_1118_50_265': 'sb1_1_8',
   'sb_114_50_325':  'sb1_1_4',
 
-  // fog (incl Chief XD legacy ids used by older dept equipment storage)
   'fog_xd_175_50_165': 'chiefXD165_50',
   'fog_xd_175_50_185': 'chief185_50',
   'fog_xd_25_50_265':  'chiefXD265',
@@ -264,53 +236,6 @@ export function canonicalNozzleId(raw){
   if (!id) return '';
   return LEGACY_NOZ_ID_MAP[id] || id;
 }
-
-function resolveNozzleById(raw){
-  const id = canonicalNozzleId(raw);
-  if (!id) return null;
-
-  // 1) built-in catalog
-  if (NOZ && NOZ[id]) return NOZ[id];
-  if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
-
-  // 2) custom nozzles created by user (stored in store.customNozzles)
-  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
-  const c = custom.find(n => n && String(n.id) === id);
-  if (c) {
-    return {
-      id: String(c.id),
-      name: String(c.name || c.label || c.id),
-      gpm: Number(c.gpm ?? c.GPM ?? 0),
-      NP:  Number(c.NP ?? c.np ?? 0),
-      label: c.label || c.name || c.id,
-    };
-  }
-
-  // 2b) canonical dept equipment storage (fireops_dept_equipment_v1)
-  try {
-    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
-    if (rawDept) {
-      const dept = JSON.parse(rawDept) || {};
-      const deptCustom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      const d = deptCustom.find(n => n && String(n.id) === id);
-      if (d) {
-        return {
-          id: String(d.id),
-          name: String(d.name || d.label || d.id),
-          gpm: Number(d.gpm ?? d.GPM ?? 0),
-          NP:  Number(d.NP ?? d.np ?? 0),
-          label: d.label || d.name || d.id,
-        };
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  // 3) fallback search
-  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
-}
-
 
 /* =========================
  * Nozzle catalog (expanded)
@@ -343,49 +268,63 @@ export const NOZ = {
   ms1_1_2_80:     { id:'ms1_1_2_80',    name:'MS 1 1/2″ @ 80',     gpm:598,  NP:80 },
   ms1_3_4_80:     { id:'ms1_3_4_80',    name:'MS 1 3/4″ @ 80',     gpm:814,  NP:80 },
   ms2_80:         { id:'ms2_80',        name:'MS 2″ @ 80',         gpm:1063, NP:80 },
-
-  fog175_50:      { id:'fog175_50',     name:'Fog 175 @ 50',       gpm:175,  NP:50 },
-  fog185_50:      { id:'fog185_50',     name:'Fog 185 @ 50',       gpm:185,  NP:50 },
-  fog200_50:      { id:'fog200_50',     name:'Fog 200 @ 50',       gpm:200,  NP:50 },
-  fog265_50:      { id:'fog265_50',     name:'Fog 265 @ 50',       gpm:265,  NP:50 },
-
-  fog95_100:      { id:'fog95_100',     name:'Fog 95 @ 100',       gpm:95,   NP:100 },
-  fog125_100:     { id:'fog125_100',    name:'Fog 125 @ 100',      gpm:125,  NP:100 },
-  fog175_100:     { id:'fog175_100',    name:'Fog 175 @ 100',      gpm:175,  NP:100 },
-  fog200_100:     { id:'fog200_100',    name:'Fog 200 @ 100',      gpm:200,  NP:100 },
-  fog250_100:     { id:'fog250_100',    name:'Fog 250 @ 100',      gpm:250,  NP:100 },
-
-  sb12_50:        { id:'sb12_50',       name:'SB 1/2″ @ 50',       gpm:50,   NP:50 },
-  sb5_8_50:       { id:'sb5_8_50',      name:'SB 5/8″ @ 50',       gpm:80,   NP:50 },
-  sb3_4_50:       { id:'sb3_4_50',      name:'SB 3/4″ @ 50',       gpm:120,  NP:50 },
-
-  fog500_100:     { id:'fog500_100',    name:'Master Fog 500 @ 100',  gpm:500,  NP:100 },
-  fog750_100:     { id:'fog750_100',    name:'Master Fog 750 @ 100',  gpm:750,  NP:100 },
-  fog1000_100:    { id:'fog1000_100',   name:'Master Fog 1000 @ 100', gpm:1000, NP:100 },
-
-  piercing100_100:{ id:'piercing100_100', name:'Piercing 100 @ 100', gpm:100, NP:100 },
-  cellar250_100:  { id:'cellar250_100',   name:'Cellar 250 @ 100',   gpm:250, NP:100 },
-  breaker30_100:  { id:'breaker30_100',   name:'Breaker 30 @ 100',   gpm:30,  NP:100 },
 };
 
 export const NOZ_LIST = Object.values(NOZ);
 
-export function getDeptNozzles() {
-  const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+function resolveNozzleById(raw){
+  const id = canonicalNozzleId(raw);
+  if (!id) return null;
 
-  let custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+  if (NOZ && NOZ[id]) return NOZ[id];
+
+  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
+  const c = custom.find(n => n && String(n.id) === id);
+  if (c) {
+    return {
+      id: String(c.id),
+      name: String(c.name || c.label || c.id),
+      gpm: Number(c.gpm ?? 0),
+      NP:  Number(c.NP ?? c.np ?? 0),
+      label: c.label || c.name || c.id,
+    };
+  }
+
   try {
-    const KEY = 'fireops_dept_equipment_v1';
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      if (raw) {
-        const dept = JSON.parse(raw);
-        if (dept && Array.isArray(dept.customNozzles) && dept.customNozzles.length) {
-          custom = dept.customNozzles;
-        }
+    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
+    if (rawDept) {
+      const dept = JSON.parse(rawDept) || {};
+      const deptCustom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      const d = deptCustom.find(n => n && String(n.id) === id);
+      if (d) {
+        return {
+          id: String(d.id),
+          name: String(d.name || d.label || d.id),
+          gpm: Number(d.gpm ?? 0),
+          NP:  Number(d.NP ?? d.np ?? 0),
+          label: d.label || d.name || d.id,
+        };
       }
     }
-  } catch (e) {}
+  } catch (_e) {}
+
+  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
+}
+
+export function getDeptNozzles() {
+  const catalog = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+  let custom = Array.isArray(store?.customNozzles) ? store.customNozzles : [];
+
+  try {
+    const KEY = 'fireops_dept_equipment_v1';
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const dept = JSON.parse(raw);
+      if (dept && Array.isArray(dept.customNozzles) && dept.customNozzles.length) {
+        custom = dept.customNozzles;
+      }
+    }
+  } catch (_e) {}
 
   function toFull(item){
     if (!item) return null;
@@ -398,8 +337,8 @@ export function getDeptNozzles() {
       return {
         id: built.id,
         label: item.label || item.name || built.name || built.label || built.id,
-        gpm: Number(built.gpm ?? built.GPM ?? 0),
-        NP:  Number(built.NP ?? built.np ?? 0),
+        gpm: Number(built.gpm ?? 0),
+        NP:  Number(built.NP ?? 0),
       };
     }
 
@@ -409,7 +348,7 @@ export function getDeptNozzles() {
         id: c.id,
         label: item.label || item.name || c.label || c.name || c.id,
         gpm: Number(c.gpm ?? 0),
-        NP:  Number(c.NP ?? c.np ?? c.psi ?? c.pressure ?? 0),
+        NP:  Number(c.NP ?? c.np ?? c.psi ?? 0),
       };
     }
     return null;
@@ -423,8 +362,8 @@ export function getDeptNozzles() {
   const base = catalog.map(n => ({
     id: n.id,
     label: n.label || n.name || n.id,
-    gpm: Number(n.gpm ?? n.GPM ?? 0),
-    NP:  Number(n.NP ?? n.np ?? 0),
+    gpm: Number(n.gpm ?? 0),
+    NP:  Number(n.NP ?? 0),
   }));
   const extra = custom.map(n => ({
     id: n.id,
@@ -455,7 +394,6 @@ export function sizeLabel(v){
 /* =========================
  * Hydraulics helpers
  * ========================= */
-
 export const PSI_PER_FT = 0.5;
 
 export function applianceLoss(totalGpm){
@@ -487,15 +425,6 @@ export function sumFt(items){
   return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
 }
 
-export function splitIntoSections(items){
-  if(!Array.isArray(items)) return [];
-  return items.map(s => ({
-    size: String(s.size),
-    lengthFt: Number(s.lengthFt)||0,
-    cValue: (Number.isFinite(Number(s.cValue)) && Number(s.cValue)>0) ? Number(s.cValue) : null,
-  }));
-}
-
 /* =========================
  * Line defaults
  * ========================= */
@@ -503,43 +432,15 @@ function seedInitialDefaults(){
   if (state.lines) return;
 
   state.lines = {
-    left:  {
-      label: 'Line 1',
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    },
-    back:  {
-      label: 'Line 2',
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    },
-    right: {
-      label: 'Line 3',
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    }
+    left:  { label:'Line 1', visible:false, itemsMain:[], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:null, nozLeft:null },
+    back:  { label:'Line 2', visible:false, itemsMain:[], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:null, nozLeft:null },
+    right: { label:'Line 3', visible:false, itemsMain:[], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:null, nozLeft:null },
   };
 }
 seedInitialDefaults();
 
 export function seedDefaultsForKey(key){
   if(!state.lines) seedInitialDefaults();
-
   const existing = state.lines ? state.lines[key] : null;
 
   const isPlaceholder = (L) => !!L
@@ -561,21 +462,9 @@ export function seedDefaultsForKey(key){
     if (existing) return existing;
   }
 
-  if (key === 'left' || key === 'back' || key === 'right') {
-    return state.lines[key];
-  } else {
-    state.lines[key] = {
-      label: key,
-      visible: false,
-      itemsMain: [],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: 0,
-      nozRight: null,
-    };
-  }
+  if (key === 'left' || key === 'back' || key === 'right') return state.lines[key];
 
+  state.lines[key] = { label:key, visible:false, itemsMain:[], itemsLeft:[], itemsRight:[], hasWye:false, elevFt:0, nozRight:null, nozLeft:null };
   return state.lines[key];
 }
 
@@ -603,15 +492,9 @@ export function activeSide(L){
 export function activeNozzle(L){
   if(!L) return null;
   if(isSingleWye(L)){
-    return activeSide(L) === 'L'
-      ? (L.nozLeft || L.nozRight)
-      : (L.nozRight || L.nozLeft);
+    return activeSide(L) === 'L' ? (L.nozLeft || L.nozRight) : (L.nozRight || L.nozLeft);
   }
   return L.nozRight || L.nozLeft || null;
-}
-
-export function computeApplianceLoss(totalGpm){
-  return applianceLoss(totalGpm);
 }
 
 /* =========================
@@ -620,10 +503,8 @@ export function computeApplianceLoss(totalGpm){
 const PRESET_STORAGE_KEY = 'fireops_line_presets_v1';
 
 function hasStorage(){
-  try {
-    return typeof window !== 'undefined'
-        && typeof window.localStorage !== 'undefined';
-  } catch { return false; }
+  try { return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'; }
+  catch { return false; }
 }
 
 function readStorage(){
@@ -680,21 +561,18 @@ export function savePresets(presetsObj){
   return writeStorage(norm);
 }
 
-/* =========================
- * Small utils
- * ========================= */
 export function round1(n){ return Math.round((Number(n)||0)*10)/10; }
 
-
-
-// === Department Defaults Persistence (added) ===
+/* =========================
+ * Department Defaults Persistence
+ * ========================= */
 const DEPT_STORAGE_KEY = 'pump_dept_defaults_v1';
 
 function readDeptStorage(){
   try {
     const raw = localStorage.getItem(DEPT_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
-  } catch(e){
+  } catch(_e){
     return null;
   }
 }
@@ -703,7 +581,7 @@ function writeDeptStorage(obj){
   try {
     localStorage.setItem(DEPT_STORAGE_KEY, JSON.stringify(obj));
     return true;
-  } catch(e){
+  } catch(_e){
     return false;
   }
 }
@@ -745,20 +623,22 @@ export function getDeptLineDefault(key){
     const len  = Number(d.length ?? d.len ?? 200) || 200;
     const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
     const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
-
     const nozObj = resolveNozzleById(nozId);
 
     const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
 
+    const hoseMeta = resolveHoseMeta(hose);
+
     const built = {
       label,
       visible: false,
-      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: resolveHoseMeta(hose).c }],
+      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: hoseMeta.c }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: elev,
       nozRight: nozObj || null,
+      nozLeft: null,
     };
 
     try{
@@ -768,11 +648,16 @@ export function getDeptLineDefault(key){
     }catch(_){}
 
     return built;
-  }catch(e){
+  }catch(_e){
     return candidate || null;
   }
 }
 
+export function setDeptLineDefault(key, data){
+  const all = loadDeptDefaults();
+  all[key] = data;
+  saveDeptDefaults(all);
+}
 
 // Returns an array of configured preconnect keys in order: left, back, right.
 export function getConfiguredPreconnects(){
@@ -790,21 +675,21 @@ export function getConfiguredPreconnects(){
   return out;
 }
 
-export function setDeptLineDefault(key, data){
-  const all = loadDeptDefaults();
-  all[key] = data;
-  saveDeptDefaults(all);
-}
-
 /* =========================
- * NEW: Export count helper (prevents "missing export" crashes)
+ * Compatibility exports (NEW)
  * ========================= */
+
+// Newer modules expect getConfiguredPreconnectCount()
 export function getConfiguredPreconnectCount(){
   try{
-    // Uses the same logic the app already trusts.
     const list = getConfiguredPreconnects();
     return Array.isArray(list) ? list.length : 0;
   }catch(_e){
     return 0;
   }
+}
+
+// Newer modules expect getDeptLineDefaults()
+export function getDeptLineDefaults(){
+  return loadDeptDefaults();
 }
