@@ -50,7 +50,6 @@ function getProductOwned(storeObj, productId = PRO_PRODUCT_ID) {
     if (typeof p.owned === "boolean") return p.owned;
     if (typeof p.isOwned === "function") return !!p.isOwned();
 
-    // Some builds expose a string state
     if (typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
 
     return false;
@@ -140,19 +139,19 @@ export async function initBilling({ verbose = false } = {}) {
   if (!_store) return { ok: false, reason: "no_store" };
 
   try {
-    // Try to register product if the plugin supports it (safe no-op if not)
+    // Register product if supported (safe no-op if not)
     try {
       if (typeof _store.register === "function" && _store.NON_CONSUMABLE) {
         _store.register({ id: PRO_PRODUCT_ID, type: _store.NON_CONSUMABLE });
       }
     } catch (_e) {}
 
-    // Initialize / refresh
+    // Initialize if supported
     if (typeof _store.initialize === "function") {
       await _store.initialize();
     }
 
-    // IMPORTANT: many builds require update() to fetch offers
+    // Fetch product/offers
     try {
       if (typeof _store.update === "function") await _store.update();
       else if (typeof _store.refresh === "function") await _store.refresh();
@@ -160,6 +159,7 @@ export async function initBilling({ verbose = false } = {}) {
       _lastBillingError = (e && e.message) ? e.message : String(e);
     }
 
+    // Sync owned state to local flag
     if (getProductOwned(_store, PRO_PRODUCT_ID)) setProUnlockedLocal();
 
     if (verbose) {
@@ -206,9 +206,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
     showBillingDebugPanel("[billing debug pre-purchase]\n" + JSON.stringify(d, null, 2));
   } catch (_e) {}
 
-  // Attempt purchase across plugin API variants
   try {
-    // Prefer v13+ requestPayment flow when available (it reliably triggers the Play purchase sheet)
     const p = typeof _store.get === "function" ? _store.get(productId) : null;
     const offers = p && Array.isArray(p.offers) ? p.offers : [];
     const offer = (p && typeof p.getOffer === "function") ? p.getOffer() : (offers.length ? offers[0] : null);
@@ -222,8 +220,9 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
       throw new Error("No purchase offer available for this product. " + JSON.stringify(d));
     }
 
+    // v13+ best path
     if (typeof _store.requestPayment === "function") {
-      await _store.requestPayment(offer || p || productId);
+      await _store.requestPayment(offer);
       const owned = await waitForOwnership(_store, productId);
       if (owned) {
         setProUnlockedLocal();
@@ -232,7 +231,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
       throw new Error("Purchase did not complete (no ownership detected).");
     }
 
-    // Fallback: store.order(productId)
+    // fallback
     if (typeof _store.order === "function") {
       await _store.order(productId);
       const owned = await waitForOwnership(_store, productId);
@@ -279,7 +278,6 @@ export async function restorePurchases(productId = PRO_PRODUCT_ID) {
    UI HELPERS (Trial modal + Hard paywall)
 --------------------------------------------------------- */
 
-// Trial modal (supports onPay or onBuyNow)
 export function renderTrialIntroModal({
   trialDays = 5,
   priceText = "$1.99 one-time",
