@@ -2,162 +2,124 @@
    FireOps Calc Paywall + Billing bridge (Cordova/Capacitor compatible)
    - Avoids collision with your app's own "store" (window.store)
    - Prefers cordova-plugin-purchase v13+ (window.CdvPurchase.store)
-   - Falls back to legacy window.store ONLY if it looks like the billing store
+   - Adds debug overlay so we can SEE product/offers/owned state on device
 */
 
-/* =========================
-   Config
-========================= */
-export const PRO_PRODUCT_ID = "fireops.pro"; // must match Play Console Product ID
-export const TRIAL_DAYS = 5;
-
-const KEY_INSTALL_TS = "fireops_install_ts_v1";
+const PRO_PRODUCT_ID = "fireops.pro";
 const KEY_PRO_UNLOCKED = "fireops_pro_unlocked_v1";
-const KEY_TRIAL_INTRO_SHOWN = "fireops_trial_intro_shown_v1";
 
-/* =========================
-   Internal state
-========================= */
 let _store = null;
-let _billingReady = false;
+let _debugPanelEl = null;
 let _lastBillingError = "";
 
-/* =========================
-   Debug overlay (temporary)
-========================= */
-function showBillingDebugPanel(details) {
+function isNativeApp() {
   try {
-    if (!details) return;
-    let panel = document.getElementById("billing-debug-panel");
-    if (!panel) {
-      panel = document.createElement("div");
-      panel.id = "billing-debug-panel";
-      panel.style.position = "fixed";
-      panel.style.left = "8px";
-      panel.style.right = "8px";
-      panel.style.bottom = "8px";
-      panel.style.zIndex = "99999";
-      panel.style.background = "rgba(0,0,0,0.78)";
-      panel.style.color = "#fff";
-      panel.style.padding = "10px 12px";
-      panel.style.borderRadius = "10px";
-      panel.style.fontSize = "12px";
-      panel.style.lineHeight = "1.35";
-      panel.style.maxHeight = "35vh";
-      panel.style.overflow = "auto";
-      panel.style.whiteSpace = "pre-wrap";
-      panel.style.pointerEvents = "none";
-      document.body.appendChild(panel);
-    }
-    panel.textContent = details;
-  } catch (_e) {}
-}
-
-function getProductDebug(storeObj, productId = PRO_PRODUCT_ID) {
-  try {
-    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
-    const offers = p && Array.isArray(p.offers) ? p.offers : [];
-    const offer0 = offers && offers.length ? offers[0] : null;
-    return {
-      hasStore: !!storeObj,
-      billingReady: !!_billingReady,
-      lastError: _lastBillingError || "",
-      productExists: !!p,
-      productState: p && p.state ? String(p.state) : "",
-      owned: p && typeof p.owned === "boolean" ? p.owned : "",
-      offersCount: offers.length,
-      offerId: offer0 && offer0.id ? String(offer0.id) : (offer0 ? "(offer)" : ""),
-      canPurchase: p && typeof p.canPurchase === "function" ? !!p.canPurchase() : ""
-    };
-  } catch (e) {
-    return { hasStore: !!storeObj, billingReady: !!_billingReady, lastError: _lastBillingError || "", exception: String(e) };
+    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  } catch (_e) {
+    return false;
   }
 }
 
-/* =========================
-   Environment helpers
-========================= */
-function isNativeApp() {
-  // Works for Capacitor + Cordova WebView cases
-  const cap = window.Capacitor;
-  if (cap && typeof cap.isNativePlatform === "function") return !!cap.isNativePlatform();
-  if (cap && cap.getPlatform && cap.getPlatform() !== "web") return true;
+function getBillingStore() {
+  try {
+    // cordova-plugin-purchase v13+
+    if (window.CdvPurchase && window.CdvPurchase.store) return window.CdvPurchase.store;
 
-  // Cordova
-  return !!window.cordova;
-}
+    // fallback (some older builds)
+    if (window.store) return window.store;
 
-function nowMs() {
-  return Date.now();
-}
-
-function getInstallTs() {
-  const v = Number(localStorage.getItem(KEY_INSTALL_TS) || "0");
-  if (v > 0) return v;
-  const ts = nowMs();
-  localStorage.setItem(KEY_INSTALL_TS, String(ts));
-  return ts;
-}
-
-function trialDaysUsed() {
-  const usedMs = nowMs() - getInstallTs();
-  return Math.floor(usedMs / (24 * 60 * 60 * 1000));
-}
-
-function trialExpired() {
-  return trialDaysUsed() >= TRIAL_DAYS;
+    return null;
+  } catch (_e) {
+    return null;
+  }
 }
 
 function setProUnlockedLocal() {
-  localStorage.setItem(KEY_PRO_UNLOCKED, "1");
-}
-
-function setProLockedLocal() {
-  localStorage.removeItem(KEY_PRO_UNLOCKED);
+  try { localStorage.setItem(KEY_PRO_UNLOCKED, "1"); } catch (_e) {}
 }
 
 export function isProUnlocked() {
-  return localStorage.getItem(KEY_PRO_UNLOCKED) === "1";
-}
-
-/* =========================
-   Billing store detection
-========================= */
-function looksLikeBillingStore(s) {
-  if (!s) return false;
-  // Billing stores typically have initialize/ready/register/when/product APIs
-  const hasInit = typeof s.initialize === "function" || typeof s.init === "function";
-  const hasRegister = typeof s.register === "function";
-  const hasWhen = typeof s.when === "function";
-  const hasReady = typeof s.ready === "function";
-  const hasProducts = typeof s.get === "function" || Array.isArray(s.products);
-  return (hasInit && hasRegister) || (hasWhen && hasReady && hasProducts);
-}
-
-function getBillingStore() {
-  // Prefer cordova-plugin-purchase v13+ global
-  const cdp = window.CdvPurchase;
-  if (cdp && cdp.store) return cdp.store;
-
-  // Some builds expose window.store for billing (legacy),
-  // BUT your app also uses "store", so only accept it if it looks like billing.
-  const legacy = window.store;
-  if (looksLikeBillingStore(legacy)) return legacy;
-
-  return null;
+  try { return localStorage.getItem(KEY_PRO_UNLOCKED) === "1"; } catch (_e) { return false; }
 }
 
 function getProductOwned(storeObj, productId = PRO_PRODUCT_ID) {
   try {
-    // v13+: store.get(id) returns Product with .owned boolean
     const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
-    if (p && typeof p.owned === "boolean") return p.owned;
+    if (!p) return false;
 
-    // Some variants: product.state / product.isOwned
-    if (p && typeof p.isOwned === "function") return !!p.isOwned();
-    if (p && typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
-  } catch (_) {}
-  return false;
+    if (typeof p.owned === "boolean") return p.owned;
+    if (typeof p.isOwned === "function") return !!p.isOwned();
+
+    // Some builds expose a string state
+    if (typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
+
+    return false;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function getProductDebug(storeObj, productId = PRO_PRODUCT_ID) {
+  let p = null;
+  try {
+    p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
+  } catch (_e) {}
+
+  const offers = (p && Array.isArray(p.offers)) ? p.offers : [];
+  const offer0 = offers.length ? offers[0] : null;
+
+  let offerFromGetOffer = null;
+  try {
+    offerFromGetOffer = (p && typeof p.getOffer === "function") ? p.getOffer() : null;
+  } catch (_e) {}
+
+  return {
+    hasStore: !!storeObj,
+    hasGet: !!(storeObj && typeof storeObj.get === "function"),
+    productId,
+    productExists: !!p,
+    productType: p && p.type ? p.type : null,
+    state: p && p.state ? p.state : null,
+    owned: p && typeof p.owned === "boolean" ? p.owned : null,
+    offersCount: offers.length,
+    offer0: offer0 ? { id: offer0.id || offer0.offerId || null, pricingPhases: offer0.pricingPhases || null } : null,
+    offerFromGetOffer: offerFromGetOffer ? { id: offerFromGetOffer.id || offerFromGetOffer.offerId || null } : null,
+    lastBillingError: _lastBillingError || "",
+    native: isNativeApp(),
+    time: new Date().toISOString(),
+  };
+}
+
+function ensureDebugPanel() {
+  if (_debugPanelEl) return _debugPanelEl;
+
+  const el = document.createElement("div");
+  el.style.position = "fixed";
+  el.style.left = "10px";
+  el.style.right = "10px";
+  el.style.bottom = "10px";
+  el.style.zIndex = "999999";
+  el.style.padding = "10px";
+  el.style.borderRadius = "12px";
+  el.style.background = "rgba(0,0,0,0.75)";
+  el.style.color = "#fff";
+  el.style.fontSize = "12px";
+  el.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+  el.style.whiteSpace = "pre-wrap";
+  el.style.maxHeight = "35vh";
+  el.style.overflow = "auto";
+  el.textContent = "[billing debug]\n(init...)";
+
+  document.body.appendChild(el);
+  _debugPanelEl = el;
+  return el;
+}
+
+function showBillingDebugPanel(text) {
+  try {
+    const el = ensureDebugPanel();
+    el.textContent = text;
+  } catch (_e) {}
 }
 
 async function waitForOwnership(storeObj, productId = PRO_PRODUCT_ID, timeoutMs = 45000) {
@@ -171,123 +133,51 @@ async function waitForOwnership(storeObj, productId = PRO_PRODUCT_ID, timeoutMs 
   return false;
 }
 
-
-/* =========================
-   Billing init
-========================= */
 export async function initBilling({ verbose = false } = {}) {
-  _billingReady = false;
-  _lastBillingError = "";
+  if (!isNativeApp()) return { ok: false, reason: "web" };
+
   _store = getBillingStore();
-
-  if (!isNativeApp()) {
-    _lastBillingError = "Not running inside the installed app (web detected).";
-    if (verbose) console.warn("[paywall] billing not available on web");
-    return { ok: false, reason: _lastBillingError };
-  }
-
-  if (!_store) {
-    _lastBillingError =
-      "Billing library not found (CdvPurchase/store missing). Check plugin + android build.";
-    if (verbose) console.warn("[paywall] " + _lastBillingError);
-    return { ok: false, reason: _lastBillingError };
-  }
+  if (!_store) return { ok: false, reason: "no_store" };
 
   try {
-    // Register product (handle both v13 and older signatures)
-    // v13 ProductType: window.CdvPurchase.ProductType
-    const cdp = window.CdvPurchase;
-    const ProductType = cdp && cdp.ProductType ? cdp.ProductType : null;
-
-    // If ProductType exists, use NON_CONSUMABLE (one-time unlock)
-    const typeVal = ProductType && ProductType.NON_CONSUMABLE ? ProductType.NON_CONSUMABLE : "non-consumable";
-
-    if (typeof _store.register === "function") {
-      // Many versions accept: { id, type, platform? }
-      try {
-        _store.register({ id: PRO_PRODUCT_ID, type: typeVal });
-      } catch (e) {
-        // Some older versions use store.register({ id, alias, type })
-        _store.register({ id: PRO_PRODUCT_ID, alias: PRO_PRODUCT_ID, type: typeVal });
+    // Try to register product if the plugin supports it (safe no-op if not)
+    try {
+      if (typeof _store.register === "function" && _store.NON_CONSUMABLE) {
+        _store.register({ id: PRO_PRODUCT_ID, type: _store.NON_CONSUMABLE });
       }
-    }
+    } catch (_e) {}
 
-    // Wire events (best-effort across versions)
-    if (typeof _store.when === "function") {
-      _store.when(PRO_PRODUCT_ID).approved((p) => {
-        try {
-          // Finish transaction if needed
-          if (p && typeof p.verify === "function") p.verify();
-          if (p && typeof p.finish === "function") p.finish();
-        } catch (_) {}
-        setProUnlockedLocal();
-        _billingReady = true;
-      });
-
-      _store.when(PRO_PRODUCT_ID).verified((p) => {
-        try {
-          if (p && typeof p.finish === "function") p.finish();
-        } catch (_) {}
-        setProUnlockedLocal();
-        _billingReady = true;
-      });
-
-      _store.when(PRO_PRODUCT_ID).owned(() => {
-        setProUnlockedLocal();
-        _billingReady = true;
-      });
-
-      _store.when(PRO_PRODUCT_ID).cancelled(() => {
-        // user cancelled – do nothing
-        _billingReady = true;
-      });
-
-      _store.error((err) => {
-        _lastBillingError = (err && (err.message || err.code || String(err))) || "Billing error";
-        if (verbose) console.warn("[paywall] store.error:", err);
-      });
-    }
-
-    // Initialize
+    // Initialize / refresh
     if (typeof _store.initialize === "function") {
-      // v13 requires platforms; if available, try Google Play
-      const Platform = window.CdvPurchase && window.CdvPurchase.Platform ? window.CdvPurchase.Platform : null;
-      if (Platform && Platform.GOOGLE_PLAY) {
-        await _store.initialize([Platform.GOOGLE_PLAY]);
-      } else {
-        await _store.initialize();
-      }
-    } else if (typeof _store.init === "function") {
-      await _store.init();
+      await _store.initialize();
     }
 
-    // Ready callback (if available)
-    if (typeof _store.ready === "function") {
-      _store.ready(() => {
-        _billingReady = true;
-        if (getProductOwned(_store)) setProUnlockedLocal();
-      });
-    } else {
-      // If no ready(), treat as ready after init attempt
-      _billingReady = true;
-      if (getProductOwned(_store)) setProUnlockedLocal();
+    // IMPORTANT: many builds require update() to fetch offers
+    try {
+      if (typeof _store.update === "function") await _store.update();
+      else if (typeof _store.refresh === "function") await _store.refresh();
+    } catch (e) {
+      _lastBillingError = (e && e.message) ? e.message : String(e);
     }
 
-    // Final owned check
-    if (getProductOwned(_store)) setProUnlockedLocal();
+    if (getProductOwned(_store, PRO_PRODUCT_ID)) setProUnlockedLocal();
+
+    if (verbose) {
+      const d = getProductDebug(_store, PRO_PRODUCT_ID);
+      showBillingDebugPanel("[billing debug init]\n" + JSON.stringify(d, null, 2));
+    }
 
     return { ok: true };
   } catch (e) {
-    _billingReady = false;
-    _lastBillingError = e && e.message ? e.message : String(e);
-    if (verbose) console.warn("[paywall] initBilling failed:", e);
-    return { ok: false, reason: _lastBillingError };
+    _lastBillingError = (e && e.message) ? e.message : String(e);
+    if (verbose) {
+      const d = getProductDebug(_store, PRO_PRODUCT_ID);
+      showBillingDebugPanel("[billing debug init FAILED]\n" + JSON.stringify(d, null, 2));
+    }
+    return { ok: false, reason: _lastBillingError || "init_failed" };
   }
 }
 
-/* =========================
-   Purchase actions
-========================= */
 export async function buyProduct(productId = PRO_PRODUCT_ID) {
   if (!isNativeApp()) {
     throw new Error("Purchases only work inside the installed Google Play app (not the website).");
@@ -300,6 +190,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
   if (getProductOwned(_store, productId) || isProUnlocked()) {
     setProUnlockedLocal();
     return { ok: true, alreadyOwned: true };
+  }
 
   // Ensure product/offers are loaded before attempting purchase
   try {
@@ -310,17 +201,14 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
   }
 
   // Debug snapshot pre-purchase
-  try { 
+  try {
     const d = getProductDebug(_store, productId);
     showBillingDebugPanel("[billing debug pre-purchase]\n" + JSON.stringify(d, null, 2));
   } catch (_e) {}
 
-  }
-
   // Attempt purchase across plugin API variants
   try {
     // Prefer v13+ requestPayment flow when available (it reliably triggers the Play purchase sheet)
-    const p = typeof _store.get === "function" ? _store.get(productId) : null;
     const p = typeof _store.get === "function" ? _store.get(productId) : null;
     const offers = p && Array.isArray(p.offers) ? p.offers : [];
     const offer = (p && typeof p.getOffer === "function") ? p.getOffer() : (offers.length ? offers[0] : null);
@@ -357,7 +245,6 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
     throw new Error("Purchase API not found (store.order/requestPayment missing).");
   } catch (e) {
-    // Bubble a clean message
     const msg = e && e.message ? e.message : String(e);
     throw new Error(msg);
   }
@@ -371,10 +258,10 @@ export async function restorePurchases(productId = PRO_PRODUCT_ID) {
   try {
     if (typeof _store.restorePurchases === "function") {
       await _store.restorePurchases();
-    } else if (typeof _store.refresh === "function") {
-      await _store.refresh();
     } else if (typeof _store.update === "function") {
       await _store.update();
+    } else if (typeof _store.refresh === "function") {
+      await _store.refresh();
     }
 
     if (getProductOwned(_store, productId)) {
@@ -383,38 +270,16 @@ export async function restorePurchases(productId = PRO_PRODUCT_ID) {
     }
     return { ok: true, restored: false };
   } catch (e) {
-    return { ok: false, reason: e && e.message ? e.message : String(e) };
+    const reason = e && e.message ? e.message : String(e);
+    return { ok: false, reason };
   }
 }
 
-/* =========================
-   UI (Trial + Paywall)
-========================= */
+/* ---------------------------------------------------------
+   UI HELPERS (Trial modal + Hard paywall)
+--------------------------------------------------------- */
 
-// Returns { showIntro, expired, daysUsed }
-export function getTrialStatus() {
-  const days = trialDaysUsed();
-  const expired = trialExpired();
-  const introShown = localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === "1";
-  return { showIntro: !introShown && !isProUnlocked(), expired, daysUsed: days };
-}
-
-function ensureRoot() {
-  let root = document.getElementById("paywall-root");
-  if (!root) {
-    root = document.createElement("div");
-    root.id = "paywall-root";
-    document.body.appendChild(root);
-  }
-  return root;
-}
-
-function closeAllPaywallUI() {
-  const root = document.getElementById("paywall-root");
-  if (root) root.innerHTML = "";
-  document.body.classList.remove("show-paywall");
-}
-
+// Trial modal (supports onPay or onBuyNow)
 export function renderTrialIntroModal({
   trialDays = 5,
   priceText = "$1.99 one-time",
@@ -423,151 +288,196 @@ export function renderTrialIntroModal({
   onBuyNow = null,
 } = {}) {
   const _onPay = onPay || onBuyNow;
-  const root = ensureRoot();
-  document.body.classList.add("show-paywall");
 
-  root.innerHTML = `
-    <div class="pw-backdrop" style="
-      position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9998;
-      display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="pw-card" style="
-        width:min(520px, 96vw); background:#0f172a; color:#e5e7eb; border-radius:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.5); padding:18px; border:1px solid rgba(255,255,255,.12);">
-        <div style="font-size:20px; font-weight:800; margin-bottom:6px;">5-Day Free Trial — No Risk</div>
-        <div style="opacity:.9; line-height:1.35; margin-bottom:12px;">
-          FireOps Calc is free for 5 days. You can unlock full access anytime with a one-time purchase.
-        </div>
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.zIndex = "99999";
+  overlay.style.background = "rgba(0,0,0,0.55)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.padding = "14px";
 
-        <div style="opacity:.75; font-size:12px; margin:10px 0 14px;">
-          If the purchase sheet doesn’t open, billing may not be ready yet.
-        </div>
+  const card = document.createElement("div");
+  card.style.width = "min(520px, 92vw)";
+  card.style.borderRadius = "16px";
+  card.style.background = "#0b1220";
+  card.style.color = "#eaf0ff";
+  card.style.boxShadow = "0 12px 40px rgba(0,0,0,0.45)";
+  card.style.padding = "18px";
 
-        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-          <button id="pw-continue" style="
-            padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
-            background:transparent; color:#e5e7eb; font-weight:700;">
-            Continue Free Trial
-          </button>
+  const h = document.createElement("div");
+  h.textContent = `${trialDays}-Day Free Trial — No Risk`;
+  h.style.fontSize = "22px";
+  h.style.fontWeight = "800";
+  h.style.marginBottom = "10px";
 
-          <button id="pw-pay" style="
-            padding:12px 14px; border-radius:12px; border:none;
-            background:#2563eb; color:white; font-weight:800; min-width:180px;">
-            Pay Now — ${priceText}
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+  const p = document.createElement("div");
+  p.textContent = `FireOps Calc is free for ${trialDays} days. You can unlock full access anytime with a one-time purchase.`;
+  p.style.opacity = "0.95";
+  p.style.marginBottom = "12px";
+  p.style.lineHeight = "1.35";
 
-  localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, "1");
+  const hint = document.createElement("div");
+  hint.textContent = "If the purchase sheet doesn’t open, billing may not be ready yet.";
+  hint.style.opacity = "0.6";
+  hint.style.fontSize = "12px";
+  hint.style.marginBottom = "16px";
 
-  const btnContinue = document.getElementById("pw-continue");
-  const btnPay = document.getElementById("pw-pay");
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "12px";
+  row.style.justifyContent = "flex-end";
+  row.style.flexWrap = "wrap";
 
-  btnContinue.onclick = () => {
-    closeAllPaywallUI();
-    if (typeof onContinue === "function") onContinue();
-  };
+  const btnContinue = document.createElement("button");
+  btnContinue.textContent = "Continue Free Trial";
+  btnContinue.style.padding = "12px 16px";
+  btnContinue.style.borderRadius = "12px";
+  btnContinue.style.border = "1px solid rgba(255,255,255,0.14)";
+  btnContinue.style.background = "transparent";
+  btnContinue.style.color = "#eaf0ff";
+  btnContinue.style.fontWeight = "700";
 
-  btnPay.onclick = async () => {
+  const btnPay = document.createElement("button");
+  btnPay.textContent = `Pay Now — ${priceText}`;
+  btnPay.style.padding = "12px 18px";
+  btnPay.style.borderRadius = "12px";
+  btnPay.style.border = "0";
+  btnPay.style.background = "#2d6cff";
+  btnPay.style.color = "white";
+  btnPay.style.fontWeight = "900";
+
+  btnContinue.addEventListener("click", () => {
+    try { overlay.remove(); } catch (_e) {}
+    try { onContinue && onContinue(); } catch (_e) {}
+  });
+
+  btnPay.addEventListener("click", async () => {
+    if (!_onPay) return;
+
+    const original = btnPay.textContent;
+    btnPay.disabled = true;
+    btnPay.textContent = "Opening purchase...";
     try {
-      btnPay.disabled = true;
-      btnPay.textContent = "Opening purchase…";
-      if (typeof _onPay === "function") {
-        await _onPay();
-      } else {
-        await buyProduct(PRO_PRODUCT_ID);
-        setProUnlockedLocal();
-        closeAllPaywallUI();
-      }
+      await _onPay();
+      try { overlay.remove(); } catch (_e) {}
     } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      alert("Purchase failed: " + msg);
       btnPay.disabled = false;
-      btnPay.textContent = `Pay Now — ${priceText}`;
-      alert(`Purchase failed: ${e && e.message ? e.message : String(e)}`);
+      btnPay.textContent = original;
     }
-  };
+  });
+
+  row.appendChild(btnContinue);
+  row.appendChild(btnPay);
+
+  card.appendChild(h);
+  card.appendChild(p);
+  card.appendChild(hint);
+  card.appendChild(row);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
 
-// Hard paywall after trial ends (if not purchased)
-export function renderPaywall({
+export async function renderPaywall({
   priceText = "$1.99 one-time",
   onPay = null,
   onClose = null,
 } = {}) {
-  const root = ensureRoot();
-  document.body.classList.add("show-paywall");
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.zIndex = "99999";
+  overlay.style.background = "rgba(0,0,0,0.65)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.padding = "14px";
 
-  root.innerHTML = `
-    <div class="pw-backdrop" style="
-      position:fixed; inset:0; background:rgba(0,0,0,.70); z-index:9998;
-      display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="pw-card" style="
-        width:min(560px, 96vw); background:#0b1220; color:#e5e7eb; border-radius:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.6); padding:18px; border:1px solid rgba(255,255,255,.12);">
-        <div style="font-size:20px; font-weight:900; margin-bottom:6px;">Trial ended</div>
-        <div style="opacity:.92; line-height:1.35; margin-bottom:12px;">
-          Unlock Pro to keep using FireOps Calc.
-        </div>
+  const card = document.createElement("div");
+  card.style.width = "min(560px, 92vw)";
+  card.style.borderRadius = "16px";
+  card.style.background = "#0b1220";
+  card.style.color = "#eaf0ff";
+  card.style.boxShadow = "0 12px 40px rgba(0,0,0,0.45)";
+  card.style.padding = "18px";
 
-        <ul style="margin:0 0 14px 18px; opacity:.9;">
-          <li>No subscription</li>
-          <li>One-time unlock: ${priceText}</li>
-          <li>Restore works if you reinstall</li>
-        </ul>
+  const h = document.createElement("div");
+  h.textContent = "Unlock Pro";
+  h.style.fontSize = "22px";
+  h.style.fontWeight = "900";
+  h.style.marginBottom = "10px";
 
-        <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
-          <button id="pw-close" style="
-            padding:12px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
-            background:transparent; color:#e5e7eb; font-weight:700;">
-            Close
-          </button>
+  const p = document.createElement("div");
+  p.textContent = `Get full access with a one-time purchase (${priceText}).`;
+  p.style.opacity = "0.95";
+  p.style.marginBottom = "10px";
+  p.style.lineHeight = "1.35";
 
-          <button id="pw-pay" style="
-            padding:12px 14px; border-radius:12px; border:none;
-            background:#2563eb; color:white; font-weight:900; min-width:200px;">
-            Pay Now — ${priceText}
-          </button>
-        </div>
+  const hint = document.createElement("div");
+  hint.textContent = "If the purchase sheet doesn’t open, billing may not be ready yet.";
+  hint.style.opacity = "0.6";
+  hint.style.fontSize = "12px";
+  hint.style.marginBottom = "16px";
 
-        <div style="margin-top:10px; opacity:.65; font-size:12px;">
-          ${_lastBillingError ? `Billing note: ${_lastBillingError}` : ""}
-        </div>
-      </div>
-    </div>
-  `;
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "12px";
+  row.style.justifyContent = "flex-end";
+  row.style.flexWrap = "wrap";
 
-  document.getElementById("pw-close").onclick = () => {
-    if (typeof onClose === "function") onClose();
-  };
+  const btnClose = document.createElement("button");
+  btnClose.textContent = "Not now";
+  btnClose.style.padding = "12px 16px";
+  btnClose.style.borderRadius = "12px";
+  btnClose.style.border = "1px solid rgba(255,255,255,0.14)";
+  btnClose.style.background = "transparent";
+  btnClose.style.color = "#eaf0ff";
+  btnClose.style.fontWeight = "700";
 
-  document.getElementById("pw-pay").onclick = async () => {
-    const btn = document.getElementById("pw-pay");
+  const btnPay = document.createElement("button");
+  btnPay.textContent = `Pay Now — ${priceText}`;
+  btnPay.style.padding = "12px 18px";
+  btnPay.style.borderRadius = "12px";
+  btnPay.style.border = "0";
+  btnPay.style.background = "#2d6cff";
+  btnPay.style.color = "white";
+  btnPay.style.fontWeight = "900";
+
+  btnClose.addEventListener("click", () => {
+    try { overlay.remove(); } catch (_e) {}
+    try { onClose && onClose(); } catch (_e) {}
+  });
+
+  btnPay.addEventListener("click", async () => {
+    if (!onPay) return;
+
+    const original = btnPay.textContent;
+    btnPay.disabled = true;
+    btnPay.textContent = "Opening purchase...";
     try {
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = "Opening purchase…";
-      }
-      if (typeof onPay === "function") {
-        await onPay();
-      } else {
-        await buyProduct(PRO_PRODUCT_ID);
-        setProUnlockedLocal();
-        closeAllPaywallUI();
-      }
+      await onPay();
+      try { overlay.remove(); } catch (_e) {}
     } catch (e) {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = `Pay Now — ${priceText}`;
-      }
-      alert(`Purchase failed: ${e && e.message ? e.message : String(e)}`);
+      const msg = e && e.message ? e.message : String(e);
+      alert("Purchase failed: " + msg);
+      btnPay.disabled = false;
+      btnPay.textContent = original;
     }
-  };
-}
+  });
 
-/* =========================
-   Gate helper
-========================= */
-export function shouldBlockForPaywall() {
-  if (isProUnlocked()) return false;
-  return trialExpired();
+  row.appendChild(btnClose);
+  row.appendChild(btnPay);
+
+  card.appendChild(h);
+  card.appendChild(p);
+  card.appendChild(hint);
+  card.appendChild(row);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 }
