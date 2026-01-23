@@ -72,9 +72,12 @@ function isGrandfathered() {
   try { return localStorage.getItem(KEY_GRANDFATHERED) === '1'; } catch (_e) {}
   return false;
 }
-function isProUnlocked() {
+function isProUnlockedLocal() {
   try { return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; } catch (_e) {}
   return false;
+}
+function setProUnlockedLocal() {
+  try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
 }
 function hasShownTrialIntro() {
   try { return localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === '1'; } catch (_e) {}
@@ -95,7 +98,7 @@ function daysSinceInstall() {
 function shouldBlockWithPaywall() {
   if (!isNativeApp()) return false;        // web stays free
   if (isGrandfathered()) return false;     // existing users free
-  if (isProUnlocked()) return false;       // already paid
+  if (isProUnlockedLocal()) return false;  // already paid (local flag)
   return daysSinceInstall() >= TRIAL_DAYS; // trial expired
 }
 
@@ -110,7 +113,6 @@ async function getPaywall() {
 
 // Top quick-action row (Department Setup button)
 const topActionsEl = document.querySelector('.top-actions');
-
 function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
   topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
@@ -185,18 +187,16 @@ async function setView(name) {
       if (pw) {
         // Init billing (safe: never block app if it fails)
         try {
-          pw.initBilling?.({
-            productId: PRO_PRODUCT_ID,
-            // FIX: correct callback name
-            onEntitlementChanged: (owned) => {
-              if (owned) {
-}
-            }
-          });
+          await pw.initBilling?.({ verbose: true });
+
+          // If plugin reports owned, keep local flag in sync
+          try {
+            if (pw.isProUnlocked?.()) setProUnlockedLocal();
+          } catch (_e) {}
         } catch (_e) {}
 
         // First-time: show “Risk-Free Trial” popup (new users only)
-        if (!isGrandfathered() && !isProUnlocked() && !shouldBlockWithPaywall() && !hasShownTrialIntro()) {
+        if (!isGrandfathered() && !isProUnlockedLocal() && !shouldBlockWithPaywall() && !hasShownTrialIntro()) {
           markTrialIntroShown();
           try {
             pw.renderTrialIntroModal?.({
@@ -204,7 +204,8 @@ async function setView(name) {
               priceText: '$1.99 one-time',
               onContinue: () => {},
               onPay: async () => {
-                await pw.buyProduct(PRO_PRODUCT_ID);
+                const res = await pw.buyProduct(PRO_PRODUCT_ID);
+                if (res?.ok) setProUnlockedLocal();
               }
             });
           } catch (_e) {}
@@ -220,12 +221,13 @@ async function setView(name) {
             await pw.renderPaywall({
               priceText: '$1.99 one-time',
               onPay: async () => {
-                await pw.buyProduct(PRO_PRODUCT_ID);
+                const res = await pw.buyProduct(PRO_PRODUCT_ID);
+                if (res?.ok) setProUnlockedLocal();
+                // After purchase, re-enter calc
                 setView('calc');
               },
               onClose: () => {
-                // Keep user on paywall view if trial expired; they can close the overlay
-                // but the gate will immediately re-render the paywall if they try to access locked areas.
+                // Trial expired; keep them gated.
               },
             });
           }
