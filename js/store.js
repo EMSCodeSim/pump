@@ -1,9 +1,6 @@
 // store.js
-// Central app state, nozzle catalog, presets, and hydraulic helpers.
-// - Lines start hidden; supply starts 'off' (user chooses).
-// - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
-// - Appliance loss: +10 psi only if total GPM > 350.
-// - Exports restored for other views: COEFF, loadPresets, savePresets.
+// Central app state + shared constants + helpers used across views.
+// This file MUST export any symbols imported by other modules.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'draft'
@@ -33,6 +30,26 @@ export const state = {
 
   // Pump results
   result: null,
+};
+
+// ---------- Shared UI Colors (exported for views) ----------
+export const COLORS = {
+  bg: "#0b1220",
+  card: "#101a2f",
+  text: "#eaf0ff",
+  muted: "rgba(234,240,255,0.75)",
+  border: "rgba(234,240,255,0.14)",
+
+  primary: "#2d6cff",
+  primary2: "#3aa0ff",
+  success: "#22c55e",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+
+  // Bubble/line colors (Line 1/2/3)
+  line1: "#2d6cff",
+  line2: "#22c55e",
+  line3: "#f59e0b",
 };
 
 // ---------- Constants ----------
@@ -88,7 +105,6 @@ export function loadState() {
     const raw = localStorage.getItem('fireops_store_state_v1');
     const parsed = safeParse(raw, null);
     if (parsed && typeof parsed === 'object') {
-      // shallow merge
       Object.assign(state, parsed);
     }
   } catch (_e) {}
@@ -106,7 +122,6 @@ export function normalizeHoseDiameter(v) {
   if (s === '3') return '3';
   if (s === '4') return '4';
   if (s === '5' || s.includes('5')) return '5';
-  // default
   return s.replace('"', '');
 }
 
@@ -146,30 +161,32 @@ export function loadCustomNozzlesFromDept() {
 
 export function addCustomNozzle({ id, label, gpm, np }) {
   if (!id) return;
-  const noz = { id:String(id), name:String(label||'Custom nozzle'), label:String(label||'Custom nozzle'), gpm:Number(gpm||0), NP:Number(np||0) };
+  const noz = {
+    id: String(id),
+    name: String(label || 'Custom nozzle'),
+    label: String(label || 'Custom nozzle'),
+    gpm: Number(gpm || 0),
+    NP: Number(np || 0),
+    type: 'custom',
+  };
   state.customNozzles.push(noz);
 
-  // Keep Department equipment storage in sync.
-  // Calc/presets read custom nozzles from the shared dept-equipment key
-  // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
-  // state.customNozzles, Department Setup and Calc can drift apart.
+  // Sync into dept equipment storage for consistency
   try {
     const KEY = 'fireops_dept_equipment_v1';
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(KEY);
-      const dept = raw ? JSON.parse(raw) : {};
-      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      dept.customNozzles = existing.concat([{
-        id: noz.id,
-        label: noz.label,
-        name: noz.name,
-        gpm: noz.gpm,
-        NP: noz.NP,
-        np: noz.NP,
-        psi: noz.NP,
-      }]);
-      localStorage.setItem(KEY, JSON.stringify(dept));
-    }
+    const raw = localStorage.getItem(KEY);
+    const dept = raw ? JSON.parse(raw) : {};
+    const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+    dept.customNozzles = existing.concat([{
+      id: noz.id,
+      label: noz.label,
+      name: noz.name,
+      gpm: noz.gpm,
+      NP: noz.NP,
+      np: noz.NP,
+      psi: noz.NP,
+    }]);
+    localStorage.setItem(KEY, JSON.stringify(dept));
   } catch (e) {
     console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
   }
@@ -194,7 +211,7 @@ export function savePresets(list) {
 
 // ---------- Dept line defaults (Line 1/2/3) ----------
 export function setDeptLineDefault(sideKey, lineObj) {
-  // Store to shared key used by Department Setup:
+  // Stored to shared key used by Department Setup:
   // fireops_line_defaults_v1: { '1': { hose, nozzle, length, elevation }, ... }
   try {
     const raw = localStorage.getItem('fireops_line_defaults_v1');
@@ -202,7 +219,6 @@ export function setDeptLineDefault(sideKey, lineObj) {
     const map = (sideKey === 'left') ? '1' : (sideKey === 'back') ? '2' : (sideKey === 'right') ? '3' : null;
     if (!map) return;
 
-    // Pull out raw ids for hose/nozzle if present, else derive from built object
     const hose = lineObj?._hoseId || lineObj?.itemsMain?.[0]?.size || '1.75';
     const nozzle = lineObj?._nozId || lineObj?.nozRight?.id || '';
 
@@ -219,8 +235,6 @@ export function setDeptLineDefault(sideKey, lineObj) {
 
 export function getDeptLineDefault(sideKey) {
   // Used to build a default line object for calc view.
-  // 1) If a candidate line object exists in state.lines, keep it.
-  // 2) Else read from fireops_line_defaults_v1
   const candidate = state.lines?.[sideKey] || null;
   if (candidate) {
     const safe = JSON.parse(JSON.stringify(candidate));
@@ -228,9 +242,7 @@ export function getDeptLineDefault(sideKey) {
     return safe;
   }
 
-  // 2) Compatibility: simple line defaults saved by deptState.js (fireops_line_defaults_v1)
-  //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
-  try{
+  try {
     const raw = localStorage.getItem('fireops_line_defaults_v1');
     if (!raw) return candidate || null;
     const parsed = JSON.parse(raw) || {};
@@ -247,7 +259,7 @@ export function getDeptLineDefault(sideKey) {
 
     const label = (sideKey === 'left') ? 'Line 1' : (sideKey === 'back') ? 'Line 2' : (sideKey === 'right') ? 'Line 3' : 'Line';
 
-    const built = {
+    return {
       label,
       visible: false,
       itemsMain: [{ size: normalizeHoseDiameter(hose), lengthFt: len }],
@@ -259,66 +271,53 @@ export function getDeptLineDefault(sideKey) {
       _nozId: nozId,
       nozRight: nozObj,
     };
-
-    return built;
   } catch (_e) {
     return candidate || null;
   }
 }
 
-// Convenience setter from Department Setup screens
 export function setLineFromSetup(key, hoseIdRaw, nozId, len, elev) {
   const hoseId = normalizeHoseDiameter(hoseIdRaw || '1.75');
   const label =
     key === 'left' ? 'Line 1' :
     key === 'back' ? 'Line 2' :
-    key === 'right' ? 'Line 3' :
-    '';
+    key === 'right' ? 'Line 3' : 'Line';
 
-  const main = {
-    size: normalizeHoseDiameter(hoseId) || '1.75',
-    lengthFt: len || 200,
-  };
-
-  const L = {
+  const built = {
     label,
     visible: false,
-    itemsMain: [main],
+    itemsMain: [{ size: normalizeHoseDiameter(hoseId) || '1.75', lengthFt: Number(len || 200) }],
     itemsLeft: [],
     itemsRight: [],
     hasWye: false,
-    elevFt: elev || 0,
+    elevFt: Number(elev || 0),
     _hoseId: hoseIdRaw,
     _nozId: nozId,
     nozRight: resolveNozzleById(nozId),
   };
 
-  setDeptLineDefault(key, L);
+  setDeptLineDefault(key, built);
 }
 
-// --- Added for calc UI gating: count configured preconnects (Line 1/2/3)
-// Used by view.calc.main.js (and others). Reads Department Setup storage.
-// Returns 0..3.
+// ---------- REQUIRED export: used by some views ----------
 export function getConfiguredPreconnectCount() {
   try {
-    // Current storage: simple defaults saved by Department Setup
-    // Shape: { '1': { hose, nozzle, length, elevation }, '2': {...}, '3': {...} }
+    // Primary storage: fireops_line_defaults_v1
     const raw = localStorage.getItem('fireops_line_defaults_v1');
     if (raw) {
       const parsed = JSON.parse(raw) || {};
-      const slots = ['1','2','3'];
+      const slots = ['1', '2', '3'];
       let n = 0;
       for (const s of slots) {
         const d = parsed[s];
         const hasHose = !!(d && (d.hose ?? d.size ?? d.diameter));
-        const hasNoz  = !!(d && (d.nozzle ?? d.noz ?? d.nozId));
+        const hasNoz = !!(d && (d.nozzle ?? d.noz ?? d.nozId));
         if (hasHose && hasNoz) n++;
       }
       return n;
     }
 
-    // Back-compat: some older builds stored preconnects as an array
-    // Shape: [{hose, nozzle, lengthFt, elevFt, ...}, ...]
+    // Back-compat: fireops_preconnects_v1 as array
     const raw2 = localStorage.getItem('fireops_preconnects_v1');
     if (raw2) {
       const arr = JSON.parse(raw2);
@@ -326,7 +325,6 @@ export function getConfiguredPreconnectCount() {
         return arr.filter(x => x && x.hose && x.nozzle).length;
       }
     }
-
     return 0;
   } catch (_e) {
     return 0;
