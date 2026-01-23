@@ -23,6 +23,58 @@ let _billingReady = false;
 let _lastBillingError = "";
 
 /* =========================
+   Debug overlay (temporary)
+========================= */
+function showBillingDebugPanel(details) {
+  try {
+    if (!details) return;
+    let panel = document.getElementById("billing-debug-panel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "billing-debug-panel";
+      panel.style.position = "fixed";
+      panel.style.left = "8px";
+      panel.style.right = "8px";
+      panel.style.bottom = "8px";
+      panel.style.zIndex = "99999";
+      panel.style.background = "rgba(0,0,0,0.78)";
+      panel.style.color = "#fff";
+      panel.style.padding = "10px 12px";
+      panel.style.borderRadius = "10px";
+      panel.style.fontSize = "12px";
+      panel.style.lineHeight = "1.35";
+      panel.style.maxHeight = "35vh";
+      panel.style.overflow = "auto";
+      panel.style.whiteSpace = "pre-wrap";
+      panel.style.pointerEvents = "none";
+      document.body.appendChild(panel);
+    }
+    panel.textContent = details;
+  } catch (_e) {}
+}
+
+function getProductDebug(storeObj, productId = PRO_PRODUCT_ID) {
+  try {
+    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
+    const offers = p && Array.isArray(p.offers) ? p.offers : [];
+    const offer0 = offers && offers.length ? offers[0] : null;
+    return {
+      hasStore: !!storeObj,
+      billingReady: !!_billingReady,
+      lastError: _lastBillingError || "",
+      productExists: !!p,
+      productState: p && p.state ? String(p.state) : "",
+      owned: p && typeof p.owned === "boolean" ? p.owned : "",
+      offersCount: offers.length,
+      offerId: offer0 && offer0.id ? String(offer0.id) : (offer0 ? "(offer)" : ""),
+      canPurchase: p && typeof p.canPurchase === "function" ? !!p.canPurchase() : ""
+    };
+  } catch (e) {
+    return { hasStore: !!storeObj, billingReady: !!_billingReady, lastError: _lastBillingError || "", exception: String(e) };
+  }
+}
+
+/* =========================
    Environment helpers
 ========================= */
 function isNativeApp() {
@@ -248,18 +300,39 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
   if (getProductOwned(_store, productId) || isProUnlocked()) {
     setProUnlockedLocal();
     return { ok: true, alreadyOwned: true };
+
+  // Ensure product/offers are loaded before attempting purchase
+  try {
+    if (typeof _store.update === "function") await _store.update();
+    else if (typeof _store.refresh === "function") await _store.refresh();
+  } catch (e) {
+    _lastBillingError = (e && e.message) ? e.message : String(e);
+  }
+
+  // Debug snapshot pre-purchase
+  try { 
+    const d = getProductDebug(_store, productId);
+    showBillingDebugPanel("[billing debug pre-purchase]\n" + JSON.stringify(d, null, 2));
+  } catch (_e) {}
+
   }
 
   // Attempt purchase across plugin API variants
   try {
     // Prefer v13+ requestPayment flow when available (it reliably triggers the Play purchase sheet)
     const p = typeof _store.get === "function" ? _store.get(productId) : null;
-    const offer =
-      p && typeof p.getOffer === "function"
-        ? p.getOffer()
-        : p && Array.isArray(p.offers) && p.offers.length
-          ? p.offers[0]
-          : null;
+    const p = typeof _store.get === "function" ? _store.get(productId) : null;
+    const offers = p && Array.isArray(p.offers) ? p.offers : [];
+    const offer = (p && typeof p.getOffer === "function") ? p.getOffer() : (offers.length ? offers[0] : null);
+
+    if (!p) {
+      const d = getProductDebug(_store, productId);
+      throw new Error("Product not loaded in billing store. " + JSON.stringify(d));
+    }
+    if (!offer) {
+      const d = getProductDebug(_store, productId);
+      throw new Error("No purchase offer available for this product. " + JSON.stringify(d));
+    }
 
     if (typeof _store.requestPayment === "function") {
       await _store.requestPayment(offer || p || productId);
