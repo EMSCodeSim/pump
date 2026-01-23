@@ -1,8 +1,11 @@
 /* paywall.js
    FireOps Calc Paywall + Billing bridge (Cordova/Capacitor compatible)
-   - Avoids collision with your app's own "store" (window.store)
-   - Prefers cordova-plugin-purchase v13+ (window.CdvPurchase.store)
-   - Adds debug overlay so we can SEE product/offers/owned state on device
+
+   Goals:
+   - Never unlock unless Google Play reports the product as owned.
+   - Prefer requestPayment(offer) when available (more reliable on many builds).
+   - Provide Restore Purchase flow.
+   - Provide a small on-screen debug panel (native only) to see product/offers/owned state.
 */
 
 const PRO_PRODUCT_ID = "fireops.pro";
@@ -24,10 +27,8 @@ function getBillingStore() {
   try {
     // cordova-plugin-purchase v13+
     if (window.CdvPurchase && window.CdvPurchase.store) return window.CdvPurchase.store;
-
-    // fallback (some older builds)
+    // fallback for some older builds
     if (window.store) return window.store;
-
     return null;
   } catch (_e) {
     return null;
@@ -42,57 +43,12 @@ export function isProUnlocked() {
   try { return localStorage.getItem(KEY_PRO_UNLOCKED) === "1"; } catch (_e) { return false; }
 }
 
-function getProductOwned(storeObj, productId = PRO_PRODUCT_ID) {
-  try {
-    const p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
-    if (!p) return false;
-
-    if (typeof p.owned === "boolean") return p.owned;
-    if (typeof p.isOwned === "function") return !!p.isOwned();
-
-    // Some builds expose a string state
-    if (typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
-
-    return false;
-  } catch (_e) {
-    return false;
-  }
-}
-
-function getProductDebug(storeObj, productId = PRO_PRODUCT_ID) {
-  let p = null;
-  try {
-    p = storeObj && typeof storeObj.get === "function" ? storeObj.get(productId) : null;
-  } catch (_e) {}
-
-  const offers = (p && Array.isArray(p.offers)) ? p.offers : [];
-  const offer0 = offers.length ? offers[0] : null;
-
-  let offerFromGetOffer = null;
-  try {
-    offerFromGetOffer = (p && typeof p.getOffer === "function") ? p.getOffer() : null;
-  } catch (_e) {}
-
-  return {
-    hasStore: !!storeObj,
-    hasGet: !!(storeObj && typeof storeObj.get === "function"),
-    productId,
-    productExists: !!p,
-    productType: p && p.type ? p.type : null,
-    state: p && p.state ? p.state : null,
-    owned: p && typeof p.owned === "boolean" ? p.owned : null,
-    offersCount: offers.length,
-    offer0: offer0 ? { id: offer0.id || offer0.offerId || null, pricingPhases: offer0.pricingPhases || null } : null,
-    offerFromGetOffer: offerFromGetOffer ? { id: offerFromGetOffer.id || offerFromGetOffer.offerId || null } : null,
-    lastBillingError: _lastBillingError || "",
-    native: isNativeApp(),
-    time: new Date().toISOString(),
-  };
+function safeJson(obj) {
+  try { return JSON.stringify(obj, null, 2); } catch (_e) { return String(obj); }
 }
 
 function ensureDebugPanel() {
   if (_debugPanelEl) return _debugPanelEl;
-
   const el = document.createElement("div");
   el.style.position = "fixed";
   el.style.left = "10px";
@@ -109,28 +65,77 @@ function ensureDebugPanel() {
   el.style.maxHeight = "35vh";
   el.style.overflow = "auto";
   el.textContent = "[billing debug]\n(init...)";
-
-  document.body.appendChild(el);
+  try { document.body.appendChild(el); } catch (_e) {}
   _debugPanelEl = el;
   return el;
 }
 
-function showBillingDebugPanel(text) {
+function showDebug(title, dataObj) {
   try {
+    if (!isNativeApp()) return;
     const el = ensureDebugPanel();
-    el.textContent = text;
+    el.textContent = `${title}\n${safeJson(dataObj)}`;
   } catch (_e) {}
 }
 
+function getProduct(storeObj, productId = PRO_PRODUCT_ID) {
+  try {
+    if (storeObj && typeof storeObj.get === "function") return storeObj.get(productId);
+  } catch (_e) {}
+  return null;
+}
+
+function isOwnedProductObj(p) {
+  if (!p) return false;
+  try {
+    if (typeof p.owned === "boolean") return p.owned;
+    if (typeof p.isOwned === "function") return !!p.isOwned();
+    if (typeof p.state === "string" && p.state.toLowerCase().includes("owned")) return true;
+  } catch (_e) {}
+  return false;
+}
+
+function getDebugSnapshot(storeObj, productId = PRO_PRODUCT_ID) {
+  const p = getProduct(storeObj, productId);
+  const offers = (p && Array.isArray(p.offers)) ? p.offers : [];
+  let offerFromGetOffer = null;
+  try { offerFromGetOffer = (p && typeof p.getOffer === "function") ? p.getOffer() : null; } catch (_e) {}
+
+  return {
+    native: isNativeApp(),
+    hasStore: !!storeObj,
+    hasGet: !!(storeObj && typeof storeObj.get === "function"),
+    productId,
+    productExists: !!p,
+    productType: p && p.type ? p.type : null,
+    state: p && p.state ? p.state : null,
+    owned: p ? isOwnedProductObj(p) : null,
+    offersCount: offers.length,
+    offer0Id: offers[0] ? (offers[0].id || offers[0].offerId || null) : null,
+    getOfferId: offerFromGetOffer ? (offerFromGetOffer.id || offerFromGetOffer.offerId || null) : null,
+    lastBillingError: _lastBillingError || "",
+    time: new Date().toISOString(),
+  };
+}
+
 async function waitForOwnership(storeObj, productId = PRO_PRODUCT_ID, timeoutMs = 45000) {
-  const startTs = Date.now();
-  while (Date.now() - startTs < timeoutMs) {
-    try {
-      if (getProductOwned(storeObj, productId)) return true;
-    } catch (_e) {}
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const p = getProduct(storeObj, productId);
+    if (isOwnedProductObj(p)) return true;
     await new Promise(r => setTimeout(r, 500));
   }
   return false;
+}
+
+async function refreshOffers(storeObj) {
+  if (!storeObj) return;
+  try {
+    if (typeof storeObj.update === "function") await storeObj.update();
+    else if (typeof storeObj.refresh === "function") await storeObj.refresh();
+  } catch (e) {
+    _lastBillingError = (e && e.message) ? e.message : String(e);
+  }
 }
 
 export async function initBilling({ verbose = false } = {}) {
@@ -140,91 +145,72 @@ export async function initBilling({ verbose = false } = {}) {
   if (!_store) return { ok: false, reason: "no_store" };
 
   try {
-    // Try to register product if the plugin supports it (safe no-op if not)
+    // Register product if supported (safe no-op on builds without register)
     try {
       if (typeof _store.register === "function" && _store.NON_CONSUMABLE) {
         _store.register({ id: PRO_PRODUCT_ID, type: _store.NON_CONSUMABLE });
       }
     } catch (_e) {}
 
-    // Initialize / refresh
     if (typeof _store.initialize === "function") {
       await _store.initialize();
     }
 
-    // IMPORTANT: many builds require update() to fetch offers
-    try {
-      if (typeof _store.update === "function") await _store.update();
-      else if (typeof _store.refresh === "function") await _store.refresh();
-    } catch (e) {
-      _lastBillingError = (e && e.message) ? e.message : String(e);
-    }
+    // IMPORTANT: fetch offers/SKUs
+    await refreshOffers(_store);
 
-    if (getProductOwned(_store, PRO_PRODUCT_ID)) setProUnlockedLocal();
+    // If already owned, persist local flag
+    if (isOwnedProductObj(getProduct(_store, PRO_PRODUCT_ID))) setProUnlockedLocal();
 
-    if (verbose) {
-      const d = getProductDebug(_store, PRO_PRODUCT_ID);
-      showBillingDebugPanel("[billing debug init]\n" + JSON.stringify(d, null, 2));
-    }
-
+    if (verbose) showDebug("[billing init]", getDebugSnapshot(_store, PRO_PRODUCT_ID));
     return { ok: true };
   } catch (e) {
     _lastBillingError = (e && e.message) ? e.message : String(e);
-    if (verbose) {
-      const d = getProductDebug(_store, PRO_PRODUCT_ID);
-      showBillingDebugPanel("[billing debug init FAILED]\n" + JSON.stringify(d, null, 2));
-    }
+    if (verbose) showDebug("[billing init FAILED]", getDebugSnapshot(_store, PRO_PRODUCT_ID));
     return { ok: false, reason: _lastBillingError || "init_failed" };
   }
 }
 
 export async function buyProduct(productId = PRO_PRODUCT_ID) {
-  if (!isNativeApp()) {
-    throw new Error("Purchases only work inside the installed Google Play app (not the website).");
-  }
+  if (!isNativeApp()) throw new Error("Purchases only work inside the installed Google Play app (not the website).");
 
   if (!_store) _store = getBillingStore();
   if (!_store) throw new Error("Billing store not available (CdvPurchase/store missing).");
 
-  // If already owned, unlock immediately
-  if (getProductOwned(_store, productId) || isProUnlocked()) {
+  // If already owned, unlock
+  const alreadyOwned = isOwnedProductObj(getProduct(_store, productId)) || isProUnlocked();
+  if (alreadyOwned) {
     setProUnlockedLocal();
     return { ok: true, alreadyOwned: true };
   }
 
-  // Ensure product/offers are loaded before attempting purchase
-  try {
-    if (typeof _store.update === "function") await _store.update();
-    else if (typeof _store.refresh === "function") await _store.refresh();
-  } catch (e) {
-    _lastBillingError = (e && e.message) ? e.message : String(e);
+  // Ensure offers are loaded
+  await refreshOffers(_store);
+  showDebug("[billing pre-purchase]", getDebugSnapshot(_store, productId));
+
+  const product = getProduct(_store, productId);
+  if (!product) {
+    throw new Error("Product not loaded in billing store (store.get returned null).");
   }
 
-  // Debug snapshot pre-purchase
+  // Pick an offer
+  let offer = null;
+  try { offer = (typeof product.getOffer === "function") ? product.getOffer() : null; } catch (_e) {}
+  if (!offer) {
+    const offers = Array.isArray(product.offers) ? product.offers : [];
+    offer = offers.length ? offers[0] : null;
+  }
+
+  if (!offer) {
+    throw new Error("No purchase offer available (offersCount=0).");
+  }
+
+  // Prefer requestPayment(offer)
   try {
-    const d = getProductDebug(_store, productId);
-    showBillingDebugPanel("[billing debug pre-purchase]\n" + JSON.stringify(d, null, 2));
-  } catch (_e) {}
-
-  // Attempt purchase across plugin API variants
-  try {
-    // Prefer v13+ requestPayment flow when available (it reliably triggers the Play purchase sheet)
-    const p = typeof _store.get === "function" ? _store.get(productId) : null;
-    const offers = p && Array.isArray(p.offers) ? p.offers : [];
-    const offer = (p && typeof p.getOffer === "function") ? p.getOffer() : (offers.length ? offers[0] : null);
-
-    if (!p) {
-      const d = getProductDebug(_store, productId);
-      throw new Error("Product not loaded in billing store. " + JSON.stringify(d));
-    }
-    if (!offer) {
-      const d = getProductDebug(_store, productId);
-      throw new Error("No purchase offer available for this product. " + JSON.stringify(d));
-    }
-
     if (typeof _store.requestPayment === "function") {
-      await _store.requestPayment(offer || p || productId);
+      await _store.requestPayment(offer);
       const owned = await waitForOwnership(_store, productId);
+      showDebug("[billing post-requestPayment]", getDebugSnapshot(_store, productId));
       if (owned) {
         setProUnlockedLocal();
         return { ok: true };
@@ -232,10 +218,11 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
       throw new Error("Purchase did not complete (no ownership detected).");
     }
 
-    // Fallback: store.order(productId)
+    // Fallback: order(productId)
     if (typeof _store.order === "function") {
       await _store.order(productId);
       const owned = await waitForOwnership(_store, productId);
+      showDebug("[billing post-order]", getDebugSnapshot(_store, productId));
       if (owned) {
         setProUnlockedLocal();
         return { ok: true };
@@ -243,7 +230,7 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
       throw new Error("Purchase did not complete (no ownership detected).");
     }
 
-    throw new Error("Purchase API not found (store.order/requestPayment missing).");
+    throw new Error("Purchase API not found (store.requestPayment/store.order missing).");
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     throw new Error(msg);
@@ -252,19 +239,21 @@ export async function buyProduct(productId = PRO_PRODUCT_ID) {
 
 export async function restorePurchases(productId = PRO_PRODUCT_ID) {
   if (!isNativeApp()) return { ok: false, reason: "web" };
+
   if (!_store) _store = getBillingStore();
   if (!_store) return { ok: false, reason: "no_store" };
 
   try {
     if (typeof _store.restorePurchases === "function") {
       await _store.restorePurchases();
-    } else if (typeof _store.update === "function") {
-      await _store.update();
-    } else if (typeof _store.refresh === "function") {
-      await _store.refresh();
+    } else {
+      await refreshOffers(_store);
     }
 
-    if (getProductOwned(_store, productId)) {
+    const owned = isOwnedProductObj(getProduct(_store, productId));
+    showDebug("[billing restore]", getDebugSnapshot(_store, productId));
+
+    if (owned) {
       setProUnlockedLocal();
       return { ok: true, restored: true };
     }
@@ -276,19 +265,16 @@ export async function restorePurchases(productId = PRO_PRODUCT_ID) {
 }
 
 /* ---------------------------------------------------------
-   UI HELPERS (Trial modal + Hard paywall)
+   UI (Trial modal + Hard paywall)
 --------------------------------------------------------- */
 
-// Trial modal (supports onPay or onBuyNow)
 export function renderTrialIntroModal({
   trialDays = 5,
   priceText = "$1.99 one-time",
   onContinue = null,
   onPay = null,
-  onBuyNow = null,
+  onRestore = null,
 } = {}) {
-  const _onPay = onPay || onBuyNow;
-
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.inset = "0";
@@ -313,11 +299,11 @@ export function renderTrialIntroModal({
   h.style.fontWeight = "800";
   h.style.marginBottom = "10px";
 
-  const p = document.createElement("div");
-  p.textContent = `FireOps Calc is free for ${trialDays} days. You can unlock full access anytime with a one-time purchase.`;
-  p.style.opacity = "0.95";
-  p.style.marginBottom = "12px";
-  p.style.lineHeight = "1.35";
+  const body = document.createElement("div");
+  body.textContent = `FireOps Calc is free for ${trialDays} days. You can unlock full access anytime with a one-time purchase.`;
+  body.style.opacity = "0.95";
+  body.style.marginBottom = "10px";
+  body.style.lineHeight = "1.35";
 
   const hint = document.createElement("div");
   hint.textContent = "If the purchase sheet doesn’t open, billing may not be ready yet.";
@@ -340,6 +326,15 @@ export function renderTrialIntroModal({
   btnContinue.style.color = "#eaf0ff";
   btnContinue.style.fontWeight = "700";
 
+  const btnRestore = document.createElement("button");
+  btnRestore.textContent = "Restore Purchase";
+  btnRestore.style.padding = "12px 16px";
+  btnRestore.style.borderRadius = "12px";
+  btnRestore.style.border = "1px solid rgba(255,255,255,0.14)";
+  btnRestore.style.background = "transparent";
+  btnRestore.style.color = "#eaf0ff";
+  btnRestore.style.fontWeight = "700";
+
   const btnPay = document.createElement("button");
   btnPay.textContent = `Pay Now — ${priceText}`;
   btnPay.style.padding = "12px 18px";
@@ -355,13 +350,12 @@ export function renderTrialIntroModal({
   });
 
   btnPay.addEventListener("click", async () => {
-    if (!_onPay) return;
-
+    if (!onPay) return;
     const original = btnPay.textContent;
     btnPay.disabled = true;
     btnPay.textContent = "Opening purchase...";
     try {
-      await _onPay();
+      await onPay();
       try { overlay.remove(); } catch (_e) {}
     } catch (e) {
       const msg = e && e.message ? e.message : String(e);
@@ -371,14 +365,30 @@ export function renderTrialIntroModal({
     }
   });
 
+  btnRestore.addEventListener("click", async () => {
+    if (!onRestore) return;
+    const original = btnRestore.textContent;
+    btnRestore.disabled = true;
+    btnRestore.textContent = "Restoring...";
+    try {
+      await onRestore();
+      try { overlay.remove(); } catch (_e) {}
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      alert("Restore failed: " + msg);
+      btnRestore.disabled = false;
+      btnRestore.textContent = original;
+    }
+  });
+
   row.appendChild(btnContinue);
+  if (onRestore) row.appendChild(btnRestore);
   row.appendChild(btnPay);
 
   card.appendChild(h);
-  card.appendChild(p);
+  card.appendChild(body);
   card.appendChild(hint);
   card.appendChild(row);
-
   overlay.appendChild(card);
   document.body.appendChild(overlay);
 }
@@ -386,6 +396,7 @@ export function renderTrialIntroModal({
 export async function renderPaywall({
   priceText = "$1.99 one-time",
   onPay = null,
+  onRestore = null,
   onClose = null,
 } = {}) {
   const overlay = document.createElement("div");
@@ -412,11 +423,11 @@ export async function renderPaywall({
   h.style.fontWeight = "900";
   h.style.marginBottom = "10px";
 
-  const p = document.createElement("div");
-  p.textContent = `Get full access with a one-time purchase (${priceText}).`;
-  p.style.opacity = "0.95";
-  p.style.marginBottom = "10px";
-  p.style.lineHeight = "1.35";
+  const body = document.createElement("div");
+  body.textContent = `Get full access with a one-time purchase (${priceText}).`;
+  body.style.opacity = "0.95";
+  body.style.marginBottom = "10px";
+  body.style.lineHeight = "1.35";
 
   const hint = document.createElement("div");
   hint.textContent = "If the purchase sheet doesn’t open, billing may not be ready yet.";
@@ -439,6 +450,15 @@ export async function renderPaywall({
   btnClose.style.color = "#eaf0ff";
   btnClose.style.fontWeight = "700";
 
+  const btnRestore = document.createElement("button");
+  btnRestore.textContent = "Restore Purchase";
+  btnRestore.style.padding = "12px 16px";
+  btnRestore.style.borderRadius = "12px";
+  btnRestore.style.border = "1px solid rgba(255,255,255,0.14)";
+  btnRestore.style.background = "transparent";
+  btnRestore.style.color = "#eaf0ff";
+  btnRestore.style.fontWeight = "700";
+
   const btnPay = document.createElement("button");
   btnPay.textContent = `Pay Now — ${priceText}`;
   btnPay.style.padding = "12px 18px";
@@ -455,7 +475,6 @@ export async function renderPaywall({
 
   btnPay.addEventListener("click", async () => {
     if (!onPay) return;
-
     const original = btnPay.textContent;
     btnPay.disabled = true;
     btnPay.textContent = "Opening purchase...";
@@ -470,11 +489,28 @@ export async function renderPaywall({
     }
   });
 
+  btnRestore.addEventListener("click", async () => {
+    if (!onRestore) return;
+    const original = btnRestore.textContent;
+    btnRestore.disabled = true;
+    btnRestore.textContent = "Restoring...";
+    try {
+      await onRestore();
+      try { overlay.remove(); } catch (_e) {}
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      alert("Restore failed: " + msg);
+      btnRestore.disabled = false;
+      btnRestore.textContent = original;
+    }
+  });
+
   row.appendChild(btnClose);
+  if (onRestore) row.appendChild(btnRestore);
   row.appendChild(btnPay);
 
   card.appendChild(h);
-  card.appendChild(p);
+  card.appendChild(body);
   card.appendChild(hint);
   card.appendChild(row);
 
