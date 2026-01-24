@@ -1,4 +1,4 @@
-// app.js
+// app.js — Production
 // Tiny router + lazy loading
 // Paywall is lazy-loaded ONLY on native
 
@@ -12,18 +12,17 @@ const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
 
-// --------------------------- Native detection ---------------------------
 function isNativeApp() {
   try {
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
     const p = window?.Capacitor?.getPlatform?.();
     if (p && p !== 'web') return true;
-  } catch (_e) {}
+  } catch {}
 
   try {
     const host = (window?.location?.hostname || '').toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') return true;
-  } catch (_e) {}
+  } catch {}
 
   const proto = (window?.location?.protocol || '').toLowerCase();
   return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
@@ -38,14 +37,13 @@ async function getPaywall() {
   return _paywallMod;
 }
 
-// --------------------------- Top actions visibility ---------------------------
+// Top quick-action row (Department Setup button)
 const topActionsEl = document.querySelector('.top-actions');
 function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
   topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
 }
 
-// --------------------------- View loaders ---------------------------
 const loaders = {
   calc:     () => import('./view.calc.js'),
   practice: () => import('./view.practice.js'),
@@ -80,14 +78,14 @@ async function openCharts() {
         format: 'auto',
         style: 'display:block; margin:16px 0;',
       });
-    } catch (_e) {}
+    } catch {}
   } catch (err) {
     chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
   }
 }
 
 function closeCharts() {
-  if (chartsDispose) { try { chartsDispose(); } catch (_e) {} chartsDispose = null; }
+  if (chartsDispose) { try { chartsDispose(); } catch {} chartsDispose = null; }
   if (chartsMount) chartsMount.innerHTML = '';
   if (chartsOverlay) chartsOverlay.style.display = 'none';
   updateTopActionsVisibility(currentView?.name || 'calc');
@@ -96,7 +94,6 @@ function closeCharts() {
 if (chartsClose) chartsClose.addEventListener('click', closeCharts);
 if (chartsOverlay) chartsOverlay.addEventListener('click', (e) => { if (e.target === chartsOverlay) closeCharts(); });
 
-// ---- view swapping for calc/practice/settings ----
 function withTimeout(promise, ms, label) {
   return Promise.race([
     promise,
@@ -104,41 +101,33 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-// When Pro unlock happens, refresh into calc (or keep current view if you prefer)
+// On unlock, bounce back to calc
 window.addEventListener('fireops:pro_unlocked', () => {
-  try {
-    // If paywall is up, re-enter calc cleanly
-    setView('calc');
-  } catch (_e) {}
+  try { setView('calc'); } catch {}
 });
 
 async function setView(name) {
   try {
-    // Native-only: show paywall and hard-block after trial expires
+    // Native-only: show paywall intro + hard block after trial
     if (isNativeApp()) {
       const pw = await getPaywall();
       if (pw) {
-        // Init billing (never block app if it fails)
-        try { await pw.initBilling?.({ verbose: true }); } catch (_e) {}
+        try { await pw.initBilling?.(); } catch {}
+        try { pw.showPaywallModal?.({ force: false }); } catch {}
 
-        // Always show paywall intro for new installs (unless hidden), and hard-block after trial
-        try { pw.showPaywallModal?.({ force: false }); } catch (_e) {}
-
-        // If trial expired, do not load any views behind the paywall
         try {
           if (pw.hardBlocked?.()) {
-            if (currentView?.dispose) { try { currentView.dispose(); } catch (_e) {} }
+            if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
             if (topActionsEl) topActionsEl.style.display = 'none';
             currentView = { name: 'paywall', dispose: null };
             buttons.forEach(b => b.classList.remove('active'));
             return;
           }
-        } catch (_e) {}
+        } catch {}
       }
     }
 
-    // Normal view loading
-    if (currentView?.dispose) { currentView.dispose(); }
+    if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
 
     updateTopActionsVisibility(name);
 
@@ -159,11 +148,7 @@ async function setView(name) {
           <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
 
           <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
-          <button class="btn" id="btnReload" style="margin-left:8px;">Hard Reload</button>
-
-          <div style="opacity:.7;margin-top:10px;font-size:.9em;">
-            If this keeps happening on web, clear site data for fireopscalc.com (cache + storage).
-          </div>
+          <button class="btn" id="btnReload" style="margin-left:8px;">Reload</button>
         </div>
       `;
 
@@ -176,7 +161,6 @@ async function setView(name) {
   }
 }
 
-// Intercept bottom-nav clicks: open overlay for Charts, swap view for others
 buttons.forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.view;
 
