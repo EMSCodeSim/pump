@@ -1,5 +1,6 @@
 // app.js
-// Tiny router + lazy loading (Paywall is lazy-loaded ONLY on native)
+// Tiny router + lazy loading
+// Paywall is lazy-loaded ONLY on native
 
 import { renderAdOnce } from './ads-guards.js';
 
@@ -11,95 +12,21 @@ const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
 
-// --------------------------- Paywall config ---------------------------
-// Play Console product id (no underscores)
-const PRO_PRODUCT_ID = 'fireops.pro';
-const TRIAL_DAYS = 5;
-
-const KEY_INSTALL_TS = 'fireops_install_ts_v1';
-const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
-const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
-const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
-
+// --------------------------- Native detection ---------------------------
 function isNativeApp() {
   try {
-    // Preferred: Capacitor API
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
     const p = window?.Capacitor?.getPlatform?.();
     if (p && p !== 'web') return true;
   } catch (_e) {}
 
-  // Capacitor Android often runs http(s)://localhost inside native WebView
   try {
     const host = (window?.location?.hostname || '').toLowerCase();
     if (host === 'localhost' || host === '127.0.0.1') return true;
   } catch (_e) {}
 
-  // Fallback: native schemes
   const proto = (window?.location?.protocol || '').toLowerCase();
   return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
-}
-
-function hasAnyExistingUserData() {
-  const keys = [
-    'fireops_dept_equipment_v1',
-    'fireops_quickstart_seen_version',
-    'fireops_practice_v1',
-    'PRACTICE_SAVE_KEY',
-    'fireops_presets_v1',
-  ];
-  try {
-    for (const k of keys) {
-      if (localStorage.getItem(k) != null) return true;
-    }
-  } catch (_e) {}
-  return false;
-}
-
-function initTrialFlags() {
-  let ts = 0;
-  try { ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0; } catch (_e) {}
-  if (!ts) {
-    const existing = hasAnyExistingUserData();
-    if (existing) {
-      try { localStorage.setItem(KEY_GRANDFATHERED, '1'); } catch (_e) {}
-    }
-    try { localStorage.setItem(KEY_INSTALL_TS, String(Date.now())); } catch (_e) {}
-  }
-}
-
-function isGrandfathered() {
-  try { return localStorage.getItem(KEY_GRANDFATHERED) === '1'; } catch (_e) {}
-  return false;
-}
-function isProUnlockedLocal() {
-  try { return localStorage.getItem(KEY_PRO_UNLOCKED) === '1'; } catch (_e) {}
-  return false;
-}
-function setProUnlockedLocal() {
-  try { localStorage.setItem(KEY_PRO_UNLOCKED, '1'); } catch (_e) {}
-}
-function hasShownTrialIntro() {
-  try { return localStorage.getItem(KEY_TRIAL_INTRO_SHOWN) === '1'; } catch (_e) {}
-  return false;
-}
-function markTrialIntroShown() {
-  try { localStorage.setItem(KEY_TRIAL_INTRO_SHOWN, '1'); } catch (_e) {}
-}
-function daysSinceInstall() {
-  try {
-    const ts = Number(localStorage.getItem(KEY_INSTALL_TS) || '0') || 0;
-    if (!ts) return 0;
-    return Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000));
-  } catch (_e) {}
-  return 0;
-}
-
-function shouldBlockWithPaywall() {
-  if (!isNativeApp()) return false;        // web stays free
-  if (isGrandfathered()) return false;     // existing users free
-  if (isProUnlockedLocal()) return false;  // already paid (local flag)
-  return daysSinceInstall() >= TRIAL_DAYS; // trial expired
 }
 
 // ---- Lazy paywall module loader (native only) ----
@@ -111,13 +38,14 @@ async function getPaywall() {
   return _paywallMod;
 }
 
-// Top quick-action row (Department Setup button)
+// --------------------------- Top actions visibility ---------------------------
 const topActionsEl = document.querySelector('.top-actions');
 function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
   topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
 }
 
+// --------------------------- View loaders ---------------------------
 const loaders = {
   calc:     () => import('./view.calc.js'),
   practice: () => import('./view.practice.js'),
@@ -176,66 +104,36 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
+// When Pro unlock happens, refresh into calc (or keep current view if you prefer)
+window.addEventListener('fireops:pro_unlocked', () => {
+  try {
+    // If paywall is up, re-enter calc cleanly
+    setView('calc');
+  } catch (_e) {}
+});
+
 async function setView(name) {
   try {
-    initTrialFlags();
-
-    // Native-only: billing init + trial intro + paywall
+    // Native-only: show paywall and hard-block after trial expires
     if (isNativeApp()) {
       const pw = await getPaywall();
-
       if (pw) {
-        // Init billing (safe: never block app if it fails)
+        // Init billing (never block app if it fails)
+        try { await pw.initBilling?.({ verbose: true }); } catch (_e) {}
+
+        // Always show paywall intro for new installs (unless hidden), and hard-block after trial
+        try { pw.showPaywallModal?.({ force: false }); } catch (_e) {}
+
+        // If trial expired, do not load any views behind the paywall
         try {
-          await pw.initBilling?.({ verbose: true });
-
-          // If plugin reports owned, keep local flag in sync
-          try {
-            if (pw.isProUnlocked?.()) setProUnlockedLocal();
-          } catch (_e) {}
-        } catch (_e) {}
-
-        // First-time: show “Risk-Free Trial” popup (new users only)
-        if (!isGrandfathered() && !isProUnlockedLocal() && !shouldBlockWithPaywall() && !hasShownTrialIntro()) {
-          markTrialIntroShown();
-          try {
-            pw.renderTrialIntroModal?.({
-              trialDays: TRIAL_DAYS,
-              priceText: '$1.99 one-time',
-              onContinue: () => {},
-              onPay: async () => {
-                const res = await pw.buyProduct(PRO_PRODUCT_ID);
-                if (res?.ok) setProUnlockedLocal();
-              }
-            });
-          } catch (_e) {}
-        }
-
-        // Hard paywall after trial expires
-        if (shouldBlockWithPaywall()) {
-          if (currentView?.dispose) { try { currentView.dispose(); } catch (_e) {} }
-          if (topActionsEl) topActionsEl.style.display = 'none';
-
-          if (app) {
-            app.innerHTML = '';
-            await pw.renderPaywall({
-              priceText: '$1.99 one-time',
-              onPay: async () => {
-                const res = await pw.buyProduct(PRO_PRODUCT_ID);
-                if (res?.ok) setProUnlockedLocal();
-                // After purchase, re-enter calc
-                setView('calc');
-              },
-              onClose: () => {
-                // Trial expired; keep them gated.
-              },
-            });
+          if (pw.hardBlocked?.()) {
+            if (currentView?.dispose) { try { currentView.dispose(); } catch (_e) {} }
+            if (topActionsEl) topActionsEl.style.display = 'none';
+            currentView = { name: 'paywall', dispose: null };
+            buttons.forEach(b => b.classList.remove('active'));
+            return;
           }
-
-          currentView = { name: 'paywall', dispose: null };
-          buttons.forEach(b => b.classList.remove('active'));
-          return;
-        }
+        } catch (_e) {}
       }
     }
 
