@@ -1,23 +1,24 @@
-/* paywall.js — FireOps Calc (Option A)
+/* paywall.js — FireOps Calc (Unified)
    - 5-day free trial for NEW installs only
-   - Existing installs are grandfathered
+   - Existing installs can be grandfathered (auto-detected by existing user data)
    - One-time purchase unlock (fireops.pro)
 */
 
-const PRO_PRODUCT_ID = 'fireops.pro'; // must match Play Console Product ID exactly
-const TRIAL_DAYS = 5;
+export const PRO_PRODUCT_ID = 'fireops.pro'; // must match Play Console Product ID exactly
+export const TRIAL_DAYS = 5;
 
 const KEY_INSTALL_TS = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED = 'fireops_pro_unlocked_v1';
 const KEY_TRIAL_INTRO_SHOWN = 'fireops_trial_intro_shown_v1';
+const KEY_PAYWALL_HIDE = 'fireops_paywall_hide_v1';
 
 let _billingInitPromise = null;
 
 function nowMs() { return Date.now(); }
 function daysToMs(days) { return days * 24 * 60 * 60 * 1000; }
 
-function isNativeApp() {
+export function isNativeApp() {
   // Cordova or Capacitor in native shell
   return !!(window.cordova || window.Capacitor?.isNativePlatform?.());
 }
@@ -35,14 +36,32 @@ function safeSetLS(key, val) {
   try { localStorage.setItem(key, val); } catch {}
 }
 
+function hasAnyExistingUserData() {
+  // If any of these exist, we assume this install existed before paywall rollout
+  // (helps you grandfather existing users)
+  const keys = [
+    'fireops_dept_equipment_v1',
+    'fireops_quickstart_seen_version',
+    'fireops_practice_v1',
+    'PRACTICE_SAVE_KEY',
+    'fireops_presets_v1',
+  ];
+  try {
+    for (const k of keys) {
+      if (localStorage.getItem(k) != null) return true;
+    }
+  } catch (_e) {}
+  return false;
+}
+
 function ensureInstallTimestamps() {
   const existing = safeGetLS(KEY_INSTALL_TS);
   if (!existing) {
+    // Auto-grandfather if we detect any existing user data
+    const oldUser = hasAnyExistingUserData();
+    safeSetLS(KEY_GRANDFATHERED, oldUser ? '1' : '0');
     safeSetLS(KEY_INSTALL_TS, String(nowMs()));
-    // If they install AFTER you introduced paywall, they are NOT grandfathered.
-    safeSetLS(KEY_GRANDFATHERED, '0');
   }
-  // If you ever want to force-grandfather existing users, you would set KEY_GRANDFATHERED=1
 }
 
 function getInstallMs() {
@@ -51,52 +70,41 @@ function getInstallMs() {
   return Number.isFinite(n) ? n : null;
 }
 
-function isProUnlocked() {
+export function isProUnlocked() {
   return safeGetLS(KEY_PRO_UNLOCKED) === '1';
 }
 
-function setProUnlocked(val) {
+export function setProUnlocked(val) {
   safeSetLS(KEY_PRO_UNLOCKED, val ? '1' : '0');
 }
 
-function isGrandfathered() {
+export function isGrandfathered() {
   return safeGetLS(KEY_GRANDFATHERED) === '1';
 }
 
-function trialExpired() {
+export function trialExpired() {
   const installMs = getInstallMs();
   if (!installMs) return false;
   const elapsed = nowMs() - installMs;
   return elapsed >= daysToMs(TRIAL_DAYS);
 }
 
-function shouldShowPaywallNow() {
-  // Option A behavior:
-  // - Existing installs can be grandfathered
-  // - New installs: show paywall (intro) and allow continue during trial, then hard-block after trial ends
+export function shouldShowPaywallNow() {
+  // Always show paywall UI (as intro) for new installs unless they hide it.
+  // Hard-block after trial ends.
   if (isProUnlocked()) return false;
   if (isGrandfathered()) return false;
   return true;
 }
 
-function hardBlocked() {
+export function hardBlocked() {
   // After 5 days: hard paywall for new installs (unless unlocked or grandfathered)
   if (isProUnlocked()) return false;
   if (isGrandfathered()) return false;
   return trialExpired();
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
 function buildPaywallHtml() {
-  // Keep your existing look/feel + truck image
   return `
   <div class="paywall-overlay" id="paywallOverlay">
     <div class="paywall-card">
@@ -106,7 +114,7 @@ function buildPaywallHtml() {
 
       <div class="paywall-title">5-Day Free Trial — No Risk</div>
       <div class="paywall-subtitle">
-        FireOps Calc is free for 5 days. You can unlock full access anytime with a one-time purchase.
+        FireOps Calc is free for ${TRIAL_DAYS} days. Unlock full access anytime with a one-time purchase.
       </div>
       <div class="paywall-note">
         If the purchase sheet doesn’t open, billing may not be ready yet.
@@ -117,7 +125,7 @@ function buildPaywallHtml() {
         <button class="paywall-btn primary" id="btnPayNow">Pay Now — $1.99 one-time</button>
       </div>
 
-      <label class="paywall-dontshow">
+      <label class="paywall-dontshow" id="dontShowRow">
         <input type="checkbox" id="chkDontShow" />
         Do not show this again
       </label>
@@ -165,11 +173,10 @@ function injectPaywallCssOnce() {
 }
 
 function showToast(msg) {
-  // lightweight, safe
   try { alert(msg); } catch { console.log(msg); }
 }
 
-async function initBilling({ verbose = false } = {}) {
+export async function initBilling({ verbose = false } = {}) {
   if (_billingInitPromise) return _billingInitPromise;
 
   _billingInitPromise = (async () => {
@@ -186,7 +193,6 @@ async function initBilling({ verbose = false } = {}) {
       _store.register({
         id: PRO_PRODUCT_ID,
         type: _store.NON_CONSUMABLE,
-        // Helps cordova-plugin-purchase pick the right store when multiple are available.
         platform: (_store.PLAY_STORE || _store.Platform?.GOOGLE_PLAY || undefined)
       });
     } catch (e) {
@@ -199,16 +205,21 @@ async function initBilling({ verbose = false } = {}) {
         try { p.verify(); } catch {}
       });
       _store.when(PRO_PRODUCT_ID).verified((p) => {
+        // Verified => unlock + acknowledge/finish
         setProUnlocked(true);
         try { p.finish(); } catch {}
+
+        // Notify app.js to refresh views immediately
+        try {
+          window.dispatchEvent(new CustomEvent('fireops:pro_unlocked', { detail: { productId: PRO_PRODUCT_ID } }));
+        } catch (_e) {}
       });
     } catch (e) {
       if (verbose) console.warn('[billing] event wiring failed', e);
     }
 
-    // Initialize store (IMPORTANT FIX)
+    // Initialize store
     try {
-      // Initialize only the needed platform(s). Missing/empty platforms can cause products to never load.
       const platforms = [];
       if (_store?.PLAY_STORE) platforms.push(_store.PLAY_STORE);
       else if (_store?.Platform?.GOOGLE_PLAY) platforms.push(_store.Platform.GOOGLE_PLAY);
@@ -217,7 +228,6 @@ async function initBilling({ verbose = false } = {}) {
 
       await _store.initialize(platforms.length ? platforms : undefined);
 
-      // Fetch products / ownership
       try { await _store.update(); } catch {}
     } catch (e) {
       if (verbose) console.warn('[billing] initialize/update failed', e);
@@ -230,7 +240,6 @@ async function initBilling({ verbose = false } = {}) {
 
 async function getProductDebug() {
   const _store = getBillingStore();
-  const isNative = isNativeApp();
   const debug = {
     hasStore: !!_store,
     hasGet: !!_store?.get,
@@ -240,10 +249,8 @@ async function getProductDebug() {
     state: null,
     owned: null,
     offersCount: 0,
-    offer0: null,
-    offerFromGetOffer: null,
     lastBillingError: '',
-    native: isNative,
+    native: isNativeApp(),
     time: new Date().toISOString()
   };
 
@@ -256,18 +263,6 @@ async function getProductDebug() {
     debug.state = p?.state ?? null;
     debug.owned = p?.owned ?? null;
     debug.offersCount = Array.isArray(p?.offers) ? p.offers.length : 0;
-    debug.offer0 = (p?.offers && p.offers[0]) ? {
-      id: p.offers[0].id ?? null,
-      pricingPhases: p.offers[0].pricingPhases ? '[present]' : null
-    } : null;
-
-    // Some plugin versions support getOffer(id)
-    if (typeof _store.getOffer === 'function') {
-      try {
-        const offer = _store.getOffer(PRO_PRODUCT_ID);
-        debug.offerFromGetOffer = offer ? { id: offer.id ?? null } : null;
-      } catch {}
-    }
   } catch (e) {
     debug.lastBillingError = String(e?.message || e);
   }
@@ -279,7 +274,7 @@ function renderBillingDebug(json) {
   const el = document.getElementById('billingDebug');
   if (!el) return;
   el.style.display = 'block';
-  el.textContent = `[billing debug init]\n${JSON.stringify(json, null, 2)}`;
+  el.textContent = `[billing debug]\n${JSON.stringify(json, null, 2)}`;
 }
 
 function removePaywall() {
@@ -287,25 +282,22 @@ function removePaywall() {
   if (overlay) overlay.remove();
 }
 
-async function buyPro() {
+export async function buyPro() {
   const _store = getBillingStore();
   if (!_store) throw new Error('Billing store not available');
 
-  // Ensure init
   await initBilling({ verbose: true });
 
-  // Confirm product loaded
   const debug = await getProductDebug();
   if (!debug.productExists) {
-    // One more attempt: sometimes the store isn't ready on first open (deviceready timing).
+    // one retry: deviceready timing can cause first load miss
     try { await initBilling({ verbose: true }); } catch {}
     const debug2 = await getProductDebug();
     if (!debug2.productExists) {
-      throw new Error("Product not loaded in billing store. " + JSON.stringify(debug2));
+      throw new Error('Product not loaded in billing store. ' + JSON.stringify(debug2));
     }
   }
 
-  // Order
   try {
     await _store.order(PRO_PRODUCT_ID);
   } catch (e) {
@@ -313,19 +305,19 @@ async function buyPro() {
   }
 }
 
-function showPaywallModal({ force = false } = {}) {
+export function showPaywallModal({ force = false } = {}) {
   ensureInstallTimestamps();
 
   if (!force) {
     if (!shouldShowPaywallNow()) return;
-    // If user checked "do not show again" during trial and not hard-blocked, skip.
-    const dontShow = safeGetLS('fireops_paywall_hide_v1') === '1';
+
+    // Allow hiding during trial only
+    const dontShow = safeGetLS(KEY_PAYWALL_HIDE) === '1';
     if (dontShow && !hardBlocked()) return;
   }
 
   injectPaywallCssOnce();
 
-  // If already present, don't duplicate
   if (document.getElementById('paywallOverlay')) return;
 
   const wrapper = document.createElement('div');
@@ -335,25 +327,31 @@ function showPaywallModal({ force = false } = {}) {
   const btnContinue = document.getElementById('btnContinueTrial');
   const btnPay = document.getElementById('btnPayNow');
   const chk = document.getElementById('chkDontShow');
+  const dontShowRow = document.getElementById('dontShowRow');
 
-  // During hard block, disable continue
+  // During hard block, disable continue and do not allow "don't show again"
   if (hardBlocked()) {
     btnContinue.disabled = true;
     btnContinue.textContent = 'Trial Ended';
+    if (dontShowRow) dontShowRow.style.display = 'none';
   }
 
   // Restore checkbox
-  chk.checked = safeGetLS('fireops_paywall_hide_v1') === '1';
+  if (chk) chk.checked = safeGetLS(KEY_PAYWALL_HIDE) === '1';
 
-  chk.addEventListener('change', () => {
-    safeSetLS('fireops_paywall_hide_v1', chk.checked ? '1' : '0');
-  });
+  if (chk) {
+    chk.addEventListener('change', () => {
+      safeSetLS(KEY_PAYWALL_HIDE, chk.checked ? '1' : '0');
+    });
+  }
 
-  btnContinue.addEventListener('click', () => {
+  btnContinue?.addEventListener('click', () => {
+    // If trial expired, do not allow bypass
+    if (hardBlocked()) return;
     removePaywall();
   });
 
-  btnPay.addEventListener('click', async () => {
+  btnPay?.addEventListener('click', async () => {
     try {
       btnPay.disabled = true;
       btnPay.textContent = 'Opening purchase...';
@@ -363,7 +361,8 @@ function showPaywallModal({ force = false } = {}) {
 
       await buyPro();
 
-      // If purchase succeeds, store events will flip the entitlement; also close paywall
+      // verified() handler will unlock + finish + emit event
+      // close UI now (or it will close after unlock event in app.js)
       removePaywall();
     } catch (e) {
       const msg = e?.message || String(e);
@@ -376,25 +375,24 @@ function showPaywallModal({ force = false } = {}) {
     }
   });
 
-  // Start billing init in background
+  // Start billing init (non-blocking)
   initBilling({ verbose: false })
     .then(async () => {
-      const debug = await getProductDebug();
-      // Only show debug automatically in native for troubleshooting
-      if (isNativeApp()) renderBillingDebug(debug);
+      if (isNativeApp()) renderBillingDebug(await getProductDebug());
     })
     .catch(async () => {
-      const debug = await getProductDebug();
-      if (isNativeApp()) renderBillingDebug(debug);
+      if (isNativeApp()) renderBillingDebug(await getProductDebug());
     });
 }
 
-// Public API
+// Compatibility: keep the window API you used before
 window.fireOpsPaywall = {
   initBilling,
   showPaywallModal,
   shouldShowPaywallNow,
   hardBlocked,
   isProUnlocked,
-  setProUnlocked
+  setProUnlocked,
+  buyPro,
+  isNativeApp
 };
