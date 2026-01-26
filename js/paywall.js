@@ -1,9 +1,9 @@
-/* paywall.js — FireOps Calc (PRODUCTION)
+/* paywall.js — FireOps Calc (NO POPUP MODE)
    - Product ID: fireops.pro (ONE-TIME PRODUCT)
-   - Trial: 5 days (unless grandfathered)
-   - No debug UI / no product info displayed
-   - Grandfathered users bypass paywall + bypass trial blocking
-   - IMPORTANT: Unlocks on APPROVED (so purchases unlock even without verify/validator)
+   - Trial timer still tracks 5 days from first launch/download
+   - NO paywall popup/modal displayed
+   - Grandfathered users bypass trial blocking
+   - Billing init still available (silent)
 */
 
 export const PRO_PRODUCT_ID = 'fireops.pro';
@@ -12,14 +12,13 @@ export const TRIAL_DAYS = 5;
 const KEY_INSTALL_TS    = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED  = 'fireops_pro_unlocked_v1';
-const KEY_PAYWALL_HIDE  = 'fireops_paywall_hide_v1';
+const KEY_PAYWALL_HIDE  = 'fireops_paywall_hide_v1'; // kept for compatibility
 
 let _billingInitPromise = null;
 
 // -------------------- localStorage safe --------------------
 function lsGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function lsSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
-function lsDel(key) { try { localStorage.removeItem(key); } catch {} }
 
 // -------------------- time --------------------
 function nowMs() { return Date.now(); }
@@ -37,7 +36,7 @@ export function isNativeApp() {
 function getPlatformName() {
   try {
     const p = window.Capacitor?.getPlatform?.();
-    if (p) return p; // 'android' | 'ios' | 'web'
+    if (p) return p;
   } catch {}
   if (/Android/i.test(navigator.userAgent)) return 'android';
   if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'ios';
@@ -71,7 +70,7 @@ function ensureInstallTimestamps() {
   const existing = lsGet(KEY_INSTALL_TS);
   if (!existing) {
     const oldUser = hasAnyExistingUserData();
-    // ✅ Grandfathered users ON
+    // Grandfathered users ON
     lsSet(KEY_GRANDFATHERED, oldUser ? '1' : '0');
     lsSet(KEY_INSTALL_TS, String(nowMs()));
   }
@@ -93,75 +92,13 @@ export function trialExpired() {
 }
 
 export function hardBlocked() {
-  // ✅ Grandfathered users are never blocked
+  // Grandfathered users are never blocked
   if (isProUnlocked()) return false;
   if (isGrandfathered()) return false;
   return trialExpired();
 }
 
-function daysRemaining() {
-  const im = installMs();
-  if (!im) return TRIAL_DAYS;
-  const elapsed = nowMs() - im;
-  const remaining = TRIAL_DAYS - Math.floor(elapsed / daysToMs(1));
-  return Math.max(0, remaining);
-}
-
-// -------------------- UI --------------------
-function injectCssOnce() {
-  if (document.getElementById('paywallCss')) return;
-  const css = `
-    .paywall-overlay{position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; z-index:99999; padding:16px;}
-    .paywall-card{width:min(560px,94vw); background:#121826; color:#fff; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,.45); padding:18px;}
-    .paywall-title{font-size:22px; font-weight:800; margin:6px 0;}
-    .paywall-subtitle{font-size:15px; line-height:1.35; opacity:.92; margin-bottom:14px;}
-    .paywall-actions{display:flex; gap:12px; justify-content:flex-end; flex-wrap:wrap;}
-    .paywall-btn{border:none; border-radius:12px; padding:12px 16px; font-weight:800; cursor:pointer; min-width:200px;}
-    .paywall-btn.secondary{background:transparent; color:#dbe6ff; border:1px solid rgba(255,255,255,.25);}
-    .paywall-btn.primary{background:#2a6bff; color:#fff;}
-    .paywall-btn[disabled]{opacity:.55; cursor:not-allowed;}
-    .paywall-row{display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap; margin-top:10px;}
-    .paywall-footnote{margin-top:10px; font-size:12px; opacity:.65;}
-  `;
-  const style = document.createElement('style');
-  style.id = 'paywallCss';
-  style.textContent = css;
-  document.head.appendChild(style);
-}
-
-function removePaywall() {
-  const overlay = document.getElementById('paywallOverlay');
-  if (overlay) overlay.remove();
-}
-
-function buildHtml({ blocked }) {
-  const remaining = daysRemaining();
-  const subtitle = blocked
-    ? `Your ${TRIAL_DAYS}-day free trial has ended. Unlock Pro to continue using FireOps Calc.`
-    : `FireOps Calc is free for ${TRIAL_DAYS} days. You have ${remaining} day(s) left. Unlock Pro anytime with a one-time purchase.`;
-
-  return `
-  <div class="paywall-overlay" id="paywallOverlay">
-    <div class="paywall-card">
-      <div class="paywall-title">${blocked ? 'Trial Ended' : '5-Day Free Trial'}</div>
-      <div class="paywall-subtitle">${subtitle}</div>
-
-      <div class="paywall-actions">
-        ${blocked ? '' : `<button class="paywall-btn secondary" id="btnContinue">Continue Free Trial</button>`}
-        <button class="paywall-btn primary" id="btnBuy">Unlock Pro — $1.99 one-time</button>
-      </div>
-
-      <div class="paywall-row">
-        <button class="paywall-btn secondary" id="btnRestore">Restore Purchases</button>
-        ${blocked ? '' : `<button class="paywall-btn secondary" id="btnHide">Don't show again</button>`}
-      </div>
-
-      <div class="paywall-footnote">Purchases are processed through Google Play.</div>
-    </div>
-  </div>`;
-}
-
-// -------------------- Billing init --------------------
+// -------------------- Billing init (silent) --------------------
 export async function initBilling() {
   if (_billingInitPromise) return _billingInitPromise;
 
@@ -198,28 +135,24 @@ export async function initBilling() {
       store.register(reg);
     } catch {}
 
-    // Purchase lifecycle
+    // Purchase lifecycle (silent unlock)
     try {
       if (typeof store.when === 'function') {
         const w = store.when(PRO_PRODUCT_ID);
 
-        // ✅ PRODUCTION-SAFE: unlock on approved (does not rely on validator/verified)
+        // Unlock on approved (no UI dependency)
         w?.approved?.((p) => {
           setProUnlocked(true);
           try { p.finish(); } catch {}
           try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
-          // optional verify attempt (won't block unlock)
           try { p.verify?.(); } catch {}
         });
 
-        // Keep verified too (harmless; some configs still emit it)
         w?.verified?.((p) => {
           setProUnlocked(true);
           try { p.finish(); } catch {}
           try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
         });
-
-        w?.error?.((err) => { try { console.warn('[billing] error', err); } catch {} });
       }
     } catch {}
 
@@ -247,7 +180,6 @@ export async function buyPro() {
   await initBilling();
   const store = getBillingStore();
   if (!store) throw new Error('Billing store missing');
-
   try { await store.update(); } catch {}
 
   const product = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
@@ -257,7 +189,6 @@ export async function buyPro() {
       `Make sure it is Active and installed from the correct Play testing track.`
     );
   }
-
   await store.order(PRO_PRODUCT_ID);
 }
 
@@ -274,84 +205,14 @@ export async function restorePurchases() {
 }
 
 // -------------------- PUBLIC: showPaywallModal --------------------
-export function showPaywallModal({ force = false } = {}) {
+// NO-POPUP MODE: keep signature so app.js can call it, but do nothing.
+export function showPaywallModal(_opts = {}) {
   ensureInstallTimestamps();
-
-  // ✅ Grandfathered users bypass paywall entirely (unless force)
-  if (!force) {
-    if (!isNativeApp()) return;
-    if (isProUnlocked()) return;
-    if (isGrandfathered()) return;
-
-    const dontShow = lsGet(KEY_PAYWALL_HIDE) === '1';
-    if (dontShow && !hardBlocked()) return;
-  }
-
-  injectCssOnce();
-  if (document.getElementById('paywallOverlay')) return;
-
-  const blocked = hardBlocked();
-  const wrap = document.createElement('div');
-  wrap.innerHTML = buildHtml({ blocked });
-  document.body.appendChild(wrap.firstElementChild);
-
-  const btnBuy = document.getElementById('btnBuy');
-  const btnRestore = document.getElementById('btnRestore');
-  const btnContinue = document.getElementById('btnContinue');
-  const btnHide = document.getElementById('btnHide');
-
-  // When not blocked: allow tapping backdrop to close
-  const overlay = document.getElementById('paywallOverlay');
-  if (!blocked && overlay) {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) removePaywall();
-    });
-  }
-
-  btnContinue?.addEventListener('click', () => removePaywall());
-
-  btnHide?.addEventListener('click', () => {
-    lsSet(KEY_PAYWALL_HIDE, '1');
-    removePaywall();
-  });
-
-  btnRestore?.addEventListener('click', async () => {
-    try {
-      btnRestore.disabled = true;
-      btnRestore.textContent = 'Restoring…';
-      await restorePurchases();
-      btnRestore.textContent = 'Restore Purchases';
-      if (isProUnlocked()) removePaywall();
-    } catch (e) {
-      btnRestore.textContent = 'Restore Purchases';
-      try { console.warn('[billing] restore failed', e); } catch {}
-    } finally {
-      btnRestore.disabled = false;
-    }
-  });
-
-  btnBuy?.addEventListener('click', async (e) => {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
-    try {
-      btnBuy.disabled = true;
-      btnBuy.textContent = 'Opening Google Play…';
-      await buyPro();
-      // Purchase UI should appear; modal stays until approved handler unlocks
-      btnBuy.textContent = 'Waiting for purchase…';
-    } catch (err) {
-      btnBuy.disabled = false;
-      btnBuy.textContent = 'Unlock Pro — $1.99 one-time';
-      try { console.warn('[billing] buy failed', err); } catch {}
-    }
-  });
-
-  // Prime billing quietly (native only)
-  initBilling().catch(() => {});
+  return;
 }
 
-// Optional support helper (not exposed on window)
+// Compatibility helper
 export function _resetPaywallForSupport() {
-  lsDel(KEY_PAYWALL_HIDE);
-  // Do NOT wipe grandfathered automatically
+  // Keep install timestamp & grandfather status — do nothing here in no-popup mode.
+  // (Intentionally empty.)
 }
