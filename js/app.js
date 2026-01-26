@@ -1,6 +1,5 @@
 // app.js — Production
 // Explicit router + lazy loading (NO guessing paths)
-// Fixes: "Failed to fetch dynamically imported module .../js/calc.js"
 
 import { renderAdOnce } from './ads-guards.js';
 
@@ -46,7 +45,6 @@ function updateTopActionsVisibility(viewName) {
 }
 
 /**
- * IMPORTANT:
  * These are the ONLY allowed view entrypoints.
  * This prevents the app from ever attempting "./calc.js" or "./practice.js" etc.
  */
@@ -55,8 +53,6 @@ const loaders = {
   practice: () => import('./view.practice.js'),
   charts:   () => import('./view.charts.js'),
   settings: () => import('./view.settings.js'),
-  // Add more here if you create new views:
-  // tables: () => import('./view.tables.js'),
 };
 
 // === Charts overlay support ===
@@ -118,35 +114,46 @@ window.addEventListener('fireops:pro_unlocked', () => {
   try { setView('calc'); } catch {}
 });
 
+// Paywall shown once per launch, unless trial expires
+let _paywallCheckedThisSession = false;
+
+async function checkPaywallIfNeeded({ force = false } = {}) {
+  if (!isNativeApp()) return;
+
+  const pw = await getPaywall();
+  if (!pw) return;
+
+  try { await pw.initBilling?.(); } catch {}
+
+  // Always enforce hard block (trial ended) even if we already checked
+  try {
+    if (pw.hardBlocked?.()) {
+      pw.showPaywallModal?.({ force: true }); // force ensures modal appears even if "don't show again" was set
+      return;
+    }
+  } catch {}
+
+  // Normal check only once per launch
+  if (_paywallCheckedThisSession && !force) return;
+
+  try {
+    pw.showPaywallModal?.({ force: false });
+  } catch {}
+
+  _paywallCheckedThisSession = true;
+}
+
 async function setView(name) {
   try {
-    // Defensive: do NOT guess a filename like "./calc.js"
     const load = loaders[name];
     if (!load) {
       throw new Error(
-        `Unknown view "${name}". ` +
-        `Fix your button data-view or add a loader entry in app.js.`
+        `Unknown view "${name}". Fix your button data-view or add a loader entry in app.js.`
       );
     }
 
-    // Native-only: show paywall intro + hard block after trial
-    if (isNativeApp()) {
-      const pw = await getPaywall();
-      if (pw) {
-        try { await pw.initBilling?.(); } catch {}
-        try { pw.showPaywallModal?.({ force: false }); } catch {}
-
-        try {
-          if (pw.hardBlocked?.()) {
-            if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
-            if (topActionsEl) topActionsEl.style.display = 'none';
-            currentView = { name: 'paywall', dispose: null };
-            buttons.forEach(b => b.classList.remove('active'));
-            return;
-          }
-        } catch {}
-      }
-    }
+    // Paywall check (native only)
+    await checkPaywallIfNeeded({ force: false });
 
     if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
 
@@ -172,7 +179,6 @@ async function setView(name) {
         <div class="card">
           <div style="font-weight:800;margin-bottom:6px;">App failed to load</div>
           <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
-
           <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
           <button class="btn" id="btnReload" style="margin-left:8px;">Reload</button>
         </div>
