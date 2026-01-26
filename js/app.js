@@ -1,6 +1,6 @@
 // app.js — Production
-// Tiny router + lazy loading
-// Paywall is lazy-loaded ONLY on native
+// Explicit router + lazy loading (NO guessing paths)
+// Fixes: "Failed to fetch dynamically imported module .../js/calc.js"
 
 import { renderAdOnce } from './ads-guards.js';
 
@@ -10,7 +10,7 @@ const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
 
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
-let currentView = null;
+let currentView = null; // { name, dispose?() }
 
 // Native app detection (Capacitor / Cordova)
 function isNativeApp() {
@@ -38,48 +38,104 @@ async function getPaywall() {
   return _paywallMod;
 }
 
-function shouldForcePaywall() {
-  try {
-    const qs = new URLSearchParams(location.search);
-    if (qs.get('forcePaywall') === '1') return true;
-  } catch {}
-  try {
-    return localStorage.getItem('fireops_force_paywall_v1') === '1';
-  } catch {}
-  return false;
-}
-
-function enablePaywallTestMode() {
-  // GUARANTEES the paywall appears + debug enabled.
-  // Comment this out when you're done testing billing.
-  try {
-    localStorage.setItem('fireops_force_paywall_v1', '1');
-    localStorage.setItem('fireops_paywall_debug_v1', '1');
-  } catch {}
-}
-
 // Top quick-action row (Department Setup button)
 const topActionsEl = document.querySelector('.top-actions');
-function updateTopActionsVisibility(view) {
+function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
-  topActionsEl.style.display = (view === 'calc') ? 'flex' : 'none';
+  topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
 }
 
-function setActiveButton(name) {
-  buttons.forEach(b => b.classList.toggle('active', b.dataset.view === name));
+/**
+ * IMPORTANT:
+ * These are the ONLY allowed view entrypoints.
+ * This prevents the app from ever attempting "./calc.js" or "./practice.js" etc.
+ */
+const loaders = {
+  calc:     () => import('./view.calc.js'),
+  practice: () => import('./view.practice.js'),
+  charts:   () => import('./view.charts.js'),
+  settings: () => import('./view.settings.js'),
+  // Add more here if you create new views:
+  // tables: () => import('./view.tables.js'),
+};
+
+// === Charts overlay support ===
+let chartsOverlay = document.getElementById('chartsOverlay');
+let chartsMount = document.getElementById('chartsMount');
+let chartsClose = document.getElementById('closeCharts');
+let chartsDispose = null;
+
+async function openCharts() {
+  if (!chartsOverlay) return;
+  if (topActionsEl) topActionsEl.style.display = 'none';
+  chartsOverlay.style.display = 'block';
+
+  if (chartsMount) chartsMount.innerHTML = '<div style="opacity:.7;padding:12px">Loading charts…</div>';
+
+  try {
+    const mod = await loaders.charts();
+    const res = await mod.render(chartsMount);
+    chartsDispose = res?.dispose || null;
+
+    // Ads only on web builds
+    if (!isNativeApp()) {
+      try {
+        renderAdOnce({
+          key: 'tables_bottom',
+          container: chartsMount,
+          position: 'bottom',
+          client: ADS_CLIENT,
+          slot: SLOT_TABLES_BOTTOM,
+          format: 'auto',
+          style: 'display:block; margin:16px 0;',
+        });
+      } catch {}
+    }
+  } catch (err) {
+    if (chartsMount) chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
+  }
 }
+
+function closeCharts() {
+  if (chartsDispose) { try { chartsDispose(); } catch {} chartsDispose = null; }
+  if (chartsMount) chartsMount.innerHTML = '';
+  if (chartsOverlay) chartsOverlay.style.display = 'none';
+  updateTopActionsVisibility(currentView?.name || 'calc');
+}
+
+if (chartsClose) chartsClose.addEventListener('click', closeCharts);
+if (chartsOverlay) chartsOverlay.addEventListener('click', (e) => { if (e.target === chartsOverlay) closeCharts(); });
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
+  ]);
+}
+
+// On unlock, bounce back to calc
+window.addEventListener('fireops:pro_unlocked', () => {
+  try { setView('calc'); } catch {}
+});
 
 async function setView(name) {
   try {
+    // Defensive: do NOT guess a filename like "./calc.js"
+    const load = loaders[name];
+    if (!load) {
+      throw new Error(
+        `Unknown view "${name}". ` +
+        `Fix your button data-view or add a loader entry in app.js.`
+      );
+    }
+
     // Native-only: show paywall intro + hard block after trial
     if (isNativeApp()) {
       const pw = await getPaywall();
       if (pw) {
         try { await pw.initBilling?.(); } catch {}
-        // IMPORTANT: allow forced paywall when testing (even if grandfathered)
-        try { pw.showPaywallModal?.({ force: shouldForcePaywall() }); } catch {}
+        try { pw.showPaywallModal?.({ force: false }); } catch {}
 
-        // Hard-block screen (trial ended and not pro) — keep your old behavior
         try {
           if (pw.hardBlocked?.()) {
             if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
@@ -98,38 +154,37 @@ async function setView(name) {
 
     if (app) app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
 
-    const mod = await import(`./calc/${name}.js`).catch(async () => {
-      // Fallback if your views are in different folders
-      return await import(`./${name}.js`);
-    });
+    const mod = await withTimeout(load(), 8000, `Load view "${name}"`);
+    if (!mod?.render) throw new Error(`View "${name}" did not export render()`);
 
-    const view = await (mod?.render?.(app) ?? mod?.default?.(app));
-    currentView = view || { name, dispose: null };
+    const view = await withTimeout(mod.render(app), 8000, `Render view "${name}"`);
 
-    setActiveButton(name);
+    currentView = { name, dispose: view?.dispose };
 
-    // Render ads only on web
-    if (!isNativeApp()) {
-      try { renderAdOnce(ADS_CLIENT, SLOT_TABLES_BOTTOM); } catch {}
-    }
-  } catch (e) {
-    console.error(e);
+    buttons.forEach(b => b.classList.toggle('active', b.dataset.view === name));
+    updateTopActionsVisibility(name);
+  } catch (err) {
+    const msg = String(err?.message || err);
+    console.error('[app.js] setView error:', err);
+
     if (app) {
       app.innerHTML = `
-        <div style="padding:12px">
-          <div style="font-weight:800;margin-bottom:8px">App failed to load</div>
-          <div style="opacity:.85;margin-bottom:10px">${String(e?.message || e)}</div>
-          <button class="btn" id="btnReload">Reload</button>
+        <div class="card">
+          <div style="font-weight:800;margin-bottom:6px;">App failed to load</div>
+          <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
+
+          <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
+          <button class="btn" id="btnReload" style="margin-left:8px;">Reload</button>
         </div>
       `;
+
+      const s = document.getElementById('btnSetup');
+      if (s) s.onclick = () => window.location.href = '/setup-preconnects.html';
+
       const r = document.getElementById('btnReload');
       if (r) r.onclick = () => window.location.reload();
     }
   }
-}
-
-function openCharts() {
-  window.location.href = '/charts.html';
 }
 
 buttons.forEach(b => b.addEventListener('click', () => {
@@ -149,24 +204,6 @@ buttons.forEach(b => b.addEventListener('click', () => {
   setView(v);
 }));
 
-// ===== BOOT =====
-(async () => {
-  // GUARANTEED paywall for testing on native builds.
-  // Comment out enablePaywallTestMode() when you are done testing.
-  if (isNativeApp()) {
-    enablePaywallTestMode();
-    try {
-      const pw = await getPaywall();
-      if (pw?.showPaywallModal) {
-        try { await pw.initBilling?.(); } catch {}
-        // Force popup immediately on launch
-        pw.showPaywallModal({ force: true });
-      }
-    } catch (e) {
-      try { console.log('[PW] boot paywall error', e); } catch {}
-    }
-  }
-
-  setView('calc');
-  updateTopActionsVisibility('calc');
-})();
+// Boot
+setView('calc');
+updateTopActionsVisibility('calc');
