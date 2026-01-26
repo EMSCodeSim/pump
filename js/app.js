@@ -1,16 +1,11 @@
-// app.js — Production
-// Tiny router + lazy loading
-// Paywall is lazy-loaded ONLY on native
-
 import { renderAdOnce } from './ads-guards.js';
 
-// === AdSense (web-only) ===
 const ADS_CLIENT = 'ca-pub-9414291143716298';
 const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
 
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
-let currentView = null; // { name, dispose?() }
+let currentView = null;
 
 function isNativeApp() {
   try {
@@ -18,17 +13,10 @@ function isNativeApp() {
     const p = window?.Capacitor?.getPlatform?.();
     if (p && p !== 'web') return true;
   } catch {}
-
-  try {
-    const host = (window?.location?.hostname || '').toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-  } catch {}
-
   const proto = (window?.location?.protocol || '').toLowerCase();
   return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:' || !!window.cordova;
 }
 
-// ---- Lazy paywall module loader (native only) ----
 let _paywallMod = null;
 async function getPaywall() {
   if (!isNativeApp()) return null;
@@ -37,14 +25,12 @@ async function getPaywall() {
   return _paywallMod;
 }
 
-// Top quick-action row (Department Setup button)
 const topActionsEl = document.querySelector('.top-actions');
 function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
   topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
 }
 
-// IMPORTANT: keep THESE paths (matches your working site)
 const loaders = {
   calc:     () => import('./view.calc.js'),
   practice: () => import('./view.practice.js'),
@@ -52,7 +38,6 @@ const loaders = {
   settings: () => import('./view.settings.js'),
 };
 
-// === Charts overlay support ===
 let chartsOverlay = document.getElementById('chartsOverlay');
 let chartsMount = document.getElementById('chartsMount');
 let chartsClose = document.getElementById('closeCharts');
@@ -102,40 +87,29 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-// On unlock, bounce back to calc
 window.addEventListener('fireops:pro_unlocked', () => {
   try { setView('calc'); } catch {}
 });
 
 async function setView(name) {
   try {
-    // ✅ Native-only paywall (Option A)
     if (isNativeApp()) {
       const pw = await getPaywall();
-      if (pw) {
-        try {
-          // Option A: ONLY call enforcePaywall (paywall handles billing init + UI)
-          pw.enforcePaywall?.({ force: false });
-        } catch (e) {
-          console.error('Paywall enforce failed', e);
+      try { pw?.enforcePaywall?.({ force: false }); } catch {}
+      try {
+        if (pw?.hardBlocked?.()) {
+          if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
+          if (topActionsEl) topActionsEl.style.display = 'none';
+          currentView = { name: 'paywall', dispose: null };
+          buttons.forEach(b => b.classList.remove('active'));
+          return;
         }
-
-        try {
-          if (pw.hardBlocked?.()) {
-            if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
-            if (topActionsEl) topActionsEl.style.display = 'none';
-            currentView = { name: 'paywall', dispose: null };
-            buttons.forEach(b => b.classList.remove('active'));
-            return;
-          }
-        } catch {}
-      }
+      } catch {}
     }
 
     if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
 
     updateTopActionsVisibility(name);
-
     if (app) app.innerHTML = '<div style="opacity:.7;padding:12px">Loading…</div>';
 
     const mod = await withTimeout(loaders[name](), 6000, `Load view "${name}"`);
@@ -157,11 +131,10 @@ async function setView(name) {
         </div>
       `;
 
-      const s = document.getElementById('btnSetup');
-      if (s) s.onclick = () => window.location.href = '/setup-preconnects.html';
-
-      const r = document.getElementById('btnReload');
-      if (r) r.onclick = () => window.location.reload();
+      document.getElementById('btnSetup')?.addEventListener('click', () => {
+        window.location.href = '/setup-preconnects.html';
+      });
+      document.getElementById('btnReload')?.addEventListener('click', () => window.location.reload());
     }
   }
 }
@@ -169,12 +142,8 @@ async function setView(name) {
 buttons.forEach(b => b.addEventListener('click', () => {
   const v = b.dataset.view;
 
-  if (v === 'charts') {
-    openCharts();
-    return;
-  }
+  if (v === 'charts') { openCharts(); return; }
 
-  // If coming back to calc from practice, force a full page reload
   if (v === 'calc' && currentView?.name === 'practice') {
     window.location.reload();
     return;
