@@ -25,7 +25,7 @@ function isNativeApp() {
   } catch {}
 
   const proto = (window?.location?.protocol || '').toLowerCase();
-  return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
+  return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:' || !!window.cordova;
 }
 
 // ---- Lazy paywall module loader (native only) ----
@@ -44,7 +44,7 @@ function updateTopActionsVisibility(viewName) {
   topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
 }
 
-// IMPORTANT: keep THESE paths (this matches your working site build)
+// IMPORTANT: keep THESE paths (matches your working site)
 const loaders = {
   calc:     () => import('./view.calc.js'),
   practice: () => import('./view.practice.js'),
@@ -109,20 +109,13 @@ window.addEventListener('fireops:pro_unlocked', () => {
 
 async function setView(name) {
   try {
-    // Native-only: show paywall intro + hard block after trial
+    // ✅ Native-only paywall (Option A)
     if (isNativeApp()) {
       const pw = await getPaywall();
       if (pw) {
-        // ✅ Corrected: call the new paywall API if present, otherwise use existing one
-        // This prevents API mismatch and keeps your app compatible.
         try {
-          if (typeof pw.enforcePaywall === 'function') {
-            pw.enforcePaywall({ force: false });
-          } else {
-            // Your current paywall exports showPaywallModal + initBilling
-            try { await pw.initBilling?.(); } catch {}
-            try { pw.showPaywallModal?.({ force: false }); } catch {}
-          }
+          // Option A: ONLY call enforcePaywall (paywall handles billing init + UI)
+          pw.enforcePaywall?.({ force: false });
         } catch (e) {
           console.error('Paywall enforce failed', e);
         }
