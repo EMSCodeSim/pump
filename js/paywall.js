@@ -1,62 +1,70 @@
-/* paywall.js — FireOps Calc (FIXED)
-   - One-time purchase productId: fireops.pro
-   - 5-day free trial for new installs (unless grandfathered)
-   - IMPORTANT FIX: Never force iOS adapter on Android.
-   - Adds full on-screen debug log.
+/* paywall.js — FireOps Calc (TEST-FORCED / GUARANTEED BUY BUTTON)
+   Product ID: fireops.pro (ONE-TIME PRODUCT)
+   Trial: 5 days (unless grandfathered)
+   TEST MODE:
+     - Always show paywall + Buy button if:
+         URL has ?forcePaywall=1
+         OR localStorage.fireops_force_paywall_v1 === "1"
+     - Grandfathered users ARE allowed to buy for testing.
+
+   Debug:
+     - Always available via "Show Debug"
+     - Can be forced ON with:
+         URL ?pwdebug=1
+         OR localStorage.fireops_paywall_debug_v1 === "1"
 */
 
 export const PRO_PRODUCT_ID = 'fireops.pro';
 export const TRIAL_DAYS = 5;
 
-const KEY_INSTALL_TS      = 'fireops_install_ts_v1';
-const KEY_GRANDFATHERED   = 'fireops_grandfathered_v1';
-const KEY_PRO_UNLOCKED    = 'fireops_pro_unlocked_v1';
-const KEY_PAYWALL_HIDE    = 'fireops_paywall_hide_v1';
-const KEY_DEBUG_ENABLED   = 'fireops_paywall_debug_v1';
-const KEY_DEBUG_LOG       = 'fireops_paywall_debug_log_v1';
+const KEY_INSTALL_TS       = 'fireops_install_ts_v1';
+const KEY_GRANDFATHERED    = 'fireops_grandfathered_v1';
+const KEY_PRO_UNLOCKED     = 'fireops_pro_unlocked_v1';
+const KEY_PAYWALL_HIDE     = 'fireops_paywall_hide_v1';
+const KEY_DEBUG_ENABLED    = 'fireops_paywall_debug_v1';
+const KEY_DEBUG_LOG        = 'fireops_paywall_debug_log_v1';
+const KEY_FORCE_PAYWALL    = 'fireops_force_paywall_v1';
 
 let _billingInitPromise = null;
 
-// -------------------- helpers --------------------
+// -------------------- localStorage safe --------------------
+function lsGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function lsSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
+function lsDel(key) { try { localStorage.removeItem(key); } catch {} }
+
+function qsGet(name) {
+  try { return new URLSearchParams(location.search).get(name); } catch { return null; }
+}
+
+// -------------------- time --------------------
 function nowMs() { return Date.now(); }
-function daysToMs(days) { return days * 24 * 60 * 60 * 1000; }
+function daysToMs(d) { return d * 24 * 60 * 60 * 1000; }
 
-function safeGetLS(key) {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function safeSetLS(key, val) {
-  try { localStorage.setItem(key, val); } catch {}
-}
-
+// -------------------- debug --------------------
 function isDebugEnabled() {
-  try {
-    const qs = new URLSearchParams(location.search);
-    if (qs.get('pwdebug') === '1') return true;
-  } catch {}
-  return safeGetLS(KEY_DEBUG_ENABLED) === '1';
+  return qsGet('pwdebug') === '1' || lsGet(KEY_DEBUG_ENABLED) === '1';
 }
-function setDebugEnabled(v) { safeSetLS(KEY_DEBUG_ENABLED, v ? '1' : '0'); }
-
+function setDebugEnabled(v) {
+  lsSet(KEY_DEBUG_ENABLED, v ? '1' : '0');
+}
 function appendDebug(line) {
   const ts = new Date().toLocaleTimeString();
   const msg = `${ts}  ${line}`;
   try {
-    const existing = safeGetLS(KEY_DEBUG_LOG) || '';
-    const next = (existing + msg + '\n').slice(-14000);
-    safeSetLS(KEY_DEBUG_LOG, next);
+    const existing = lsGet(KEY_DEBUG_LOG) || '';
+    lsSet(KEY_DEBUG_LOG, (existing + msg + '\n').slice(-16000));
   } catch {}
+  try { console.log('[PW]', line); } catch {}
 
   const pre = document.getElementById('pwDebugPre');
   if (pre) {
-    pre.textContent = (safeGetLS(KEY_DEBUG_LOG) || '').trimEnd();
+    pre.textContent = (lsGet(KEY_DEBUG_LOG) || '').trimEnd();
     pre.scrollTop = pre.scrollHeight;
   }
-
-  try { console.log('[PW]', line); } catch {}
 }
 
+// -------------------- platform / store --------------------
 export function isNativeApp() {
-  // Works for Capacitor and cordova
   try {
     if (window.Capacitor?.isNativePlatform?.()) return true;
     if (window.cordova) return true;
@@ -69,25 +77,19 @@ function getPlatformName() {
     const p = window.Capacitor?.getPlatform?.();
     if (p) return p; // 'android' | 'ios' | 'web'
   } catch {}
-  // fallback
-  if (window.cordova && /Android/i.test(navigator.userAgent)) return 'android';
-  if (window.cordova && /iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'ios';
+  if (/Android/i.test(navigator.userAgent)) return 'android';
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'ios';
   return 'web';
 }
 
-function getCdvPurchase() {
-  return window.CdvPurchase || null;
-}
-
+function getCdvPurchase() { return window.CdvPurchase || null; }
 function getBillingStore() {
-  // cordova-plugin-purchase v13: window.CdvPurchase.store
   const C = getCdvPurchase();
   if (C?.store) return C.store;
-  // fallback (older code paths)
   return window.store || null;
 }
 
-// -------------------- trial logic --------------------
+// -------------------- trial / flags --------------------
 function hasAnyExistingUserData() {
   const keys = [
     'fireops_dept_equipment_v1',
@@ -104,28 +106,27 @@ function hasAnyExistingUserData() {
 }
 
 function ensureInstallTimestamps() {
-  const existing = safeGetLS(KEY_INSTALL_TS);
+  const existing = lsGet(KEY_INSTALL_TS);
   if (!existing) {
     const oldUser = hasAnyExistingUserData();
-    safeSetLS(KEY_GRANDFATHERED, oldUser ? '1' : '0');
-    safeSetLS(KEY_INSTALL_TS, String(nowMs()));
+    lsSet(KEY_GRANDFATHERED, oldUser ? '1' : '0');
+    lsSet(KEY_INSTALL_TS, String(nowMs()));
   }
 }
 
-function getInstallMs() {
-  const v = safeGetLS(KEY_INSTALL_TS);
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+function installMs() {
+  const v = Number(lsGet(KEY_INSTALL_TS));
+  return Number.isFinite(v) ? v : null;
 }
 
-export function isGrandfathered() { return safeGetLS(KEY_GRANDFATHERED) === '1'; }
-export function isProUnlocked() { return safeGetLS(KEY_PRO_UNLOCKED) === '1'; }
-export function setProUnlocked(val) { safeSetLS(KEY_PRO_UNLOCKED, val ? '1' : '0'); }
+export function isGrandfathered() { return lsGet(KEY_GRANDFATHERED) === '1'; }
+export function isProUnlocked() { return lsGet(KEY_PRO_UNLOCKED) === '1'; }
+export function setProUnlocked(v) { lsSet(KEY_PRO_UNLOCKED, v ? '1' : '0'); }
 
 export function trialExpired() {
-  const installMs = getInstallMs();
-  if (!installMs) return false;
-  return (nowMs() - installMs) >= daysToMs(TRIAL_DAYS);
+  const im = installMs();
+  if (!im) return false;
+  return (nowMs() - im) >= daysToMs(TRIAL_DAYS);
 }
 
 export function hardBlocked() {
@@ -134,11 +135,16 @@ export function hardBlocked() {
   return trialExpired();
 }
 
+// Force show paywall regardless of flags
+function forcePaywallEnabled() {
+  return qsGet('forcePaywall') === '1' || lsGet(KEY_FORCE_PAYWALL) === '1';
+}
+
 // -------------------- UI --------------------
-function injectPaywallCssOnce() {
+function injectCssOnce() {
   if (document.getElementById('paywallCss')) return;
   const css = `
-    .paywall-overlay{position:fixed; inset:0; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; z-index:99999; padding:16px;}
+    .paywall-overlay{position:fixed; inset:0; background:rgba(0,0,0,.70); display:flex; align-items:center; justify-content:center; z-index:99999; padding:16px;}
     .paywall-card{width:min(560px,94vw); background:#121826; color:#fff; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,.45); padding:18px;}
     .paywall-title{font-size:22px; font-weight:800; margin:6px 0;}
     .paywall-subtitle{font-size:15px; line-height:1.35; opacity:.92; margin-bottom:14px;}
@@ -147,8 +153,9 @@ function injectPaywallCssOnce() {
     .paywall-btn.secondary{background:transparent; color:#dbe6ff; border:1px solid rgba(255,255,255,.25);}
     .paywall-btn.primary{background:#2a6bff; color:#fff;}
     .paywall-btn[disabled]{opacity:.55; cursor:not-allowed;}
-    .paywall-dontshow{display:flex; gap:10px; align-items:center; margin-top:12px; opacity:.8; font-size:13px;}
+    .paywall-row{display:flex; gap:12px; justify-content:space-between; flex-wrap:wrap; margin-top:10px;}
     .paywall-footnote{margin-top:10px; font-size:12px; opacity:.65;}
+    .pw-mini{font-size:12px; opacity:.85; line-height:1.25; margin-top:10px;}
   `;
   const style = document.createElement('style');
   style.id = 'paywallCss';
@@ -156,7 +163,12 @@ function injectPaywallCssOnce() {
   document.head.appendChild(style);
 }
 
-function buildPaywallHtml() {
+function removePaywall() {
+  const overlay = document.getElementById('paywallOverlay');
+  if (overlay) overlay.remove();
+}
+
+function buildHtml() {
   const dbg = isDebugEnabled();
   return `
   <div class="paywall-overlay" id="paywallOverlay">
@@ -167,132 +179,118 @@ function buildPaywallHtml() {
       </div>
 
       <div class="paywall-actions">
-        <button class="paywall-btn secondary" id="btnContinueTrial">Continue Free Trial</button>
-        <button class="paywall-btn primary" id="btnPayNow">Unlock Pro — $1.99 one-time</button>
+        <button class="paywall-btn secondary" id="btnContinue">Continue Free Trial</button>
+        <button class="paywall-btn primary" id="btnBuy">Unlock Pro — $1.99 one-time</button>
       </div>
 
-      <label class="paywall-dontshow" id="dontShowRow">
-        <input type="checkbox" id="chkDontShow" />
-        Do not show this again
-      </label>
-
-      <div class="paywall-actions" style="margin-top:10px; justify-content:space-between;">
+      <div class="paywall-row">
         <button class="paywall-btn secondary" id="btnRestore">Restore Purchases</button>
         <button class="paywall-btn secondary" id="btnToggleDebug">${dbg ? 'Hide Debug' : 'Show Debug'}</button>
       </div>
+
+      <div class="pw-mini" id="pwMiniSummary"></div>
 
       <div class="paywall-footnote">Purchases are processed through Google Play.</div>
 
       <div id="pwDebugWrap" style="display:${dbg ? 'block' : 'none'}; margin-top:10px;">
         <div style="opacity:.85; font-weight:800; margin-bottom:6px;">Billing Debug</div>
-        <div id="pwDebugSummary" style="font-size:12px; opacity:.9; margin-bottom:8px;"></div>
-        <pre id="pwDebugPre" style="height:220px; overflow:auto; background:#0b1020; border:1px solid rgba(255,255,255,.12); padding:10px; border-radius:10px; font-size:12px; line-height:1.25; white-space:pre-wrap;"></pre>
-        <div style="display:flex; gap:10px; margin-top:8px; justify-content:flex-end;">
-          <button class="paywall-btn secondary" id="btnCopyDebug" style="min-width:140px;">Copy Log</button>
-          <button class="paywall-btn secondary" id="btnClearDebug" style="min-width:140px;">Clear Log</button>
+        <pre id="pwDebugPre" style="height:240px; overflow:auto; background:#0b1020; border:1px solid rgba(255,255,255,.12); padding:10px; border-radius:10px; font-size:12px; line-height:1.25; white-space:pre-wrap;"></pre>
+        <div style="display:flex; gap:10px; margin-top:8px; justify-content:flex-end; flex-wrap:wrap;">
+          <button class="paywall-btn secondary" id="btnCopy" style="min-width:140px;">Copy Log</button>
+          <button class="paywall-btn secondary" id="btnClear" style="min-width:140px;">Clear Log</button>
+          <button class="paywall-btn secondary" id="btnForceOn" style="min-width:160px;">Force Paywall ON</button>
+          <button class="paywall-btn secondary" id="btnForceOff" style="min-width:160px;">Force Paywall OFF</button>
         </div>
       </div>
     </div>
   </div>`;
 }
 
-function removePaywall() {
-  const overlay = document.getElementById('paywallOverlay');
-  if (overlay) overlay.remove();
+function refreshSummary() {
+  const mini = document.getElementById('pwMiniSummary');
+  if (!mini) return;
+
+  const platform = getPlatformName();
+  mini.innerHTML = `
+    <b>Product:</b> ${PRO_PRODUCT_ID}<br/>
+    <b>Platform:</b> ${platform} &nbsp; <b>Native:</b> ${isNativeApp()}<br/>
+    <b>Grandfathered:</b> ${isGrandfathered()} &nbsp; <b>Pro unlocked:</b> ${isProUnlocked()}<br/>
+    <b>Trial expired:</b> ${trialExpired()} &nbsp; <b>Hard blocked:</b> ${hardBlocked()}<br/>
+    <b>Force Paywall:</b> ${forcePaywallEnabled()}
+  `;
 }
 
-function refreshDebugUI() {
-  const pre = document.getElementById('pwDebugPre');
-  if (pre) pre.textContent = (safeGetLS(KEY_DEBUG_LOG) || '').trimEnd();
-
-  const sum = document.getElementById('pwDebugSummary');
-  if (sum) {
-    const store = getBillingStore();
-    const platform = getPlatformName();
-    sum.innerHTML = `
-      • Platform: <b>${platform}</b><br/>
-      • Native: <b>${isNativeApp() ? 'true' : 'false'}</b><br/>
-      • Billing bridge detected: <b>${store ? 'YES' : 'NO'}</b><br/>
-      • ProductId: <b>${PRO_PRODUCT_ID}</b><br/>
-      • Pro unlocked: <b>${isProUnlocked() ? 'true' : 'false'}</b><br/>
-      • Grandfathered: <b>${isGrandfathered() ? 'true' : 'false'}</b><br/>
-      • Hard blocked: <b>${hardBlocked() ? 'true' : 'false'}</b><br/>
-    `;
-  }
-}
-
-// -------------------- Billing --------------------
+// -------------------- Billing init (fixed platform) --------------------
 export async function initBilling() {
   if (_billingInitPromise) return _billingInitPromise;
 
   _billingInitPromise = (async () => {
+    ensureInstallTimestamps();
+
     const platform = getPlatformName();
-    appendDebug(`initBilling() start. native=${isNativeApp()} platform=${platform}`);
+    appendDebug(`initBilling start. native=${isNativeApp()} platform=${platform}`);
 
     if (!isNativeApp()) {
-      appendDebug('Not native -> skipping billing init.');
+      appendDebug('Not native; billing disabled.');
       return;
     }
 
     const store = getBillingStore();
     const C = getCdvPurchase();
-    appendDebug(`store present? ${!!store}`);
+
+    appendDebug(`Billing store present? ${!!store}`);
     if (!store) return;
 
-    // Log version-ish hints
+    // Helpful introspection
     try {
-      const keys = Object.keys(store).slice(0, 60);
-      appendDebug(`store keys(sample): ${keys.join(', ')}`);
+      appendDebug(`store.when exists? ${typeof store.when}`);
+      appendDebug(`store.initialize exists? ${typeof store.initialize}`);
+      appendDebug(`store.register exists? ${typeof store.register}`);
+      appendDebug(`store.order exists? ${typeof store.order}`);
+      appendDebug(`store.get exists? ${typeof store.get}`);
     } catch {}
 
-    // Resolve constants safely for v13
     const ProductType = C?.ProductType;
     const Platform = C?.Platform;
 
-    const typeNonConsumable =
+    const NON_CONSUMABLE =
       ProductType?.NON_CONSUMABLE ||
-      store?.NON_CONSUMABLE || // fallback
+      store?.NON_CONSUMABLE ||
       'non consumable';
 
-    const platformGoogle =
+    const GOOGLE_PLAY =
       Platform?.GOOGLE_PLAY ||
       store?.PLATFORM_GOOGLE_PLAY;
 
-    const platformApple =
+    const APPLE_APPSTORE =
       Platform?.APPLE_APPSTORE ||
       store?.PLATFORM_APPLE_APPSTORE;
 
-    // Register product (optionally include platform so Play returns it correctly)
+    // Register product (NEVER set iOS on Android)
     try {
-      const reg = { id: PRO_PRODUCT_ID, type: typeNonConsumable };
-
-      // IMPORTANT FIX:
-      // If running Android, NEVER set iOS platform. Only set Google Play if available.
-      if (platform === 'android' && platformGoogle) reg.platform = platformGoogle;
-      if (platform === 'ios' && platformApple) reg.platform = platformApple;
-
+      const reg = { id: PRO_PRODUCT_ID, type: NON_CONSUMABLE };
+      if (platform === 'android' && GOOGLE_PLAY) reg.platform = GOOGLE_PLAY;
+      if (platform === 'ios' && APPLE_APPSTORE) reg.platform = APPLE_APPSTORE;
       store.register(reg);
       appendDebug(`register OK: ${JSON.stringify(reg)}`);
     } catch (e) {
       appendDebug(`register FAILED: ${e?.message || String(e)}`);
     }
 
-    // Attach only supported listeners
+    // Attach listeners ONLY on supported events (avoid registered())
     try {
-      if (typeof store.when !== 'function') {
-        appendDebug('ERROR: store.when is not a function (plugin mismatch)');
-      } else {
+      if (typeof store.when === 'function') {
         const w = store.when(PRO_PRODUCT_ID);
 
         if (w?.approved) w.approved((p) => {
           appendDebug('EVENT approved -> verify()');
-          try { p.verify(); } catch (e) { appendDebug(`verify() threw: ${e?.message || String(e)}`); }
+          try { p.verify(); } catch (e) { appendDebug(`verify threw: ${e?.message || String(e)}`); }
         });
 
         if (w?.verified) w.verified((p) => {
           appendDebug('EVENT verified -> unlock + finish');
           setProUnlocked(true);
-          try { p.finish(); } catch (e) { appendDebug(`finish() threw: ${e?.message || String(e)}`); }
+          try { p.finish(); } catch (e) { appendDebug(`finish threw: ${e?.message || String(e)}`); }
           try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
         });
 
@@ -300,32 +298,31 @@ export async function initBilling() {
         if (w?.error) w.error((err) => appendDebug(`EVENT error: ${err?.message || JSON.stringify(err) || String(err)}`));
 
         appendDebug('Listeners attached');
+      } else {
+        appendDebug('WARNING: store.when not available (plugin mismatch?)');
       }
     } catch (e) {
-      appendDebug(`Attaching listeners FAILED: ${e?.message || String(e)}`);
+      appendDebug(`Listener attach FAILED: ${e?.message || String(e)}`);
     }
 
-    // Initialize
+    // Initialize (FIXED: never iOS on Android)
     try {
-      // FIX: choose correct platform init, never iOS on Android.
-      // If constants exist, initialize with that one platform, otherwise call initialize() with no args.
-      if (platform === 'android' && platformGoogle) {
+      if (platform === 'android' && GOOGLE_PLAY) {
         appendDebug('store.initialize([GOOGLE_PLAY])');
-        await store.initialize([platformGoogle]);
-      } else if (platform === 'ios' && platformApple) {
+        await store.initialize([GOOGLE_PLAY]);
+      } else if (platform === 'ios' && APPLE_APPSTORE) {
         appendDebug('store.initialize([APPLE_APPSTORE])');
-        await store.initialize([platformApple]);
+        await store.initialize([APPLE_APPSTORE]);
       } else {
         appendDebug('store.initialize() (no args)');
         await store.initialize();
       }
-
-      appendDebug('store.initialize() done');
+      appendDebug('initialize done');
     } catch (e) {
-      appendDebug(`store.initialize FAILED: ${e?.message || String(e)}`);
+      appendDebug(`initialize FAILED: ${e?.message || String(e)}`);
     }
 
-    // Update (fetch product details)
+    // Update (fetch products)
     try {
       appendDebug('store.update() start');
       await store.update();
@@ -336,8 +333,7 @@ export async function initBilling() {
 
     // Inspect product
     try {
-      let p = null;
-      if (typeof store.get === 'function') p = store.get(PRO_PRODUCT_ID);
+      const p = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
       appendDebug(`store.get(${PRO_PRODUCT_ID}) => ${p ? 'FOUND' : 'NULL'}`);
       if (p) {
         appendDebug(`product snapshot: ${JSON.stringify({
@@ -350,7 +346,7 @@ export async function initBilling() {
         })}`);
       }
     } catch (e) {
-      appendDebug(`product inspect failed: ${e?.message || String(e)}`);
+      appendDebug(`product inspect FAILED: ${e?.message || String(e)}`);
     }
   })();
 
@@ -358,153 +354,202 @@ export async function initBilling() {
 }
 
 export async function buyPro() {
-  const store = getBillingStore();
-  if (!store) throw new Error('Billing not available (no store)');
-
   appendDebug('buyPro() start');
   await initBilling();
 
-  // Refresh product list right before purchase
+  const store = getBillingStore();
+  if (!store) throw new Error('Billing store missing');
+
   try {
     appendDebug('buyPro(): store.update() start');
     await store.update();
     appendDebug('buyPro(): store.update() done');
   } catch (e) {
-    appendDebug(`buyPro(): store.update failed: ${e?.message || String(e)}`);
+    appendDebug(`buyPro(): update failed: ${e?.message || String(e)}`);
   }
 
-  // Confirm product is present
   let product = null;
-  try { if (typeof store.get === 'function') product = store.get(PRO_PRODUCT_ID); } catch {}
-  appendDebug(`buyPro(): product = ${product ? 'FOUND' : 'NULL'}`);
+  try { product = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null; } catch {}
+  appendDebug(`buyPro(): product=${product ? 'FOUND' : 'NULL'}`);
 
   if (!product) {
-    throw new Error(`Product not returned by Play. Check test track/tester/product status. (${PRO_PRODUCT_ID})`);
+    throw new Error(`Product not returned by Play. Check: product ACTIVE, tester email added, installed from same track, and app signed correctly. (${PRO_PRODUCT_ID})`);
   }
 
-  // Order
   try {
-    appendDebug('buyPro(): store.order(productId) start');
+    appendDebug('buyPro(): store.order(PRO_PRODUCT_ID) start');
     await store.order(PRO_PRODUCT_ID);
-    appendDebug('buyPro(): store.order() returned (purchase UI should appear)');
+    appendDebug('buyPro(): store.order returned (purchase UI should appear)');
   } catch (e) {
     appendDebug(`buyPro(): store.order FAILED: ${e?.message || String(e)}`);
     throw e;
   }
 }
 
-// -------------------- Modal --------------------
+export async function restorePurchases() {
+  appendDebug('restorePurchases() start');
+  await initBilling();
+  const store = getBillingStore();
+  if (!store) throw new Error('Billing store missing');
+
+  if (typeof store.restorePurchases === 'function') {
+    await store.restorePurchases();
+    appendDebug('restorePurchases() done');
+  } else {
+    appendDebug('restorePurchases() not available in this plugin build');
+  }
+}
+
+// -------------------- PUBLIC: showPaywallModal (GUARANTEED BUY BUTTON) --------------------
 export function showPaywallModal({ force = false } = {}) {
   ensureInstallTimestamps();
 
-  if (!force) {
+  // GUARANTEE DISPLAY:
+  // - forcePaywallEnabled() OR force=true will ALWAYS show paywall (and Buy button).
+  const mustShow = force || forcePaywallEnabled();
+
+  if (!mustShow) {
+    // normal behavior (but still allow buys when shown)
     if (isProUnlocked()) return;
     if (isGrandfathered()) return;
 
-    const dontShow = safeGetLS(KEY_PAYWALL_HIDE) === '1';
+    const dontShow = lsGet(KEY_PAYWALL_HIDE) === '1';
     if (dontShow && !hardBlocked()) return;
   }
 
-  injectPaywallCssOnce();
+  injectCssOnce();
   if (document.getElementById('paywallOverlay')) return;
 
-  const wrapper = document.createElement('div');
-  wrapper.innerHTML = buildPaywallHtml();
-  document.body.appendChild(wrapper.firstElementChild);
+  const wrap = document.createElement('div');
+  wrap.innerHTML = buildHtml();
+  document.body.appendChild(wrap.firstElementChild);
 
-  const btnContinue   = document.getElementById('btnContinueTrial');
-  const btnPay        = document.getElementById('btnPayNow');
-  const btnRestore    = document.getElementById('btnRestore');
-  const btnToggleDbg  = document.getElementById('btnToggleDebug');
-  const btnCopyDebug  = document.getElementById('btnCopyDebug');
-  const btnClearDebug = document.getElementById('btnClearDebug');
-  const chk           = document.getElementById('chkDontShow');
-  const dontShowRow   = document.getElementById('dontShowRow');
-  const debugWrap     = document.getElementById('pwDebugWrap');
+  // Fill debug panel if enabled
+  const pre = document.getElementById('pwDebugPre');
+  if (pre) pre.textContent = (lsGet(KEY_DEBUG_LOG) || '').trimEnd();
 
-  if (hardBlocked()) {
-    if (btnContinue) {
-      btnContinue.disabled = true;
-      btnContinue.textContent = 'Trial Ended';
-    }
-    if (dontShowRow) dontShowRow.style.display = 'none';
+  refreshSummary();
+  appendDebug(`Paywall shown. force=${force} forcePaywall=${forcePaywallEnabled()} native=${isNativeApp()} platform=${getPlatformName()}`);
+
+  const btnContinue = document.getElementById('btnContinue');
+  const btnBuy      = document.getElementById('btnBuy');
+  const btnRestore  = document.getElementById('btnRestore');
+  const btnToggle   = document.getElementById('btnToggleDebug');
+  const dbgWrap     = document.getElementById('pwDebugWrap');
+  const btnCopy     = document.getElementById('btnCopy');
+  const btnClear    = document.getElementById('btnClear');
+  const btnForceOn  = document.getElementById('btnForceOn');
+  const btnForceOff = document.getElementById('btnForceOff');
+
+  // GUARANTEE: Buy button always visible + enabled (even grandfathered / trial / etc.)
+  if (btnBuy) {
+    btnBuy.disabled = false;
+    btnBuy.style.display = '';
   }
 
-  if (chk) chk.checked = safeGetLS(KEY_PAYWALL_HIDE) === '1';
-  chk?.addEventListener('change', () => safeSetLS(KEY_PAYWALL_HIDE, chk.checked ? '1' : '0'));
-
   btnContinue?.addEventListener('click', () => {
-    if (hardBlocked()) return;
-    appendDebug('Continue clicked -> closing paywall');
+    appendDebug('Continue clicked -> close paywall');
     removePaywall();
   });
 
-  btnToggleDbg?.addEventListener('click', () => {
-    const enabled = !isDebugEnabled();
-    setDebugEnabled(enabled);
-    appendDebug(`Debug toggled -> ${enabled ? 'ON' : 'OFF'}`);
-    if (debugWrap) debugWrap.style.display = enabled ? 'block' : 'none';
-    if (btnToggleDbg) btnToggleDbg.textContent = enabled ? 'Hide Debug' : 'Show Debug';
-    refreshDebugUI();
+  btnToggle?.addEventListener('click', () => {
+    const next = !isDebugEnabled();
+    setDebugEnabled(next);
+    appendDebug(`Debug toggled -> ${next ? 'ON' : 'OFF'}`);
+    if (dbgWrap) dbgWrap.style.display = next ? 'block' : 'none';
+    if (btnToggle) btnToggle.textContent = next ? 'Hide Debug' : 'Show Debug';
+    refreshSummary();
+    // refresh log view
+    const pre2 = document.getElementById('pwDebugPre');
+    if (pre2) pre2.textContent = (lsGet(KEY_DEBUG_LOG) || '').trimEnd();
   });
 
-  btnCopyDebug?.addEventListener('click', async () => {
-    const txt = safeGetLS(KEY_DEBUG_LOG) || '';
-    try { await navigator.clipboard.writeText(txt); appendDebug('Copied debug log to clipboard'); }
-    catch (e) { appendDebug(`Copy failed: ${e?.message || String(e)}`); }
-  });
-
-  btnClearDebug?.addEventListener('click', () => {
-    safeSetLS(KEY_DEBUG_LOG, '');
-    appendDebug('Log cleared');
-    refreshDebugUI();
-  });
-
-  btnRestore?.addEventListener('click', async () => {
-    appendDebug('Restore clicked');
+  btnCopy?.addEventListener('click', async () => {
     try {
-      const store = getBillingStore();
-      await initBilling();
-      if (store?.restorePurchases) {
-        appendDebug('Calling store.restorePurchases()...');
-        await store.restorePurchases();
-        appendDebug('restorePurchases() done');
-      } else {
-        appendDebug('restorePurchases() not available in this store version');
-      }
+      await navigator.clipboard.writeText(lsGet(KEY_DEBUG_LOG) || '');
+      appendDebug('Copied debug log to clipboard');
     } catch (e) {
-      appendDebug(`Restore failed: ${e?.message || String(e)}`);
+      appendDebug(`Copy failed: ${e?.message || String(e)}`);
     }
   });
 
-  btnPay?.addEventListener('click', async (e) => {
+  btnClear?.addEventListener('click', () => {
+    lsSet(KEY_DEBUG_LOG, '');
+    appendDebug('Log cleared');
+    const pre2 = document.getElementById('pwDebugPre');
+    if (pre2) pre2.textContent = '';
+  });
+
+  btnForceOn?.addEventListener('click', () => {
+    lsSet(KEY_FORCE_PAYWALL, '1');
+    appendDebug('Force Paywall ON set in localStorage');
+    refreshSummary();
+  });
+
+  btnForceOff?.addEventListener('click', () => {
+    lsDel(KEY_FORCE_PAYWALL);
+    appendDebug('Force Paywall OFF removed from localStorage');
+    refreshSummary();
+  });
+
+  btnRestore?.addEventListener('click', async () => {
+    try {
+      btnRestore.disabled = true;
+      btnRestore.textContent = 'Restoring…';
+      await restorePurchases();
+      btnRestore.textContent = 'Restore Purchases';
+    } catch (e) {
+      appendDebug(`Restore failed: ${e?.message || String(e)}`);
+      btnRestore.textContent = 'Restore Purchases';
+    } finally {
+      btnRestore.disabled = false;
+      refreshSummary();
+    }
+  });
+
+  btnBuy?.addEventListener('click', async (e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
-    appendDebug('Pay button clicked');
+
+    appendDebug('BUY button clicked');
 
     try {
-      btnPay.disabled = true;
-      btnPay.textContent = 'Opening Google Play…';
+      btnBuy.disabled = true;
+      btnBuy.textContent = 'Opening Google Play…';
 
       await buyPro();
 
-      btnPay.textContent = 'Purchase started…';
-      // Keep open briefly so debug stays visible
+      btnBuy.textContent = 'Purchase started…';
+      // keep visible briefly to read debug
       setTimeout(() => { try { removePaywall(); } catch {} }, 1200);
     } catch (err) {
       const msg = err?.message || String(err);
       appendDebug(`PAY ERROR: ${msg}`);
-      btnPay.disabled = false;
-      btnPay.textContent = 'Unlock Pro — $1.99 one-time';
-      refreshDebugUI();
+      btnBuy.disabled = false;
+      btnBuy.textContent = 'Unlock Pro — $1.99 one-time';
+    } finally {
+      refreshSummary();
     }
   });
 
-  refreshDebugUI();
-
-  // Start billing init
-  initBilling().then(refreshDebugUI).catch(refreshDebugUI);
+  // Kick billing init immediately so product loads while paywall is open
+  initBilling().then(refreshSummary).catch(refreshSummary);
 }
 
-// Optional global for quick testing
-window.fireOpsPaywall = { initBilling, showPaywallModal, buyPro, isNativeApp, isProUnlocked, setProUnlocked };
+// Handy console helpers for testing
+window.fireOpsPaywall = {
+  show: (force = true) => showPaywallModal({ force }),
+  initBilling,
+  buyPro,
+  restorePurchases,
+  resetFlags: () => {
+    lsDel(KEY_PAYWALL_HIDE);
+    lsDel(KEY_GRANDFATHERED);
+    lsDel(KEY_PRO_UNLOCKED);
+    lsDel(KEY_INSTALL_TS);
+    lsDel(KEY_DEBUG_LOG);
+    appendDebug('Flags reset');
+  },
+  forceOn: () => lsSet(KEY_FORCE_PAYWALL, '1'),
+  forceOff: () => lsDel(KEY_FORCE_PAYWALL),
+};
