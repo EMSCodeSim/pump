@@ -10,22 +10,16 @@ const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
 
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
-let currentView = null; // { name, dispose?() }
+let currentView = null;
 
+// ---- Native detection ----
 function isNativeApp() {
   try {
-    if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
-    const p = window?.Capacitor?.getPlatform?.();
-    if (p && p !== 'web') return true;
+    const cap = window.Capacitor;
+    if (cap?.isNativePlatform?.()) return true;
   } catch {}
-
-  try {
-    const host = (window?.location?.hostname || '').toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return true;
-  } catch {}
-
-  const proto = (window?.location?.protocol || '').toLowerCase();
-  return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
+  // Cordova fallback
+  return !!window.cordova;
 }
 
 // ---- Lazy paywall module loader (native only) ----
@@ -41,67 +35,40 @@ async function getPaywall() {
 const topActionsEl = document.querySelector('.top-actions');
 function updateTopActionsVisibility(viewName) {
   if (!topActionsEl) return;
-  topActionsEl.style.display = (viewName === 'calc') ? 'flex' : 'none';
+  // Only show on calc view
+  topActionsEl.style.display = (viewName === 'calc') ? '' : 'none';
 }
 
+// Simple timeouts guard against silent render killers
+function withTimeout(promise, ms, label) {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
+}
+
+// ---- View loaders (lazy) ----
 const loaders = {
-  calc:     () => import('./view.calc.js'),
-  practice: () => import('./view.practice.js'),
-  charts:   () => import('./view.charts.js'),
-  settings: () => import('./view.settings.js'),
+  calc: () => import('./calc/view.calc.main.js'),
+  practice: () => import('./practice/view.practice.js'),
+  tables: () => import('./tables/view.tables.js'),
+  info: () => import('./info/view.info.js'),
 };
 
-// === Charts overlay support ===
-let chartsOverlay = document.getElementById('chartsOverlay');
-let chartsMount = document.getElementById('chartsMount');
-let chartsClose = document.getElementById('closeCharts');
-let chartsDispose = null;
-
-async function openCharts() {
-  if (!chartsOverlay) return;
-  if (topActionsEl) topActionsEl.style.display = 'none';
-  chartsOverlay.style.display = 'block';
-
-  chartsMount.innerHTML = '<div style="opacity:.7;padding:12px">Loading charts…</div>';
+// Department Setup quick action button routes to calc subpanel
+document.getElementById('btnDeptSetup')?.addEventListener('click', async () => {
   try {
-    const mod = await loaders.charts();
-    const res = await mod.render(chartsMount);
-    chartsDispose = res?.dispose || null;
-
-    try {
-      renderAdOnce({
-        key: 'tables_bottom',
-        container: chartsMount,
-        position: 'bottom',
-        client: ADS_CLIENT,
-        slot: SLOT_TABLES_BOTTOM,
-        format: 'auto',
-        style: 'display:block; margin:16px 0;',
-      });
-    } catch {}
-  } catch (err) {
-    chartsMount.innerHTML = '<div class="card">Failed to load charts: ' + String(err) + '</div>';
+    await setView('calc');
+    // Optional: if calc view exposes openDeptSetup
+    const mod = await import('./calc/view.calc.main.js');
+    mod.openDeptSetup?.();
+  } catch (e) {
+    console.error('DeptSetup route failed', e);
   }
-}
+});
 
-function closeCharts() {
-  if (chartsDispose) { try { chartsDispose(); } catch {} chartsDispose = null; }
-  if (chartsMount) chartsMount.innerHTML = '';
-  if (chartsOverlay) chartsOverlay.style.display = 'none';
-  updateTopActionsVisibility(currentView?.name || 'calc');
-}
-
-if (chartsClose) chartsClose.addEventListener('click', closeCharts);
-if (chartsOverlay) chartsOverlay.addEventListener('click', (e) => { if (e.target === chartsOverlay) closeCharts(); });
-
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms))
-  ]);
-}
-
-// On unlock, bounce back to calc
+// If paywall triggers an unlock event, bounce user back to calc
 window.addEventListener('fireops:pro_unlocked', () => {
   try { setView('calc'); } catch {}
 });
@@ -112,9 +79,22 @@ async function setView(name) {
     if (isNativeApp()) {
       const pw = await getPaywall();
       if (pw) {
-        try { await pw.initBilling?.(); } catch {}
-        try { pw.showPaywallModal?.({ force: false }); } catch {}
+        // New paywall API: enforcePaywall({force})
+        // Back-compat: if an older paywall is still bundled, fall back gracefully.
+        try {
+          if (typeof pw.enforcePaywall === 'function') {
+            pw.enforcePaywall({ force: false });
+          } else if (typeof pw.showPaywallModal === 'function') {
+            pw.showPaywallModal({ force: false });
+          } else if (typeof pw.initBilling === 'function') {
+            // Last resort: init billing only (won't show UI unless paywall does it)
+            pw.initBilling();
+          }
+        } catch (e) {
+          console.error('Paywall enforce failed', e);
+        }
 
+        // Hard block after trial expires (unless pro is unlocked)
         try {
           if (pw.hardBlocked?.()) {
             if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
@@ -144,39 +124,48 @@ async function setView(name) {
     if (app) {
       app.innerHTML = `
         <div class="card">
-          <div style="font-weight:800;margin-bottom:6px;">App failed to load</div>
-          <div style="opacity:.85;margin-bottom:10px;">${msg}</div>
-
-          <button class="btn primary" id="btnSetup">Run Preconnect Setup</button>
-          <button class="btn" id="btnReload" style="margin-left:8px;">Reload</button>
+          <div style="font-weight:800;margin-bottom:6px;">Something went wrong</div>
+          <div style="opacity:.85;font-size:13px;white-space:pre-wrap">${msg}</div>
+          <div style="margin-top:10px;opacity:.7;font-size:12px">Try reloading. If this keeps happening, it may be a module load error.</div>
         </div>
       `;
-
-      const s = document.getElementById('btnSetup');
-      if (s) s.onclick = () => window.location.href = '/setup-preconnects.html';
-
-      const r = document.getElementById('btnReload');
-      if (r) r.onclick = () => window.location.reload();
     }
+    console.error(err);
   }
 }
 
-buttons.forEach(b => b.addEventListener('click', () => {
-  const v = b.dataset.view;
+// ---- Nav buttons ----
+buttons.forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const view = btn.dataset.view;
+    if (!view) return;
+    await setView(view);
+  });
+});
 
-  if (v === 'charts') {
-    openCharts();
-    return;
+// ---- Web-only ads ----
+function setupWebAds() {
+  if (isNativeApp()) return;
+  // Example: only render ads on tables/info views
+  // (You can refine based on your UI)
+  try {
+    renderAdOnce({
+      client: ADS_CLIENT,
+      slot: SLOT_TABLES_BOTTOM,
+      where: '#adsBottom',
+    });
+  } catch (e) {
+    console.warn('Ad render failed', e);
   }
+}
 
-  // If coming back to calc from practice, force a full page reload
-  if (v === 'calc' && currentView?.name === 'practice') {
-    window.location.reload();
-    return;
+// ---- App start ----
+(async function boot() {
+  try {
+    // Default view
+    await setView('calc');
+    setupWebAds();
+  } catch (e) {
+    console.error('Boot failed', e);
   }
-
-  setView(v);
-}));
-
-setView('calc');
-updateTopActionsVisibility('calc');
+})();
