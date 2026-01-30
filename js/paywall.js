@@ -1,9 +1,10 @@
-/* paywall.js — FireOps Calc (NO POPUP MODE)
-   - Product ID: fireops.pro (ONE-TIME PRODUCT)
-   - Trial timer still tracks 5 days from first launch/download
-   - NO paywall popup/modal displayed
-   - Grandfathered users bypass trial blocking
-   - Billing init still available (silent)
+/* paywall.js — FireOps Calc (OPTION A: FULL APP BLOCK AFTER 5 DAYS)
+   - Product ID: fireops.pro (ONE-TIME / NON-CONSUMABLE)
+   - Trial: 5 days from first launch
+   - After trial: whole app blocked (unless Pro or grandfathered)
+   - Includes paywall modal UI (Buy / Restore)
+   - Purchase uses offer.order() when available (most reliable), else store.order(id)
+   - Unlock on APPROVED (works even without validators)
 */
 
 export const PRO_PRODUCT_ID = 'fireops.pro';
@@ -12,7 +13,6 @@ export const TRIAL_DAYS = 5;
 const KEY_INSTALL_TS    = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED  = 'fireops_pro_unlocked_v1';
-const KEY_PAYWALL_HIDE  = 'fireops_paywall_hide_v1'; // kept for compatibility
 
 let _billingInitPromise = null;
 
@@ -70,7 +70,7 @@ function ensureInstallTimestamps() {
   const existing = lsGet(KEY_INSTALL_TS);
   if (!existing) {
     const oldUser = hasAnyExistingUserData();
-    // Grandfathered users ON
+    // Grandfathered users ON if any saved data exists
     lsSet(KEY_GRANDFATHERED, oldUser ? '1' : '0');
     lsSet(KEY_INSTALL_TS, String(nowMs()));
   }
@@ -98,7 +98,7 @@ export function hardBlocked() {
   return trialExpired();
 }
 
-// -------------------- Billing init (silent) --------------------
+// -------------------- Billing init --------------------
 export async function initBilling() {
   if (_billingInitPromise) return _billingInitPromise;
 
@@ -109,54 +109,57 @@ export async function initBilling() {
     const platform = getPlatformName();
     const store = getBillingStore();
     const C = getCdvPurchase();
-    if (!store) return;
-
-    const ProductType = C?.ProductType;
-    const Platform = C?.Platform;
+    if (!store || !C) return;
 
     const NON_CONSUMABLE =
-      ProductType?.NON_CONSUMABLE ||
+      C?.ProductType?.NON_CONSUMABLE ||
       store?.NON_CONSUMABLE ||
       'non consumable';
 
     const GOOGLE_PLAY =
-      Platform?.GOOGLE_PLAY ||
+      C?.Platform?.GOOGLE_PLAY ||
       store?.PLATFORM_GOOGLE_PLAY;
 
     const APPLE_APPSTORE =
-      Platform?.APPLE_APPSTORE ||
+      C?.Platform?.APPLE_APPSTORE ||
       store?.PLATFORM_APPLE_APPSTORE;
 
-    // Register product (never iOS on Android)
+    // Register product (platform-specific)
     try {
       const reg = { id: PRO_PRODUCT_ID, type: NON_CONSUMABLE };
       if (platform === 'android' && GOOGLE_PLAY) reg.platform = GOOGLE_PLAY;
       if (platform === 'ios' && APPLE_APPSTORE) reg.platform = APPLE_APPSTORE;
-      store.register(reg);
+      // Some versions want array, some accept single object
+      try { store.register([reg]); } catch { store.register(reg); }
     } catch {}
 
-    // Purchase lifecycle (silent unlock)
+    // Unlock lifecycle (APPROVED is the most reliable)
     try {
       if (typeof store.when === 'function') {
+        // Global listeners (safe)
+        store.when()
+          .approved((tx) => {
+            setProUnlocked(true);
+            try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
+            try { tx.finish?.(); } catch {}
+          })
+          .verified((tx) => {
+            setProUnlocked(true);
+            try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
+            try { tx.finish?.(); } catch {}
+          })
+          .error(() => { /* keep silent in production */ });
+
+        // Also listen on product if available
         const w = store.when(PRO_PRODUCT_ID);
-
-        // Unlock on approved (no UI dependency)
-        w?.approved?.((p) => {
+        w?.owned?.(() => {
           setProUnlocked(true);
-          try { p.finish(); } catch {}
-          try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
-          try { p.verify?.(); } catch {}
-        });
-
-        w?.verified?.((p) => {
-          setProUnlocked(true);
-          try { p.finish(); } catch {}
           try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
         });
       }
     } catch {}
 
-    // Initialize by platform
+    // Initialize adapter by platform
     try {
       if (platform === 'android' && GOOGLE_PLAY) await store.initialize([GOOGLE_PLAY]);
       else if (platform === 'ios' && APPLE_APPSTORE) await store.initialize([APPLE_APPSTORE]);
@@ -164,7 +167,7 @@ export async function initBilling() {
     } catch {}
 
     // Pull product data
-    try { await store.update(); } catch {}
+    try { await store.update?.(); } catch {}
 
     // If already owned, unlock
     try {
@@ -176,11 +179,17 @@ export async function initBilling() {
   return _billingInitPromise;
 }
 
+function pickOrderableOffer(p) {
+  if (!p || !p.offers) return null;
+  return p.offers.find(o => typeof o.order === 'function') || null;
+}
+
 export async function buyPro() {
   await initBilling();
   const store = getBillingStore();
   if (!store) throw new Error('Billing store missing');
-  try { await store.update(); } catch {}
+
+  try { await store.update?.(); } catch {}
 
   const product = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
   if (!product) {
@@ -189,30 +198,153 @@ export async function buyPro() {
       `Make sure it is Active and installed from the correct Play testing track.`
     );
   }
-  await store.order(PRO_PRODUCT_ID);
+
+  // Prefer offer.order() when available (best reliability)
+  const offer = pickOrderableOffer(product);
+  if (offer) {
+    await offer.order();
+    return;
+  }
+
+  // Fallback
+  if (typeof store.order === 'function') {
+    await store.order(PRO_PRODUCT_ID);
+    return;
+  }
+
+  throw new Error('No purchase method available (offer.order/store.order missing).');
 }
 
 export async function restorePurchases() {
   await initBilling();
   const store = getBillingStore();
+  const C = getCdvPurchase();
   if (!store) throw new Error('Billing store missing');
 
+  // Prefer restorePurchases if present; else update
   if (typeof store.restorePurchases === 'function') {
-    await store.restorePurchases();
+    try {
+      // Some versions accept platform param; some do not.
+      try { await store.restorePurchases(C?.Platform?.GOOGLE_PLAY); }
+      catch { await store.restorePurchases(); }
+    } catch {
+      // If restore fails, try update
+      try { await store.update?.(); } catch {}
+    }
   } else {
-    try { await store.update(); } catch {}
+    try { await store.update?.(); } catch {}
   }
+
+  // Re-check ownership
+  try {
+    const p = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
+    if (p?.owned) setProUnlocked(true);
+  } catch {}
 }
 
-// -------------------- PUBLIC: showPaywallModal --------------------
-// NO-POPUP MODE: keep signature so app.js can call it, but do nothing.
+// -------------------- Paywall Modal UI --------------------
 export function showPaywallModal(_opts = {}) {
   ensureInstallTimestamps();
-  return;
+
+  // If already allowed, don't show
+  if (!hardBlocked()) return;
+
+  // Don’t stack multiple overlays
+  if (document.getElementById('fireops-paywall-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'fireops-paywall-overlay';
+  overlay.style.cssText = `
+    position:fixed; inset:0; background:rgba(0,0,0,.70);
+    display:flex; align-items:center; justify-content:center;
+    z-index:999999; padding:16px;
+  `;
+
+  const card = document.createElement('div');
+  card.style.cssText = `
+    width:min(560px, 100%);
+    background:#fff; border-radius:16px;
+    padding:18px;
+    box-shadow:0 25px 80px rgba(0,0,0,.35);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  `;
+
+  const title = document.createElement('div');
+  title.textContent = 'Trial Ended';
+  title.style.cssText = `font-size:22px; font-weight:900; margin-bottom:8px;`;
+
+  const body = document.createElement('div');
+  body.textContent = `Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.`;
+  body.style.cssText = `font-size:14px; line-height:1.45; opacity:.9; margin-bottom:14px;`;
+
+  const msg = document.createElement('div');
+  msg.style.cssText = `margin-top:10px; font-size:13px; min-height:18px; opacity:.9;`;
+  const setMsg = (t) => { msg.textContent = t || ''; };
+
+  const row = document.createElement('div');
+  row.style.cssText = `display:flex; gap:10px; flex-wrap:wrap;`;
+
+  function makeBtn(label, primary) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = `
+      flex:1; min-width:150px;
+      padding:12px 14px;
+      border-radius:12px;
+      border:${primary ? '0' : '1px solid #ddd'};
+      font-weight:900;
+      cursor:pointer;
+      background:${primary ? '#111' : '#fff'};
+      color:${primary ? '#fff' : '#111'};
+    `;
+    return b;
+  }
+
+  const buyBtn = makeBtn('Buy Pro', true);
+  const restoreBtn = makeBtn('Restore Purchase', false);
+
+  buyBtn.onclick = async () => {
+    try {
+      setMsg('Opening Google Play…');
+      await buyPro();
+      setMsg('Purchase started…');
+      // Approved handler will unlock + app.js will react
+    } catch (e) {
+      setMsg(e?.message || String(e));
+    }
+  };
+
+  restoreBtn.onclick = async () => {
+    try {
+      setMsg('Restoring…');
+      await restorePurchases();
+      if (isProUnlocked()) {
+        setMsg('Restored. Unlocking…');
+        try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
+      } else {
+        setMsg('No prior purchase found for this account.');
+      }
+    } catch (e) {
+      setMsg(e?.message || String(e));
+    }
+  };
+
+  row.appendChild(buyBtn);
+  row.appendChild(restoreBtn);
+
+  card.appendChild(title);
+  card.appendChild(body);
+  card.appendChild(row);
+  card.appendChild(msg);
+  overlay.appendChild(card);
+
+  // Block all clicks to background
+  overlay.addEventListener('click', (e) => { e.stopPropagation(); }, true);
+
+  document.body.appendChild(overlay);
 }
 
-// Compatibility helper
+// Optional helper
 export function _resetPaywallForSupport() {
-  // Keep install timestamp & grandfather status — do nothing here in no-popup mode.
-  // (Intentionally empty.)
+  // Intentionally empty: keeps install timestamp & grandfather logic stable.
 }
