@@ -1,4 +1,4 @@
-// app.js — Production
+// app.js — Production (OPTION A: FULL APP BLOCK AFTER 5 DAYS)
 // Explicit router + lazy loading (NO guessing paths)
 
 import { renderAdOnce } from './ads-guards.js';
@@ -109,42 +109,89 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-// On unlock, bounce back to calc
+// -------------------- FULL APP TRIAL GATE --------------------
+let _appIsHardBlocked = false;
+
+function renderLockedScreen() {
+  if (!app) return;
+  app.innerHTML = `
+    <div style="padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;">
+      <div style="max-width:640px;margin:0 auto;">
+        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">Trial Ended</div>
+        <div style="opacity:.9;line-height:1.45;margin-bottom:14px;">
+          Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.
+        </div>
+        <div style="opacity:.75;font-size:13px;line-height:1.45;">
+          Tap <b>Buy Pro</b> in the popup to unlock, or <b>Restore Purchase</b> if you already own it.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function disableNavigationUI() {
+  // Disable nav buttons and hide charts overlay controls while blocked
+  buttons.forEach(b => {
+    try { b.disabled = true; b.style.pointerEvents = 'none'; } catch {}
+  });
+  if (topActionsEl) topActionsEl.style.display = 'none';
+}
+
+function enableNavigationUI() {
+  buttons.forEach(b => {
+    try { b.disabled = false; b.style.pointerEvents = ''; } catch {}
+  });
+  updateTopActionsVisibility(currentView?.name || 'calc');
+}
+
+async function enforceFullAppGate() {
+  if (!isNativeApp()) return true;
+
+  const pw = await getPaywall();
+  if (!pw) return true;
+
+  try { await pw.initBilling?.(); } catch {}
+
+  try {
+    if (pw.hardBlocked?.()) {
+      _appIsHardBlocked = true;
+      renderLockedScreen();
+      disableNavigationUI();
+      try { pw.showPaywallModal?.({ force: true }); } catch {}
+      return false;
+    }
+  } catch {}
+
+  _appIsHardBlocked = false;
+  enableNavigationUI();
+  return true;
+}
+
+// On unlock, reload app so everything re-initializes cleanly
 window.addEventListener('fireops:pro_unlocked', () => {
-  try { setView('calc'); } catch {}
+  try { window.location.reload(); } catch {}
 });
 
-// Paywall shown once per launch, unless trial expires
-let _paywallCheckedThisSession = false;
-
-async function checkPaywallIfNeeded({ force = false } = {}) {
+// -------------------- (Optional) Soft paywall check per-view --------------------
+// With full-app block after 5 days, we don’t need popups during the trial.
+// But we still silently init billing once per launch so owned users unlock.
+let _billingInitedThisSession = false;
+async function initBillingOnce() {
+  if (_billingInitedThisSession) return;
   if (!isNativeApp()) return;
 
   const pw = await getPaywall();
   if (!pw) return;
 
   try { await pw.initBilling?.(); } catch {}
-
-  // Always enforce hard block (trial ended) even if we already checked
-  try {
-    if (pw.hardBlocked?.()) {
-      pw.showPaywallModal?.({ force: true }); // force ensures modal appears even if "don't show again" was set
-      return;
-    }
-  } catch {}
-
-  // Normal check only once per launch
-  if (_paywallCheckedThisSession && !force) return;
-
-  try {
-    pw.showPaywallModal?.({ force: false });
-  } catch {}
-
-  _paywallCheckedThisSession = true;
+  _billingInitedThisSession = true;
 }
 
 async function setView(name) {
   try {
+    // If blocked, do nothing (full app locked)
+    if (_appIsHardBlocked) return;
+
     const load = loaders[name];
     if (!load) {
       throw new Error(
@@ -152,8 +199,8 @@ async function setView(name) {
       );
     }
 
-    // Paywall check (native only)
-    await checkPaywallIfNeeded({ force: false });
+    // Ensure billing is initialized in background (native only)
+    await initBillingOnce();
 
     if (currentView?.dispose) { try { currentView.dispose(); } catch {} }
 
@@ -194,6 +241,8 @@ async function setView(name) {
 }
 
 buttons.forEach(b => b.addEventListener('click', () => {
+  if (_appIsHardBlocked) return;
+
   const v = b.dataset.view;
 
   if (v === 'charts') {
@@ -211,5 +260,12 @@ buttons.forEach(b => b.addEventListener('click', () => {
 }));
 
 // Boot
-setView('calc');
-updateTopActionsVisibility('calc');
+(async () => {
+  // Full hard-block gate FIRST
+  const ok = await enforceFullAppGate();
+  if (!ok) return;
+
+  // Normal boot
+  setView('calc');
+  updateTopActionsVisibility('calc');
+})();
