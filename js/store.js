@@ -787,6 +787,31 @@ export function getDeptLineDefault(key){
   // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
   const candidate = all ? all[key] : null;
+
+// First-run fallback: if nothing is saved yet, return a sane default template
+const firstRunFallback = () => {
+  const label = (key === 'left') ? 'Line 1'
+             : (key === 'back') ? 'Line 2'
+             : (key === 'right') ? 'Line 3'
+             : 'Line';
+
+  // Default: 200' of 1¾" with Fog 185 @ 50
+  const hose = '1.75';
+  const len  = 200;
+  const elev = 0;
+  const nozObj = resolveNozzleById('fog185_50') || null;
+
+  return {
+    label,
+    visible: false,
+    itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: null }],
+    itemsLeft: [],
+    itemsRight: [],
+    hasWye: false,
+    elevFt: elev,
+    nozRight: nozObj,
+  };
+};
   if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
     // Always start with NO lines deployed on app load
     const safe = JSON.parse(JSON.stringify(candidate));
@@ -798,10 +823,10 @@ export function getDeptLineDefault(key){
   //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
   try{
     const raw = localStorage.getItem('fireops_line_defaults_v1');
-    if (!raw) return candidate || null;
+    if (!raw) return candidate || firstRunFallback();
     const parsed = JSON.parse(raw) || {};
     const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
-    if (!map || !parsed[map]) return candidate || null;
+    if (!map || !parsed[map]) return candidate || firstRunFallback();
 
     const d = parsed[map] || {};
     const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
@@ -833,7 +858,7 @@ export function getDeptLineDefault(key){
 
     return built;
   }catch(e){
-    return candidate || null;
+    return candidate || firstRunFallback();
   }
 }
 
