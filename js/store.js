@@ -363,7 +363,7 @@ export const NOZ = {
 
   // Added to align with DEPT_NOZZLE_LIBRARY
   fog175_50:      { id:'fog175_50',     name:'Fog 175 @ 50',       gpm:175,  NP:50 },
-  fog185_50:      { id:'fog185_50',     name:'Fog 185 @ 50',       gpm:185,  NP:50 },
+  fog185_50:      { id:'fog185_50',     name:'Fog 150 @ 50',       gpm:185,  NP:50 },
   fog200_50:      { id:'fog200_50',     name:'Fog 200 @ 50',       gpm:200,  NP:50 },
   fog265_50:      { id:'fog265_50',     name:'Fog 265 @ 50',       gpm:265,  NP:50 },
 
@@ -769,13 +769,9 @@ function writeDeptStorage(obj){
 export function loadDeptDefaults(){
   const from = readDeptStorage();
   if(from) return from;
-
-  // If none found, seed from initial lines in memory
-  return {
-    left:  JSON.parse(JSON.stringify(state.lines.left)),
-    back:  JSON.parse(JSON.stringify(state.lines.back)),
-    right: JSON.parse(JSON.stringify(state.lines.right)),
-  };
+  // If none found, do NOT seed from in-memory placeholders.
+  // Let getDeptLineDefault fall back to a real first-run template.
+  return null;
 }
 
 export function saveDeptDefaults(obj){
@@ -795,11 +791,11 @@ const firstRunFallback = () => {
              : (key === 'right') ? 'Line 3'
              : 'Line';
 
-  // Default: 200' of 1¾" with Fog 185 @ 50
+  // Default: 200' of 1¾" with Fog 150 @ 50
   const hose = '1.75';
   const len  = 200;
   const elev = 0;
-  const nozObj = resolveNozzleById('fog185_50') || null;
+  const nozObj = resolveNozzleById('fog150_50') || null;
 
   return {
     label,
