@@ -187,6 +187,19 @@ async function initBillingOnce() {
   _billingInitedThisSession = true;
 }
 
+// ---- Billing test forcing (native only) ----
+const KEY_FORCE_BILLING_TEST = 'fireops_force_billing_test_v1';
+function billingTestEnabled() {
+  try {
+    const url = new URL(window.location.href);
+    const q = (url.searchParams.get('billtest') || '').trim();
+    if (q === '1' || q.toLowerCase() === 'true') {
+      try { localStorage.setItem(KEY_FORCE_BILLING_TEST, '1'); } catch {}
+    }
+  } catch {}
+  try { return localStorage.getItem(KEY_FORCE_BILLING_TEST) === '1'; } catch { return false; }
+}
+
 async function setView(name) {
   try {
     // If blocked, do nothing (full app locked)
@@ -264,6 +277,15 @@ buttons.forEach(b => b.addEventListener('click', () => {
   // Full hard-block gate FIRST
   const ok = await enforceFullAppGate();
   if (!ok) return;
+
+  // Optional: force the billing popup during the trial for testing
+  if (isNativeApp() && billingTestEnabled()) {
+    try {
+      const pw = await getPaywall();
+      await pw?.initBilling?.();
+      pw?.showPaywallModal?.({ force: true, allowClose: true });
+    } catch {}
+  }
 
   // Normal boot
   setView('calc');

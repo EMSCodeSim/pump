@@ -243,11 +243,15 @@ export async function restorePurchases() {
 }
 
 // -------------------- Paywall Modal UI --------------------
-export function showPaywallModal(_opts = {}) {
+export function showPaywallModal(opts = {}) {
   ensureInstallTimestamps();
 
-  // If already allowed, don't show
-  if (!hardBlocked()) return;
+  const forced = !!opts.force;
+  const allowClose = !!opts.allowClose;
+
+  // Default behavior: only show when hard-blocked.
+  // Testing behavior: allow forcing the modal during the trial.
+  if (!forced && !hardBlocked()) return;
 
   // Don’t stack multiple overlays
   if (document.getElementById('fireops-paywall-overlay')) return;
@@ -270,11 +274,15 @@ export function showPaywallModal(_opts = {}) {
   `;
 
   const title = document.createElement('div');
-  title.textContent = 'Trial Ended';
+  title.textContent = forced && !hardBlocked()
+    ? (opts.title || 'Billing Test')
+    : 'Trial Ended';
   title.style.cssText = `font-size:22px; font-weight:900; margin-bottom:8px;`;
 
   const body = document.createElement('div');
-  body.textContent = `Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.`;
+  body.textContent = forced && !hardBlocked()
+    ? (opts.body || `This popup is forced so you can test Google Play Billing. Tap Buy Pro to test purchase flow.`)
+    : `Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.`;
   body.style.cssText = `font-size:14px; line-height:1.45; opacity:.9; margin-bottom:14px;`;
 
   const msg = document.createElement('div');
@@ -303,6 +311,9 @@ export function showPaywallModal(_opts = {}) {
   const buyBtn = makeBtn('Buy Pro', true);
   const restoreBtn = makeBtn('Restore Purchase', false);
 
+  // Optional close/continue button (useful for forced testing during the trial)
+  const closeBtn = allowClose ? makeBtn('Continue', false) : null;
+
   buyBtn.onclick = async () => {
     try {
       setMsg('Opening Google Play…');
@@ -329,8 +340,15 @@ export function showPaywallModal(_opts = {}) {
     }
   };
 
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      try { overlay.remove(); } catch {}
+    };
+  }
+
   row.appendChild(buyBtn);
   row.appendChild(restoreBtn);
+  if (closeBtn) row.appendChild(closeBtn);
 
   card.appendChild(title);
   card.appendChild(body);
