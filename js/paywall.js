@@ -10,6 +10,10 @@
 export const PRO_PRODUCT_ID = 'fireops.pro';
 export const TRIAL_DAYS = 5;
 
+// TESTING ONLY: force paywall for everyone (no trial / no grandfather)
+export const FORCE_BILLING_TEST = true;
+
+
 const KEY_INSTALL_TS    = 'fireops_install_ts_v1';
 const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED  = 'fireops_pro_unlocked_v1';
@@ -81,7 +85,7 @@ function installMs() {
   return Number.isFinite(v) ? v : null;
 }
 
-export function isGrandfathered() { return lsGet(KEY_GRANDFATHERED) === '1'; }
+export function isGrandfathered() { return FORCE_BILLING_TEST ? false : (lsGet(KEY_GRANDFATHERED) === '1'); }
 export function isProUnlocked() { return lsGet(KEY_PRO_UNLOCKED) === '1'; }
 export function setProUnlocked(v) { lsSet(KEY_PRO_UNLOCKED, v ? '1' : '0'); }
 
@@ -92,7 +96,10 @@ export function trialExpired() {
 }
 
 export function hardBlocked() {
-  // Grandfathered users are never blocked
+  // TEST MODE: always block until Pro is unlocked
+  if (FORCE_BILLING_TEST) return !isProUnlocked();
+
+  // Production behavior
   if (isProUnlocked()) return false;
   if (isGrandfathered()) return false;
   return trialExpired();

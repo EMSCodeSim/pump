@@ -11,9 +11,26 @@ const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
 let currentView = null; // { name, dispose?() }
 
+// Query flag (needed early so we can load paywall in billtest mode even if native detection fails)
+const _billtestQuery = (() => {
+  try {
+    const u = new URL(window.location.href);
+    const q = (u.searchParams.get('billtest') || '').trim().toLowerCase();
+    return (q === '1' || q === 'true');
+  } catch {
+    return false;
+  }
+})();
+const FORCE_BILLING_TEST = true; // TESTING ONLY: always show paywall & block app until purchase
+const BILLING_TEST_MODE = FORCE_BILLING_TEST || _billtestQuery;
+
+
 // Native app detection (Capacitor / Cordova)
 function isNativeApp() {
   try {
+    // Cordova / PhoneGap
+    if (window?.cordova || window?.phonegap || window?.PhoneGap) return true;
+
     if (window?.Capacitor?.isNativePlatform) return !!window.Capacitor.isNativePlatform();
     const p = window?.Capacitor?.getPlatform?.();
     if (p && p !== 'web') return true;
@@ -24,6 +41,16 @@ function isNativeApp() {
     if (host === 'localhost' || host === '127.0.0.1') return true;
   } catch {}
 
+  // Heuristic: Android WebView inside app wrappers often includes "wv" in UA
+  try {
+    const ua = (navigator?.userAgent || '').toLowerCase();
+    if (ua.includes(' wv') || ua.includes('; wv)') || ua.includes('version/') && ua.includes('android')) {
+      // Only treat as native if protocol isn't normal https/http (web) OR cordova/capacitor already present.
+      const proto = (window?.location?.protocol || '').toLowerCase();
+      if (proto === 'file:' || proto === 'capacitor:' || proto === 'ionic:') return true;
+    }
+  } catch {}
+
   const proto = (window?.location?.protocol || '').toLowerCase();
   return proto === 'capacitor:' || proto === 'ionic:' || proto === 'file:';
 }
@@ -31,7 +58,9 @@ function isNativeApp() {
 // ---- Lazy paywall module loader (native only) ----
 let _paywallMod = null;
 async function getPaywall() {
-  if (!isNativeApp()) return null;
+  // In billtest mode we still load the paywall module even if native detection fails,
+  // so you can see the popup and verify the purchase/restore wiring.
+  if (!isNativeApp() && !_billtestQuery) return null;
   if (_paywallMod) return _paywallMod;
   _paywallMod = await import('./paywall.js');
   return _paywallMod;
@@ -112,21 +141,50 @@ function withTimeout(promise, ms, label) {
 // -------------------- FULL APP TRIAL GATE --------------------
 let _appIsHardBlocked = false;
 
-function renderLockedScreen() {
+function renderLockedScreen(isTestMode = false) {
   if (!app) return;
+
+  const title = isTestMode ? 'Billing Test Mode' : 'Trial Ended';
+  const msg = isTestMode
+    ? 'This build is in billing test mode. The app is locked until a Pro purchase is detected. Use Buy Pro or Restore to test Google Play Billing.'
+    : 'Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.';
+
   app.innerHTML = `
     <div style="padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;">
       <div style="max-width:640px;margin:0 auto;">
-        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">Trial Ended</div>
+        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">${title}</div>
         <div style="opacity:.9;line-height:1.45;margin-bottom:14px;">
-          Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.
+          ${msg}
         </div>
-        <div style="opacity:.75;font-size:13px;line-height:1.45;">
-          Tap <b>Buy Pro</b> in the popup to unlock, or <b>Restore Purchase</b> if you already own it.
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="btnBuyPro" class="btnPrimary" style="padding:12px 14px;border-radius:12px;font-weight:800;">Buy Pro</button>
+          <button id="btnRestorePro" class="btnSecondary" style="padding:12px 14px;border-radius:12px;font-weight:800;">Restore</button>
+          ${isTestMode ? '<button id="btnContinue" class="btnSecondary" style="padding:12px 14px;border-radius:12px;font-weight:800;">Continue (still locked)</button>' : ''}
+        </div>
+        <div style="margin-top:10px;font-size:12px;opacity:.75;">
+          If the purchase succeeds but the app stays locked, your wrapper may be caching an old WebView build — fully close the app and relaunch.
         </div>
       </div>
     </div>
   `;
+
+  // Wire buttons to paywall module
+  (async () => {
+    const pw = await getPaywall();
+    document.getElementById('btnBuyPro')?.addEventListener('click', async () => {
+      try { await pw?.tryPurchasePro?.(); } catch {}
+      // Re-check gate after purchase attempt
+      await enforceFullAppGate();
+    });
+    document.getElementById('btnRestorePro')?.addEventListener('click', async () => {
+      try { await pw?.tryRestorePro?.(); } catch {}
+      await enforceFullAppGate();
+    });
+    document.getElementById('btnContinue')?.addEventListener('click', async () => {
+      // In test mode we allow dismissing the modal for navigation testing, but gate remains
+      try { pw?.hidePaywallModal?.(); } catch {}
+    });
+  })();
 }
 
 function disableNavigationUI() {
@@ -145,6 +203,7 @@ function enableNavigationUI() {
 }
 
 async function enforceFullAppGate() {
+  // In a browser, skip native billing gate
   if (!isNativeApp()) return true;
 
   const pw = await getPaywall();
@@ -153,9 +212,25 @@ async function enforceFullAppGate() {
   try { await pw.initBilling?.(); } catch {}
 
   try {
+    // TEST MODE: always block until Pro is unlocked (no trial, no grandfather)
+    if (BILLING_TEST_MODE) {
+      const unlocked = !!pw.isProUnlocked?.();
+      if (!unlocked) {
+        _appIsHardBlocked = true;
+        renderLockedScreen(true);
+        disableNavigationUI();
+        try { pw.showPaywallModal?.({ force: true, allowClose: true }); } catch {}
+        return false;
+      }
+      _appIsHardBlocked = false;
+      enableNavigationUI();
+      return true;
+    }
+
+    // Normal production behavior
     if (pw.hardBlocked?.()) {
       _appIsHardBlocked = true;
-      renderLockedScreen();
+      renderLockedScreen(false);
       disableNavigationUI();
       try { pw.showPaywallModal?.({ force: true }); } catch {}
       return false;
@@ -279,7 +354,7 @@ buttons.forEach(b => b.addEventListener('click', () => {
   if (!ok) return;
 
   // Optional: force the billing popup during the trial for testing
-  if (isNativeApp() && billingTestEnabled()) {
+  if (billingTestEnabled()) {
     try {
       const pw = await getPaywall();
       await pw?.initBilling?.();
