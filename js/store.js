@@ -545,38 +545,40 @@ export function splitIntoSections(items){
 function seedInitialDefaults(){
   if (state.lines) return;
 
-  // No built-in attack line defaults anymore.
-  // Lines 1/2/3 become "blank" until the user saves them in Department Setup.
+  // First-run defaults:
+  // Seed Line 1/2/3 with a real hose + nozzle so deployed lines immediately
+  // show hose size and calculate PP (NP + friction) even before the user edits defaults.
+  // Department Setup can still overwrite these later.
   state.lines = {
     left:  {
       label: 'Line 1',
       visible: false,
-      itemsMain: [],
+      itemsMain: [{ size: '1.75', lengthFt: 200, cValue: null }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: null,
+      nozRight: NOZ.fog150_50 || null,
     },
     back:  {
       label: 'Line 2',
       visible: false,
-      itemsMain: [],
+      itemsMain: [{ size: '1.75', lengthFt: 200, cValue: null }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: null,
+      nozRight: NOZ.fog150_50 || null,
     },
     right: {
       label: 'Line 3',
       visible: false,
-      itemsMain: [],
+      itemsMain: [{ size: '2.5', lengthFt: 250, cValue: null }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: null,
+      nozRight: NOZ.chiefXD265 || NOZ.chief185_50 || null,
     }
   };
 }
