@@ -1,4 +1,65 @@
 import { renderAdOnce } from './ads-guards.js';
+
+// ========================
+// Practice Bank Debug Panel
+// ========================
+const PRACTICE_DEBUG = true; // set false to hide debug UI
+
+let __practiceDebugState = {
+  tried: [],
+  loadedFrom: null,
+  templates: null,
+  error: null,
+  ts: null,
+};
+
+function setPracticeDebug(partial){
+  __practiceDebugState = { ...__practiceDebugState, ...partial, ts: Date.now() };
+  if (!PRACTICE_DEBUG) return;
+
+  let el = document.getElementById('practice-debug-panel');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'practice-debug-panel';
+    el.style.cssText = [
+      'position:fixed',
+      'left:12px',
+      'right:12px',
+      'bottom:12px',
+      'z-index:99999',
+      'background:#0b1020',
+      'color:#e7eefc',
+      'border:1px solid rgba(255,255,255,.12)',
+      'border-radius:12px',
+      'padding:10px 12px',
+      'font:12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial',
+      'max-height:42vh',
+      'overflow:auto',
+      'box-shadow:0 12px 32px rgba(0,0,0,.35)',
+      'white-space:pre-wrap'
+    ].join(';');
+    document.body.appendChild(el);
+  }
+
+  const s = __practiceDebugState;
+  const lines = [];
+  lines.push('PRACTICE BANK DEBUG');
+  lines.push('-------------------');
+  lines.push('Loaded from : ' + (s.loadedFrom || '(not loaded)'));
+  lines.push('Templates   : ' + (s.templates == null ? '(unknown)' : String(s.templates)));
+  lines.push('Last error  : ' + (s.error || '(none)'));
+  lines.push('');
+  lines.push('Tried URLs:');
+  for (const t of s.tried) {
+    const status = t.ok ? 'OK' : 'FAIL';
+    lines.push(`- ${status} ${t.url}  (${t.detail})`);
+  }
+  lines.push('');
+  lines.push('Tip: If ALL fail, your /practice/ folder is not being shipped into the built app/site output.');
+
+  el.textContent = lines.join('\n');
+}
+
 // /js/view.practice.js
 // Practice Mode (phone-friendly) with:
 // - 50' multiples only (no 25' / 75')
@@ -41,8 +102,6 @@ const TOL = 5;
 let practiceBank = null;
 let bankStatus = 'loading';
 let lastBankId = '';
-let lastBankUrl = '';
-let lastQuestionSig = '';
 let bankLoadStarted = false;
 
 // ± psi for "Check"
@@ -205,19 +264,6 @@ function computeAll(S){
     Epsi:Math.round(Epsi),
     PDP
   };
-}
-
-function buildQuestionSignature(q){
-  try{
-    const s = q?.scenario || {};
-    const t = q?.questionType || '';
-    const k = q?.qKind || '';
-    const bid = q?.bankId || '';
-    const knobs = [s.type, s.mainLen, s.mainSize, s.elevFt, s.flow, s?.bnA?.len, s?.bnB?.len, s?.line1?.len, s?.line2?.len].join('|');
-    return [bid, t, k, q?.prompt || '', knobs].join('||');
-  }catch(_e){
-    return '';
-  }
 }
 
 function makeQuestion(){
@@ -859,6 +905,7 @@ export function render(container) {
     const safety = setTimeout(()=>{
       if(bankStatus === 'loading'){
         practiceBank = DEFAULT_PRACTICE_BANK;
+        setPracticeDebug({ templates: DEFAULT_PRACTICE_BANK?.templates?.length ?? null, error: 'loadPracticeBank() threw; using fallback' });
         bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
         updateBankMeta();
         updateBankMeta();
@@ -869,6 +916,7 @@ export function render(container) {
       .then(b=>{
         clearTimeout(safety);
         practiceBank = b;
+        setPracticeDebug({ templates: b?.templates?.length ?? null, loadedFrom: __practiceDebugState.loadedFrom || '(unknown)' });
         bankStatus = (b === DEFAULT_PRACTICE_BANK)
           ? `fallback (${(b?.templates||[]).length} templates)`
           : `loaded (${(b?.templates||[]).length} templates)`;
@@ -877,6 +925,7 @@ export function render(container) {
       .catch(()=>{
         clearTimeout(safety);
         practiceBank = DEFAULT_PRACTICE_BANK;
+        setPracticeDebug({ templates: DEFAULT_PRACTICE_BANK?.templates?.length ?? null, error: 'loadPracticeBank() threw; using fallback' });
         bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
         updateBankMeta();
         updateBankMeta();
@@ -891,8 +940,6 @@ export function render(container) {
       if(s) s.textContent = bankStatus;
       const idEl = document.getElementById('bankIdText');
       if(idEl) idEl.innerHTML = lastBankId ? ` • <b>ID:</b> ${lastBankId}` : '';
-      const urlEl = document.getElementById('bankUrlText');
-      if(urlEl) urlEl.innerHTML = lastBankUrl ? ` • <b>URL:</b> ${lastBankUrl}` : '';
       // bankTypeText is tied to current question, leave it as-is.
     }catch(_){}
   }
@@ -973,12 +1020,12 @@ export function render(container) {
       }
     ]
   };
-
   async function loadPracticeBank(){
-    // Loads the JSON bank and falls back safely.
-    // IMPORTANT: In Capacitor / some hosting setups, a leading "/" path can fail.
-    // So we try multiple URLs. Includes a short timeout so "loading" never sticks forever.
+    // Instrumented loader: shows exactly why the bank did or did not load.
     const TIMEOUT_MS = 4000;
+
+    // Start fresh each attempt
+    setPracticeDebug({ tried: [], loadedFrom: null, templates: null, error: null });
 
     const candidates = [
       '/practice/practiceBank.core.json',
@@ -987,42 +1034,85 @@ export function render(container) {
       '../practice/practiceBank.core.json',
     ];
 
-    // If supported, also try resolving relative to this module URL.
+    // Module-relative (works well in ESM environments)
     try {
       const u = new URL('../practice/practiceBank.core.json', import.meta.url);
       candidates.push(u.toString());
     } catch (_) {}
 
-    const bust = `v=${Date.now()}`;
-
     for (const baseUrl of candidates) {
-      const url = (String(baseUrl).includes('?')) ? `${baseUrl}&${bust}` : `${baseUrl}?${bust}`;
+      // Cache-bust so you’re not stuck on an old bank during testing
+      const url = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+
       try{
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
+        const timer = setTimeout(() => { try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
 
         const res = await fetch(url, {
           cache: 'no-store',
           signal: ctrl ? ctrl.signal : undefined,
-          headers: { 'Accept': 'application/json' }
         });
-        clearTimeout(t);
 
-        if(!res.ok) throw new Error('bank http ' + res.status);
-        const bank = await res.json();
-        if(!bank || !Array.isArray(bank.templates)) throw new Error('bank json missing templates');
+        clearTimeout(timer);
 
-        // Record which URL actually worked (strip cache-bust)
-        lastBankUrl = String(baseUrl);
+        const ct = (res.headers && res.headers.get) ? (res.headers.get('content-type') || '') : '';
+        if (!res.ok) {
+          setPracticeDebug({
+            tried: __practiceDebugState.tried.concat([{ url, ok:false, detail:`HTTP ${res.status} ${res.statusText}` }]),
+          });
+          continue;
+        }
 
-        console.log('[practice] bank loaded from:', baseUrl, 'templates:', bank.templates.length);
+        // Read text first so we can report JSON parse failures
+        const text = await res.text();
+
+        let bank;
+        try {
+          bank = JSON.parse(text);
+        } catch (e) {
+          setPracticeDebug({
+            tried: __practiceDebugState.tried.concat([{ url, ok:false, detail:`JSON parse error: ${e.message}` }]),
+          });
+          continue;
+        }
+
+        if (!bank || !Array.isArray(bank.templates)) {
+          setPracticeDebug({
+            tried: __practiceDebugState.tried.concat([{ url, ok:false, detail:`Loaded but missing bank.templates (content-type: ${ct || 'n/a'})` }]),
+          });
+          continue;
+        }
+
+        // SUCCESS
+        setPracticeDebug({
+          tried: __practiceDebugState.tried.concat([{ url, ok:true, detail:`Loaded ${bank.templates.length} templates (content-type: ${ct || 'n/a'})` }]),
+          loadedFrom: url,
+          templates: bank.templates.length,
+          error: null,
+        });
+
+        console.log('[practice] bank loaded from:', url, 'templates:', bank.templates.length);
         return bank;
-      }catch(_e){
-        // try next candidate
+
+      } catch (e) {
+        const msg = (e && e.name === 'AbortError')
+          ? `Timeout after ${TIMEOUT_MS}ms`
+          : (e && e.message ? e.message : String(e));
+
+        setPracticeDebug({
+          tried: __practiceDebugState.tried.concat([{ url, ok:false, detail: msg }]),
+          error: msg,
+        });
       }
     }
 
-    lastBankUrl = '';
+    // If we reached here, everything failed → fallback
+    setPracticeDebug({
+      loadedFrom: null,
+      templates: (DEFAULT_PRACTICE_BANK && Array.isArray(DEFAULT_PRACTICE_BANK.templates)) ? DEFAULT_PRACTICE_BANK.templates.length : null,
+      error: 'All candidate URLs failed. Using DEFAULT_PRACTICE_BANK.',
+    });
+
     console.warn('[practice] bank load failed; using DEFAULT_PRACTICE_BANK');
     return DEFAULT_PRACTICE_BANK;
   }
@@ -1532,17 +1622,7 @@ export function render(container) {
 
   // ---------- interactions ----------
   function makePractice(){
-    // Avoid immediate repeats (helps 'Next' feel responsive)
-    let q = null;
-    for(let i=0;i<12;i++){
-      const cand = makeQuestion();
-      const sig = buildQuestionSignature(cand);
-      if(sig !== lastQuestionSig || i===11){
-        q = cand;
-        lastQuestionSig = sig;
-        break;
-      }
-    }
+    const q = makeQuestion();
     if(!q.bankId) lastBankId = '';
     currentQ = q;
     scenario = q.scenario;
@@ -1573,30 +1653,6 @@ export function render(container) {
           `</div>`+
         `</div>`+
       `</div>`;
-
-    // Reload bank button (helps during testing new bank deployments)
-    const rb = container.querySelector('#reloadBankBtn');
-    if(rb){
-      rb.onclick = async ()=>{
-        bankStatus = 'loading';
-        updateBankMeta();
-        try{
-          const b = await loadPracticeBank();
-          practiceBank = b;
-          bankStatus = (b === DEFAULT_PRACTICE_BANK)
-            ? `fallback (${(b?.templates||[]).length} templates)`
-            : `loaded (${(b?.templates||[]).length} templates)`;
-          updateBankMeta();
-          // Generate a new question right away so you can see the new bank
-          makePractice();
-        }catch(_e){
-          practiceBank = DEFAULT_PRACTICE_BANK;
-          bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
-          updateBankMeta();
-        }
-      };
-    }
-
 
     // Update label + check button to match question type
     if(answerLabelEl){
