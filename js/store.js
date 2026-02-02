@@ -133,6 +133,8 @@ export function getDeptHoses(){
   return HOSES_MATCHING_CHARTS.slice();
 }
 
+
+
 // Department-scoped UI lists for hoses and nozzles.
 // These are populated when Department Setup is saved, and
 // reused by line editors / calc as a single source of truth.
@@ -146,6 +148,7 @@ export function setDeptUiNozzles(list) {
 export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
+
 
 /* =========================
  * Hose ID → diameter normalization
@@ -170,6 +173,9 @@ const HOSE_ID_TO_DIA = {
 };
 
 // Resolve a hose input (id or diameter) into { dia, c, kind }.
+// - dia is the diameter string used by COEFF keys (e.g. '1.75', '2.0', '2.5', '5')
+// - c is optional friction-loss coefficient override (for custom hoses)
+// - kind is 'built' | 'lowfriction' | 'custom' | 'diameter'
 function resolveHoseMeta(input){
   const raw = (input == null ? '' : String(input)).trim();
   if (!raw) return { dia:'', c:null, kind:'diameter' };
@@ -177,6 +183,8 @@ function resolveHoseMeta(input){
   // Built-in / low-friction ids
   if (HOSE_ID_TO_DIA[raw]) {
     const dia = HOSE_ID_TO_DIA[raw];
+    // If this is a low-friction id, we allow an override C only if the dept storage includes one;
+    // otherwise the default COEFF[dia] applies.
     return { dia, c: null, kind: raw.startsWith('h_lf_') ? 'lowfriction' : 'built' };
   }
 
@@ -257,51 +265,6 @@ export function canonicalNozzleId(raw){
   const id = String(raw || '').trim();
   if (!id) return '';
   return LEGACY_NOZ_ID_MAP[id] || id;
-}
-
-function resolveNozzleById(raw){
-  const id = canonicalNozzleId(raw);
-  if (!id) return null;
-
-  // 1) built-in catalog
-  if (NOZ && NOZ[id]) return NOZ[id];
-  if (NOZ && NOZ[id + '_50']) return NOZ[id + '_50'];
-
-  // 2) custom nozzles created by user (stored in store.customNozzles)
-  const custom = (store && Array.isArray(store.customNozzles)) ? store.customNozzles : [];
-  const c = custom.find(n => n && String(n.id) === id);
-  if (c) {
-    return {
-      id: String(c.id),
-      name: String(c.name || c.label || c.id),
-      gpm: Number(c.gpm ?? c.GPM ?? 0),
-      NP:  Number(c.NP ?? c.np ?? 0),
-      label: c.label || c.name || c.id,
-    };
-  }
-
-  // 2b) custom nozzles saved in Department equipment storage (fireops_dept_equipment_v1)
-  try {
-    const rawDept = localStorage.getItem('fireops_dept_equipment_v1');
-    if (rawDept) {
-      const dept = JSON.parse(rawDept) || {};
-      const deptCustom = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-      const d = deptCustom.find(n => n && String(n.id) === id);
-      if (d) {
-        return {
-          id: String(d.id),
-          name: String(d.name || d.label || d.id),
-          gpm: Number(d.gpm ?? d.GPM ?? 0),
-          NP:  Number(d.NP ?? d.np ?? 0),
-          label: d.label || d.name || d.id,
-        };
-      }
-    }
-  } catch (e) {
-    // ignore
-  }
-
-  return (Array.isArray(NOZ_LIST) ? NOZ_LIST : []).find(n => n && String(n.id) === id) || null;
 }
 
 /* =========================
@@ -483,7 +446,7 @@ export function FL(gpm, size, lengthFt, cOverride){
   return flPer100(size, gpm, cOverride) * (lengthFt/100);
 }
 
-// ✅ FIX #1: accept legacy segment keys so first-run does not compute FL as 0
+// accept legacy segment keys so first-run does not compute FL as 0
 export function FL_total(gpm, items){
   if(!Array.isArray(items) || !items.length || !gpm) return 0;
   let sum = 0;
@@ -500,7 +463,7 @@ export function sumFt(items){
   return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
 }
 
-// ✅ FIX #2: normalize legacy keys so UI bubbles show hose size immediately
+// normalize legacy keys so UI bubbles show hose size immediately
 export function splitIntoSections(items){
   if(!Array.isArray(items)) return [];
   return items.map(s => ({
@@ -517,9 +480,6 @@ function seedInitialDefaults(){
   if (state.lines) return;
 
   // First-run defaults:
-  // Seed Line 1/2/3 with a real hose + nozzle so deployed lines immediately
-  // show hose size and calculate PP (NP + friction) even before the user edits defaults.
-  // Department Setup can still overwrite these later.
   state.lines = {
     left:  {
       label: 'Line 1',
@@ -767,7 +727,6 @@ export function getDeptLineDefault(key){
     const safe = JSON.parse(JSON.stringify(candidate));
     safe.visible = false;
 
-    // Normalize legacy section shapes just in case older saves exist
     safe.itemsMain  = splitIntoSections(safe.itemsMain);
     safe.itemsLeft  = splitIntoSections(safe.itemsLeft);
     safe.itemsRight = splitIntoSections(safe.itemsRight);
@@ -775,69 +734,60 @@ export function getDeptLineDefault(key){
     return safe;
   }
 
-  try{
-    const raw = localStorage.getItem('fireops_line_defaults_v1');
-    if (!raw) return candidate || firstRunFallback();
-    const parsed = JSON.parse(raw) || {};
-    const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
-    if (!map || !parsed[map]) return candidate || firstRunFallback();
+  return candidate || firstRunFallback();
+}
 
-    const d = parsed[map] || {};
-    const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
-    const len  = Number(d.length ?? d.len ?? 200) || 200;
-    const elev = Number(d.elevation ?? d.elev ?? d.elevFt ?? 0) || 0;
-    const nozId = String(d.nozzle ?? d.noz ?? d.nozId ?? '') || '';
+/* =========================
+ * Dept defaults wrapper for Calc view
+ * ========================= */
+export function getDeptLineDefaults(){
+  const l1 = getLineDefaults('line1') || {};
+  const l2 = getLineDefaults('line2') || {};
+  const l3 = getLineDefaults('line3') || {};
 
-    const nozObj = resolveNozzleById(nozId);
+  const fallback = {
+    line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
+    line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
+    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
+  };
 
-    const label = (key === 'left') ? 'Line 1' : (key === 'back') ? 'Line 2' : (key === 'right') ? 'Line 3' : 'Line';
+  // ✅ FIX: Treat empty strings as missing (so first-run falls back to defaults)
+  function norm(src, fb){
+    const o = (src && typeof src === 'object') ? src : {};
 
-    const built = {
-      label,
-      visible: false,
-      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: resolveHoseMeta(hose).c }],
-      itemsLeft: [],
-      itemsRight: [],
-      hasWye: false,
-      elevFt: elev,
-      nozRight: nozObj || null,
+    const pickNonEmpty = (v, fallbackValue) => {
+      const s = String(v ?? '').trim();
+      return s ? s : String(fallbackValue ?? '').trim();
     };
 
-    try{
-      const full = loadDeptDefaults() || {};
-      full[key] = built;
-      saveDeptDefaults(full);
-    }catch(_){}
+    const pickNumber = (v, fallbackValue) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : Number(fallbackValue) || 0;
+    };
 
-    return built;
-  }catch(e){
-    return candidate || firstRunFallback();
+    const pickElevation = (v, fallbackValue) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : Number(fallbackValue) || 0;
+    };
+
+    return {
+      hoseDiameter: pickNonEmpty(o.hoseDiameter ?? o.hose, fb.hoseDiameter),
+      nozzleId: pickNonEmpty(o.nozzleId ?? o.nozzle, fb.nozzleId),
+      lengthFt: pickNumber(o.lengthFt ?? o.length, fb.lengthFt),
+      elevationFt: pickElevation(o.elevationFt ?? o.elevation, fb.elevationFt),
+    };
   }
+
+  return {
+    line1: norm(l1, fallback.line1),
+    line2: norm(l2, fallback.line2),
+    line3: norm(l3, fallback.line3),
+  };
 }
 
-export function getConfiguredPreconnects(){
-  const keys = ['left','back','right'];
-  const out = [];
-  for (let i = 0; i < keys.length; i++){
-    const k = keys[i];
-    if (i === 0){
-      out.push(k);
-      continue;
-    }
-    const saved = getDeptLineDefault(k);
-    if (saved) out.push(k);
-  }
-  return out;
-}
-
-// ✅ FIX #4: loadDeptDefaults() can be null on first run
-export function setDeptLineDefault(key, data){
-  const all = loadDeptDefaults() || {};
-  all[key] = data;
-  saveDeptDefaults(all);
-}
-
-// === Simple Line Defaults API for Department Setup =====================
+/* =========================
+ * Simple Line Defaults API for Department Setup
+ * ========================= */
 export function getLineDefaults(id){
   const key =
     id === 'line1' ? 'left' :
@@ -859,7 +809,6 @@ export function getLineDefaults(id){
     ? L.itemsMain[0]
     : {};
 
-  // ✅ FIX #3: accept main.hoseDiameter/main.hose legacy keys
   const mainSize = main.size ?? main.hoseDiameter ?? main.hose ?? '';
 
   return {
@@ -870,60 +819,10 @@ export function getLineDefaults(id){
   };
 }
 
-export function getDeptLineDefaults(){
-  const l1 = getLineDefaults('line1') || {};
-  const l2 = getLineDefaults('line2') || {};
-  const l3 = getLineDefaults('line3') || {};
-
-  const fallback = {
-    line1: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
-    line2: { hoseDiameter: '1.75', nozzleId: 'chief185_50', lengthFt: 200, elevationFt: 0 },
-    line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
-  };
-
-  function norm(src, fb){
-    const o = (src && typeof src === 'object') ? src : {};
-    return {
-      hoseDiameter: String(o.hoseDiameter ?? o.hose ?? fb.hoseDiameter),
-      nozzleId: String(o.nozzleId ?? o.nozzle ?? fb.nozzleId),
-      lengthFt: Number(o.lengthFt ?? o.length ?? fb.lengthFt) || fb.lengthFt,
-      elevationFt: Number(o.elevationFt ?? o.elevation ?? fb.elevationFt) || fb.elevationFt,
-    };
-  }
-
-  return {
-    line1: norm(l1, fallback.line1),
-    line2: norm(l2, fallback.line2),
-    line3: norm(l3, fallback.line3),
-  };
-}
-
-function ensureDeptNozzleSelected(nozId){
-  const id = String(nozId||'').trim();
-  if(!id) return;
-  try{
-    const KEY = 'fireops_dept_equipment_v1';
-    const raw = (typeof localStorage!=='undefined') ? localStorage.getItem(KEY) : null;
-    const dept = raw ? (JSON.parse(raw)||{}) : {};
-    const arr = Array.isArray(dept.nozzles) ? dept.nozzles.map(String) : [];
-    if(!arr.includes(id)){
-      arr.push(id);
-      dept.nozzles = arr;
-      if (typeof localStorage!=='undefined') localStorage.setItem(KEY, JSON.stringify(dept));
-    }
-  }catch(_e){}
-
-  try{
-    if (typeof store !== 'undefined' && store && Array.isArray(store.deptSelectedNozzles)){
-      const arr = store.deptSelectedNozzles.map(String);
-      if(!arr.includes(id)){
-        arr.push(id);
-        store.deptSelectedNozzles = arr;
-        if (typeof setDeptUiNozzles === 'function') setDeptUiNozzles(arr);
-        if (typeof saveStore === 'function') saveStore();
-      }
-    }
-  }catch(_e){}
+export function setDeptLineDefault(key, data){
+  const all = loadDeptDefaults() || {};
+  all[key] = data;
+  saveDeptDefaults(all);
 }
 
 export function setLineDefaults(id, data){
@@ -939,8 +838,6 @@ export function setLineDefaults(id, data){
   const len    = data.length != null ? Number(data.length) : 0;
   const elev   = data.elevation != null ? Number(data.elevation) : 0;
   const nozId  = data.nozzle != null ? String(data.nozzle) : '';
-
-  ensureDeptNozzleSelected(nozId);
 
   const label =
     key === 'left'  ? 'Line 1' :
@@ -967,4 +864,15 @@ export function setLineDefaults(id, data){
   };
 
   setDeptLineDefault(key, L);
+}
+
+/* =========================
+ * Nozzle resolver (local)
+ * ========================= */
+function resolveNozzleById(raw){
+  const id = canonicalNozzleId(raw);
+  if (!id) return null;
+  if (NOZ && NOZ[id]) return NOZ[id];
+  const list = Array.isArray(NOZ_LIST) ? NOZ_LIST : [];
+  return list.find(n => n && n.id === id) || null;
 }
