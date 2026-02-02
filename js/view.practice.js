@@ -41,6 +41,8 @@ const TOL = 5;
 let practiceBank = null;
 let bankStatus = 'loading';
 let lastBankId = '';
+let lastBankUrl = '';
+let lastQuestionSig = '';
 let bankLoadStarted = false;
 
 // ± psi for "Check"
@@ -203,6 +205,19 @@ function computeAll(S){
     Epsi:Math.round(Epsi),
     PDP
   };
+}
+
+function buildQuestionSignature(q){
+  try{
+    const s = q?.scenario || {};
+    const t = q?.questionType || '';
+    const k = q?.qKind || '';
+    const bid = q?.bankId || '';
+    const knobs = [s.type, s.mainLen, s.mainSize, s.elevFt, s.flow, s?.bnA?.len, s?.bnB?.len, s?.line1?.len, s?.line2?.len].join('|');
+    return [bid, t, k, q?.prompt || '', knobs].join('||');
+  }catch(_e){
+    return '';
+  }
 }
 
 function makeQuestion(){
@@ -876,6 +891,8 @@ export function render(container) {
       if(s) s.textContent = bankStatus;
       const idEl = document.getElementById('bankIdText');
       if(idEl) idEl.innerHTML = lastBankId ? ` • <b>ID:</b> ${lastBankId}` : '';
+      const urlEl = document.getElementById('bankUrlText');
+      if(urlEl) urlEl.innerHTML = lastBankUrl ? ` • <b>URL:</b> ${lastBankUrl}` : '';
       // bankTypeText is tied to current question, leave it as-is.
     }catch(_){}
   }
@@ -960,51 +977,56 @@ export function render(container) {
   async function loadPracticeBank(){
     // Loads the JSON bank and falls back safely.
     // IMPORTANT: In Capacitor / some hosting setups, a leading "/" path can fail.
-    // So we try multiple URLs.
-    // Includes a short timeout so "loading" never sticks forever.
-    const TIMEOUT_MS = 2500;
+    // So we try multiple URLs. Includes a short timeout so "loading" never sticks forever.
+    const TIMEOUT_MS = 4000;
 
-    // Try multiple URLs so this works in:
-    // - Website at domain root
-    // - Website hosted in a subfolder
-    // - Capacitor app (where leading "/" can fail)
     const candidates = [
       '/practice/practiceBank.core.json',
       'practice/practiceBank.core.json',
       './practice/practiceBank.core.json',
+      '../practice/practiceBank.core.json',
     ];
 
     // If supported, also try resolving relative to this module URL.
-    // (Works well in bundlers / some WebView setups.)
     try {
       const u = new URL('../practice/practiceBank.core.json', import.meta.url);
       candidates.push(u.toString());
     } catch (_) {}
 
-    for (const url of candidates) {
+    const bust = `v=${Date.now()}`;
+
+    for (const baseUrl of candidates) {
+      const url = (String(baseUrl).includes('?')) ? `${baseUrl}&${bust}` : `${baseUrl}?${bust}`;
       try{
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
 
-        const res = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+        const res = await fetch(url, {
+          cache: 'no-store',
+          signal: ctrl ? ctrl.signal : undefined,
+          headers: { 'Accept': 'application/json' }
+        });
         clearTimeout(t);
 
         if(!res.ok) throw new Error('bank http ' + res.status);
         const bank = await res.json();
         if(!bank || !Array.isArray(bank.templates)) throw new Error('bank json missing templates');
 
-        // Helpful debug (safe in production; does not affect UI)
-        console.log('[practice] bank loaded from:', url, 'templates:', bank.templates.length);
+        // Record which URL actually worked (strip cache-bust)
+        lastBankUrl = String(baseUrl);
 
+        console.log('[practice] bank loaded from:', baseUrl, 'templates:', bank.templates.length);
         return bank;
       }catch(_e){
         // try next candidate
       }
     }
 
+    lastBankUrl = '';
     console.warn('[practice] bank load failed; using DEFAULT_PRACTICE_BANK');
     return DEFAULT_PRACTICE_BANK;
   }
+
 
   function pickBankTemplate(bank){
     const list = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
@@ -1510,7 +1532,17 @@ export function render(container) {
 
   // ---------- interactions ----------
   function makePractice(){
-    const q = makeQuestion();
+    // Avoid immediate repeats (helps 'Next' feel responsive)
+    let q = null;
+    for(let i=0;i<12;i++){
+      const cand = makeQuestion();
+      const sig = buildQuestionSignature(cand);
+      if(sig !== lastQuestionSig || i===11){
+        q = cand;
+        lastQuestionSig = sig;
+        break;
+      }
+    }
     if(!q.bankId) lastBankId = '';
     currentQ = q;
     scenario = q.scenario;
@@ -1541,6 +1573,30 @@ export function render(container) {
           `</div>`+
         `</div>`+
       `</div>`;
+
+    // Reload bank button (helps during testing new bank deployments)
+    const rb = container.querySelector('#reloadBankBtn');
+    if(rb){
+      rb.onclick = async ()=>{
+        bankStatus = 'loading';
+        updateBankMeta();
+        try{
+          const b = await loadPracticeBank();
+          practiceBank = b;
+          bankStatus = (b === DEFAULT_PRACTICE_BANK)
+            ? `fallback (${(b?.templates||[]).length} templates)`
+            : `loaded (${(b?.templates||[]).length} templates)`;
+          updateBankMeta();
+          // Generate a new question right away so you can see the new bank
+          makePractice();
+        }catch(_e){
+          practiceBank = DEFAULT_PRACTICE_BANK;
+          bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
+          updateBankMeta();
+        }
+      };
+    }
+
 
     // Update label + check button to match question type
     if(answerLabelEl){
