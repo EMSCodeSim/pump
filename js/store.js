@@ -2,8 +2,6 @@
 // Central app state, nozzle catalog, presets, and hydraulic helpers.
 // - Lines start hidden; supply starts 'off' (user chooses).
 // - NFPA elevation: PSI_PER_FT = 0.05 (0.5 psi / 10 ft).
-// - Appliance loss: +10 psi only if total GPM > 350.
-// - Exports restored for other views: COEFF, loadPresets, savePresets.
 
 export const state = {
   supply: 'off',       // 'off' | 'pressurized' | 'static' | 'relay'
@@ -41,6 +39,8 @@ function safeParse(json, fallback){
 function safeStringify(obj){
   try{ return JSON.stringify(obj); }catch(e){ return 'null'; }
 }
+
+export const store = getStore();
 
 export function getStore(){
   const raw = localStorage.getItem(STORE_KEY);
@@ -97,8 +97,11 @@ export const NOZ_LIST = [
   { id: 'ms750_80', label: 'Master Stream 750 @ 80', gpm: 750, np: 80, type: 'ms' },
 ];
 
+// Convenience mapping
+export const NOZ = Object.fromEntries(N OZ_LIST.map(n => [n.id, n]));
+
 // Legacy nozzle id normalization (keeps nozzle dropdown from "sticking")
-function _normNozId(id){
+export function canonicalNozzleId(id){
   const s = String(id ?? '').trim();
   if (!s) return '';
   if (s === 'sb_78_50_160' || s === 'sb_7_8' || s === 'sb78' || s === 'sb_78') return 'sb7_8';
@@ -109,7 +112,7 @@ function _normNozId(id){
 }
 
 export function resolveNozzleById(id){
-  const nid = _normNozId(id);
+  const nid = canonicalNozzleId(id);
   return NOZ_LIST.find(n => n.id === nid) || null;
 }
 
@@ -126,13 +129,7 @@ export function normalizeHoseDiameter(v){
   return s;
 }
 
-export function resolveHoseMeta(size){
-  const dia = normalizeHoseDiameter(size);
-  const c = COEFF[dia] ?? null;
-  return { dia, c };
-}
-
-export function formatHoseLabel(size){
+export function sizeLabel(size){
   const s = normalizeHoseDiameter(size);
   if (s === '1.5') return '1 1/2"';
   if (s === '1.75') return '1 3/4"';
@@ -140,8 +137,53 @@ export function formatHoseLabel(size){
   return s ? `${s}"` : '—';
 }
 
+export function round1(x){ return Math.round((Number(x)||0) * 10) / 10; }
+
+/* =========================
+ * Dept selection (hoses/nozzles)
+ * ========================= */
+const LS_DEPT_HOSES = 'fireops_dept_hoses_v1';
+const LS_DEPT_NOZZ  = 'fireops_dept_nozzles_v1';
+
+export function setSelectedHoses(arr){
+  localStorage.setItem(LS_DEPT_HOSES, safeStringify(arr||[]));
+}
+export function setSelectedNozzles(arr){
+  localStorage.setItem(LS_DEPT_NOZZ, safeStringify(arr||[]));
+}
+export function getDeptHoses(){
+  const raw = localStorage.getItem(LS_DEPT_HOSES);
+  const arr = safeParse(raw, null);
+  return Array.isArray(arr) ? arr : [];
+}
+export function getDeptNozzles(){
+  const raw = localStorage.getItem(LS_DEPT_NOZZ);
+  const arr = safeParse(raw, null);
+  return Array.isArray(arr) ? arr : [];
+}
+export function setDeptUiHoses(arr){ setSelectedHoses(arr); }
+export function setDeptUiNozzles(arr){ setSelectedNozzles(arr); }
+
+// Custom hose/nozzle helpers used by Dept Setup
+export function addCustomHose(h){ 
+  const s = getStore();
+  s.hoses = Array.isArray(s.hoses) ? s.hoses : [];
+  s.hoses.push(h);
+  saveStore(s);
+}
+export function addCustomNozzle(n){
+  const s = getStore();
+  s.nozzles = Array.isArray(s.nozzles) ? s.nozzles : [];
+  s.nozzles.push(n);
+  saveStore(s);
+}
+
+/* =========================
+ * Hydraulics
+ * ========================= */
+
 // Friction Loss: FL = C * (Q^2) * (L/100), Q in hundreds of gpm
-export function FL(size, gpm, lengthFt, cValue=null){
+export function FL(gpm, size, lengthFt, cValue=null){
   const dia = normalizeHoseDiameter(size);
   const C = (cValue && Number.isFinite(Number(cValue))) ? Number(cValue) : (COEFF[dia] ?? 0);
   const Q = (Number(gpm) || 0) / 100;
@@ -149,15 +191,43 @@ export function FL(size, gpm, lengthFt, cValue=null){
   return C * (Q * Q) * L;
 }
 
+export function FL_total(gpm, items){
+  if(!Array.isArray(items) || !items.length || !gpm) return 0;
+  let sum = 0;
+  for(const seg of items){
+    const size = (seg?.size ?? seg?.hose ?? seg?.hoseDiameter ?? seg?.dia ?? seg?.diameter ?? seg?.hoseSize ?? seg?.hoseDia);
+    const len  = (seg?.lengthFt ?? seg?.length ?? seg?.len);
+    sum += FL(gpm, size, len, seg?.cValue);
+  }
+  return sum;
+}
+
+export function sumFt(items){
+  if(!Array.isArray(items)) return 0;
+  return items.reduce((a,c)=> a + (Number(c.lengthFt)||0), 0);
+}
+
+export function splitIntoSections(items){
+  if(!Array.isArray(items)) return [];
+  return items.map(s => ({
+    // Accept legacy keys so first-run / migrated defaults never render blank hose size
+    size: String(s?.size ?? s?.hose ?? s?.hoseDiameter ?? s?.dia ?? s?.diameter ?? s?.hoseSize ?? s?.hoseDia ?? ''),
+    lengthFt: Number(s?.lengthFt ?? s?.length ?? s?.len ?? 0) || 0,
+    cValue: (Number.isFinite(Number(s?.cValue)) && Number(s?.cValue)>0) ? Number(s.cValue) : null,
+  }));
+}
+
 export function applianceLoss(totalGpm){
   return (Number(totalGpm) || 0) > 350 ? 10 : 0;
 }
 
-export function elevationLoss(elevFt){
-  return (Number(elevFt) || 0) * PSI_PER_FT;
+export function computeApplianceLoss(totalGpm){
+  return applianceLoss(totalGpm);
 }
 
-// ---- Presets storage ----
+/* =========================
+ * Presets storage
+ * ========================= */
 const PRESETS_KEY = 'fireops_presets_v1';
 export function loadPresets(){
   try{
@@ -176,7 +246,7 @@ export function savePresets(presets){
  * ========================= */
 const DEPT_DEFAULTS_KEY = 'pump_dept_defaults_v1';
 
-function loadDeptDefaults(){
+export function loadDeptDefaults(){
   try{
     const raw = localStorage.getItem(DEPT_DEFAULTS_KEY);
     const obj = safeParse(raw, null);
@@ -185,23 +255,68 @@ function loadDeptDefaults(){
   return null;
 }
 
-function saveDeptDefaults(obj){
+export function saveDeptDefaults(obj){
   try{ localStorage.setItem(DEPT_DEFAULTS_KEY, safeStringify(obj || {})); }catch(e){}
 }
 
-/**
- * Get a default line object for the given key: 'left'|'back'|'right'
- * 1) Preferred: full objects from pump_dept_defaults_v1
- * 2) Compatibility: simple objects from fireops_line_defaults_v1
- */
+export function getDeptLineDefaults(){
+  const all = loadDeptDefaults();
+  return all && typeof all === 'object' ? all : {};
+}
+
+export function setDeptLineDefault(key, obj){
+  const all = loadDeptDefaults() || {};
+  all[key] = obj;
+  saveDeptDefaults(all);
+}
+
 export function getDeptLineDefault(key){
   // 1) Preferred: full line objects saved in this module's storage (pump_dept_defaults_v1)
   const all = loadDeptDefaults();
   const candidate = all ? all[key] : null;
+
+  // First-run fallback: if nothing is saved yet, return a sane default template
+  const firstRunFallback = () => {
+    const label = (key === 'left') ? 'Line 1'
+               : (key === 'back') ? 'Line 2'
+               : (key === 'right') ? 'Line 3'
+               : 'Line';
+
+    // Default: 200' of 1¾" with Fog 150 @ 50
+    const hose = '1.75';
+    const len  = 200;
+    const elev = 0;
+    const nozObj = resolveNozzleById('fog150_50') || null;
+
+    return {
+      label,
+      visible: false,
+      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: null }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: elev,
+      nozRight: nozObj,
+    };
+  };
+
   if (candidate && typeof candidate === 'object' && Array.isArray(candidate.itemsMain)) {
-    // Always start with NO lines deployed on app load
+    // Always start with NO lines deployed on app load.
+    // Normalize section shapes so legacy saved defaults (hoseDiameter/hose/len) still compute and render correctly.
     const safe = JSON.parse(JSON.stringify(candidate));
     safe.visible = false;
+    safe.itemsMain  = splitIntoSections(safe.itemsMain);
+    safe.itemsLeft  = splitIntoSections(safe.itemsLeft);
+    safe.itemsRight = splitIntoSections(safe.itemsRight);
+
+    // Normalize nozzle id/object (some saves store {id} or raw string)
+    if (safe.nozRight && typeof safe.nozRight === 'object') {
+      const nid = canonicalNozzleId(safe.nozRight.id || safe.nozRight.value || safe.nozRight);
+      safe.nozRight = resolveNozzleById(nid) || safe.nozRight;
+    } else if (typeof safe.nozRight === 'string') {
+      safe.nozRight = resolveNozzleById(safe.nozRight) || null;
+    }
+
     return safe;
   }
 
@@ -209,10 +324,10 @@ export function getDeptLineDefault(key){
   //    Shape: { '1': { hose, nozzle, length, elevation }, ... }
   try{
     const raw = localStorage.getItem('fireops_line_defaults_v1');
-    if (!raw) return candidate || null;
-    const parsed = safeParse(raw, {}) || {};
+    if (!raw) return candidate || firstRunFallback();
+    const parsed = JSON.parse(raw) || {};
     const map = (key === 'left') ? '1' : (key === 'back') ? '2' : (key === 'right') ? '3' : null;
-    if (!map || !parsed[map]) return candidate || null;
+    if (!map || !parsed[map]) return candidate || firstRunFallback();
 
     const d = parsed[map] || {};
     const hose = String(d.hose ?? d.size ?? d.diameter ?? '1.75');
@@ -227,7 +342,7 @@ export function getDeptLineDefault(key){
     const built = {
       label,
       visible: false,
-      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: resolveHoseMeta(hose).c }],
+      itemsMain: [{ size: normalizeHoseDiameter(hose) || hose, lengthFt: len, cValue: null }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
@@ -244,102 +359,148 @@ export function getDeptLineDefault(key){
 
     return built;
   }catch(e){
-    return candidate || null;
+    return candidate || firstRunFallback();
   }
 }
 
 /* =========================
- * Line seeding (FIRST RUN defaults)
+ * Line defaults (in-memory state)
  * ========================= */
 
-// ✅ THIS FUNCTION IS THE FIX.
-// Your previous working file intentionally left itemsMain empty.
-// That causes: blank hose size + PP=NP until user edits.
-// We now seed a real hose segment + nozzle so first-run works.
 function seedInitialDefaults(){
   if (state.lines) return;
 
-  // First-run built-in attack line defaults so new users see hose size + PP immediately.
-  // Users can overwrite these in Department Setup at any time.
-  const nozDefault = resolveNozzleById('fog185_50') || resolveNozzleById('fog150_50') || null;
-
-  const mkLine = (label, hoseSize, lenFt) => {
-    const meta = resolveHoseMeta(hoseSize);
-    return {
-      label,
+  // Seed Line 1/2/3 with a real hose + nozzle so deployed lines immediately
+  // show hose size and calculate PP (NP + friction) even before the user edits defaults.
+  state.lines = {
+    left:  {
+      label: 'Line 1',
       visible: false,
-      itemsMain: [{ size: normalizeHoseDiameter(hoseSize) || String(hoseSize), lengthFt: Number(lenFt)||0, cValue: meta?.c ?? null }],
+      itemsMain: [{ size: '1.75', lengthFt: 200, cValue: null }],
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
       elevFt: 0,
-      nozRight: nozDefault,
-    };
-  };
-
-  state.lines = {
-    left:  mkLine('Line 1', '1.75', 200),
-    back:  mkLine('Line 2', '1.75', 200),
-    right: mkLine('Line 3', '1.75', 200),
+      nozRight: NOZ.fog150_50 || null,
+    },
+    back:  {
+      label: 'Line 2',
+      visible: false,
+      itemsMain: [{ size: '1.75', lengthFt: 200, cValue: null }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: NOZ.fog150_50 || null,
+    },
+    right: {
+      label: 'Line 3',
+      visible: false,
+      itemsMain: [{ size: '1.75', lengthFt: 200, cValue: null }],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: NOZ.fog150_50 || null,
+    },
   };
 }
 
-/* =========================
- * Public API used by views
- * ========================= */
+export function seedDefaultsForKey(key){
+  if(!state.lines) seedInitialDefaults();
 
-export function ensureState(){
-  seedInitialDefaults();
-  return state;
-}
+  const existing = state.lines ? state.lines[key] : null;
 
-export function resetLinesToDeptDefaults(){
-  seedInitialDefaults();
-  for (const k of ['left','back','right']){
-    const def = getDeptLineDefault(k);
-    if (def){
-      state.lines[k] = JSON.parse(JSON.stringify(def));
-      state.lines[k].visible = false;
+  // A placeholder is a blank line with no hose + no nozzle set yet.
+  const isPlaceholder = (L) => !!L
+    && Array.isArray(L.itemsMain) && L.itemsMain.length === 0
+    && Array.isArray(L.itemsLeft) && L.itemsLeft.length === 0
+    && Array.isArray(L.itemsRight) && L.itemsRight.length === 0
+    && !L.nozRight && !L.nozLeft
+    && !L.hasWye;
+
+  // Only pull from saved Department defaults when the current in-memory line is missing or placeholder.
+  if (key === 'left' || key === 'back' || key === 'right') {
+    if (!existing || isPlaceholder(existing)) {
+      const deptLine = getDeptLineDefault(key);
+      if (deptLine && typeof deptLine === 'object') {
+        state.lines[key] = JSON.parse(JSON.stringify(deptLine));
+        state.lines[key].visible = false;
+        return state.lines[key];
+      }
     }
-  }
-}
-
-export function setLineVisible(key, visible){
-  seedInitialDefaults();
-  const L = state.lines[key];
-  if (!L) return;
-  L.visible = !!visible;
-}
-
-export function setSupply(mode){
-  state.supply = mode;
-}
-
-export function setShowMath(v){
-  state.showMath = !!v;
-}
-
-export function calcLine(line){
-  // Returns { gpm, np, fl, elev, appl, pp }
-  const noz = line?.nozRight ? resolveNozzleById(line.nozRight.id || line.nozRight) : null;
-  const gpm = noz ? (Number(noz.gpm) || 0) : 0;
-  const np  = noz ? (Number(noz.np) || 0) : 0;
-
-  const secs = Array.isArray(line?.itemsMain) ? line.itemsMain : [];
-  let fl = 0;
-  for (const seg of secs){
-    fl += FL(seg?.size, gpm, seg?.lengthFt, seg?.cValue ?? null);
+    if (existing) return existing;
   }
 
-  const elev = elevationLoss(line?.elevFt || 0);
-  const appl = applianceLoss(gpm);
+  if (key === 'left' || key === 'back' || key === 'right') {
+    return state.lines[key];
+  } else {
+    state.lines[key] = {
+      label: key,
+      visible: false,
+      itemsMain: [],
+      itemsLeft: [],
+      itemsRight: [],
+      hasWye: false,
+      elevFt: 0,
+      nozRight: null,
+    };
+  }
 
-  const pp = Math.round(np + fl + elev + appl);
-  return { gpm, np, fl: Math.round(fl * 10) / 10, elev: Math.round(elev * 10) / 10, appl, pp };
+  return state.lines[key];
 }
 
 /* =========================
- * (Rest of file below is unchanged from your working version)
- * If your original working store.js had additional exports/helpers,
- * keep them here exactly as-is. 
+ * Wye helpers
  * ========================= */
+export function isSingleWye(L){
+  if(!L || !L.hasWye) return false;
+  const leftLen  = sumFt(L.itemsLeft || []);
+  const rightLen = sumFt(L.itemsRight || []);
+  const leftOn   = leftLen > 0 && (L.nozLeft || L.nozL);
+  const rightOn  = rightLen > 0 && (L.nozRight || L.nozR || L.noz);
+  return leftOn && rightOn;
+}
+
+/* =========================
+ * Active selection (UI)
+ * ========================= */
+export let activeSide = 'left';
+export let activeNozzle = null;
+
+/* =========================
+ * Line defaults interface (compat)
+ * ========================= */
+const LINE_DEFAULTS_KEY = 'fireops_line_defaults_v1';
+
+export function getLineDefaults(){
+  try{
+    const raw = localStorage.getItem(LINE_DEFAULTS_KEY);
+    const obj = safeParse(raw, null);
+    return obj && typeof obj === 'object' ? obj : {};
+  }catch(e){
+    return {};
+  }
+}
+
+export function setLineDefaults(obj){
+  try{
+    localStorage.setItem(LINE_DEFAULTS_KEY, safeStringify(obj || {}));
+  }catch(e){}
+}
+
+/* =========================
+ * Convenience (preconnects)
+ * ========================= */
+export function getConfiguredPreconnects(){
+  const defs = getLineDefaults();
+  return defs || {};
+}
+
+/* =========================
+ * Additional helpers used elsewhere
+ * ========================= */
+export function isSingleWye(L){
+  if(!L) return false;
+  return !!L.hasWye;
+}
