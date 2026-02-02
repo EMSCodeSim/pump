@@ -1,66 +1,13 @@
 import { renderAdOnce } from './ads-guards.js';
 
 // ========================
-// Practice Bank Debug Panel
+// Practice Bank Debug (removed)
 // ========================
-const PRACTICE_DEBUG = true; // set false to hide debug UI
+// Debug UI removed.
+const PRACTICE_DEBUG = false;
 
 let __lastPracticeTemplateId = null;
-
-let __practiceDebugState = {
-  tried: [],
-  loadedFrom: null,
-  templates: null,
-  error: null,
-  ts: null,
-};
-
-function setPracticeDebug(partial){
-  __practiceDebugState = { ...__practiceDebugState, ...partial, ts: Date.now() };
-  if (!PRACTICE_DEBUG) return;
-
-  let el = document.getElementById('practice-debug-panel');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'practice-debug-panel';
-    el.style.cssText = [
-      'position:fixed',
-      'left:12px',
-      'right:12px',
-      'bottom:12px',
-      'z-index:99999',
-      'background:#0b1020',
-      'color:#e7eefc',
-      'border:1px solid rgba(255,255,255,.12)',
-      'border-radius:12px',
-      'padding:10px 12px',
-      'font:12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial',
-      'max-height:42vh',
-      'overflow:auto',
-      'box-shadow:0 12px 32px rgba(0,0,0,.35)',
-      'white-space:pre-wrap'
-    ].join(';');
-    document.body.appendChild(el);
-  }
-
-  const s = __practiceDebugState;
-  const lines = [];
-  lines.push('PRACTICE BANK DEBUG');
-  lines.push('-------------------');
-  lines.push('Loaded from : ' + (s.loadedFrom || '(not loaded)'));
-  lines.push('Templates   : ' + (s.templates == null ? '(unknown)' : String(s.templates)));
-  lines.push('Last error  : ' + (s.error || '(none)'));
-  lines.push('');
-  lines.push('Tried URLs:');
-  for (const t of s.tried) {
-    const status = t.ok ? 'OK' : 'FAIL';
-    lines.push(`- ${status} ${t.url}  (${t.detail})`);
-  }
-  lines.push('');
-  lines.push('Tip: If ALL fail, your /practice/ folder is not being shipped into the built app/site output.');
-
-  el.textContent = lines.join('\n');
-}
+function setPracticeDebug(_partial){ /* no-op */ }
 
 // /js/view.practice.js
 // Practice Mode (phone-friendly) with:
@@ -737,21 +684,22 @@ function drawNozzle(G, x, y, hoseSize, scale = 1) {
 export function render(container) {
   container.innerHTML = `
     <style>
-      .practice-actions .btn { min-height: 40px; }
+      .practice-actions .btn { min-height: 54px; }
 
       /* Make Next Question (New Question) stand out more */
       .practice-actions #newScenarioBtn {
-        background: #d40000;
-        color: #ffffff;
-        border: 1px solid rgba(255,255,255,0.18);
-        font-weight: 800;
-        letter-spacing: .3px;
-        min-width: 140px;
-        padding: 12px 14px;
-        border-radius: 14px;
+        background: #22c55e;
+        color: #08130a;
+        border: 2px solid rgba(255,255,255,0.22);
+        font-weight: 900;
+        letter-spacing: .4px;
+        font-size: 18px;
+        min-width: 200px;
+        padding: 18px 20px;
+        border-radius: 18px;
         box-shadow:
-          0 10px 24px rgba(212,0,0,0.28),
-          0 0 0 2px rgba(212,0,0,0.35);
+          0 14px 32px rgba(34,197,94,0.30),
+          0 0 0 3px rgba(34,197,94,0.40);
       }
 
       .practice-actions #newScenarioBtn:active {
