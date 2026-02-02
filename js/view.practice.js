@@ -280,12 +280,14 @@ function makeQuestion(){
   };
 
   // Allow forcing bank questions with ?bank=1
-  const forceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search));
+  const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
+  const forceKind = params ? params.get('kind') : null;
+  const forceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search)) || !!forceKind;
   const bankProb = forceBank ? 1 : 0.8;
 
   // Occasionally pull a multi-part question from the JSON bank
   if(practiceBank && Array.isArray(practiceBank.templates) && practiceBank.templates.length && (forceBank || Math.random() < bankProb)){
-    const t = pickBankTemplate(practiceBank);
+    const t = pickBankTemplate(practiceBank, forceKind);
     if(t && t.type === 'MULTIPART'){
       const bankQ = evaluateBankTemplate(t, derived);
       // attach diagram scenario
@@ -1120,8 +1122,24 @@ export function render(container) {
   }
 
 
-  function pickBankTemplate(bank){
-    const list = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
+  function templateMatchesKind(t, kind){
+    if(!kind) return true;
+    const k = String(kind).toLowerCase();
+    const id = String(t?.id||'').toLowerCase();
+    const parts = Array.isArray(t?.parts) ? t.parts : [];
+
+    const hasUses = (key) => parts.some(p => p?.uses && p.uses[key]);
+    if(k === 'foam') return id.includes('foam') || hasUses('foam');
+    if(k === 'standpipe') return id.includes('standpipe') || hasUses('standpipe');
+    if(k === 'tender') return id.includes('tender') || hasUses('tender');
+    if(k === 'diagram') return id.includes('diagram');
+    // fallback: allow forcing by substring match
+    return id.includes(k);
+  }
+
+  function pickBankTemplate(bank, kind){
+    const all = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
+    const list = all.filter(t => templateMatchesKind(t, kind));
     if(!list.length) return null;
 
     // Avoid repeating the same template back-to-back (makes "Next" feel stuck)
