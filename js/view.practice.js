@@ -958,25 +958,52 @@ export function render(container) {
   };
 
   async function loadPracticeBank(){
-    // Loads from /practice/practiceBank.core.json (site-root) and falls back safely.
+    // Loads the JSON bank and falls back safely.
+    // IMPORTANT: In Capacitor / some hosting setups, a leading "/" path can fail.
+    // So we try multiple URLs.
     // Includes a short timeout so "loading" never sticks forever.
     const TIMEOUT_MS = 2500;
 
-    try{
-      const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-      const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
+    // Try multiple URLs so this works in:
+    // - Website at domain root
+    // - Website hosted in a subfolder
+    // - Capacitor app (where leading "/" can fail)
+    const candidates = [
+      '/practice/practiceBank.core.json',
+      'practice/practiceBank.core.json',
+      './practice/practiceBank.core.json',
+    ];
 
-      const res = await fetch('/practice/practiceBank.core.json', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
-      clearTimeout(t);
+    // If supported, also try resolving relative to this module URL.
+    // (Works well in bundlers / some WebView setups.)
+    try {
+      const u = new URL('../practice/practiceBank.core.json', import.meta.url);
+      candidates.push(u.toString());
+    } catch (_) {}
 
-      if(!res.ok) throw new Error('bank http ' + res.status);
-      const bank = await res.json();
-      if(!bank || !Array.isArray(bank.templates)) throw new Error('bank json missing templates');
+    for (const url of candidates) {
+      try{
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const t = setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
 
-      return bank;
-    }catch(_){
-      return DEFAULT_PRACTICE_BANK;
+        const res = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+        clearTimeout(t);
+
+        if(!res.ok) throw new Error('bank http ' + res.status);
+        const bank = await res.json();
+        if(!bank || !Array.isArray(bank.templates)) throw new Error('bank json missing templates');
+
+        // Helpful debug (safe in production; does not affect UI)
+        console.log('[practice] bank loaded from:', url, 'templates:', bank.templates.length);
+
+        return bank;
+      }catch(_e){
+        // try next candidate
+      }
     }
+
+    console.warn('[practice] bank load failed; using DEFAULT_PRACTICE_BANK');
+    return DEFAULT_PRACTICE_BANK;
   }
 
   function pickBankTemplate(bank){
