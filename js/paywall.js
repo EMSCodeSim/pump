@@ -1,18 +1,17 @@
-/* paywall.js — FireOps Calc (BILLING TEST MODE)
-   - Product ID: fireops.pro (ONE-TIME / NON-CONSUMABLE)
-   - ALWAYS show paywall on launch (until Pro unlock detected)
+/* paywall.js — FireOps Calc (BILLING TEST MODE, NO-LOOP)
+   - ALWAYS show paywall on launch until Pro unlocked
    - NO trial, NO grandfather
    - Uses offer.order() when available, else store.order()
-   - Unlocks on APPROVED
+   - Unlocks on APPROVED and FINISHES transaction (prevents refresh loop)
 */
 
 export const PRO_PRODUCT_ID = 'fireops.pro';
-
-// ✅ BILLING TEST MODE: always lock until purchase is detected
 export const FORCE_BILLING_TEST = true;
 
 const KEY_PRO_UNLOCKED  = 'fireops_pro_unlocked_v1';
+
 let _billingInitPromise = null;
+let _unlockEventSentThisSession = false;
 
 // -------------------- localStorage safe --------------------
 function lsGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
@@ -53,6 +52,12 @@ export function hardBlocked() {
   return !isProUnlocked();
 }
 
+function emitUnlockedOnce() {
+  if (_unlockEventSentThisSession) return;
+  _unlockEventSentThisSession = true;
+  try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
+}
+
 // -------------------- Billing init --------------------
 export async function initBilling() {
   if (_billingInitPromise) return _billingInitPromise;
@@ -78,7 +83,7 @@ export async function initBilling() {
       C?.Platform?.APPLE_APPSTORE ||
       store?.PLATFORM_APPLE_APPSTORE;
 
-    // Register product (platform-specific)
+    // Register product
     try {
       const reg = { id: PRO_PRODUCT_ID, type: NON_CONSUMABLE };
       if (platform === 'android' && GOOGLE_PLAY) reg.platform = GOOGLE_PLAY;
@@ -86,38 +91,46 @@ export async function initBilling() {
       try { store.register([reg]); } catch { store.register(reg); }
     } catch {}
 
-    // Unlock lifecycle (APPROVED is most reliable)
+    // ✅ Purchase lifecycle: unlock on APPROVED and FINISH (prevents loops)
     try {
       if (typeof store.when === 'function') {
         store.when()
-          .approved((tx) => {
-            setProUnlocked(true);
-            try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
-            try { tx.finish?.(); } catch {}
+          .approved(async (tx) => {
+            try { setProUnlocked(true); } catch {}
+            emitUnlockedOnce();
+
+            // IMPORTANT: finish/acknowledge so approved doesn't re-fire forever
+            try {
+              if (typeof tx?.finish === 'function') await tx.finish();
+            } catch {}
           })
-          .verified((tx) => {
-            setProUnlocked(true);
-            try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
-            try { tx.finish?.(); } catch {}
+          .verified(async (tx) => {
+            try { setProUnlocked(true); } catch {}
+            emitUnlockedOnce();
+            try {
+              if (typeof tx?.finish === 'function') await tx.finish();
+            } catch {}
           })
           .error(() => {});
       }
     } catch {}
 
-    // Initialize adapter by platform
+    // Initialize store
     try {
       if (platform === 'android' && GOOGLE_PLAY) await store.initialize([GOOGLE_PLAY]);
       else if (platform === 'ios' && APPLE_APPSTORE) await store.initialize([APPLE_APPSTORE]);
       else await store.initialize();
     } catch {}
 
-    // Pull product data
+    // Pull product data / ownership
     try { await store.update?.(); } catch {}
 
-    // If already owned, unlock
     try {
       const p = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
-      if (p?.owned) setProUnlocked(true);
+      if (p?.owned) {
+        setProUnlocked(true);
+        emitUnlockedOnce();
+      }
     } catch {}
   })();
 
@@ -140,7 +153,7 @@ export async function buyPro() {
   if (!product) {
     throw new Error(
       `Product not returned by Play (${PRO_PRODUCT_ID}). ` +
-      `Make sure it is Active and you installed from the correct Play testing track.`
+      `Confirm product is Active and you installed from the correct testing track.`
     );
   }
 
@@ -177,19 +190,20 @@ export async function restorePurchases() {
 
   try {
     const p = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
-    if (p?.owned) setProUnlocked(true);
+    if (p?.owned) {
+      setProUnlocked(true);
+      emitUnlockedOnce();
+    }
   } catch {}
 }
 
-// -------------------- Paywall Modal UI --------------------
+// -------------------- Paywall UI --------------------
 export function hidePaywallModal() {
   try { document.getElementById('fireops-paywall-overlay')?.remove(); } catch {}
 }
 
 export function showPaywallModal() {
-  // ALWAYS show in test mode if not unlocked
   if (!hardBlocked()) return;
-
   if (document.getElementById('fireops-paywall-overlay')) return;
 
   const overlay = document.createElement('div');
@@ -259,7 +273,7 @@ export function showPaywallModal() {
       await restorePurchases();
       if (isProUnlocked()) {
         setMsg('Restored. Unlocking…');
-        try { window.dispatchEvent(new CustomEvent('fireops:pro_unlocked')); } catch {}
+        emitUnlockedOnce();
       } else {
         setMsg('No prior purchase found for this account.');
       }
