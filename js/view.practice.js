@@ -1,11 +1,14 @@
 import { renderAdOnce } from './ads-guards.js';
 
-// ========================
-// Practice Bank Debug (removed)
-// ========================
-// Debug UI removed.
-const PRACTICE_DEBUG = false;
+// Temporary Test Bank controls (set by buttons)
+let __forceTestKind = null; // 'foam' | 'standpipe' | 'tender' | etc.
+let __forceBankOnly = false;
 
+
+// ========================
+// Practice Bank Debug (disabled for production)
+// ========================
+const PRACTICE_DEBUG = false;
 let __lastPracticeTemplateId = null;
 function setPracticeDebug(_partial){ /* no-op */ }
 
@@ -227,14 +230,27 @@ function makeQuestion(){
   };
 
   // Allow forcing bank questions with ?bank=1
-  const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
-  const forceKind = params ? params.get('kind') : null;
-  const forceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search)) || !!forceKind;
-  const bankProb = forceBank ? 1 : 0.8;
+const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
+
+// Force kind can come from:
+// - URL: ?kind=foam
+// - Temporary test buttons: __forceTestKind
+// Special case: kind='any' means "bank only" but no kind filter.
+const urlKind = params ? params.get('kind') : null;
+const effectiveKind = (__forceTestKind && __forceTestKind !== 'any') ? __forceTestKind : urlKind;
+
+// Force bank can come from:
+// - URL: ?bank=1
+// - Any kind filter
+// - Temporary test buttons (__forceBankOnly)
+const urlForceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search));
+const forceBank = __forceBankOnly || urlForceBank || !!effectiveKind || (__forceTestKind === 'any');
+const bankProb = forceBank ? 1 : 0.8;
+
 
   // Occasionally pull a multi-part question from the JSON bank
   if(practiceBank && Array.isArray(practiceBank.templates) && practiceBank.templates.length && (forceBank || Math.random() < bankProb)){
-    const t = pickBankTemplate(practiceBank, forceKind);
+    const t = pickBankTemplate(practiceBank, effectiveKind);
     if(t && t.type === 'MULTIPART'){
       const bankQ = evaluateBankTemplate(t, derived);
       // attach diagram scenario
@@ -684,26 +700,28 @@ function drawNozzle(G, x, y, hoseSize, scale = 1) {
 export function render(container) {
   container.innerHTML = `
     <style>
-      .practice-actions .btn { min-height: 54px; }
+      .practice-actions .btn { min-height: 40px; }
 
       /* Make Next Question (New Question) stand out more */
       .practice-actions #newScenarioBtn {
-        background: #22c55e;
-        color: #08130a;
-        border: 2px solid rgba(255,255,255,0.22);
+        background: #19c37d;
+        color: #04110b;
+        border: 2px solid rgba(255,255,255,0.28);
         font-weight: 900;
         letter-spacing: .4px;
+        width: 100%;
+        min-height: 58px;
+        padding: 16px 18px;
+        border-radius: 16px;
         font-size: 18px;
-        min-width: 200px;
-        padding: 18px 20px;
-        border-radius: 18px;
         box-shadow:
-          0 14px 32px rgba(34,197,94,0.30),
-          0 0 0 3px rgba(34,197,94,0.40);
+          0 14px 30px rgba(25,195,125,0.30),
+          0 0 0 3px rgba(25,195,125,0.35);
       }
 
       .practice-actions #newScenarioBtn:active {
-        transform: scale(0.98);
+        transform: translateY(1px) scale(0.99);
+        filter: brightness(0.98);
       }
 
       .practice-actions #newScenarioBtn:focus {
@@ -811,6 +829,19 @@ export function render(container) {
         </div>
         <div class="field" style="width:170px;max-width:200px">
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL} psi)</button>
+        </div>
+      </div>
+
+      <div id="testBankControls" class="field" style="margin-top:10px; display:none">
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn" id="testBankAllBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Bank: Any</button>
+          <button class="btn" id="testBankFoamBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Foam</button>
+          <button class="btn" id="testBankStandpipeBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Standpipe</button>
+          <button class="btn" id="testBankTenderBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Tender</button>
+          <button class="btn" id="testBankOffBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Mode: Off</button>
+        </div>
+        <div style="opacity:.8; font-size:12px; margin-top:6px">
+          Tip: add <b>?testui=1</b> to show these buttons. They force questions from the file bank (foam/standpipe/etc.) for testing.
         </div>
       </div>
 
@@ -1685,6 +1716,42 @@ export function render(container) {
     workEl.innerHTML = '';
     if (guessEl) guessEl.value = '';
   }
+
+
+// --- Temporary Test UI (only visible when ?testui=1 or localStorage.practiceTestUI='1') ---
+const params = new URLSearchParams(location.search);
+const testUiEnabled = params.get('testui') === '1' || (localStorage.getItem('practiceTestUI') === '1');
+const testWrap = container.querySelector('#testBankControls');
+if (testWrap && testUiEnabled) {
+  testWrap.style.display = '';
+}
+if (testWrap) {
+  const setMode = (kind) => {
+    if (!kind) {
+      __forceTestKind = null;
+      __forceBankOnly = false;
+    } else {
+      __forceTestKind = kind;       // 'foam', 'standpipe', 'tender' or 'any'
+      __forceBankOnly = true;       // always pull from file bank when in test mode
+    }
+    // persist the visibility choice (not the mode)
+    if (testUiEnabled) localStorage.setItem('practiceTestUI', '1');
+    // refresh a question immediately
+    makePractice();
+  };
+
+  const allBtn = container.querySelector('#testBankAllBtn');
+  const foamBtn = container.querySelector('#testBankFoamBtn');
+  const spBtn   = container.querySelector('#testBankStandpipeBtn');
+  const tenBtn  = container.querySelector('#testBankTenderBtn');
+  const offBtn  = container.querySelector('#testBankOffBtn');
+
+  allBtn && allBtn.addEventListener('click', () => setMode('any'));
+  foamBtn && foamBtn.addEventListener('click', () => setMode('foam'));
+  spBtn   && spBtn.addEventListener('click', () => setMode('standpipe'));
+  tenBtn  && tenBtn.addEventListener('click', () => setMode('tender'));
+  offBtn  && offBtn.addEventListener('click', () => setMode(null));
+}
 
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
 
