@@ -868,9 +868,6 @@ export function render(container) {
     `;
     guessEl = answersWrapEl.querySelector('#ppGuess');
   }
-    }
-    return { allOk: results.length && results.every(r=>r.ok), results };
-  }
 
 
   function qKindToChip(q){
@@ -1281,48 +1278,6 @@ export function render(container) {
       : `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> ${hint ? `<div style="margin-top:6px;opacity:.95">${hint}</div>` : ''}`;
 
     workEl.innerHTML = ok ? '' : (rev?.html || '');
-  });
-          };
-        }
-        workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
-      }
-      return;
-    }
-
-    // Numeric questions (psi or gpm)
-    const guess = Number(raw);
-    if(!Number.isFinite(guess)){
-      statusEl.textContent = 'Enter a number (or Y/N for decision questions).';
-      return;
-    }
-
-    const diff = Math.abs(guess - Number(practiceAnswer));
-    const unit = (currentQ.unitHint || 'psi');
-
-    if(diff<=TOL){
-      statusEl.innerHTML = `<span class="ok">✅ Correct!</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})`;
-      workEl.innerHTML = '';
-    }else{
-      const hint = diagnoseMistake(currentQ, guess);
-      statusEl.innerHTML = `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> (Answer ${practiceAnswer} ${unit}; Δ ${diff})` +
-        (hint ? `<span class="hint">${hint}</span>` : '');
-      const lead = revealLeadMsg(currentQ);
-      workEl.innerHTML = `
-        <div class="revealCompact">
-          <div class="lead">${lead}</div>
-          <div>Tap below for the full breakdown.</div>
-          <button class="btn" id="fullBreakdownBtn">Full Breakdown</button>
-        </div>
-      `;
-      const fb = container.querySelector('#fullBreakdownBtn');
-      if(fb){
-        fb.onclick = ()=>{
-          workEl.innerHTML = rev.html || '';
-          workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
-        };
-      }
-      workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
-    }
   });
 
   container.querySelector('#revealBtn').addEventListener('click', ()=>{
