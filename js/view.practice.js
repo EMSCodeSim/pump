@@ -12,6 +12,35 @@ const PRACTICE_DEBUG = false;
 let __lastPracticeTemplateId = null;
 function setPracticeDebug(_partial){ /* no-op */ }
 
+async function __practiceQuickCheckBankFile(){
+  const urls = [
+    '/practice/practiceBank.core.json',
+    'practice/practiceBank.core.json',
+    './practice/practiceBank.core.json',
+    '../practice/practiceBank.core.json'
+  ];
+  for (const base of urls){
+    const url = base + (base.includes('?') ? '&' : '?') + 'v=' + Date.now();
+    try{
+      const res = await fetch(url, { cache:'no-store' });
+      if (!res.ok) continue;
+      const txt = await res.text();
+      try{
+        const j = JSON.parse(txt);
+        if (j && Array.isArray(j.templates)) return { ok:true, url:base, count:j.templates.length };
+        return { ok:false, url:base, reason:'Loaded but missing templates[]' };
+      }catch(_e){
+        return { ok:false, url:base, reason:'Not valid JSON (router/HTML returned)' };
+      }
+    }catch(_e){
+      // try next
+    }
+  }
+  return { ok:false, url:null, reason:'Could not fetch bank file (missing from build/output or blocked)' };
+}
+
+
+
 // /js/view.practice.js
 // Practice Mode (phone-friendly) with:
 // - 50' multiples only (no 25' / 75')
@@ -832,13 +861,14 @@ export function render(container) {
         </div>
       </div>
 
-      <div id="testBankControls" class="field" style="margin-top:10px; display:none">
+      <div id="testBankControls" class="field" style="margin-top:10px; display:block">
         <div style="display:flex; gap:8px; flex-wrap:wrap">
           <button class="btn" id="testBankAllBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Bank: Any</button>
           <button class="btn" id="testBankFoamBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Foam</button>
           <button class="btn" id="testBankStandpipeBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Standpipe</button>
           <button class="btn" id="testBankTenderBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Tender</button>
           <button class="btn" id="testBankOffBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Mode: Off</button>
+          <button class="btn" id="testBankCheckBtn" style="flex:1; min-width:160px; background:rgba(0,180,255,0.22); border:2px solid rgba(0,180,255,0.45); font-weight:900">Check Bank File</button>
         </div>
         <div style="opacity:.8; font-size:12px; margin-top:6px">
           Tip: add <b>?testui=1</b> to show these buttons. They force questions from the file bank (foam/standpipe/etc.) for testing.
@@ -1720,54 +1750,18 @@ export function render(container) {
 
 // --- Temporary Test UI (only visible when ?testui=1 or localStorage.practiceTestUI='1') ---
 const params = new URLSearchParams(location.search);
-const testUiEnabled = params.get('testui') === '1' || (localStorage.getItem('practiceTestUI') === '1');
-const testWrap = container.querySelector('#testBankControls');
-if (testWrap && testUiEnabled) {
-  testWrap.style.display = '';
-}
-if (testWrap) {
-  const setMode = (kind) => {
-    if (!kind) {
-      __forceTestKind = null;
-      __forceBankOnly = false;
-    } else {
-      __forceTestKind = kind;       // 'foam', 'standpipe', 'tender' or 'any'
-      __forceBankOnly = true;       // always pull from file bank when in test mode
-    }
-    // persist the visibility choice (not the mode)
-    if (testUiEnabled) localStorage.setItem('practiceTestUI', '1');
-    // refresh a question immediately
-    makePractice();
-  };
-
-  const allBtn = container.querySelector('#testBankAllBtn');
-  const foamBtn = container.querySelector('#testBankFoamBtn');
-  const spBtn   = container.querySelector('#testBankStandpipeBtn');
-  const tenBtn  = container.querySelector('#testBankTenderBtn');
-  const offBtn  = container.querySelector('#testBankOffBtn');
-
-  allBtn && allBtn.addEventListener('click', () => setMode('any'));
-  foamBtn && foamBtn.addEventListener('click', () => setMode('foam'));
-  spBtn   && spBtn.addEventListener('click', () => setMode('standpipe'));
-  tenBtn  && tenBtn.addEventListener('click', () => setMode('tender'));
-  offBtn  && offBtn.addEventListener('click', () => setMode(null));
-}
-
-  
-  // ---- Temporary Test Bank Buttons (show with ?testui=1) ----
+// ---- Temporary Test Bank Buttons (show with ?testui=1) ----
   try {
     const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
-    const showTestUI = params ? (params.get('testui') === '1' || params.get('testui') === 'true') : false;
+    const showTestUI = true; // TEMP: always show test buttons
     const testWrap = container.querySelector('#testBankControls');
-    if (testWrap) testWrap.style.display = showTestUI ? 'block' : 'none';
+    if (testWrap) testWrap.style.display = 'block';
 
     function setTestMode(kind){
       if (!kind) { __forceBankOnly = false; __forceTestKind = null; return; }
       __forceBankOnly = true;
       __forceTestKind = (kind === 'any') ? null : kind;
     }
-
-    if (showTestUI) {
       const allBtn = container.querySelector('#testBankAllBtn');
       const foamBtn = container.querySelector('#testBankFoamBtn');
       const standBtn = container.querySelector('#testBankStandpipeBtn');
@@ -1779,7 +1773,13 @@ if (testWrap) {
       standBtn && standBtn.addEventListener('click', ()=>{ setTestMode('standpipe'); makePractice(); });
       tenderBtn && tenderBtn.addEventListener('click', ()=>{ setTestMode('tender'); makePractice(); });
       offBtn && offBtn.addEventListener('click', ()=>{ setTestMode(null); makePractice(); });
-    }
+
+      const chkBtn = container.querySelector('#testBankCheckBtn');
+      chkBtn && chkBtn.addEventListener('click', async ()=>{
+        const r = await __practiceQuickCheckBankFile();
+        if (r.ok) alert(`Bank OK ✅\nLoaded from: ${r.url}\nTemplates: ${r.count}`);
+        else alert(`Bank NOT loading ❌\n${r.reason || ''}\n\nExpected: /practice/practiceBank.core.json`);
+      });
   } catch(e) {
     // ignore
   }
