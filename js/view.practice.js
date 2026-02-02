@@ -703,7 +703,7 @@ export function render(container) {
       .practice-actions .btn { min-height: 40px; }
 
       /* Make Next Question (New Question) stand out more */
-      .practice-actions #newScenarioBtn {
+      #newScenarioBtn {
         background: #19c37d;
         color: #04110b;
         border: 2px solid rgba(255,255,255,0.28);
@@ -719,12 +719,12 @@ export function render(container) {
           0 0 0 3px rgba(25,195,125,0.35);
       }
 
-      .practice-actions #newScenarioBtn:active {
+      #newScenarioBtn:active {
         transform: translateY(1px) scale(0.99);
         filter: brightness(0.98);
       }
 
-      .practice-actions #newScenarioBtn:focus {
+      #newScenarioBtn:focus {
         outline: none;
         box-shadow:
           0 10px 24px rgba(212,0,0,0.28),
@@ -732,9 +732,9 @@ export function render(container) {
           0 0 0 6px rgba(212,0,0,0.30);
       }
 
-      .practice-actions #newScenarioBtn:active { transform: scale(0.98); }
+      #newScenarioBtn:active { transform: scale(0.98); }
 
-      .practice-actions #newScenarioBtn:focus {
+      #newScenarioBtn:focus {
         outline: none;
         box-shadow:
           0 10px 24px rgba(212,0,0,0.28),
@@ -1752,6 +1752,38 @@ if (testWrap) {
   tenBtn  && tenBtn.addEventListener('click', () => setMode('tender'));
   offBtn  && offBtn.addEventListener('click', () => setMode(null));
 }
+
+  
+  // ---- Temporary Test Bank Buttons (show with ?testui=1) ----
+  try {
+    const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
+    const showTestUI = params ? (params.get('testui') === '1' || params.get('testui') === 'true') : false;
+    const testWrap = container.querySelector('#testBankControls');
+    if (testWrap) testWrap.style.display = showTestUI ? 'block' : 'none';
+
+    function setTestMode(kind){
+      if (!kind) { __forceBankOnly = false; __forceTestKind = null; return; }
+      __forceBankOnly = true;
+      __forceTestKind = (kind === 'any') ? null : kind;
+    }
+
+    if (showTestUI) {
+      const allBtn = container.querySelector('#testBankAllBtn');
+      const foamBtn = container.querySelector('#testBankFoamBtn');
+      const standBtn = container.querySelector('#testBankStandpipeBtn');
+      const tenderBtn = container.querySelector('#testBankTenderBtn');
+      const offBtn = container.querySelector('#testBankOffBtn');
+
+      allBtn && allBtn.addEventListener('click', ()=>{ setTestMode('any'); makePractice(); });
+      foamBtn && foamBtn.addEventListener('click', ()=>{ setTestMode('foam'); makePractice(); });
+      standBtn && standBtn.addEventListener('click', ()=>{ setTestMode('standpipe'); makePractice(); });
+      tenderBtn && tenderBtn.addEventListener('click', ()=>{ setTestMode('tender'); makePractice(); });
+      offBtn && offBtn.addEventListener('click', ()=>{ setTestMode(null); makePractice(); });
+    }
+  } catch(e) {
+    // ignore
+  }
+
 
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
 
