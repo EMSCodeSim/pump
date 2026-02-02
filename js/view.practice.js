@@ -5,6 +5,8 @@ import { renderAdOnce } from './ads-guards.js';
 // ========================
 const PRACTICE_DEBUG = true; // set false to hide debug UI
 
+let __lastPracticeTemplateId = null;
+
 let __practiceDebugState = {
   tried: [],
   loadedFrom: null,
@@ -1121,10 +1123,34 @@ export function render(container) {
   function pickBankTemplate(bank){
     const list = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
     if(!list.length) return null;
-    const sum = list.reduce((a,t)=>a+t.weight,0);
-    let r = Math.random()*sum;
-    for(const t of list){ if((r-=t.weight)<=0) return t; }
-    return list[list.length-1];
+
+    // Avoid repeating the same template back-to-back (makes "Next" feel stuck)
+    const bannedId = __lastPracticeTemplateId;
+    const maxTries = 12;
+
+    function weightedPickOne(){
+      const sum = list.reduce((a,t)=>a+t.weight,0);
+      let r = Math.random()*sum;
+      for(const t of list){ if((r-=t.weight)<=0) return t; }
+      return list[list.length-1];
+    }
+
+    let chosen = null;
+    if(list.length === 1){
+      chosen = list[0];
+    } else {
+      for(let i=0; i<maxTries; i++){
+        const c = weightedPickOne();
+        if(!bannedId || c?.id !== bannedId){
+          chosen = c;
+          break;
+        }
+      }
+      if(!chosen) chosen = weightedPickOne();
+    }
+
+    __lastPracticeTemplateId = chosen?.id || null;
+    return chosen;
   }
 
   function computeDerivedForBankQuestion(q){
