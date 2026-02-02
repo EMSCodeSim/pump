@@ -1,4 +1,5 @@
-// app.js — BILLING TEST BUILD (always show paywall every launch, lock whole app until Pro)
+// app.js — BILLING TEST BUILD (always show paywall every launch, lock until Pro)
+// FIXED: no location.reload loop; unlock hides paywall + loads app
 
 import { renderAdOnce } from './ads-guards.js';
 
@@ -149,9 +150,21 @@ async function enforceBillingTestGate() {
   return true;
 }
 
-// On unlock, reload app so everything re-initializes cleanly
-window.addEventListener('fireops:pro_unlocked', () => {
-  try { window.location.reload(); } catch {}
+// ✅ Unlock handler: NO reload; just un-block and load calc
+window.addEventListener('fireops:pro_unlocked', async () => {
+  const pw = await getPaywall();
+  try { pw?.hidePaywallModal?.(); } catch {}
+
+  _blocked = false;
+  enableNav();
+
+  // Boot into calc immediately
+  try {
+    await setView('calc');
+  } catch {
+    // If setView fails due to timing, last resort reload once
+    try { window.location.reload(); } catch {}
+  }
 });
 
 // -------------------- Normal view switching --------------------
@@ -190,6 +203,6 @@ buttons.forEach(b => b.addEventListener('click', () => {
   const ok = await enforceBillingTestGate();
   if (!ok) return;
 
-  setView('calc');
+  await setView('calc');
   updateTopActionsVisibility('calc');
 })();
