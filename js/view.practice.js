@@ -1,46 +1,5 @@
 import { renderAdOnce } from './ads-guards.js';
 
-// Temporary Test Bank controls (set by buttons)
-let __forceTestKind = null; // 'foam' | 'standpipe' | 'tender' | etc.
-let __forceBankOnly = false;
-
-
-// ========================
-// Practice Bank Debug (disabled for production)
-// ========================
-const PRACTICE_DEBUG = false;
-let __lastPracticeTemplateId = null;
-function setPracticeDebug(_partial){ /* no-op */ }
-
-async function __practiceQuickCheckBankFile(){
-  const urls = [
-    '/practice/practiceBank.core.json',
-    'practice/practiceBank.core.json',
-    './practice/practiceBank.core.json',
-    '../practice/practiceBank.core.json'
-  ];
-  for (const base of urls){
-    const url = base + (base.includes('?') ? '&' : '?') + 'v=' + Date.now();
-    try{
-      const res = await fetch(url, { cache:'no-store' });
-      if (!res.ok) continue;
-      const txt = await res.text();
-      try{
-        const j = JSON.parse(txt);
-        if (j && Array.isArray(j.templates)) return { ok:true, url:base, count:j.templates.length };
-        return { ok:false, url:base, reason:'Loaded but missing templates[]' };
-      }catch(_e){
-        return { ok:false, url:base, reason:'Not valid JSON (router/HTML returned)' };
-      }
-    }catch(_e){
-      // try next
-    }
-  }
-  return { ok:false, url:null, reason:'Could not fetch bank file (missing from build/output or blocked)' };
-}
-
-
-
 // /js/view.practice.js
 // Practice Mode (phone-friendly) with:
 // - 50' multiples only (no 25' / 75')
@@ -79,12 +38,6 @@ const sizeLabel = (sz) => sz==='2.5' ? '2½″' : (sz==='1.75' ? '1¾″' : `${s
 // ---------- constants ----------
 const ns = 'http://www.w3.org/2000/svg';
 const TOL = 5; 
-// ----- Question bank state (module-scope so helpers can access) -----
-let practiceBank = null;
-let bankStatus = 'loading';
-let lastBankId = '';
-let bankLoadStarted = false;
-
 // ± psi for "Check"
 const TRUCK_W = 390;
 const TRUCK_H = 260;
@@ -251,45 +204,6 @@ function makeQuestion(){
   // base visual scenario
   const baseS = generateScenarioBase();
   const base = computeAll(baseS);
-
-  // Derived values for JSON-bank questions
-  const derived = {
-    totalGpm: (base?.flow != null ? base.flow : base?.totalGPM),
-    PDP: base?.PDP
-  };
-
-  // Allow forcing bank questions with ?bank=1
-const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
-
-// Force kind can come from:
-// - URL: ?kind=foam
-// - Temporary test buttons: __forceTestKind
-// Special case: kind='any' means "bank only" but no kind filter.
-const urlKind = params ? params.get('kind') : null;
-const effectiveKind = (__forceTestKind && __forceTestKind !== 'any') ? __forceTestKind : urlKind;
-
-// Force bank can come from:
-// - URL: ?bank=1
-// - Any kind filter
-// - Temporary test buttons (__forceBankOnly)
-const urlForceBank = (typeof location !== 'undefined' && /(?:\?|&)bank=1(?:&|$)/.test(location.search));
-const forceBank = __forceBankOnly || urlForceBank || !!effectiveKind || (__forceTestKind === 'any');
-const bankProb = forceBank ? 1 : 0.8;
-
-
-  // Occasionally pull a multi-part question from the JSON bank
-  if(practiceBank && Array.isArray(practiceBank.templates) && practiceBank.templates.length && (forceBank || Math.random() < bankProb)){
-    const t = pickBankTemplate(practiceBank, effectiveKind);
-    if(t && t.type === 'MULTIPART'){
-      const bankQ = evaluateBankTemplate(t, derived);
-      // attach diagram scenario
-      bankQ.scenario = baseS;
-      bankQ.bankId = t.id || '';
-      lastBankId = bankQ.bankId;
-      return bankQ;
-    }
-  }
-
 
   const qKind = weightedPick([
     { v:'PP',     w:35 },
@@ -860,21 +774,6 @@ export function render(container) {
           <button class="btn primary" id="checkBtn" style="width:100%">Check (±${TOL} psi)</button>
         </div>
       </div>
-
-      <div id="testBankControls" class="field" style="margin-top:10px; display:block">
-        <div style="display:flex; gap:8px; flex-wrap:wrap">
-          <button class="btn" id="testBankAllBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Bank: Any</button>
-          <button class="btn" id="testBankFoamBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Foam</button>
-          <button class="btn" id="testBankStandpipeBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Standpipe</button>
-          <button class="btn" id="testBankTenderBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test: Tender</button>
-          <button class="btn" id="testBankOffBtn" style="flex:1; min-width:140px; border:2px dashed rgba(255,255,255,0.25)">Test Mode: Off</button>
-          <button class="btn" id="testBankCheckBtn" style="flex:1; min-width:160px; background:rgba(0,180,255,0.22); border:2px solid rgba(0,180,255,0.45); font-weight:900">Check Bank File</button>
-        </div>
-        <div style="opacity:.8; font-size:12px; margin-top:6px">
-          Temporary test buttons: Force the file bank (Foam/Standpipe/Tender) while you verify new templates.
-        </div>
-      </div>
-
       <div class="field" style="margin-top:10px">
         <button class="btn" id="newScenarioBtn" style="width:100%">New Question</button>
       </div>
@@ -910,53 +809,6 @@ export function render(container) {
   let currentQ = null;
   let practiceAnswer = null;
   let eqVisible = false;
-  // Start question bank load once (shared across renders)
-  if(!bankLoadStarted){
-    bankLoadStarted = true;
-
-    // Safety: never leave UI stuck on "loading"
-    const safety = setTimeout(()=>{
-      if(bankStatus === 'loading'){
-        practiceBank = DEFAULT_PRACTICE_BANK;
-        
-        bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
-        updateBankMeta();
-        updateBankMeta();
-      }
-    }, 3000);
-
-    loadPracticeBank()
-      .then(b=>{
-        clearTimeout(safety);
-        practiceBank = b;
-        
-        bankStatus = (b === DEFAULT_PRACTICE_BANK)
-          ? `fallback (${(b?.templates||[]).length} templates)`
-          : `loaded (${(b?.templates||[]).length} templates)`;
-        updateBankMeta();
-      })
-      .catch(()=>{
-        clearTimeout(safety);
-        practiceBank = DEFAULT_PRACTICE_BANK;
-        
-        bankStatus = `fallback (${(DEFAULT_PRACTICE_BANK?.templates||[]).length} templates)`;
-        updateBankMeta();
-        updateBankMeta();
-      });
-  }
-
-
-  
-  function updateBankMeta(){
-    try{
-      const s = document.getElementById('bankStatusText');
-      if(s) s.textContent = bankStatus;
-      const idEl = document.getElementById('bankIdText');
-      if(idEl) idEl.innerHTML = lastBankId ? ` • <b>ID:</b> ${lastBankId}` : '';
-      // bankTypeText is tied to current question, leave it as-is.
-    }catch(_){}
-  }
-
 // ----- UI copy (consistent across question types) -----
   const UI_COPY = {
     chips: {
@@ -997,322 +849,25 @@ export function render(container) {
     },
   };
 
-
-  // ----- JSON practice bank (for future flexibility) -----
-  const DEFAULT_PRACTICE_BANK = {
-    version: 1,
-    packId: 'core_dopumper',
-    defaults: { tolerancePsi: TOL, pumpLimitPsi: 150 },
-    templates: [
-      {
-        id: 'tender_can_supply_from_diagram',
-        topic: 'tender_shuttle',
-        layout: 'from_current_diagram',
-        type: 'MULTIPART',
-        weight: 12,
-        chip: 'TENDER SHUTTLE',
-        prompt: 'Answer both parts:',
-        parts: [
-          {
-            id: 'p1_flow',
-            prompt: 'Based on the diagram, how many gpm is flowing?',
-            answerKey: 'totalGpm',
-            unit: 'gpm',
-            answerType: 'number'
-          },
-          {
-            id: 'p2_can_supply',
-            prompt: 'You have 1 tender carrying 3000 gallons with a 15 minute round trip. Can it supply the required gpm? (Y/N)',
-            answerKey: 'tenderCanSupply',
-            unit: 'YN',
-            answerType: 'yn',
-            uses: { tender: { tankGallons: 3000, turnaroundMinutes: 15 } }
-          }
-        ],
-        revealLead: 'First determine required flow, then compare to sustained tender flow (tank ÷ turnaround).'
-      }
-    ]
-  };
   
-  async function loadPracticeBank(){
-    // Production-safe loader (no debug globals). Tries several URLs so it works:
-    // - website at domain root
-    // - subfolder hosting
-    // - Capacitor/WebView relative paths
-    const TIMEOUT_MS = 4000;
-
-    const candidates = [
-      '/practice/practiceBank.core.json',
-      'practice/practiceBank.core.json',
-      './practice/practiceBank.core.json',
-      '../practice/practiceBank.core.json',
-    ];
-
-    // Best-effort module-relative URL (may fail in some bundlers / older WebViews)
-    try {
-      const u = new URL('../practice/practiceBank.core.json', import.meta.url);
-      candidates.push(u.toString());
-    } catch (_) {}
-
-    for (const baseUrl of candidates) {
-      const url = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
-      try{
-        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        const timer = setTimeout(() => { try{ ctrl && ctrl.abort(); }catch(_){} }, TIMEOUT_MS);
-
-        const res = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
-        clearTimeout(timer);
-
-        if(!res.ok) continue;
-
-        const text = await res.text();
-        let bank;
-        try { bank = JSON.parse(text); } catch(_) { continue; }
-
-        if(!bank || !Array.isArray(bank.templates)) continue;
-
-        // success
-        return bank;
-      }catch(_e){
-        // try next candidate
-      }
-    }
-
-    return DEFAULT_PRACTICE_BANK;
-  }
-
-
-
-  function templateMatchesKind(t, kind){
-    if(!kind) return true;
-    const k = String(kind).toLowerCase();
-    const id = String(t?.id||'').toLowerCase();
-    const parts = Array.isArray(t?.parts) ? t.parts : [];
-
-    const hasUses = (key) => parts.some(p => p?.uses && p.uses[key]);
-    if(k === 'foam') return id.includes('foam') || hasUses('foam');
-    if(k === 'standpipe') return id.includes('standpipe') || hasUses('standpipe');
-    if(k === 'tender') return id.includes('tender') || hasUses('tender');
-    if(k === 'diagram') return id.includes('diagram');
-    // fallback: allow forcing by substring match
-    return id.includes(k);
-  }
-
-  function pickBankTemplate(bank, kind){
-    const all = (bank?.templates||[]).filter(t => t && typeof t.weight === 'number' && t.weight > 0);
-    const list = all.filter(t => templateMatchesKind(t, kind));
-    if(!list.length) return null;
-
-    // Avoid repeating the same template back-to-back (makes "Next" feel stuck)
-    const bannedId = __lastPracticeTemplateId;
-    const maxTries = 12;
-
-    function weightedPickOne(){
-      const sum = list.reduce((a,t)=>a+t.weight,0);
-      let r = Math.random()*sum;
-      for(const t of list){ if((r-=t.weight)<=0) return t; }
-      return list[list.length-1];
-    }
-
-    let chosen = null;
-    if(list.length === 1){
-      chosen = list[0];
-    } else {
-      for(let i=0; i<maxTries; i++){
-        const c = weightedPickOne();
-        if(!bannedId || c?.id !== bannedId){
-          chosen = c;
-          break;
-        }
-      }
-      if(!chosen) chosen = weightedPickOne();
-    }
-
-    __lastPracticeTemplateId = chosen?.id || null;
-    return chosen;
-  }
-
-  function computeDerivedForBankQuestion(q){
-    const S = q.layout;
-    const base = q.base || computeAll(S);
-    const totalGpm =
-      (S.type==='single') ? base.flow :
-      (S.type==='wye2')   ? base.flow :
-      (S.type==='master') ? base.totalGPM : 0;
-
-    return {
-      totalGpm: Math.round(totalGpm),
-      PDP: base.PDP,
-      mainFL: base.mainFL,
-      higherNeed: base.higherNeed,
-      _base: base
-    };
-  }
-
-  function evaluateBankTemplate(template, derived){
-    const parts = (template.parts||[]).map(p => {
-      let ans = null;
-
-      // Stable derived values from the current diagram
-      if(p.answerKey === 'totalGpm') ans = derived.totalGpm;
-      if(p.answerKey === 'PDP') ans = derived.PDP;
-
-      // ----- Tender shuttle (simple model: sustained gpm = tank ÷ turnaround) -----
-      const tank = p?.uses?.tender?.tankGallons ?? 3000;
-      const tmin = p?.uses?.tender?.turnaroundMinutes ?? 15;
-      const sustained = tank / tmin;
-
-      if(p.answerKey === 'tenderSustainedGpm'){
-        ans = Math.round(sustained * 10) / 10;
-      }
-      if(p.answerKey === 'tenderCanSupply'){
-        ans = sustained >= derived.totalGpm ? 'Y' : 'N';
-      }
-      if(p.answerKey === 'tenderCountNeeded'){
-        ans = Math.max(1, Math.ceil(derived.totalGpm / sustained));
-      }
-      if(p.answerKey === 'tenderMaxTurnaround'){
-        ans = Math.round((tank / Math.max(1, derived.totalGpm)) * 10) / 10;
-      }
-
-      // ----- Foam helpers -----
-      const foamPct = p?.uses?.foam?.percent ?? null;
-      const foamFlow = p?.uses?.foam?.solutionGpm ?? derived.totalGpm;
-      const foamMin  = p?.uses?.foam?.minutes ?? null;
-      const foamOnboard = p?.uses?.foam?.onboardGallons ?? null;
-
-      if(p.answerKey === 'foamConcentrateGpm' && foamPct != null){
-        ans = Math.round((foamFlow * (foamPct/100)) * 10) / 10;
-      }
-      if(p.answerKey === 'foamConcentrateGallons' && foamPct != null && foamMin != null){
-        const concGpm = (foamFlow * (foamPct/100));
-        ans = Math.round((concGpm * foamMin) * 10) / 10;
-      }
-      if(p.answerKey === 'foamEnoughYN' && foamPct != null && foamMin != null && foamOnboard != null){
-        const concGpm = (foamFlow * (foamPct/100));
-        const need = concGpm * foamMin;
-        ans = foamOnboard >= need ? 'Y' : 'N';
-      }
-
-      // ----- Standpipe helpers (simplified) -----
-      const floorsUp = p?.uses?.standpipe?.floorsUp ?? null;
-      const psiPerFloor = p?.uses?.standpipe?.psiPerFloor ?? 5;
-      const outletPsi = p?.uses?.standpipe?.outletPsi ?? null;
-      const flowGpm = p?.uses?.standpipe?.flowGpm ?? 150;
-      const hoseLenFt = p?.uses?.standpipe?.hoseLenFt ?? 150;
-      const hoseSize = p?.uses?.standpipe?.hoseSize ?? '1.75';
-      const applianceLoss = p?.uses?.standpipe?.applianceLossPsi ?? 0;
-      const pumpLimit = p?.uses?.standpipe?.pumpLimitPsi ?? 150;
-
-      function standpipeHoseFL(){
-        const len100 = hoseLenFt / 100;
-        if(String(hoseSize) === '2.5') return FL_25(flowGpm) * len100;
-        return FL_175(flowGpm) * len100;
-      }
-
-      if(p.answerKey === 'standpipePDP' && floorsUp != null && outletPsi != null){
-        const elevPsi = floorsUp * psiPerFloor;
-        const fl = standpipeHoseFL();
-        ans = Math.round(outletPsi + applianceLoss + elevPsi + fl);
-      }
-
-      if(p.answerKey === 'standpipeAcceptableYN' && floorsUp != null && outletPsi != null){
-        const elevPsi = floorsUp * psiPerFloor;
-        const fl = standpipeHoseFL();
-        const pdp = Math.round(outletPsi + applianceLoss + elevPsi + fl);
-        ans = pdp <= pumpLimit ? 'Y' : 'N';
-      }
-
-      const usesOut = p.uses ? JSON.parse(JSON.stringify(p.uses)) : null;
-      // If this is a foam question and solutionGpm was omitted in JSON, inject the diagram flow so reveals can show the math.
-      if(usesOut && usesOut.foam){
-        if(usesOut.foam.solutionGpm == null) usesOut.foam.solutionGpm = foamFlow;
-      }
-      return { id:p.id, prompt:p.prompt, unit:p.unit, answerType:p.answerType, answer:ans, uses:usesOut };
-    });
-
-    return {
-      questionType: 'MULTI',
-      qKind: 'MULTI',
-      unitHint: '',
-      chip: template.chip || 'MULTIPART',
-      prompt: template.prompt || 'Answer all parts:',
-      revealLead: template.revealLead || '',
-      parts
-    };
-  }
-
   function renderAnswerUI(q){
     if(!answersWrapEl) return;
 
-    if(q.questionType === 'MULTI'){
-      const parts = Array.isArray(q.parts) ? q.parts : [];
-      const html = parts.map((p, i)=>{
-        const unitRaw = (p.unit || '');
-        const unit = unitRaw.toLowerCase();
-        const isYN = (p.answerType === 'yn') || unit === 'yn' || unit === 'y/n';
-        const isGpm = unit === 'gpm';
-        const isMin = unit === 'min' || unit === 'mins' || unit === 'minute' || unit === 'minutes';
-        const isTenders = unit === 'tenders' || unit === 'tender';
-        const isGal = unit === 'gal' || unit === 'gallons';
-        const label = isYN ? `Part ${i+1} (Y / N)`
-                    : isGpm ? `Part ${i+1} (gpm)`
-                    : isMin ? `Part ${i+1} (min)`
-                    : isTenders ? `Part ${i+1} (tenders)`
-                    : isGal ? `Part ${i+1} (gal)`
-                    : unitRaw ? `Part ${i+1} (${unitRaw})`
-                    : `Part ${i+1}`;
-        const placeholder = isYN ? 'Enter Y or N'
-                          : isGpm ? 'Enter flow in gpm'
-                          : isTenders ? 'Enter number of tenders'
-                          : isMin ? 'Enter minutes'
-                          : isGal ? 'Enter gallons'
-                          : 'Enter answer';
-        const inputmode = isYN ? 'text' : 'decimal';
-        const extra = isYN ? 'autocapitalize="characters"' : '';
-        const mt = i===0 ? '' : 'margin-top:10px';
-        return `
-          <div class="partBlock" style="${mt}">
-            <label class="partLabel">${label}</label>
-            <div class="partPrompt">${p.prompt || ''}</div>
-            <input class="partInput" data-part="${i}" type="text" inputmode="${inputmode}" autocomplete="off" spellcheck="false" placeholder="${placeholder}"
-              style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" ${extra}>
-          </div>
-        `;
-      }).join('');
-      answersWrapEl.innerHTML = html || '<div style="opacity:.85">No parts defined.</div>';
-      guessEl = answersWrapEl.querySelector('input.partInput') || null;
-      return;
-    }
-    const isYN = q.questionType === 'YN';
-    const isGpm = !isYN && String(q.unitHint||'').toLowerCase() === 'gpm';
+    const isYN = q && q.questionType === 'YN';
+    const isGpm = !isYN && q && String(q.unitHint||'').toLowerCase() === 'gpm';
+
     const label = isYN ? UI_COPY.input.ynLabel : (isGpm ? UI_COPY.input.gpmLabel : UI_COPY.input.psiLabel);
     const ph = isYN ? UI_COPY.input.ynPlaceholder : (isGpm ? UI_COPY.input.gpmPlaceholder : UI_COPY.input.psiPlaceholder);
     const inputmode = isYN ? 'text' : 'decimal';
 
     answersWrapEl.innerHTML = `
       <label class="partLabel">${label}</label>
-      <input type="text" id="ppGuess" placeholder="${ph}" style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;" inputmode="${inputmode}" autocomplete="off" spellcheck="false" ${isYN?'autocapitalize="characters"':''}>
+      <input type="text" id="ppGuess" placeholder="${ph}"
+        style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;"
+        inputmode="${inputmode}" autocomplete="off" spellcheck="false" ${isYN?'autocapitalize="characters"':''}>
     `;
     guessEl = answersWrapEl.querySelector('#ppGuess');
   }
-
-  function gradeMultipart(q){
-    const inputs = Array.from(answersWrapEl?.querySelectorAll('input.partInput') || []);
-    const results = [];
-    for(const inp of inputs){
-      const idx = Number(inp.getAttribute('data-part'));
-      const part = q.parts[idx];
-      const raw = (inp.value||'').trim().toUpperCase();
-
-      if(part.answerType === 'yn'){
-        const v = raw.startsWith('Y') ? 'Y' : raw.startsWith('N') ? 'N' : '';
-        results.push({ idx, ok: v && v === String(part.answer).toUpperCase(), user: v || raw, answer: part.answer });
-      }else{
-        const n = Number(raw);
-        const ok = Number.isFinite(n) && Math.abs(n - Number(part.answer)) <= (DEFAULT_PRACTICE_BANK.defaults?.tolerancePsi ?? TOL);
-        results.push({ idx, ok, user: n, answer: part.answer });
-      }
     }
     return { allOk: results.length && results.every(r=>r.ok), results };
   }
@@ -1628,7 +1183,6 @@ export function render(container) {
   // ---------- interactions ----------
   function makePractice(){
     const q = makeQuestion();
-    if(!q.bankId) lastBankId = '';
     currentQ = q;
     scenario = q.scenario;
 
@@ -1638,7 +1192,7 @@ export function render(container) {
     }
 
     const rev = buildRevealForQuestion(q);
-    practiceAnswer = (currentQ.questionType === 'MULTI') ? null : rev.total;
+    practiceAnswer = rev.total;
 
     drawScenario(scenario);
     renderAnswerUI(currentQ);
@@ -1649,13 +1203,7 @@ export function render(container) {
         `<div class="promptRow">`+
           `<span class="qChip">${qKindToChip(currentQ)}</span>`+
           `<div class="promptText">`+
-            `<div><b>Prompt:</b> ${currentQ.prompt}</div>`+
-            `<div class="bankMeta">`+
-              `<b>Bank:</b> <span id="bankStatusText">${bankStatus}</span>`+
-              `<span id="bankIdText">${lastBankId ? ` • <b>ID:</b> ${lastBankId}` : ''}</span>`+
-              `<span id="bankTypeText">${currentQ.questionType==='MULTI' ? ' • <b>Type:</b> Multi-part' : ''}</span>`+
-            `</div>`+
-          `</div>`+
+            `<div><b>Prompt:</b> ${currentQ.prompt}</div>`+          `</div>`+
         `</div>`+
       `</div>`;
 
@@ -1700,118 +1248,40 @@ export function render(container) {
   }
 
 
-// --- Temporary Test UI (only visible when ?testui=1 or localStorage.practiceTestUI='1') ---
-const params = new URLSearchParams(location.search);
-// ---- Temporary Test Bank Buttons (show with ?testui=1) ----
-  try {
-    const params = (typeof location !== 'undefined') ? new URLSearchParams(location.search) : null;
-    const showTestUI = true; // TEMP: always show test buttons
-    const testWrap = container.querySelector('#testBankControls');
-    if (testWrap) testWrap.style.display = 'block';
-
-    function setTestMode(kind){
-      if (!kind) { __forceBankOnly = false; __forceTestKind = null; return; }
-      __forceBankOnly = true;
-      __forceTestKind = (kind === 'any') ? null : kind;
-    }
-      const allBtn = container.querySelector('#testBankAllBtn');
-      const foamBtn = container.querySelector('#testBankFoamBtn');
-      const standBtn = container.querySelector('#testBankStandpipeBtn');
-      const tenderBtn = container.querySelector('#testBankTenderBtn');
-      const offBtn = container.querySelector('#testBankOffBtn');
-
-      allBtn && allBtn.addEventListener('click', ()=>{ setTestMode('any'); makePractice(); });
-      foamBtn && foamBtn.addEventListener('click', ()=>{ setTestMode('foam'); makePractice(); });
-      standBtn && standBtn.addEventListener('click', ()=>{ setTestMode('standpipe'); makePractice(); });
-      tenderBtn && tenderBtn.addEventListener('click', ()=>{ setTestMode('tender'); makePractice(); });
-      offBtn && offBtn.addEventListener('click', ()=>{ setTestMode(null); makePractice(); });
-
-      const chkBtn = container.querySelector('#testBankCheckBtn');
-      chkBtn && chkBtn.addEventListener('click', async ()=>{
-        const r = await __practiceQuickCheckBankFile();
-        if (r.ok) alert(`Bank OK ✅\nLoaded from: ${r.url}\nTemplates: ${r.count}`);
-        else alert(`Bank NOT loading ❌\n${r.reason || ''}\n\nExpected: /practice/practiceBank.core.json`);
-      });
-  } catch(e) {
-    // ignore
-  }
-
-
   container.querySelector('#newScenarioBtn').addEventListener('click', makePractice);
 
   container.querySelector('#checkBtn').addEventListener('click', ()=>{
     const raw = (guessEl?.value || '').trim();
     if(!currentQ){ statusEl.textContent = 'Generate a problem first.'; return; }
-    if(currentQ.questionType !== 'MULTI' && practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
+    if(practiceAnswer==null){ statusEl.textContent = 'Generate a problem first.'; return; }
 
     const rev = buildRevealForQuestion(currentQ);
 
-    // MULTIPART (multi-part) grading
-    if(currentQ.questionType === 'MULTI'){
-      const graded = gradeMultipart(currentQ);
-
-      if(graded.allOk){
-        const badges = graded.results.map(r => `Part ${r.idx+1} ✅`).join('  ');
-        statusEl.innerHTML = `<span class="ok">✅ Correct.</span> ${badges}`;
-        workEl.innerHTML = '';
-      }else{
-        const badges = graded.results.map(r => `Part ${r.idx+1} ${r.ok ? '✅' : '❌'}`).join('  ');
-        statusEl.innerHTML = `<span class="alert">❌ Not quite.</span> ${badges}`;
-
-        const lines = (currentQ.parts||[]).map((p,i)=>{
-          const unit = p.unit ? ` ${p.unit}` : '';
-          return `<div style="margin-top:6px"><b>Part ${i+1} answer:</b> ${p.answer}${unit}</div>`;
-        }).join('');
-
-        const tender = (currentQ.parts||[]).map(p=>p?.uses?.tender).find(Boolean);
-        let tenderLine = '';
-        if(tender && tender.tankGallons && tender.turnaroundMinutes){
-          const sustained = Math.round((tender.tankGallons / tender.turnaroundMinutes) * 10) / 10;
-          tenderLine = `<div style="margin-top:8px"><b>Tender sustained flow:</b> ${tender.tankGallons} ÷ ${tender.turnaroundMinutes} = ${sustained} gpm</div>`;
-        }
-
-        const foam = (currentQ.parts||[]).map(p=>p?.uses?.foam).find(Boolean);
-        let foamLine = '';
-        if(foam && foam.percent!=null){
-          const sol = foam.solutionGpm ?? 0;
-          const conc = Math.round((sol * (foam.percent/100)) * 10) / 10;
-          foamLine = `<div style="margin-top:8px"><b>Foam concentrate flow:</b> ${sol} × ${foam.percent}% = ${conc} gpm</div>`;
-        }
-
-        workEl.innerHTML = `
-          <div class="revealLead">${currentQ.revealLead || ''}</div>
-          ${tenderLine}
-          ${foamLine}
-          ${lines}
-        `;
-      }
+    // Y/N questions
+    if(currentQ.questionType === 'YN'){
+      const v = raw.toUpperCase().startsWith('Y') ? 'Y' : raw.toUpperCase().startsWith('N') ? 'N' : '';
+      if(!v){ statusEl.textContent = 'Enter Y or N, then press Check.'; return; }
+      const ok = v === String(practiceAnswer).toUpperCase();
+      statusEl.innerHTML = ok
+        ? `<span class="ok">✅ ${correctMsg(currentQ)}</span>`
+        : `<span class="alert">❌ ${incorrectMsg(currentQ)}</span>`;
+      workEl.innerHTML = ok ? '' : (rev?.html || '');
       return;
     }
 
-    // Y/N decision questions
-    if(currentQ.questionType === 'YN'){
-      const user = raw.toUpperCase();
-      const v = user.startsWith('Y') ? 'Y' : user.startsWith('N') ? 'N' : '';
-      const ok = v && v === String(practiceAnswer).toUpperCase();
+    // Numeric questions (psi or gpm)
+    const guess = Number(raw);
+    if(!Number.isFinite(guess)){ statusEl.textContent = 'Enter a number, then press Check.'; return; }
 
-      if(ok){
-        statusEl.innerHTML = `<span class="ok">✅ ${correctMsg(currentQ)}</span> (Answer ${practiceAnswer})`;
-        workEl.innerHTML = '';
-      }else{
-        statusEl.innerHTML = `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> (Answer ${practiceAnswer})`;
-        const lead = revealLeadMsg(currentQ);
-        workEl.innerHTML = `
-          <div class="revealCompact">
-            <div class="lead">${lead}</div>
-            <div>Tap below for the full breakdown.</div>
-            <button class="btn" id="fullBreakdownBtn">Full Breakdown</button>
-          </div>
-        `;
-        const fb = container.querySelector('#fullBreakdownBtn');
-        if(fb){
-          fb.onclick = ()=>{
-            workEl.innerHTML = rev.html || '';
-            workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
+    const ok = Math.abs(guess - practiceAnswer) <= TOL;
+    const hint = ok ? '' : diagnoseMistake(currentQ, guess);
+
+    statusEl.innerHTML = ok
+      ? `<span class="ok">✅ ${correctMsg(currentQ)}</span>`
+      : `<span class="alert">❌ ${incorrectMsg(currentQ)}</span> ${hint ? `<div style="margin-top:6px;opacity:.95">${hint}</div>` : ''}`;
+
+    workEl.innerHTML = ok ? '' : (rev?.html || '');
+  });
           };
         }
         workEl.scrollIntoView({behavior:'smooth', block:'nearest'});
