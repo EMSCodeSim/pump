@@ -586,6 +586,8 @@ export async function render(container){
     .simpleBox b{color:#eaf2ff}
     .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
+.te-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);z-index:10140;}
+.te-backdrop.is-hidden{display:none!important}
 
 
   /* ===============================
@@ -603,15 +605,32 @@ export async function render(container){
     box-shadow: 0 14px 44px rgba(0,0,0,.55);
   }
 
-  /* Label left, control right (like iPhone) */
-  #tipEditor .te-row{display:flex;align-items:center;gap:12px;padding:10px 4px;}
+  #tipEditor.tip-editor.is-open{
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 14px;
+    z-index: 10150;
+  }
 
-  #tipEditor .te-row>label{
-    font-weight: 800;
-    color: #eaf2ff;
-    opacity: .95;
-    line-height: 1.1;
-  ;flex:0 0 120px;max-width:120px}
+  /* Label left, control right (like iPhone) */
+  #tipEditor .te-row{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+}
+
+  #tipEditor .te-row > label{
+  flex: 0 0 120px;
+  font-weight: 800;
+  color: #eaf2ff;
+  opacity: .95;
+  line-height: 1.1;
+}
+
+  #tipEditor .te-row > *:last-child{ flex: 1; }
+
 
   /* Inputs/selects match iPhone control sizing */
   #tipEditor input[type="text"],
@@ -643,11 +662,37 @@ export async function render(container){
   }
 
   /* Force stepper to be horizontal: [-] [value] [+] */
-  #tipEditor .steppers{display:flex !important;flex-direction:row;align-items:center;justify-content:space-between;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden;}
+  #tipEditor .steppers{
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.12);
+  overflow: hidden;
+}
 
-  #tipEditor .stepBtn{width:56px;flex:0 0 56px;height:100%;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-size:22px;font-weight:900;touch-action:manipulation;}
+  #tipEditor .stepBtn{
+  width: 56px;
+  min-width: 56px;
+  height: 100%;
+  border: 0;
+  background: rgba(255,255,255,.05);
+  color: #eaf2ff;
+  font-size: 22px;
+  font-weight: 900;
+  touch-action: manipulation;
+}
 
-  #tipEditor .stepVal{flex:1;text-align:center;font-size:18px;font-weight:900;letter-spacing:.2px;}
+  #tipEditor .stepVal{
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
 
   /* Action buttons match iPhone sizing */
   #tipEditor .te-actions{
@@ -667,8 +712,8 @@ export async function render(container){
 
   /* Small-phone tweak */
   @media (max-width: 420px){
-    #tipEditor .te-row{ grid-template-columns: 105px 1fr; }
-  }
+  #tipEditor .te-row > label{ flex-basis: 105px; }
+}
 
 `);
 
@@ -934,6 +979,30 @@ const activePresetLines = {};
   const teLen       = container.querySelector('#teLen');
   const teElev      = container.querySelector('#teElev');
   const teWye       = container.querySelector('#teWye');
+  // Backdrop to make the editor stand out (esp. on Android)
+  let teBackdrop = document.getElementById('teBackdrop');
+  if(!teBackdrop){
+    teBackdrop = document.createElement('div');
+    teBackdrop.id = 'teBackdrop';
+    teBackdrop.className = 'te-backdrop is-hidden';
+    document.body.appendChild(teBackdrop);
+  }
+
+  function __openTipEditor(){
+    teBackdrop.classList.remove('is-hidden');
+    tipEditor.classList.remove('is-hidden');
+    tipEditor.classList.add('is-open');
+  }
+  function __closeTipEditor(){
+    teBackdrop.classList.add('is-hidden');
+    tipEditor.classList.remove('is-open');
+    tipEditor.classList.add('is-hidden');
+    if (window.BottomSheetEditor && typeof window.BottomSheetEditor.close === 'function'){
+      try{ window.BottomSheetEditor.close(); }catch(e){}
+    }
+  }
+  teBackdrop.addEventListener('click', __closeTipEditor);
+
   const teLenA      = container.querySelector('#teLenA');
   const teLenB      = container.querySelector('#teLenB');
   const teNoz       = container.querySelector('#teNoz');
@@ -2398,7 +2467,14 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
 
     L.visible = true; drawAll(); markDirty();
-  });
+  
+    // Close editor + backdrop
+    __closeTipEditor();
+});
+
+  // Cancel closes editor
+  container.querySelector('#teCancel').addEventListener('click', __closeTipEditor);
+
 
   /* ---------------------------- Line toggles ------------------------------ */
 
@@ -3212,14 +3288,14 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#tipEditor .te-row{display:flex;align-items:center;gap:12px;padding:10px 4px;}
-#tipEditor .te-row>label{font-weight:800;color:#eaf2ff;opacity:.95;line-height:1.1;flex:0 0 120px;max-width:120px}
+    s.textContent = `#tipEditor .te-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;padding:10px 4px}
+#tipEditor .te-row>label{font-weight:800;color:#eaf2ff;opacity:.95;line-height:1.1}
 #tipEditor input[readonly],#tipEditor select{width:100%;height:52px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf2ff;outline:none}
 #tipEditor select{-webkit-appearance:none;-moz-appearance:none;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,rgba(234,242,255,.9) 50%),linear-gradient(135deg,rgba(234,242,255,.9) 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
-#tipEditor .steppers{display:flex !important;flex-direction:row;align-items:center;justify-content:space-between;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden;}
-#tipEditor .stepBtn{width:56px;flex:0 0 56px;height:100%;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-size:22px;font-weight:900;touch-action:manipulation;}
+#tipEditor .steppers{display:grid !important;grid-template-columns:56px 1fr 56px;align-items:center;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden}
+#tipEditor .stepBtn{width:56px;height:52px;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-size:22px;font-weight:900;touch-action:manipulation}
 #tipEditor .stepBtn:active{transform:scale(.98)}
-#tipEditor .stepVal{flex:1;text-align:center;font-size:18px;font-weight:900;letter-spacing:.2px;}
+#tipEditor .stepVal{text-align:center;font-size:18px;font-weight:900;letter-spacing:.2px}
 @media (max-width:480px){#tipEditor .te-row{grid-template-columns:105px 1fr}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
