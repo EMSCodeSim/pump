@@ -1,5 +1,6 @@
-// app.js — BILLING TEST BUILD (always show paywall every launch, lock until Pro)
-// FIXED: no location.reload loop; unlock hides paywall + loads app
+// app.js — PRODUCTION (Option A: FULL APP BLOCK AFTER 5 DAYS)
+// - On boot: init billing silently, then if hardBlocked() => show paywall + lock screen
+// - On unlock: hide paywall + load calc (NO reload loop)
 
 import { renderAdOnce } from './ads-guards.js';
 
@@ -22,7 +23,7 @@ function isNativeApp() {
   return proto === 'file:' || proto === 'capacitor:' || proto === 'ionic:';
 }
 
-// ---- Lazy paywall module loader (native only) ----
+// Lazy load paywall module (native only)
 let _paywallMod = null;
 async function getPaywall() {
   if (!isNativeApp()) return null;
@@ -46,7 +47,7 @@ const loaders = {
   settings: () => import('./view.settings.js'),
 };
 
-// === Charts overlay support ===
+// Charts overlay
 let chartsOverlay = document.getElementById('chartsOverlay');
 let chartsMount = document.getElementById('chartsMount');
 let chartsClose = document.getElementById('closeCharts');
@@ -99,17 +100,17 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-// -------------------- BILLING TEST FULL APP GATE --------------------
+// -------------------- FULL APP GATE (PRODUCTION) --------------------
 let _blocked = false;
 
-function renderLockedScreen() {
+function renderTrialEndedScreen() {
   if (!app) return;
   app.innerHTML = `
     <div style="padding:16px;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;">
       <div style="max-width:640px;margin:0 auto;">
-        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">Billing Test Mode</div>
+        <div style="font-size:22px;font-weight:900;margin-bottom:8px;">Trial Ended</div>
         <div style="opacity:.9;line-height:1.45;margin-bottom:14px;">
-          The app is locked for billing testing. A purchase is required to continue.
+          Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.
         </div>
         <div style="opacity:.75;font-size:12px;">
           Use Buy Pro / Restore in the popup.
@@ -129,17 +130,18 @@ function enableNav() {
   updateTopActionsVisibility(currentView?.name || 'calc');
 }
 
-async function enforceBillingTestGate() {
+async function enforceProductionGate() {
   if (!isNativeApp()) return true;
 
   const pw = await getPaywall();
   if (!pw) return true;
 
+  // Always init billing silently so owned users unlock immediately
   try { await pw.initBilling?.(); } catch {}
 
   if (pw.hardBlocked?.()) {
     _blocked = true;
-    renderLockedScreen();
+    renderTrialEndedScreen();
     disableNav();
     try { pw.showPaywallModal?.(); } catch {}
     return false;
@@ -150,7 +152,7 @@ async function enforceBillingTestGate() {
   return true;
 }
 
-// ✅ Unlock handler: NO reload; just un-block and load calc
+// On unlock: hide paywall + load calc (NO reload loop)
 window.addEventListener('fireops:pro_unlocked', async () => {
   const pw = await getPaywall();
   try { pw?.hidePaywallModal?.(); } catch {}
@@ -158,11 +160,10 @@ window.addEventListener('fireops:pro_unlocked', async () => {
   _blocked = false;
   enableNav();
 
-  // Boot into calc immediately
   try {
     await setView('calc');
   } catch {
-    // If setView fails due to timing, last resort reload once
+    // last-resort single reload if something is half-mounted
     try { window.location.reload(); } catch {}
   }
 });
@@ -194,13 +195,19 @@ buttons.forEach(b => b.addEventListener('click', () => {
 
   const v = b.dataset.view;
   if (v === 'charts') { openCharts(); return; }
-  if (v === 'calc' && currentView?.name === 'practice') { window.location.reload(); return; }
+
+  // Keep your existing behavior (calc from practice can hard reload if you want)
+  if (v === 'calc' && currentView?.name === 'practice') {
+    window.location.reload();
+    return;
+  }
+
   setView(v);
 }));
 
 // Boot
 (async () => {
-  const ok = await enforceBillingTestGate();
+  const ok = await enforceProductionGate();
   if (!ok) return;
 
   await setView('calc');
