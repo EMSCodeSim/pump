@@ -586,7 +586,120 @@ export async function render(container){
     .simpleBox b{color:#eaf2ff}
     .lbl{font-size:10px;fill:#0b0f14}
     .is-hidden{display:none!important}
-  `);
+
+
+  /* ===============================
+     iPhone-style Line Editor (Android fix)
+     Targets: #tipEditor .te-row / .steppers
+     =============================== */
+
+  #tipEditor.tip-editor{
+    width: min(520px, calc(100vw - 28px));
+    margin: 0 auto;
+    padding: 16px 14px 14px;
+    border-radius: 18px;
+    background: rgba(12,18,28,.92);
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 14px 44px rgba(0,0,0,.55);
+  }
+
+  /* Label left, control right (like iPhone) */
+  #tipEditor .te-row{
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 4px;
+  }
+
+  #tipEditor .te-row > label{
+    font-weight: 800;
+    color: #eaf2ff;
+    opacity: .95;
+    line-height: 1.1;
+  }
+
+  /* Inputs/selects match iPhone control sizing */
+  #tipEditor input[type="text"],
+  #tipEditor input[type="number"],
+  #tipEditor input[readonly],
+  #tipEditor select{
+    width: 100%;
+    height: 52px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    color: #eaf2ff;
+    outline: none;
+  }
+
+  /* Make Android selects look clean + consistent */
+  #tipEditor select{
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: 40px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(234,242,255,.9) 50%),
+      linear-gradient(135deg, rgba(234,242,255,.9) 50%, transparent 50%);
+    background-position: calc(100% - 20px) 22px, calc(100% - 14px) 22px;
+    background-size: 6px 6px, 6px 6px;
+    background-repeat: no-repeat;
+  }
+
+  /* Force stepper to be horizontal: [-] [value] [+] */
+  #tipEditor .steppers{
+    display: grid !important;
+    grid-template-columns: 56px 1fr 56px;
+    align-items: center;
+    width: 100%;
+    height: 52px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    overflow: hidden;
+  }
+
+  #tipEditor .stepBtn{
+    height: 100%;
+    border: 0;
+    background: rgba(255,255,255,.05);
+    color: #eaf2ff;
+    font-size: 22px;
+    font-weight: 900;
+    touch-action: manipulation;
+  }
+
+  #tipEditor .stepVal{
+    text-align: center;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: .2px;
+  }
+
+  /* Action buttons match iPhone sizing */
+  #tipEditor .te-actions{
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,.10);
+  }
+
+  #tipEditor .te-actions .btn{
+    flex: 1;
+    height: 52px;
+    border-radius: 14px;
+    font-weight: 900;
+  }
+
+  /* Small-phone tweak */
+  @media (max-width: 420px){
+    #tipEditor .te-row{ grid-template-columns: 105px 1fr; }
+  }
+
+`);
 
   /* ------------------------------ DOM refs -------------------------------- */
   const stageSvg    = container.querySelector('#stageSvg');
