@@ -1,13 +1,17 @@
-/* paywall.js — FireOps Calc (BILLING TEST MODE, NO-LOOP)
-   - ALWAYS show paywall on launch until Pro unlocked
-   - NO trial, NO grandfather
+/* paywall.js — FireOps Calc (PRODUCTION)
+   - Product ID: fireops.pro (ONE-TIME / NON-CONSUMABLE)
+   - 5-day trial from first launch
+   - After 5 days: WHOLE APP blocked unless Pro OR grandfathered
+   - Grandfather: users with existing saved data at first run
    - Uses offer.order() when available, else store.order()
-   - Unlocks on APPROVED and FINISHES transaction (prevents refresh loop)
+   - Unlock on APPROVED and await tx.finish() to prevent loop
 */
 
 export const PRO_PRODUCT_ID = 'fireops.pro';
-export const FORCE_BILLING_TEST = true;
+export const TRIAL_DAYS = 5;
 
+const KEY_INSTALL_TS    = 'fireops_install_ts_v1';
+const KEY_GRANDFATHERED = 'fireops_grandfathered_v1';
 const KEY_PRO_UNLOCKED  = 'fireops_pro_unlocked_v1';
 
 let _billingInitPromise = null;
@@ -16,6 +20,10 @@ let _unlockEventSentThisSession = false;
 // -------------------- localStorage safe --------------------
 function lsGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function lsSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
+
+// -------------------- time --------------------
+function nowMs() { return Date.now(); }
+function daysToMs(d) { return d * 24 * 60 * 60 * 1000; }
 
 // -------------------- platform / store --------------------
 export function isNativeApp() {
@@ -43,13 +51,52 @@ function getBillingStore() {
   return window.store || null;
 }
 
-// -------------------- Pro state --------------------
+// -------------------- grandfather / trial flags --------------------
+function hasAnyExistingUserData() {
+  // Keys you already use across the app; presence suggests an "old user"
+  const keys = [
+    'fireops_dept_equipment_v1',
+    'fireops_presets_v1',
+    'fireops_practice_v1',
+    'PRACTICE_SAVE_KEY',
+  ];
+  try {
+    for (const k of keys) {
+      if (localStorage.getItem(k) != null) return true;
+    }
+  } catch {}
+  return false;
+}
+
+function ensureInstallTimestamps() {
+  const existing = lsGet(KEY_INSTALL_TS);
+  if (!existing) {
+    const oldUser = hasAnyExistingUserData();
+    // Grandfathered users ON if any saved data exists
+    lsSet(KEY_GRANDFATHERED, oldUser ? '1' : '0');
+    lsSet(KEY_INSTALL_TS, String(nowMs()));
+  }
+}
+
+function installMs() {
+  const v = Number(lsGet(KEY_INSTALL_TS));
+  return Number.isFinite(v) ? v : null;
+}
+
+export function isGrandfathered() { return lsGet(KEY_GRANDFATHERED) === '1'; }
 export function isProUnlocked() { return lsGet(KEY_PRO_UNLOCKED) === '1'; }
 export function setProUnlocked(v) { lsSet(KEY_PRO_UNLOCKED, v ? '1' : '0'); }
 
-// TEST MODE: block whole app until Pro unlocked
+export function trialExpired() {
+  const im = installMs();
+  if (!im) return false;
+  return (nowMs() - im) >= daysToMs(TRIAL_DAYS);
+}
+
 export function hardBlocked() {
-  return !isProUnlocked();
+  if (isProUnlocked()) return false;
+  if (isGrandfathered()) return false;
+  return trialExpired();
 }
 
 function emitUnlockedOnce() {
@@ -63,6 +110,7 @@ export async function initBilling() {
   if (_billingInitPromise) return _billingInitPromise;
 
   _billingInitPromise = (async () => {
+    ensureInstallTimestamps();
     if (!isNativeApp()) return;
 
     const platform = getPlatformName();
@@ -83,7 +131,7 @@ export async function initBilling() {
       C?.Platform?.APPLE_APPSTORE ||
       store?.PLATFORM_APPLE_APPSTORE;
 
-    // Register product
+    // Register product (platform-specific)
     try {
       const reg = { id: PRO_PRODUCT_ID, type: NON_CONSUMABLE };
       if (platform === 'android' && GOOGLE_PLAY) reg.platform = GOOGLE_PLAY;
@@ -91,31 +139,33 @@ export async function initBilling() {
       try { store.register([reg]); } catch { store.register(reg); }
     } catch {}
 
-    // ✅ Purchase lifecycle: unlock on APPROVED and FINISH (prevents loops)
+    // ✅ Unlock lifecycle: unlock on APPROVED and await finish (prevents refresh loop)
     try {
       if (typeof store.when === 'function') {
         store.when()
           .approved(async (tx) => {
             try { setProUnlocked(true); } catch {}
             emitUnlockedOnce();
-
-            // IMPORTANT: finish/acknowledge so approved doesn't re-fire forever
-            try {
-              if (typeof tx?.finish === 'function') await tx.finish();
-            } catch {}
+            try { if (typeof tx?.finish === 'function') await tx.finish(); } catch {}
           })
           .verified(async (tx) => {
             try { setProUnlocked(true); } catch {}
             emitUnlockedOnce();
-            try {
-              if (typeof tx?.finish === 'function') await tx.finish();
-            } catch {}
+            try { if (typeof tx?.finish === 'function') await tx.finish(); } catch {}
           })
-          .error(() => {});
+          .error(() => { /* silent in prod */ });
+
+        // If owned event exists, unlock too
+        try {
+          store.when(PRO_PRODUCT_ID)?.owned?.(() => {
+            setProUnlocked(true);
+            emitUnlockedOnce();
+          });
+        } catch {}
       }
     } catch {}
 
-    // Initialize store
+    // Initialize adapter by platform
     try {
       if (platform === 'android' && GOOGLE_PLAY) await store.initialize([GOOGLE_PLAY]);
       else if (platform === 'ios' && APPLE_APPSTORE) await store.initialize([APPLE_APPSTORE]);
@@ -125,6 +175,7 @@ export async function initBilling() {
     // Pull product data / ownership
     try { await store.update?.(); } catch {}
 
+    // If already owned, unlock
     try {
       const p = (typeof store.get === 'function') ? store.get(PRO_PRODUCT_ID) : null;
       if (p?.owned) {
@@ -153,16 +204,18 @@ export async function buyPro() {
   if (!product) {
     throw new Error(
       `Product not returned by Play (${PRO_PRODUCT_ID}). ` +
-      `Confirm product is Active and you installed from the correct testing track.`
+      `Make sure it is Active and installed from the correct Play testing track.`
     );
   }
 
+  // Prefer offer.order() when available
   const offer = pickOrderableOffer(product);
   if (offer) {
     await offer.order();
     return;
   }
 
+  // Fallback
   if (typeof store.order === 'function') {
     await store.order(PRO_PRODUCT_ID);
     return;
@@ -179,6 +232,7 @@ export async function restorePurchases() {
 
   if (typeof store.restorePurchases === 'function') {
     try {
+      // Some versions accept a platform param
       try { await store.restorePurchases(C?.Platform?.GOOGLE_PLAY); }
       catch { await store.restorePurchases(); }
     } catch {
@@ -197,13 +251,17 @@ export async function restorePurchases() {
   } catch {}
 }
 
-// -------------------- Paywall UI --------------------
+// -------------------- Paywall Modal UI --------------------
 export function hidePaywallModal() {
   try { document.getElementById('fireops-paywall-overlay')?.remove(); } catch {}
 }
 
-export function showPaywallModal() {
-  if (!hardBlocked()) return;
+export function showPaywallModal(opts = {}) {
+  ensureInstallTimestamps();
+
+  // Only show when blocked (after trial)
+  if (!hardBlocked() && !opts.force) return;
+
   if (document.getElementById('fireops-paywall-overlay')) return;
 
   const overlay = document.createElement('div');
@@ -224,11 +282,11 @@ export function showPaywallModal() {
   `;
 
   const title = document.createElement('div');
-  title.textContent = 'Billing Test Mode';
+  title.textContent = 'Trial Ended';
   title.style.cssText = `font-size:22px; font-weight:900; margin-bottom:8px;`;
 
   const body = document.createElement('div');
-  body.textContent = `This popup appears every launch for billing testing. Tap Buy Pro to test purchase, or Restore if you already own it.`;
+  body.textContent = `Your 5-day free trial has ended. Upgrade to Pro to continue using FireOps Calc.`;
   body.style.cssText = `font-size:14px; line-height:1.45; opacity:.9; margin-bottom:14px;`;
 
   const msg = document.createElement('div');
@@ -255,7 +313,7 @@ export function showPaywallModal() {
   }
 
   const buyBtn = makeBtn('Buy Pro', true);
-  const restoreBtn = makeBtn('Restore', false);
+  const restoreBtn = makeBtn('Restore Purchase', false);
 
   buyBtn.onclick = async () => {
     try {
