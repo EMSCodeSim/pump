@@ -10,8 +10,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
 
         // 🔢 Bump these as needed for Play uploads
-        versionCode 72
-        versionName "7.0.2"
+        versionCode 73
+        versionName "7.0.3"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
