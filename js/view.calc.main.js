@@ -3241,12 +3241,15 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `.te-row{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center;margin:8px 0}
-.steppers{display:flex;align-items:center;gap:8px;background:#0b1a29;border:1px solid var(--edge);border-radius:10px;padding:6px}
-.stepBtn{background:#0b1320;border:1px solid var(--edge);border-radius:10px;color:#e9f1ff;font-weight:700;min-width:36px;height:36px}
-.stepBtn:active{transform:translateY(1px)}
-.stepVal{flex:1;text-align:center;font-weight:700}
-@media (max-width:480px){.te-row{grid-template-columns:100px 1fr}.stepBtn{min-width:34px;height:34px}}`;
+    s.textContent = `#tipEditor .te-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;padding:10px 4px}
+#tipEditor .te-row>label{font-weight:800;color:#eaf2ff;opacity:.95;line-height:1.1}
+#tipEditor input[readonly],#tipEditor select{width:100%;height:52px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf2ff;outline:none}
+#tipEditor select{-webkit-appearance:none;-moz-appearance:none;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,rgba(234,242,255,.9) 50%),linear-gradient(135deg,rgba(234,242,255,.9) 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
+#tipEditor .steppers{display:grid !important;grid-template-columns:56px 1fr 56px;align-items:center;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden}
+#tipEditor .stepBtn{width:56px;height:52px;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-size:22px;font-weight:900;touch-action:manipulation}
+#tipEditor .stepBtn:active{transform:scale(.98)}
+#tipEditor .stepVal{text-align:center;font-size:18px;font-weight:900;letter-spacing:.2px}
+@media (max-width:480px){#tipEditor .te-row{grid-template-columns:105px 1fr}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
@@ -3383,3 +3386,4 @@ function initBranchPlusMenus(root){
    Non-destructive: operates on DOM only; no reliance on outer variables.
    Appears only when Wye = On and size = 2.5". Hides legacy segSwitch.
    ========================================================================== */
+
