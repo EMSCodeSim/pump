@@ -26,6 +26,7 @@ document.addEventListener("click", (e) => {
   if (window._openTipEditor) window._openTipEditor(key, where);
 });
 
+const UI_BUILD = 'ANDROID_UI_2026-02-04B';
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
@@ -45,6 +46,13 @@ import {
   findNozzleId, defaultNozzleIdForSize, ensureDefaultNozzleFor, setBranchBDefaultIfEmpty,
   drawHoseBar, ppExplainHTML
 } from './calcShared.js';
+import { renderAdOnce } from './ads-guards.js';
+
+// === AdSense (web-only) ===
+// Replace these slot IDs with your real AdSense ad unit slot IDs after approval.
+const ADS_CLIENT = 'ca-pub-9414291143716298';
+const SLOT_CALC_INFEED = 'REPLACE_WITH_SLOT_ID';
+
 
 // Web vs App feature gating (Presets / Dept Setup are app-only)
 function isNativeApp(){
@@ -162,7 +170,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults, getConfiguredPreconnectCount } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -200,18 +208,45 @@ export async function render(container){
     restoreState(s);
   }
 
+  // WEB DEFAULT START LAYOUT
+  // Web does not support Department Setup / Presets, so we seed the three lines
+  // to the desired default every full load.
+  if (!IS_APP) {
+    try {
+      const seedLine = (key, hoseDiameter, lengthFt, nozzleId) => {
+        const L = seedDefaultsForKey(key);
+        if (!L) return;
 
+        const main = (L.itemsMain && L.itemsMain[0]) ? L.itemsMain[0] : {};
+        main.size = String(hoseDiameter || '');
+        main.lengthFt = Number(lengthFt || 0);
+        L.itemsMain = [main];
 
+        // Straight line (no wye)
+        L.hasWye = false;
+        L.itemsLeft = [];
+        L.itemsRight = [];
+        L.elevFt = 0;
 
-  // Always start with no preconnects deployed (Line 1/2/3)
-  // Keeps presets/defaults, but forces stowed until user taps Preconnect buttons.
-  try {
-    if (state && state.lines) {
-      ['left','back','right'].forEach(k => {
-        if (state.lines[k]) state.lines[k].visible = false;
-      });
+        const nid = _normNozId(nozzleId);
+        L.nozRight = resolveNozzleById(nid) || (NOZ && NOZ[nid]) || null;
+        L.nozLeft = null;
+
+        // Show deployed by default on web
+        L.visible = false;
+      };
+
+      // Line 1 & 2: 200' of 1 3/4" with Chief XD 185 gpm @ 50 psi
+      seedLine('left', '1.75', 200, 'chief185_50');
+      seedLine('back', '1.75', 200, 'chief185_50');
+
+      // Line 3: 250' of 2 1/2" with Chief XD 265 gpm @ 50 psi
+      seedLine('right', '2.5', 250, 'chiefXD265');
+    } catch (e) {
+      console.warn('web default line seeding failed', e);
     }
-  } catch (_e) {}
+  }
+
 
   // Persist on hide/close
   window.addEventListener('beforeunload', ()=>{
@@ -414,6 +449,9 @@ export async function render(container){
         </div>
       </section>
 
+      <!-- Ad slot: between controls and results (non-intrusive) -->
+      <div id="adCalcInfeed" class="ad-slot" aria-label="Advertisement"></div>
+
       <!-- KPIs & answer box -->
       <section class="card">
         <div class="kpis">
@@ -490,40 +528,14 @@ export async function render(container){
 
 `;
 
-  // --- Preconnect button availability (hide 2/3 unless configured) ---
-  try {
-    const pcCount = (typeof getConfiguredPreconnectCount === 'function') ? getConfiguredPreconnectCount() : 1;
-    const b1 = container.querySelector('.linebtn[data-line="left"]');
-    const b2 = container.querySelector('.linebtn[data-line="back"]');
-    const b3 = container.querySelector('.linebtn[data-line="right"]');
-
-    if (b1){
-      b1.style.display = '';
-      b1.disabled = false;
-      b1.title = '';
-    }
-    if (b2){
-      if (pcCount < 2){
-        b2.style.display = 'none';
-        b2.disabled = true;
-      } else {
-        b2.style.display = '';
-        b2.disabled = false;
-        b2.title = '';
+  // Inject the in-feed ad ONCE (web only) after markup exists.
+  try{
+    const adMount = container.querySelector('#adCalcInfeed');
+    if (adMount) {
       }
-    }
-    if (b3){
-      if (pcCount < 3){
-        b3.style.display = 'none';
-        b3.disabled = true;
-      } else {
-        b3.style.display = '';
-        b3.disabled = false;
-        b3.title = '';
-      }
-    }
-  } catch(_e) {}
-
+  } catch (e) {
+    // Ads are best-effort; never break calc.
+  }
 
   /* ----------------------------- Styles ---------------------------------- */
     /* ----------------------------- Styles ---------------------------------- */
@@ -584,138 +596,10 @@ export async function render(container){
     .barTitle{font-size:12px;color:#9fb0c8;margin-bottom:6px}
     .simpleBox{background:#0b1a29;border:1px solid #29507a;border-radius:10px;padding:8px;margin-top:6px;font-size:13px}
     .simpleBox b{color:#eaf2ff}
-    .lbl{font-size:10px;fill:#0b0f14}
+    /* Larger, easier-to-read info bubbles */
+    .lbl{font-size:12px;font-weight:800;fill:#0b0f14}
     .is-hidden{display:none!important}
-.te-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);z-index:10140;}
-.te-backdrop.is-hidden{display:none!important}
-
-
-  /* ===============================
-     iPhone-style Line Editor (Android fix)
-     Targets: #tipEditor .te-row / .steppers
-     =============================== */
-
-  #tipEditor.tip-editor{
-    width: min(520px, calc(100vw - 28px));
-    margin: 0 auto;
-    padding: 16px 14px 14px;
-    border-radius: 18px;
-    background: rgba(12,18,28,.92);
-    border: 1px solid rgba(255,255,255,.10);
-    box-shadow: 0 14px 44px rgba(0,0,0,.55);
-  }
-
-  #tipEditor.tip-editor.is-open{
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 14px;
-    z-index: 10150;
-  }
-
-  /* Label left, control right (like iPhone) */
-  #tipEditor .te-row{
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 4px;
-}
-
-  #tipEditor .te-row > label{
-  flex: 0 0 120px;
-  font-weight: 800;
-  color: #eaf2ff;
-  opacity: .95;
-  line-height: 1.1;
-}
-
-  #tipEditor .te-row > *:last-child{ flex: 1; }
-
-
-  /* Inputs/selects match iPhone control sizing */
-  #tipEditor input[type="text"],
-  #tipEditor input[type="number"],
-  #tipEditor input[readonly],
-  #tipEditor select{
-    width: 100%;
-    height: 52px;
-    padding: 0 14px;
-    border-radius: 14px;
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.12);
-    color: #eaf2ff;
-    outline: none;
-  }
-
-  /* Make Android selects look clean + consistent */
-  #tipEditor select{
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    padding-right: 40px;
-    background-image:
-      linear-gradient(45deg, transparent 50%, rgba(234,242,255,.9) 50%),
-      linear-gradient(135deg, rgba(234,242,255,.9) 50%, transparent 50%);
-    background-position: calc(100% - 20px) 22px, calc(100% - 14px) 22px;
-    background-size: 6px 6px, 6px 6px;
-    background-repeat: no-repeat;
-  }
-
-  /* Force stepper to be horizontal: [-] [value] [+] */
-  #tipEditor .steppers{
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center;
-  width: 100%;
-  height: 52px;
-  border-radius: 14px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.12);
-  overflow: hidden;
-}
-
-  #tipEditor .stepBtn{
-  width: 56px;
-  min-width: 56px;
-  height: 100%;
-  border: 0;
-  background: rgba(255,255,255,.05);
-  color: #eaf2ff;
-  font-size: 22px;
-  font-weight: 900;
-  touch-action: manipulation;
-}
-
-  #tipEditor .stepVal{
-  flex: 1;
-  text-align: center;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: .2px;
-}
-
-  /* Action buttons match iPhone sizing */
-  #tipEditor .te-actions{
-    display: flex;
-    gap: 12px;
-    margin-top: 14px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,.10);
-  }
-
-  #tipEditor .te-actions .btn{
-    flex: 1;
-    height: 52px;
-    border-radius: 14px;
-    font-weight: 900;
-  }
-
-  /* Small-phone tweak */
-  @media (max-width: 420px){
-  #tipEditor .te-row > label{ flex-basis: 105px; }
-}
-
-`);
+  `);
 
   /* ------------------------------ DOM refs -------------------------------- */
   const stageSvg    = container.querySelector('#stageSvg');
@@ -979,30 +863,6 @@ const activePresetLines = {};
   const teLen       = container.querySelector('#teLen');
   const teElev      = container.querySelector('#teElev');
   const teWye       = container.querySelector('#teWye');
-  // Backdrop to make the editor stand out (esp. on Android)
-  let teBackdrop = document.getElementById('teBackdrop');
-  if(!teBackdrop){
-    teBackdrop = document.createElement('div');
-    teBackdrop.id = 'teBackdrop';
-    teBackdrop.className = 'te-backdrop is-hidden';
-    document.body.appendChild(teBackdrop);
-  }
-
-  function __openTipEditor(){
-    teBackdrop.classList.remove('is-hidden');
-    tipEditor.classList.remove('is-hidden');
-    tipEditor.classList.add('is-open');
-  }
-  function __closeTipEditor(){
-    teBackdrop.classList.add('is-hidden');
-    tipEditor.classList.remove('is-open');
-    tipEditor.classList.add('is-hidden');
-    if (window.BottomSheetEditor && typeof window.BottomSheetEditor.close === 'function'){
-      try{ window.BottomSheetEditor.close(); }catch(e){}
-    }
-  }
-  teBackdrop.addEventListener('click', __closeTipEditor);
-
   const teLenA      = container.querySelector('#teLenA');
   const teLenB      = container.querySelector('#teLenB');
   const teNoz       = container.querySelector('#teNoz');
@@ -1016,6 +876,35 @@ const activePresetLines = {};
       const tip = container.querySelector('#tipEditor'); if (!tip) return;
       const actions = tip.querySelector('.te-actions') || tip.lastElementChild;
 
+
+// --- Editor backdrop + open/close helpers (ensures Android looks like iPhone) ---
+const teBackdropId = 'teBackdrop';
+function _ensureBackdrop(){
+  let bd = container.ownerDocument.getElementById(teBackdropId);
+  if(!bd){
+    bd = container.ownerDocument.createElement('div');
+    bd.id = teBackdropId;
+    bd.className = 'te-backdrop is-hidden';
+    // clicking backdrop closes editor
+    bd.addEventListener('click', ()=>_setEditorOpen(false));
+    container.ownerDocument.body.appendChild(bd);
+  }
+  return bd;
+}
+function _setEditorOpen(open){
+  const bd = _ensureBackdrop();
+  if(open){
+    tipEditor?.classList.remove('is-hidden');
+    tipEditor?.classList.add('is-open');
+    bd.classList.remove('is-hidden');
+    bd.classList.add('is-open');
+  }else{
+    tipEditor?.classList.add('is-hidden');
+    tipEditor?.classList.remove('is-open');
+    bd.classList.add('is-hidden');
+    bd.classList.remove('is-open');
+  }
+}
       // Wye row, branch container, and size steppers
       const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
       const branchBlock = tip.querySelector('#branchBlock');
@@ -2252,6 +2141,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     L.visible = true;
     editorContext = {key, where};
 
+    try{ if(teTitle) teTitle.textContent = `Edit Line • ${UI_BUILD}`; }catch(_){ }
+
     // Optional: hide elevation controls when launched from Presets
     const hideElev = opts && opts.hideElevation;
     try {
@@ -2397,10 +2288,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     updateSegSwitchVisibility();
 if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
+      _setEditorOpen(true);
     } else {
       // Minimal fallback
-      tipEditor.classList.remove('is-hidden');
-      tipEditor.classList.add('is-open');
+      _setEditorOpen(true);
     }
   });
 
@@ -2418,6 +2309,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
+  container.querySelector('#teCancel').addEventListener('click', ()=>{ _setEditorOpen(false); editorContext=null; });
+
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
@@ -2467,14 +2360,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
 
     L.visible = true; drawAll(); markDirty();
-  
-    // Close editor + backdrop
-    __closeTipEditor();
-});
-
-  // Cancel closes editor
-  container.querySelector('#teCancel').addEventListener('click', __closeTipEditor);
-
+  });
 
   /* ---------------------------- Line toggles ------------------------------ */
 
@@ -3288,15 +3174,15 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#tipEditor .te-row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;padding:10px 4px}
-#tipEditor .te-row>label{font-weight:800;color:#eaf2ff;opacity:.95;line-height:1.1}
-#tipEditor input[readonly],#tipEditor select{width:100%;height:52px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf2ff;outline:none}
-#tipEditor select{-webkit-appearance:none;-moz-appearance:none;appearance:none;padding-right:40px;background-image:linear-gradient(45deg,transparent 50%,rgba(234,242,255,.9) 50%),linear-gradient(135deg,rgba(234,242,255,.9) 50%,transparent 50%);background-position:calc(100% - 20px) 22px,calc(100% - 14px) 22px;background-size:6px 6px,6px 6px;background-repeat:no-repeat}
-#tipEditor .steppers{display:grid !important;grid-template-columns:56px 1fr 56px;align-items:center;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden}
-#tipEditor .stepBtn{width:56px;height:52px;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-size:22px;font-weight:900;touch-action:manipulation}
-#tipEditor .stepBtn:active{transform:scale(.98)}
-#tipEditor .stepVal{text-align:center;font-size:18px;font-weight:900;letter-spacing:.2px}
-@media (max-width:480px){#tipEditor .te-row{grid-template-columns:105px 1fr}}`;
+    s.textContent = `.te-row{display:flex !important;align-items:center !important;gap:12px !important;margin:10px 0 !important}
+.te-row>label{flex:0 0 120px !important;font-weight:800 !important;color:#eaf2ff !important;opacity:.95 !important;line-height:1.1 !important}
+.te-row>select,.te-row>input:not([type="hidden"]),.te-row .steppers{flex:1 1 auto !important}
+.steppers{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;gap:0 !important;
+  background:#0b1a29;border:1px solid var(--edge);border-radius:14px;padding:0 !important;height:52px !important;width:100% !important;overflow:hidden !important}
+.stepBtn{background:rgba(255,255,255,.05);border:0 !important;color:#e9f1ff;font-weight:900;flex:0 0 56px !important;width:56px !important;height:52px !important;font-size:22px !important;touch-action:manipulation}
+.stepBtn:active{transform:translateY(1px)}
+.stepVal{flex:1 1 auto !important;text-align:center !important;font-weight:900 !important;font-size:18px !important;white-space:nowrap !important}
+@media (max-width:480px){.te-row>label{flex-basis:105px !important}.stepBtn{flex-basis:52px !important;width:52px !important}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
@@ -3433,4 +3319,3 @@ function initBranchPlusMenus(root){
    Non-destructive: operates on DOM only; no reliance on outer variables.
    Appears only when Wye = On and size = 2.5". Hides legacy segSwitch.
    ========================================================================== */
-
