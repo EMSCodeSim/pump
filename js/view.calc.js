@@ -3140,23 +3140,15 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `.te-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
-.te-row>label{flex:0 0 110px;max-width:110px;font-weight:800;color:#eaf2ff;opacity:.95;line-height:1.1}
-.te-row>input[readonly],.te-row>select{flex:1 1 auto;height:52px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#eaf2ff;outline:none}
-
-.steppers{display:flex !important;flex-direction:row !important;align-items:center;justify-content:space-between;gap:0;width:100%;height:52px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);overflow:hidden}
-.stepBtn{width:56px;min-width:56px;height:52px;border:0;background:rgba(255,255,255,.05);color:#eaf2ff;font-weight:900;font-size:22px;touch-action:manipulation}
-.stepBtn:active{transform:scale(.98)}
-.stepVal{flex:1;text-align:center;font-weight:900;font-size:18px;letter-spacing:.2px;color:#eaf2ff}
-
-#tipEditor.tip-editor{position:fixed;left:14px;right:14px;bottom:14px;max-width:520px;margin:0 auto;z-index:9999;border-radius:18px;background:rgba(12,18,28,.94);border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 60px rgba(0,0,0,.65)}
-#tipEditor.tip-editor::before{content:"";position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:-1}
-#tipEditor.tip-editor.is-hidden::before{display:none}
-
-@media (max-width:480px){
-  .te-row>label{flex-basis:100px;max-width:100px}
-  .stepBtn{width:52px;min-width:52px}
-}`;
+    s.textContent = `.te-row{display:flex !important;align-items:center !important;gap:12px !important;margin:10px 0 !important}
+.te-row>label{flex:0 0 120px !important;font-weight:800 !important;color:#eaf2ff !important;opacity:.95 !important;line-height:1.1 !important}
+.te-row>select,.te-row>input:not([type="hidden"]),.te-row .steppers{flex:1 1 auto !important}
+.steppers{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;gap:0 !important;
+  background:#0b1a29;border:1px solid var(--edge);border-radius:14px;padding:0 !important;height:52px !important;width:100% !important;overflow:hidden !important}
+.stepBtn{background:rgba(255,255,255,.05);border:0 !important;color:#e9f1ff;font-weight:900;flex:0 0 56px !important;width:56px !important;height:52px !important;font-size:22px !important;touch-action:manipulation}
+.stepBtn:active{transform:translateY(1px)}
+.stepVal{flex:1 1 auto !important;text-align:center !important;font-weight:900 !important;font-size:18px !important;white-space:nowrap !important}
+@media (max-width:480px){.te-row>label{flex-basis:105px !important}.stepBtn{flex-basis:52px !important;width:52px !important}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
