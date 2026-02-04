@@ -26,6 +26,7 @@ document.addEventListener("click", (e) => {
   if (window._openTipEditor) window._openTipEditor(key, where);
 });
 
+const UI_BUILD = 'ANDROID_UI_2026-02-04B';
 // /js/view.calc.js
 // Stage view with popup editor support, Wye-aware UI (no main nozzle when wye),
 // Branch-B default nozzle = Fog 185 @ 50, diameter-based default nozzles,
@@ -875,6 +876,35 @@ const activePresetLines = {};
       const tip = container.querySelector('#tipEditor'); if (!tip) return;
       const actions = tip.querySelector('.te-actions') || tip.lastElementChild;
 
+
+// --- Editor backdrop + open/close helpers (ensures Android looks like iPhone) ---
+const teBackdropId = 'teBackdrop';
+function _ensureBackdrop(){
+  let bd = container.ownerDocument.getElementById(teBackdropId);
+  if(!bd){
+    bd = container.ownerDocument.createElement('div');
+    bd.id = teBackdropId;
+    bd.className = 'te-backdrop is-hidden';
+    // clicking backdrop closes editor
+    bd.addEventListener('click', ()=>_setEditorOpen(false));
+    container.ownerDocument.body.appendChild(bd);
+  }
+  return bd;
+}
+function _setEditorOpen(open){
+  const bd = _ensureBackdrop();
+  if(open){
+    tipEditor?.classList.remove('is-hidden');
+    tipEditor?.classList.add('is-open');
+    bd.classList.remove('is-hidden');
+    bd.classList.add('is-open');
+  }else{
+    tipEditor?.classList.add('is-hidden');
+    tipEditor?.classList.remove('is-open');
+    bd.classList.add('is-hidden');
+    bd.classList.remove('is-open');
+  }
+}
       // Wye row, branch container, and size steppers
       const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
       const branchBlock = tip.querySelector('#branchBlock');
@@ -2111,6 +2141,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     L.visible = true;
     editorContext = {key, where};
 
+    try{ if(teTitle) teTitle.textContent = `Edit Line • ${UI_BUILD}`; }catch(_){ }
+
     // Optional: hide elevation controls when launched from Presets
     const hideElev = opts && opts.hideElevation;
     try {
@@ -2256,10 +2288,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     updateSegSwitchVisibility();
 if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
+      _setEditorOpen(true);
     } else {
       // Minimal fallback
-      tipEditor.classList.remove('is-hidden');
-      tipEditor.classList.add('is-open');
+      _setEditorOpen(true);
     }
   });
 
@@ -2277,6 +2309,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
+  container.querySelector('#teCancel').addEventListener('click', ()=>{ _setEditorOpen(false); editorContext=null; });
+
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
