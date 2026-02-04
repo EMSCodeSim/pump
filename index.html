@@ -739,7 +739,36 @@
     </div>
   </div>
 <!-- App JS (router + view.calc.js, etc.) -->
-  <script type="module" src="/js/app.js?v=20260112b"></script>
+  <script>
+    (function () {
+      // If we're inside the native app, pull JS from the live website so Android can't
+      // get stuck on an older bundled copy.
+      function isNativeApp() {
+        try {
+          if (window && (window.cordova || window.phonegap || window.PhoneGap)) return true;
+          if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function') return !!window.Capacitor.isNativePlatform();
+          const p = window.Capacitor && typeof window.Capacitor.getPlatform === 'function' ? window.Capacitor.getPlatform() : null;
+          if (p && p !== 'web') return true;
+        } catch (e) {}
+        const proto = (window.location && window.location.protocol || '').toLowerCase();
+        return proto === 'file:' || proto === 'capacitor:' || proto === 'ionic:';
+      }
+
+      const IS_APP = isNativeApp();
+      const base = IS_APP ? 'https://fireopscalc.com' : '';
+      const v = '20260204a'; // bump every release (cache buster)
+
+      const s = document.createElement('script');
+      s.type = 'module';
+      s.src = base + '/js/app.js?v=' + v;
+      document.body.appendChild(s);
+
+      // Web/PWA only: register the service worker (native app should NOT use SW)
+      if (!IS_APP && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }
+    })();
+  </script>
 
 
   <!-- Quick Start wiring -->
