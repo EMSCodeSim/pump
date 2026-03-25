@@ -3042,9 +3042,49 @@ export default { render };
 
 function initPlusMenus(root){
   // Build hose diameter sequence from department setup if available,
-  // otherwise fall back to standard 1.75 / 2.5 / 5.
+  // and include the friction-loss C value in the displayed label.
   let sizeSeq = [];
+
+  function formatDiaPlain(val){
+    const s = String(val || '').trim();
+    return (
+      s === '1.75' ? '1 3/4' :
+      s === '1.5'  ? '1 1/2' :
+      s === '2.0'  ? '2' :
+      s === '2.5'  ? '2 1/2' :
+      s === '3'    ? '3' :
+      s === '4'    ? '4' :
+      s === '5'    ? '5' :
+      s
+    );
+  }
+
+  function formatCValue(c){
+    const n = Number(c);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, '');
+  }
+
   try {
+    const hoseMeta = new Map();
+
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('fireops_dept_equipment_v1');
+      if (raw) {
+        const dept = JSON.parse(raw) || {};
+        const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+        customs.forEach(h => {
+          const val = String(h?.diameter || h?.id || '').trim();
+          if (!val) return;
+          const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
+          hoseMeta.set(val, {
+            val,
+            labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+          });
+        });
+      }
+    }
+
     if (typeof getDeptHoseDiameters === 'function') {
       const diams = getDeptHoseDiameters() || [];
       if (Array.isArray(diams) && diams.length) {
@@ -3052,16 +3092,11 @@ function initPlusMenus(root){
           .map(d => {
             const val = String(d).trim();
             if (!val) return null;
-            const plain =
-              val === '1.75' ? '1 3/4″' :
-              val === '1.5'  ? '1 1/2″' :
-              val === '2.0'  ? '2″' :
-              val === '2.5'  ? '2 1/2″' :
-              val === '3'    ? '3″' :
-              val === '4'    ? '4″' :
-              val === '5'    ? '5″' :
-              val + '"';
-            return { val, labelPlain: plain };
+            const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
+            return hoseMeta.get(val) || {
+              val,
+              labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+            };
           })
           .filter(Boolean);
       }
@@ -3072,9 +3107,9 @@ function initPlusMenus(root){
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { val: "1.75", labelPlain: "1 3/4″" },
-      { val: "2.5",  labelPlain: "2 1/2″" },
-      { val: "5",    labelPlain: "5″" }
+      { val: "1.75", labelPlain: "1 3/4 C15.5" },
+      { val: "2.5",  labelPlain: "2 1/2 C2" },
+      { val: "5",    labelPlain: "5 C0.08" }
     ];
   }
 
