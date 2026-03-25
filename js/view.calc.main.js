@@ -762,68 +762,134 @@ export async function render(container){
     // =========================
 
     const DEFAULT_HOSES = [
-      { id: '1.75', label: '1 3/4"', c: COEFF['1.75'] ?? 15.5 },
-      { id: '2.5',  label: '2 1/2"', c: COEFF['2.5']  ?? 2.0 },
-      { id: '3',    label: '3"',      c: COEFF['3']    ?? 0.8 },
-      { id: '4',    label: '4"',      c: COEFF['4']    ?? 0.2 },
-      { id: '5',    label: '5"',      c: COEFF['5']    ?? 0.08 }
+      { id: 'h_175',   label: '1 3/4" C15.5', diameter: '1.75', c: COEFF['1.75'] ?? 15.5 },
+      { id: 'h_25',    label: '2 1/2" C2',    diameter: '2.5',  c: COEFF['2.5']  ?? 2.0 },
+      { id: 'h_3',     label: '3" C0.8',      diameter: '3',    c: COEFF['3']    ?? 0.8 },
+      { id: 'h_4_ldh', label: '4" C0.2',      diameter: '4',    c: COEFF['4']    ?? 0.2 },
+      { id: 'h_5_ldh', label: '5" C0.08',     diameter: '5',    c: COEFF['5']    ?? 0.08 }
     ];
 
-    // Diameters that the user selected in Department Setup
-    let hoseDiameters = [];
-    try {
-      if (typeof getDeptHoseDiameters === 'function') {
-        const ids = getDeptHoseDiameters() || [];
-        if (Array.isArray(ids)) {
-          hoseDiameters = ids.map(x => String(x));
-        }
-      }
-    } catch (e) {
-      console.warn('getDeptHoseDiameters failed', e);
+    const HOSE_ID_TO_DIA = {
+      'h_1': '1',
+      'h_15': '1.5',
+      'h_175': '1.75',
+      'h_2': '2.0',
+      'h_25': '2.5',
+      'h_3': '3',
+      'h_3_supply': '3',
+      'h_4_ldh': '4',
+      'h_5_ldh': '5',
+      'h_w_1': '1',
+      'h_w_15': '1.5',
+      'h_booster_1': '1',
+      'h_lf_175': '1.75',
+      'h_lf_2': '2.0',
+      'h_lf_25': '2.5',
+      'h_lf_5': '5',
+    };
+
+    function cleanC(v) {
+      const n = Number(v);
+      if (!Number.isFinite(n)) return '';
+      if (Number.isInteger(n)) return String(n);
+      return String(Math.round(n * 100) / 100)
+        .replace(/\.0+$/, '')
+        .replace(/(\.\d*[1-9])0+$/, '$1');
     }
 
-    // Helper to build a hose meta object for a given diameter
+    function shortDiaLabel(d) {
+      const s = String(d ?? '').trim();
+      if (s === '1.75') return '1 3/4"';
+      if (s === '1.5') return '1 1/2"';
+      if (s === '2.5') return '2 1/2"';
+      if (s === '2.0' || s === '2') return '2"';
+      if (s === '1.0' || s === '1') return '1"';
+      return s ? `${s}"` : '';
+    }
+
+    function defaultCForHoseId(id, dia) {
+      const s = String(id || '').trim();
+      if (s === 'h_lf_175') return 12;
+      if (s === 'h_lf_2') return 6;
+      if (s === 'h_lf_25') return 1.5;
+      if (s === 'h_lf_5') return 0.06;
+      const d = String(dia || HOSE_ID_TO_DIA[s] || '').trim();
+      return COEFF[d] ?? null;
+    }
+
+    function selectedHoseIdsFromDept() {
+      const raw = Array.isArray(base.selectedHoses)
+        ? base.selectedHoses
+        : (Array.isArray(base.hoses) ? base.hoses : []);
+      return raw.map(v => String(v ?? '').trim()).filter(Boolean);
+    }
+
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
-    function metaForDiameter(dia) {
-      const s = String(dia);
+    function metaForHoseSelection(rawId, idx) {
+      const id = String(rawId ?? '').trim();
+      if (!id) return null;
 
-      // Custom hose from Department Setup?
-      const custom = customs.find(h => String(h.diameter) === s);
+      const custom = customs.find((h, i) => {
+        if (!h || typeof h !== 'object') return false;
+        const cid = String(h.id ?? h.key ?? `custom_hose_${i}`).trim();
+        const clabel = String(h.label ?? h.name ?? '').trim();
+        return cid === id || (!!clabel && clabel === id);
+      });
+
       if (custom) {
-        const c =
-          typeof custom.c === 'number' ? custom.c :
-          (typeof custom.flC === 'number' ? custom.flC :
-           (COEFF[s] ?? 15.5));
+        const dia = String(custom.diameter ?? custom.dia ?? custom.size ?? '').trim();
+        const c = Number(custom.c ?? custom.C ?? custom.flC ?? custom.coeff ?? COEFF[dia] ?? 15.5);
+        const baseLabel = shortDiaLabel(dia) || String(custom.label || custom.name || id);
         return {
-          id: s,
-          label: custom.label || custom.name || `${s}"`,
-          c
+          id,
+          diameter: dia,
+          label: `${baseLabel} C${cleanC(c)}`,
+          c,
         };
       }
 
-      // Built-in defaults
-      const def = DEFAULT_HOSES.find(h => h.id === s);
-      if (def) return { ...def };
-
-      // Fallback
+      const dia = String(HOSE_ID_TO_DIA[id] || id).trim();
+      const c = defaultCForHoseId(id, dia);
+      const baseLabel = shortDiaLabel(dia) || id;
       return {
-        id: s,
-        label: `${s}"`,
-        c: COEFF[s] ?? 15.5
+        id,
+        diameter: dia,
+        label: c != null ? `${baseLabel} C${cleanC(c)}` : baseLabel,
+        c,
       };
+    }
+
+    let selectedHoseIds = selectedHoseIdsFromDept();
+
+    try {
+      const defs = (typeof getDeptLineDefaults === 'function') ? (getDeptLineDefaults() || {}) : {};
+      const candidates = [
+        defs?.line1?.hoseDiameter,
+        defs?.line2?.hoseDiameter,
+        defs?.line3?.hoseDiameter,
+      ].map(v => String(v ?? '').trim()).filter(Boolean);
+
+      candidates.forEach(dia => {
+        const exactBuiltIn = Object.entries(HOSE_ID_TO_DIA).find(([hid, hdia]) => String(hdia) === dia && !String(hid).startsWith('h_lf_'));
+        if (exactBuiltIn) {
+          const hid = exactBuiltIn[0];
+          if (!selectedHoseIds.includes(hid)) selectedHoseIds.push(hid);
+        }
+      });
+    } catch (e) {
+      console.warn('Failed to include line-default hose ids', e);
     }
 
     const hosesAll = [];
 
-    if (hoseDiameters.length) {
-      // Only the diameters the user actually picked
-      hoseDiameters.forEach(d => {
-        hosesAll.push(metaForDiameter(d));
+    if (selectedHoseIds.length) {
+      selectedHoseIds.forEach((hid, idx) => {
+        const meta = metaForHoseSelection(hid, idx);
+        if (meta) hosesAll.push(meta);
       });
-      dept.hosesSelected = hoseDiameters.slice();
+      dept.hosesSelected = selectedHoseIds.slice();
     } else {
-      // No department selection → show default hose sizes
       DEFAULT_HOSES.forEach(h => hosesAll.push({ ...h }));
       dept.hosesSelected = [];
     }
