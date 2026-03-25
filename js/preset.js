@@ -580,6 +580,16 @@ export function getDeptHoseOptions() {
   return Array.isArray(dept.hoses) ? dept.hoses : [];
 }
 
+function parseLooseNumber(input) {
+  if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
+  const s = String(input ?? '').trim();
+  if (!s) return NaN;
+  const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
+  if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 function loadLineDefaultsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_LINE_DEFAULTS_KEY);
