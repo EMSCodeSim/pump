@@ -1063,7 +1063,8 @@ function renderHoseSelectionScreen() {
         return;
       }
       const dia = Number(diaEl.value || 0);
-      const c   = Number(cEl.value || 0);
+      const parsedC = parseLooseNumber(cEl.value || 0);
+      const c   = Number.isFinite(parsedC) ? parsedC : 0;
       let cat   = String(catEl.value || 'attack');
       if (!['attack','supply','wildland','lowfriction'].includes(cat)) {
         cat = 'attack';
@@ -2122,10 +2123,9 @@ export function getDeptHoseDiameters() {
 
         if (!isSelected) return;
 
-        const rawDia = h.diameter ?? h.dia ?? h.size ?? '';
-        const dia = String(rawDia).trim();
-        if (dia) {
-          outSet.add(dia === '2' ? '2.0' : dia);
+        if (typeof h.diameter === 'number' && h.diameter > 0) {
+          const dia = String(h.diameter);
+          outSet.add(dia);
         }
       });
     }

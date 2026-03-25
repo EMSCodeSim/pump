@@ -70,70 +70,25 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-function loadDeptEquipment(){
-  try {
-    const raw = localStorage.getItem('fireops_dept_equipment_v1');
-    const obj = raw ? JSON.parse(raw) : {};
-    return (obj && typeof obj === 'object') ? obj : {};
-  } catch (_e) {
-    return {};
-  }
-}
-
-function saveDeptEquipmentPatch(update){
-  try {
-    const current = loadDeptEquipment();
-    const merged = Object.assign({}, current || {}, update || {});
-    localStorage.setItem('fireops_dept_equipment_v1', JSON.stringify(merged));
-    return true;
-  } catch (_e) {
-    return false;
-  }
-}
-
-function getAllDeptHosesCatalog(){
-  const builtIns = HOSES_MATCHING_CHARTS.map(h => ({ ...h }));
-  const dept = loadDeptEquipment();
-  const deptCustoms = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-  const storeCustoms = Array.isArray(store.customHoses) ? store.customHoses : [];
-  const mergedCustoms = [];
-  const seen = new Set();
-
-  [...deptCustoms, ...storeCustoms].forEach((h, idx) => {
-    if (!h) return;
-    const id = String(h.id ?? h.key ?? `custom_hose_${idx}`);
-    if (!id || seen.has(id)) return;
-    seen.add(id);
-    mergedCustoms.push({
-      id,
-      label: String(h.label || h.name || id),
-      diameter: String(h.diameter ?? h.dia ?? h.size ?? ''),
-      c: Number(h.c ?? h.C ?? h.flC ?? h.coeff ?? 0) || 0,
-    });
-  });
-
-  return [...builtIns, ...mergedCustoms];
-}
-
 export function setSelectedHoses(ids){
-  const nextIds = Array.isArray(ids) ? ids.map(String) : [];
-  store.deptSelectedHoses = nextIds;
-
-  const fullCatalog = getAllDeptHosesCatalog();
-  const selectedSet = new Set(nextIds);
-  const uiList = nextIds.length
-    ? fullCatalog.filter(h => selectedSet.has(String(h.id)))
-    : fullCatalog;
-
-  setDeptUiHoses(uiList);
-  saveDeptEquipmentPatch({
-    hoses: nextIds,
-    customHoses: fullCatalog.filter(h => String(h.id).startsWith('custom_hose_')),
-  });
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  // Dept UI hoses are a simple list used by dropdowns
+  setDeptUiHoses(getDeptHoses());
   saveStore();
 }
 
 export function setSelectedNozzles(ids){
+
+function parseLooseNumber(input){
+  if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
+  const s = String(input ?? '').trim();
+  if (!s) return NaN;
+  const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
+  if (!cleaned || cleaned in ['+','-','.','+.','-.']) return NaN;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : NaN;
+}
+
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
   setDeptUiNozzles(store.deptSelectedNozzles);
@@ -143,26 +98,9 @@ export function setSelectedNozzles(ids){
 // Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
 export function addCustomHose(label, diameter, cValue){
   const id = `custom_hose_${Date.now()}`;
-  const hose = {
-    id,
-    label:String(label||'Custom hose'),
-    diameter:String(diameter||''),
-    c:Number(cValue||0)
-  };
+  const parsedC = parseLooseNumber(cValue);
+  const hose = { id, label:String(label||'Custom hose'), diameter:String(diameter||''), c:Number.isFinite(parsedC) ? parsedC : 0 };
   store.customHoses.push(hose);
-
-  try {
-    const dept = loadDeptEquipment();
-    const existing = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-    const selected = Array.isArray(dept.hoses) ? dept.hoses.map(String) : [];
-    saveDeptEquipmentPatch({
-      customHoses: existing.concat([hose]),
-      hoses: selected.includes(id) ? selected : selected.concat(id),
-    });
-  } catch (e) {
-    console.warn('addCustomHose: failed to sync dept customHoses', e);
-  }
-
   saveStore();
   return hose;
 }
@@ -202,17 +140,9 @@ export function addCustomNozzle(label, gpm, np){
 }
 
 export function getDeptHoses(){
-  // Use Dept UI list if present; otherwise rebuild from saved department setup.
+  // Use Dept UI list if present; otherwise show chart-matching hoses.
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
-
-  const fullCatalog = getAllDeptHosesCatalog();
-  const selectedIds = Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses.map(String) : [];
-  if (selectedIds.length) {
-    const selectedSet = new Set(selectedIds);
-    const filtered = fullCatalog.filter(h => selectedSet.has(String(h.id)));
-    if (filtered.length) return filtered;
-  }
-  return fullCatalog;
+  return HOSES_MATCHING_CHARTS.slice();
 }
 
 
@@ -279,7 +209,7 @@ function resolveHoseMeta(input){
       const found = list.find(h => h && String(h.id) === raw);
       if (found){
         const dia = String(found.diameter ?? found.dia ?? found.size ?? '').trim();
-        const c   = Number(found.c ?? found.C ?? found.flC ?? found.coeff ?? null);
+        const c   = parseLooseNumber(found.c ?? found.C ?? found.flC ?? found.coeff ?? null);
         return { dia: normalizeHoseDiameter(dia), c: Number.isFinite(c) ? c : null, kind:'custom' };
       }
     }catch(_e){ /* ignore */ }
