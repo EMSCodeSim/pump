@@ -1,4 +1,4 @@
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, COEFF } from './store.js';
 
 
 function _deptEquipRead() {
@@ -59,21 +59,52 @@ function parseNpFromLabel(label) {
 
 // Turn internal hose ids into nice labels that match on desktop/phone.
 
-function formatHoseLabel(idOrLabel) {
-  const raw = String(idOrLabel || '').trim();
+function _cleanC(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
 
-  // Custom hose: show simple size + " C" using stored diameter/label if available
+function _defaultCForHoseId(id) {
+  const raw = String(id || '').trim();
+
+  if (/^h_lf_175$/i.test(raw)) return 12;
+  if (/^h_lf_2$/i.test(raw))   return 6;
+  if (/^h_lf_25$/i.test(raw))  return 1.5;
+  if (/^h_lf_5$/i.test(raw))   return 0.06;
+
+  if (/^h_175$/i.test(raw))       return COEFF['1.75'];
+  if (/^h_15$/i.test(raw))        return COEFF['1.5'];
+  if (/^h_2$/i.test(raw))         return COEFF['2.0'];
+  if (/^h_25$/i.test(raw))        return COEFF['2.5'];
+  if (/^h_3$/i.test(raw))         return COEFF['3'];
+  if (/^h_3_supply$/i.test(raw))  return COEFF['3'];
+  if (/^h_4_ldh$/i.test(raw))     return COEFF['4'];
+  if (/^h_5_ldh$/i.test(raw))     return COEFF['5'];
+
+  return null;
+}
+
+function formatHoseLabel(hoseOrId) {
+  const raw = typeof hoseOrId === 'object'
+    ? String(hoseOrId?.id ?? hoseOrId?.value ?? hoseOrId?.name ?? '')
+    : String(hoseOrId || '').trim();
+
+  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+
+  // Custom hose
   if (/^custom_hose_/i.test(raw)) {
-    const h = _getCustomHoseById(raw);
+    const h = obj || _getCustomHoseById(raw);
     const diaLbl = h ? (_diaToLabel(h.diameter) || '') : '';
+    const cVal = h ? (h.c ?? h.C ?? h.flC ?? h.coeff) : null;
+    const cTxt = _cleanC(cVal);
+
+    if (diaLbl && cTxt) return `${diaLbl} C${cTxt}`;
     if (diaLbl) return `${diaLbl} C`;
-    // fallback: try to parse something like 1.75 or 2.5 from label
-    const parsed = (h && h.label) ? String(h.label).match(/(\d(?:\.\d+)?)/) : null;
-    if (parsed) return `${_diaToLabel(parsed[1])} C`;
     return `Custom C`;
   }
 
-  // Low-friction hose ids like h_lf_175, h_lf_25, h_lf_5
+  // Low-friction hose ids
   if (/^h_lf_/i.test(raw)) {
     const m = raw.match(/^h_lf_(\d+)/i);
     const code = m ? m[1] : '';
@@ -85,14 +116,23 @@ function formatHoseLabel(idOrLabel) {
       : code === '4' ? 4.0
       : code === '5' ? 5.0
       : Number(code || NaN);
+
     const base = _diaToLabel(dia);
-    return base ? `${base} LF` : `${raw} LF`;
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base ? `${base} LF` : `${raw} LF`);
   }
 
-  // Standard hose ids like h_175, h_25, h_4_ldh, etc.
+  // Standard hose ids
   if (/^h_/i.test(raw)) {
-    if (/h_4/i.test(raw)) return '4"';
-    if (/h_5/i.test(raw)) return '5"';
+    if (/h_4/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `4" C${cTxt}` : '4"';
+    }
+    if (/h_5/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `5" C${cTxt}` : '5"';
+    }
+
     const m = raw.match(/h_(\d+)/i);
     const code = m ? m[1] : '';
     const dia = code === '175' ? 1.75
@@ -101,14 +141,28 @@ function formatHoseLabel(idOrLabel) {
       : code === '2' ? 2.0
       : code === '1' ? 1.0
       : Number(code || NaN);
+
     const base = _diaToLabel(dia);
-    return base || raw;
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base || raw);
   }
 
-  // If user already gave a nice label like 2 1/2"
-  if (/\d/.test(raw) && /"/.test(raw)) return raw;
+  // Plain diameter or object with c
+  const explicitC = obj ? (obj.c ?? obj.C ?? obj.flC ?? obj.coeff) : null;
+  if (obj && obj.diameter) {
+    const base = _diaToLabel(obj.diameter) || String(obj.label || raw);
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
 
-  return raw || '';
+  const parsed = raw.match(/(\d(?:\.\d+)?)/);
+  if (parsed) {
+    const base = _diaToLabel(parsed[1]) || raw;
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
+
+  return raw;
 }
 
 
@@ -335,7 +389,7 @@ function getHoseListFromDept(dept) {
       const baseLabel = h.label || h.name || String(id);
       return {
         id,
-        label: formatHoseLabel(baseLabel),
+        label: formatHoseLabel(h),
         c: typeof h.c === 'number' ? h.c : undefined,
       };
     }).filter(Boolean);
@@ -351,12 +405,12 @@ function getHoseListFromDept(dept) {
           const baseLabel = h.label || h.name || String(id);
           return {
             id,
-            label: formatHoseLabel(baseLabel),
+            label: formatHoseLabel(h),
             c: typeof h.c === 'number' ? h.c : undefined,
           };
         } else {
           const id = String(h);
-          return { id, label: formatHoseLabel(id) };
+          return { id, label: formatHoseLabel({ id }) };
         }
       }).filter(Boolean);
     }

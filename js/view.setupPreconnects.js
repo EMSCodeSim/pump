@@ -4,10 +4,67 @@ import {
   getDeptNozzles,
   getLineDefaults,
   setLineDefaults,
+  COEFF,
 } from './store.js';
 
 // Persist how many preconnect cards user wants (so Add Preconnect sticks)
 const KEY_PC_COUNT = 'pump_preconnect_count_v1';
+
+function cleanC(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+function diaToShortLabel(dia) {
+  const f = Number(dia);
+  if (!isFinite(f)) return '';
+  const map = {
+    1: '1"',
+    1.5: '1 1/2"',
+    1.75: '1 3/4"',
+    2: '2"',
+    2.5: '2 1/2"',
+    3: '3"',
+    4: '4"',
+    5: '5"',
+  };
+  for (const k of Object.keys(map)) {
+    if (Math.abs(f - Number(k)) < 1e-6) return map[k];
+  }
+  return `${f}"`;
+}
+
+function shortHoseOptionLabel(h) {
+  const id = String(h?.id ?? '');
+  const c = Number(h?.c);
+
+  if (h && h.diameter && isFinite(c)) {
+    return `${diaToShortLabel(h.diameter)} C${cleanC(c)}`;
+  }
+
+  if (/^custom_hose_/i.test(id)) {
+    const base = diaToShortLabel(h?.diameter || h?.label || '');
+    return isFinite(c) && base ? `${base} C${cleanC(c)}` : (base || 'Custom C');
+  }
+
+  if (/^h_lf_175$/i.test(id)) return '1 3/4" C12';
+  if (/^h_lf_2$/i.test(id))   return '2" C6';
+  if (/^h_lf_25$/i.test(id))  return '2 1/2" C1.5';
+  if (/^h_lf_5$/i.test(id))   return '5" C0.06';
+
+  if (/^h_175$/i.test(id))      return `1 3/4" C${cleanC(COEFF['1.75'])}`;
+  if (/^h_15$/i.test(id))       return `1 1/2" C${cleanC(COEFF['1.5'])}`;
+  if (/^h_2$/i.test(id))        return `2" C${cleanC(COEFF['2.0'])}`;
+  if (/^h_25$/i.test(id))       return `2 1/2" C${cleanC(COEFF['2.5'])}`;
+  if (/^h_3$/i.test(id))        return `3" C${cleanC(COEFF['3'])}`;
+  if (/^h_3_supply$/i.test(id)) return `3" C${cleanC(COEFF['3'])}`;
+  if (/^h_4_ldh$/i.test(id))    return `4" C${cleanC(COEFF['4'])}`;
+  if (/^h_5_ldh$/i.test(id))    return `5" C${cleanC(COEFF['5'])}`;
+
+  return String(h?.label || h?.name || id);
+}
+
 
 function $(id) { return document.getElementById(id); }
 
@@ -62,7 +119,7 @@ function buildCard(i) {
         <label>Hose</label>
         <select id="pc-hose-${i}">
           <option value="">Select…</option>
-          ${hoses.map(h => `<option value="${h.id}">${h.label}</option>`).join('')}
+          ${hoses.map(h => `<option value="${h.id}">${shortHoseOptionLabel(h)}</option>`).join('')}
         </select>
       </div>
 
