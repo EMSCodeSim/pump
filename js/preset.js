@@ -2122,9 +2122,10 @@ export function getDeptHoseDiameters() {
 
         if (!isSelected) return;
 
-        if (typeof h.diameter === 'number' && h.diameter > 0) {
-          const dia = String(h.diameter);
-          outSet.add(dia);
+        const rawDia = h.diameter ?? h.dia ?? h.size ?? '';
+        const dia = String(rawDia).trim();
+        if (dia) {
+          outSet.add(dia === '2' ? '2.0' : dia);
         }
       });
     }

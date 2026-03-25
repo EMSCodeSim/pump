@@ -769,7 +769,12 @@ export async function render(container){
       { id: '5',    label: '5"',      c: COEFF['5']    ?? 0.08 }
     ];
 
-    // Diameters that the user selected in Department Setup
+    // Raw hose IDs the user selected in Department Setup
+    const rawSelectedHoses = Array.isArray(base.hoses)
+      ? base.hoses.map(x => String(x))
+      : [];
+
+    // Diameters are still useful for fallback math/default mapping
     let hoseDiameters = [];
     try {
       if (typeof getDeptHoseDiameters === 'function') {
@@ -782,31 +787,33 @@ export async function render(container){
       console.warn('getDeptHoseDiameters failed', e);
     }
 
-    // Helper to build a hose meta object for a given diameter
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
-    function metaForDiameter(dia) {
-      const s = String(dia);
+    function normalizeDiaValue(v) {
+      const s = String(v ?? '').trim();
+      return s === '2' ? '2.0' : s;
+    }
 
-      // Custom hose from Department Setup?
-      const custom = customs.find(h => String(h.diameter) === s);
+    function metaForSelectedHose(hoseIdOrDia) {
+      const raw = String(hoseIdOrDia ?? '').trim();
+      if (!raw) return null;
+
+      const custom = customs.find(h => String(h.id) === raw);
       if (custom) {
-        const c =
-          typeof custom.c === 'number' ? custom.c :
-          (typeof custom.flC === 'number' ? custom.flC :
-           (COEFF[s] ?? 15.5));
+        const dia = normalizeDiaValue(custom.diameter ?? custom.dia ?? custom.size ?? '');
         return {
-          id: s,
-          label: custom.label || custom.name || `${s}"`,
-          c
+          id: String(custom.id),
+          label: custom.label || custom.name || (dia ? `${dia}"` : raw),
+          c: typeof custom.c === 'number'
+            ? custom.c
+            : (typeof custom.flC === 'number' ? custom.flC : (COEFF[dia] ?? 15.5))
         };
       }
 
-      // Built-in defaults
+      const s = normalizeDiaValue(raw);
       const def = DEFAULT_HOSES.find(h => h.id === s);
       if (def) return { ...def };
 
-      // Fallback
       return {
         id: s,
         label: `${s}"`,
@@ -816,14 +823,19 @@ export async function render(container){
 
     const hosesAll = [];
 
-    if (hoseDiameters.length) {
-      // Only the diameters the user actually picked
+    if (rawSelectedHoses.length) {
+      rawSelectedHoses.forEach(id => {
+        const meta = metaForSelectedHose(id);
+        if (meta) hosesAll.push(meta);
+      });
+      dept.hosesSelected = rawSelectedHoses.slice();
+    } else if (hoseDiameters.length) {
       hoseDiameters.forEach(d => {
-        hosesAll.push(metaForDiameter(d));
+        const meta = metaForSelectedHose(d);
+        if (meta) hosesAll.push(meta);
       });
       dept.hosesSelected = hoseDiameters.slice();
     } else {
-      // No department selection → show default hose sizes
       DEFAULT_HOSES.forEach(h => hosesAll.push({ ...h }));
       dept.hosesSelected = [];
     }

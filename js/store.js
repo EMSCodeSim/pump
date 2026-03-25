@@ -34,7 +34,6 @@ export const HOSES_MATCHING_CHARTS = [
  * Persisted "store" object (used by Department Setup UI)
  * ========================= */
 const STORE_KEY = 'fireops_store_v1';
-const DEPT_EQUIPMENT_KEY = 'fireops_dept_equipment_v1';
 
 function loadPersistedStore(){
   try{
@@ -45,83 +44,17 @@ function loadPersistedStore(){
   }catch(_){ return null; }
 }
 
-function loadDeptEquipment(){
-  try{
-    const raw = localStorage.getItem(DEPT_EQUIPMENT_KEY);
-    if(!raw) return {};
-    const obj = JSON.parse(raw);
-    return (obj && typeof obj === 'object') ? obj : {};
-  }catch(_){
-    return {};
-  }
-}
-
-function saveDeptEquipment(update){
-  try{
-    const current = loadDeptEquipment();
-    const next = Object.assign({}, current, update || {});
-    localStorage.setItem(DEPT_EQUIPMENT_KEY, JSON.stringify(next));
-    return true;
-  }catch(_){
-    return false;
-  }
-}
-
-function normalizeHoseList(list){
-  return Array.isArray(list)
-    ? list
-        .map(h => {
-          if(!h) return null;
-          const id = String(h.id ?? h.diameter ?? '').trim();
-          if(!id) return null;
-          const label = String(h.label ?? h.name ?? `${id}"`).trim() || id;
-          const diameter = String(h.diameter ?? id).trim();
-          const cRaw = Number(h.c ?? h.C ?? h.flC ?? h.coeff);
-          const out = { id, label, diameter };
-          if (Number.isFinite(cRaw) && cRaw > 0) out.c = cRaw;
-          return out;
-        })
-        .filter(Boolean)
-    : [];
-}
-
-function dedupeById(list){
-  const seen = new Set();
-  return (Array.isArray(list) ? list : []).filter(item => {
-    const id = String(item?.id ?? '').trim();
-    if(!id || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
-
 export const store = (() => {
   const from = loadPersistedStore() || {};
-  const dept = loadDeptEquipment();
-
-  const persistedCustomHoses = Array.isArray(from.customHoses) ? from.customHoses : [];
-  const deptCustomHoses = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-  const mergedCustomHoses = dedupeById(normalizeHoseList(deptCustomHoses.concat(persistedCustomHoses)));
-
-  const persistedSelectedHoses = Array.isArray(from.deptSelectedHoses) ? from.deptSelectedHoses.map(String) : [];
-  const deptSelectedHoses = Array.isArray(dept.selectedHoses) ? dept.selectedHoses.map(String) : [];
-  const mergedSelectedHoses = Array.from(new Set((deptSelectedHoses.length ? deptSelectedHoses : persistedSelectedHoses)));
-
-  const persistedSelectedNozzles = Array.isArray(from.deptSelectedNozzles) ? from.deptSelectedNozzles.map(String) : [];
-  const deptSelectedNozzles = Array.isArray(dept.selectedNozzles) ? dept.selectedNozzles.map(String) : [];
-  const mergedSelectedNozzles = Array.from(new Set((deptSelectedNozzles.length ? deptSelectedNozzles : persistedSelectedNozzles)));
-
   return {
     // department equipment selections
-    deptSelectedHoses: mergedSelectedHoses,
-    deptSelectedNozzles: mergedSelectedNozzles,
-
-    // custom items
-    customHoses: mergedCustomHoses,
+    deptSelectedHoses: Array.isArray(from.deptSelectedHoses) ? from.deptSelectedHoses.map(String) : [],
+    deptSelectedNozzles: Array.isArray(from.deptSelectedNozzles) ? from.deptSelectedNozzles.map(String) : [],
+    // custom items (best-effort; catalog is still NOZ for calculations)
+    customHoses: Array.isArray(from.customHoses) ? from.customHoses : [],
     customNozzles: Array.isArray(from.customNozzles) ? from.customNozzles : [],
-
     // department hose "catalog" shown in Dept Setup
-    deptHoses: dedupeById(normalizeHoseList(HOSES_MATCHING_CHARTS.concat(mergedCustomHoses))),
+    deptHoses: HOSES_MATCHING_CHARTS.slice(),
   };
 })();
 
@@ -137,67 +70,99 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-function syncDeptHosesToUi(){
-  const all = getDeptHoses();
-  const selectedIds = Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses.map(String) : [];
-
-  let filtered = all;
-  if (selectedIds.length) {
-    const selectedSet = new Set(selectedIds);
-    filtered = all.filter(h => selectedSet.has(String(h.id)));
+function loadDeptEquipment(){
+  try {
+    const raw = localStorage.getItem('fireops_dept_equipment_v1');
+    const obj = raw ? JSON.parse(raw) : {};
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (_e) {
+    return {};
   }
+}
 
-  setDeptUiHoses(filtered);
+function saveDeptEquipmentPatch(update){
+  try {
+    const current = loadDeptEquipment();
+    const merged = Object.assign({}, current || {}, update || {});
+    localStorage.setItem('fireops_dept_equipment_v1', JSON.stringify(merged));
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function getAllDeptHosesCatalog(){
+  const builtIns = HOSES_MATCHING_CHARTS.map(h => ({ ...h }));
+  const dept = loadDeptEquipment();
+  const deptCustoms = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+  const storeCustoms = Array.isArray(store.customHoses) ? store.customHoses : [];
+  const mergedCustoms = [];
+  const seen = new Set();
+
+  [...deptCustoms, ...storeCustoms].forEach((h, idx) => {
+    if (!h) return;
+    const id = String(h.id ?? h.key ?? `custom_hose_${idx}`);
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    mergedCustoms.push({
+      id,
+      label: String(h.label || h.name || id),
+      diameter: String(h.diameter ?? h.dia ?? h.size ?? ''),
+      c: Number(h.c ?? h.C ?? h.flC ?? h.coeff ?? 0) || 0,
+    });
+  });
+
+  return [...builtIns, ...mergedCustoms];
 }
 
 export function setSelectedHoses(ids){
-  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  const nextIds = Array.isArray(ids) ? ids.map(String) : [];
+  store.deptSelectedHoses = nextIds;
 
-  saveDeptEquipment({
-    selectedHoses: store.deptSelectedHoses,
-    customHoses: store.customHoses,
+  const fullCatalog = getAllDeptHosesCatalog();
+  const selectedSet = new Set(nextIds);
+  const uiList = nextIds.length
+    ? fullCatalog.filter(h => selectedSet.has(String(h.id)))
+    : fullCatalog;
+
+  setDeptUiHoses(uiList);
+  saveDeptEquipmentPatch({
+    hoses: nextIds,
+    customHoses: fullCatalog.filter(h => String(h.id).startsWith('custom_hose_')),
   });
-
-  syncDeptHosesToUi();
   saveStore();
 }
 
 export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
-
-  saveDeptEquipment({
-    selectedNozzles: store.deptSelectedNozzles,
-  });
-
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
   setDeptUiNozzles(store.deptSelectedNozzles);
   saveStore();
 }
 
-// Minimal custom item creators for Department Setup UI
+// Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
 export function addCustomHose(label, diameter, cValue){
   const id = `custom_hose_${Date.now()}`;
   const hose = {
     id,
-    label: String(label || 'Custom hose'),
-    diameter: String(diameter || '').trim(),
-    c: Number(cValue || 0),
+    label:String(label||'Custom hose'),
+    diameter:String(diameter||''),
+    c:Number(cValue||0)
   };
+  store.customHoses.push(hose);
 
-  store.customHoses = dedupeById(normalizeHoseList([...(store.customHoses || []), hose]));
-  store.deptHoses = dedupeById(normalizeHoseList([...HOSES_MATCHING_CHARTS, ...store.customHoses]));
-
-  // Auto-select newly added custom hose so it shows immediately in the + menu
-  if (!store.deptSelectedHoses.includes(hose.id)) {
-    store.deptSelectedHoses = [...store.deptSelectedHoses, hose.id];
+  try {
+    const dept = loadDeptEquipment();
+    const existing = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+    const selected = Array.isArray(dept.hoses) ? dept.hoses.map(String) : [];
+    saveDeptEquipmentPatch({
+      customHoses: existing.concat([hose]),
+      hoses: selected.includes(id) ? selected : selected.concat(id),
+    });
+  } catch (e) {
+    console.warn('addCustomHose: failed to sync dept customHoses', e);
   }
 
-  saveDeptEquipment({
-    customHoses: store.customHoses,
-    selectedHoses: store.deptSelectedHoses,
-  });
-
-  syncDeptHosesToUi();
   saveStore();
   return hose;
 }
@@ -212,24 +177,22 @@ export function addCustomNozzle(label, gpm, np){
   // (see preset.js getDeptCustomNozzlesForCalc), so if we only write to
   // store.customNozzles, Department Setup and Calc can drift apart.
   try {
-    const dept = loadDeptEquipment();
-    const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
-    dept.customNozzles = existing.concat([{
-      id: noz.id,
-      label: noz.label,
-      name: noz.name,
-      gpm: noz.gpm,
-      NP: noz.NP,
-      np: noz.NP,
-      psi: noz.NP,
-    }]);
-
-    const selectedNozzles = Array.isArray(dept.selectedNozzles) ? dept.selectedNozzles.map(String) : [];
-    if (!selectedNozzles.includes(noz.id)) selectedNozzles.push(noz.id);
-    dept.selectedNozzles = selectedNozzles;
-
-    localStorage.setItem(DEPT_EQUIPMENT_KEY, JSON.stringify(dept));
-    store.deptSelectedNozzles = selectedNozzles;
+    const KEY = 'fireops_dept_equipment_v1';
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(KEY);
+      const dept = raw ? JSON.parse(raw) : {};
+      const existing = Array.isArray(dept.customNozzles) ? dept.customNozzles : [];
+      dept.customNozzles = existing.concat([{
+        id: noz.id,
+        label: noz.label,
+        name: noz.name,
+        gpm: noz.gpm,
+        NP: noz.NP,
+        np: noz.NP,
+        psi: noz.NP,
+      }]);
+      localStorage.setItem(KEY, JSON.stringify(dept));
+    }
   } catch (e) {
     console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
   }
@@ -239,24 +202,20 @@ export function addCustomNozzle(label, gpm, np){
 }
 
 export function getDeptHoses(){
-  const builtIn = normalizeHoseList(HOSES_MATCHING_CHARTS);
-  const dept = loadDeptEquipment();
-  const deptCustom = normalizeHoseList(dept.customHoses);
-  const storeCustom = normalizeHoseList(store.customHoses);
-  const all = dedupeById([...builtIn, ...deptCustom, ...storeCustom]);
+  // Use Dept UI list if present; otherwise rebuild from saved department setup.
+  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
 
-  // keep in-memory store aligned
-  store.customHoses = dedupeById([...deptCustom, ...storeCustom]);
-  store.deptHoses = all;
-
-  if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
-    const uiIds = new Set(DEPT_UI_HOSES.map(h => String(h?.id ?? '')));
-    const resolvedUi = all.filter(h => uiIds.has(String(h.id)));
-    if (resolvedUi.length) return resolvedUi;
+  const fullCatalog = getAllDeptHosesCatalog();
+  const selectedIds = Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses.map(String) : [];
+  if (selectedIds.length) {
+    const selectedSet = new Set(selectedIds);
+    const filtered = fullCatalog.filter(h => selectedSet.has(String(h.id)));
+    if (filtered.length) return filtered;
   }
-
-  return all;
+  return fullCatalog;
 }
+
+
 
 // Department-scoped UI lists for hoses and nozzles.
 // These are populated when Department Setup is saved, and
@@ -271,6 +230,7 @@ export function setDeptUiNozzles(list) {
 export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
+
 
 /* =========================
  * Hose ID → diameter normalization
@@ -873,7 +833,7 @@ export function getDeptLineDefaults(){
     line3: { hoseDiameter: '2.5',  nozzleId: 'chiefXD265',  lengthFt: 250, elevationFt: 0 },
   };
 
-  // Treat empty strings as missing
+  // ✅ FIX: Treat empty strings as missing (so first-run falls back to defaults)
   function norm(src, fb){
     const o = (src && typeof src === 'object') ? src : {};
 
