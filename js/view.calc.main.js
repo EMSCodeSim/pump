@@ -170,7 +170,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
+import { DEPT_UI_NOZZLES, getDeptLineDefaults, COEFF } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -826,7 +826,7 @@ export async function render(container){
 
     const customs = Array.isArray(base.customHoses) ? base.customHoses : [];
 
-    function metaForHoseSelection(rawId, idx) {
+    function metaForHoseSelection(rawId) {
       const id = String(rawId ?? '').trim();
       if (!id) return null;
 
@@ -884,8 +884,8 @@ export async function render(container){
     const hosesAll = [];
 
     if (selectedHoseIds.length) {
-      selectedHoseIds.forEach((hid, idx) => {
-        const meta = metaForHoseSelection(hid, idx);
+      selectedHoseIds.forEach(hid => {
+        const meta = metaForHoseSelection(hid);
         if (meta) hosesAll.push(meta);
       });
       dept.hosesSelected = selectedHoseIds.slice();
