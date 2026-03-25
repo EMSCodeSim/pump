@@ -2176,12 +2176,17 @@ function refreshEditorVisualsFromFields(){
     const sizeInput = root.querySelector('#teSize');
     const sizeLabelEl = root.querySelector('#sizeLabel');
     if(sizeInput && sizeLabelEl){
-      const val = String(sizeInput.value||'').trim();
-      let label = val;
-      if(val === '1.75') label = '1 3/4″';
-      else if(val === '2.5') label = '2 1/2″';
-      else if(val === '5') label = '5″';
-      sizeLabelEl.textContent = label;
+      const explicitLabel = String(sizeInput.dataset.label || '').trim();
+      if (explicitLabel) {
+        sizeLabelEl.textContent = explicitLabel;
+      } else {
+        const val = String(sizeInput.value||'').trim();
+        let label = val;
+        if(val === '1.75') label = '1 3/4″';
+        else if(val === '2.5') label = '2 1/2″';
+        else if(val === '5') label = '5″';
+        sizeLabelEl.textContent = label;
+      }
     }
 
     // Length label
@@ -2199,6 +2204,11 @@ function refreshEditorVisualsFromFields(){
       const v = parseInt(elevInput.value||'0',10) || 0;
       elevLabelEl.textContent = `${v}′`;
     }
+
+    // Sync nozzle stepper label if available
+    try{
+      if (typeof root.__refreshNozStepper === 'function') root.__refreshNozStepper();
+    }catch(_){ }
   }catch(_){}
 }
 
@@ -2243,6 +2253,9 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       const totalLenMain = sumFt(mainSegs);
       teSize.value = sizeMain;
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
+      if (container && typeof container.__setPlusMenuHoseBySegment === 'function') {
+        container.__setPlusMenuHoseBySegment(mainSegs[0] || { size: sizeMain });
+      }
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
       if (L.nozRight?.id && teNoz){
@@ -2279,11 +2292,17 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
+      if (container && typeof container.__setPlusMenuHoseBySegment === 'function') {
+        container.__setPlusMenuHoseBySegment(seg);
+      }
       ensureDefaultNozzleFor(L,'L',seg.size);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
       teSize.value = seg.size; teLen.value = seg.lengthFt;
+      if (container && typeof container.__setPlusMenuHoseBySegment === 'function') {
+        container.__setPlusMenuHoseBySegment(seg);
+      }
       setBranchBDefaultIfEmpty(L);
     }
 
@@ -2381,11 +2400,14 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
     const size = teSize.value; const len = Math.max(0, +teLen.value||0);
+    const hoseId = String(teSize?.dataset?.hoseId || '').trim();
+    const cRaw = teSize?.dataset?.cValue;
+    const cValue = Number.isFinite(Number(cRaw)) ? Number(cRaw) : null;
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
     if(where==='main'){
-      L.itemsMain = [{size, lengthFt:len}];
+      L.itemsMain = [{size, lengthFt:len, cValue, hoseId}];
       if(!wyeOn){
         L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
         // default nozzle by diameter if unset OR use chosen
@@ -2413,11 +2435,11 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : [];
+      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len, cValue, hoseId}] : [];
       if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
       else ensureDefaultNozzleFor(L,'L',size);
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
+      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len, cValue, hoseId}] : [];
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
@@ -3095,50 +3117,151 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  // Build hose diameter sequence from department setup if available,
-  // otherwise fall back to standard 1.75 / 2.5 / 5.
-  let sizeSeq = [];
-  try {
-    if (typeof getDeptHoseDiameters === 'function') {
-      const diams = getDeptHoseDiameters() || [];
-      if (Array.isArray(diams) && diams.length) {
-        sizeSeq = diams
-          .map(d => {
-            const val = String(d).trim();
-            if (!val) return null;
-            const plain =
-              val === '1.75' ? '1 3/4″' :
-              val === '1.5'  ? '1 1/2″' :
-              val === '2.0'  ? '2″' :
-              val === '2.5'  ? '2 1/2″' :
-              val === '3'    ? '3″' :
-              val === '4'    ? '4″' :
-              val === '5'    ? '5″' :
-              val + '"';
-            return { val, labelPlain: plain };
-          })
-          .filter(Boolean);
-      }
+  function hoseLabelFromMeta(meta){
+    if (!meta) return '';
+    if (meta.label) return String(meta.label);
+    const d = String(meta.diameter ?? meta.val ?? '').trim();
+    const c = Number(meta.c);
+    let base = d;
+    if (d === '1.75') base = '1 3/4"';
+    else if (d === '1.5') base = '1 1/2"';
+    else if (d === '2.0' || d === '2') base = '2"';
+    else if (d === '2.5') base = '2 1/2"';
+    else if (d) base = `${d}"`;
+    if (Number.isFinite(c)) {
+      const cTxt = Number.isInteger(c) ? String(c) : String(Math.round(c * 100) / 100).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+      return `${base} C${cTxt}`;
     }
-  } catch (_e) {
-    sizeSeq = [];
+    return base;
   }
 
-  if (!sizeSeq.length) {
-    sizeSeq = [
-      { val: "1.75", labelPlain: "1 3/4″" },
-      { val: "2.5",  labelPlain: "2 1/2″" },
-      { val: "5",    labelPlain: "5″" }
+  function buildDeptHoseSequence(){
+    const fallback = [
+      { id: 'h_175',   val: '1.75', labelPlain: '1 3/4" C15.5', c: 15.5 },
+      { id: 'h_25',    val: '2.5',  labelPlain: '2 1/2" C2',    c: 2 },
+      { id: 'h_5_ldh', val: '5',    labelPlain: '5" C0.08',     c: 0.08 },
     ];
+
+    try{
+      const raw = localStorage.getItem('fireops_dept_equipment_v1');
+      const dept = raw ? JSON.parse(raw) : {};
+      const selected = Array.isArray(dept?.selectedHoses) ? dept.selectedHoses.map(v => String(v ?? '').trim()).filter(Boolean) : [];
+      const customs = Array.isArray(dept?.customHoses) ? dept.customHoses : [];
+
+      const builtInMap = {
+        'h_1':        { diameter: '1',   c: COEFF['1'] ?? null },
+        'h_15':       { diameter: '1.5', c: COEFF['1.5'] ?? 24 },
+        'h_175':      { diameter: '1.75', c: COEFF['1.75'] ?? 15.5 },
+        'h_2':        { diameter: '2.0', c: COEFF['2.0'] ?? 8 },
+        'h_25':       { diameter: '2.5', c: COEFF['2.5'] ?? 2 },
+        'h_3':        { diameter: '3', c: COEFF['3'] ?? 0.8 },
+        'h_3_supply': { diameter: '3', c: COEFF['3'] ?? 0.8 },
+        'h_4_ldh':    { diameter: '4', c: COEFF['4'] ?? 0.2 },
+        'h_5_ldh':    { diameter: '5', c: COEFF['5'] ?? 0.08 },
+        'h_w_1':      { diameter: '1', c: COEFF['1'] ?? null },
+        'h_w_15':     { diameter: '1.5', c: COEFF['1.5'] ?? 24 },
+        'h_booster_1':{ diameter: '1', c: COEFF['1'] ?? null },
+        'h_lf_175':   { diameter: '1.75', c: 12 },
+        'h_lf_2':     { diameter: '2.0', c: 6 },
+        'h_lf_25':    { diameter: '2.5', c: 1.5 },
+        'h_lf_5':     { diameter: '5', c: 0.06 },
+      };
+
+      const out = [];
+      selected.forEach(id => {
+        if (builtInMap[id]) {
+          const meta = builtInMap[id];
+          out.push({
+            id,
+            val: String(meta.diameter),
+            c: Number(meta.c),
+            labelPlain: hoseLabelFromMeta({ diameter: meta.diameter, c: meta.c }),
+          });
+          return;
+        }
+
+        const custom = customs.find((h, idx) => {
+          const cid = String(h?.id ?? h?.key ?? `custom_hose_${idx}`).trim();
+          const clabel = String(h?.label ?? h?.name ?? '').trim();
+          return cid === id || (!!clabel && clabel === id);
+        });
+        if (custom) {
+          const diameter = String(custom.diameter ?? custom.dia ?? custom.size ?? '').trim();
+          const c = Number(custom.c ?? custom.C ?? custom.flC ?? custom.coeff);
+          out.push({
+            id: String(custom.id ?? id),
+            val: diameter,
+            c: Number.isFinite(c) ? c : null,
+            labelPlain: hoseLabelFromMeta({ diameter, c }),
+          });
+        }
+      });
+
+      if (out.length) return out;
+    }catch(_e){}
+
+    return fallback;
   }
+
+  const sizeSeq = buildDeptHoseSequence();
 
   const teSize = root.querySelector('#teSize');
   const sizeLabel = root.querySelector('#sizeLabel');
   const sizeMinus = root.querySelector('#sizeMinus');
   const sizePlus = root.querySelector('#sizePlus');
-  let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
-  function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
-  function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
+
+  let sizeIdx = 0;
+
+  function drawSize(){
+    const item = sizeSeq[sizeIdx] || sizeSeq[0];
+    if(!item) return;
+    if(teSize){
+      teSize.value = item.val;
+      teSize.dataset.hoseId = item.id || '';
+      teSize.dataset.cValue = Number.isFinite(Number(item.c)) ? String(item.c) : '';
+      teSize.dataset.label = item.labelPlain || '';
+    }
+    if(sizeLabel) sizeLabel.textContent = item.labelPlain || item.val;
+    try{
+      teSize?.dispatchEvent(new Event('change', { bubbles:false }));
+    }catch(_){ }
+  }
+
+  function stepSize(d){
+    if (!sizeSeq.length) return;
+    sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length;
+    drawSize();
+  }
+
+  root.__setPlusMenuHoseBySegment = function(seg){
+    const size = String(seg?.size ?? '').trim();
+    const cRaw = seg?.cValue;
+    const c = Number(cRaw);
+    const hoseId = String(seg?.hoseId ?? '').trim();
+
+    let idx = -1;
+    if (hoseId) idx = sizeSeq.findIndex(s => String(s.id || '').trim() === hoseId);
+    if (idx < 0 && size && Number.isFinite(c)) {
+      idx = sizeSeq.findIndex(s => String(s.val) === size && Number(Number(s.c)) === c);
+    }
+    if (idx < 0 && size) {
+      idx = sizeSeq.findIndex(s => String(s.val) === size);
+    }
+    sizeIdx = idx >= 0 ? idx : 0;
+    drawSize();
+  };
+
+  if (teSize) {
+    const existingSize = String(teSize.value || '').trim();
+    const existingHoseId = String(teSize.dataset.hoseId || '').trim();
+    const existingC = Number(teSize.dataset.cValue);
+    let idx = -1;
+    if (existingHoseId) idx = sizeSeq.findIndex(s => String(s.id || '').trim() === existingHoseId);
+    if (idx < 0 && existingSize && Number.isFinite(existingC)) idx = sizeSeq.findIndex(s => String(s.val) === existingSize && Number(s.c) === existingC);
+    if (idx < 0 && existingSize) idx = sizeSeq.findIndex(s => String(s.val) === existingSize);
+    sizeIdx = idx >= 0 ? idx : 0;
+  }
+
   sizeMinus?.addEventListener('click', ()=> stepSize(-1));
   sizePlus?.addEventListener('click', ()=> stepSize(+1));
   drawSize();
@@ -3160,102 +3283,53 @@ function initPlusMenus(root){
   const elevMinus = root.querySelector('#elevMinus');
   const elevPlus = root.querySelector('#elevPlus');
   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
-  function parseElev(){ const v=parseInt(teElev?.value||'0',10); return isNaN(v)?0:Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); }
+  function parseElev(){ return Math.max(ELEV_MIN, Math.min(ELEV_MAX, parseInt(teElev?.value||'0',10)||0)); }
   function drawElev(){ if(elevLabel) elevLabel.textContent = `${parseElev()}′`; }
-  function stepElev(d){ let v=parseElev()+d; v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); if(teElev) teElev.value=String(v); drawElev(); }
+  function stepElev(d){ let v = parseElev()+d; v=Math.max(ELEV_MIN,Math.min(ELEV_MAX,v)); if(teElev) teElev.value=String(v); drawElev(); }
   elevMinus?.addEventListener('click', ()=> stepElev(-ELEV_STEP));
   elevPlus?.addEventListener('click', ()=> stepElev(+ELEV_STEP));
   drawElev();
 
-  const teNoz  = root.querySelector('#teNoz');
-  const teNozA = root.querySelector('#teNozA');
-  const teNozB = root.querySelector('#teNozB');
-
-  if ((teNoz || teNozA || teNozB) && Array.isArray(NOZ_LIST)) {
-    // Start with built-in nozzles
-    let list = Array.isArray(NOZ_LIST) ? [...NOZ_LIST] : [];
-
-    // Merge in department custom nozzles if available
-    try {
-      if (typeof getDeptCustomNozzlesForCalc === 'function') {
-        const customs = getDeptCustomNozzlesForCalc() || [];
-        if (Array.isArray(customs) && customs.length) {
-          list = list.concat(customs);
-        }
-      }
-    } catch (e) {
-      console.warn('Dept custom nozzles load failed', e);
+  const teNoz = root.querySelector('#teNoz');
+  const nozMinus = root.querySelector('#nozMinus');
+  const nozPlus = root.querySelector('#nozPlus');
+  const nozLabel = root.querySelector('#nozLabel');
+  if (teNoz && nozMinus && nozPlus && nozLabel){
+    const getNozOptions = () => Array.from(teNoz.options || []).filter(o => o && String(o.value||'').trim());
+    let nozIdx = Math.max(0, getNozOptions().findIndex(o => o.value === teNoz.value));
+    function drawNoz(){
+      const opts = getNozOptions();
+      if (!opts.length) { nozLabel.textContent = '—'; return; }
+      if (nozIdx < 0 || nozIdx >= opts.length) nozIdx = 0;
+      const opt = opts[nozIdx];
+      teNoz.value = opt.value;
+      nozLabel.textContent = opt.textContent || opt.label || opt.value;
     }
-
-    // If department selected specific nozzles, filter to that set
-    try {
-      if (typeof getDeptNozzleIds === 'function') {
-        const ids = getDeptNozzleIds() || [];
-        if (Array.isArray(ids) && ids.length) {
-          const allowed = new Set(ids.map(id => String(id)));
-          const filtered = list.filter(n => n && allowed.has(String(n.id)));
-          if (filtered.length) {
-            list = filtered;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Dept nozzle filter failed', e);
+    function stepNoz(d){
+      const opts = getNozOptions();
+      if (!opts.length) return;
+      nozIdx = (nozIdx + d + opts.length) % opts.length;
+      drawNoz();
     }
-
-    // Overlay labels from deptState's UI list so ChiefXD tips keep their Department label
-    let uiById = null;
-    try {
-      if (typeof getUiNozzles === 'function') {
-        const uiNozzles = getUiNozzles() || [];
-        if (Array.isArray(uiNozzles) && uiNozzles.length) {
-          uiById = new Map(
-            uiNozzles
-              .filter(n => n && n.id != null)
-              .map(n => [String(n.id), n])
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('deptState getUiNozzles failed', e);
-    }
-
-    const optionsHtml = list.map(n => {
-      if (!n) return '';
-      const id = n.id != null ? String(n.id) : '';
-      if (!id) return '';
-      const fromUi = uiById && uiById.get(id);
-      const label =
-        (fromUi && (fromUi.label || fromUi.name || fromUi.desc)) ||
-        n.label || n.name || n.desc || id || 'Nozzle';
-      const val = id;
-      return `<option value="${val}">${label}</option>`;
-    }).join('');
-
-    if (teNoz)  teNoz.innerHTML  = optionsHtml;
-    if (teNozA) teNozA.innerHTML = optionsHtml;
-    if (teNozB) teNozB.innerHTML = optionsHtml;
+    nozMinus.addEventListener('click', ()=> stepNoz(-1));
+    nozPlus.addEventListener('click', ()=> stepNoz(+1));
+    teNoz.addEventListener('change', ()=>{
+      const opts = getNozOptions();
+      nozIdx = Math.max(0, opts.findIndex(o => o.value === teNoz.value));
+      drawNoz();
+    });
+    drawNoz();
+    root.__refreshNozStepper = drawNoz;
   }
 
-
-  if(!root.__plusMenuStyles){
-    const s=document.createElement('style');
-    s.textContent = `.te-row{display:flex !important;align-items:center !important;gap:12px !important;margin:10px 0 !important}
-.te-row>label{flex:0 0 120px !important;font-weight:800 !important;color:#eaf2ff !important;opacity:.95 !important;line-height:1.1 !important}
-.te-row>select,.te-row>input:not([type="hidden"]),.te-row .steppers{flex:1 1 auto !important}
-.steppers{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;gap:0 !important;
-  background:#0b1a29;border:1px solid var(--edge);border-radius:14px;padding:0 !important;height:52px !important;width:100% !important;overflow:hidden !important}
-.stepBtn{background:rgba(255,255,255,.05);border:0 !important;color:#e9f1ff;font-weight:900;flex:0 0 56px !important;width:56px !important;height:52px !important;font-size:22px !important;touch-action:manipulation}
-.stepBtn:active{transform:translateY(1px)}
-.stepVal{flex:1 1 auto !important;text-align:center !important;font-weight:900 !important;font-size:18px !important;white-space:nowrap !important}
-@media (max-width:480px){.te-row>label{flex-basis:105px !important}.stepBtn{flex-basis:52px !important;width:52px !important}}`;
+  if (!root.__plusMenuStyles){
+    const s = document.createElement('style');
+    s.textContent = `.te-row .steppers{display:flex;align-items:center;gap:8px;width:100%}.te-row .stepBtn{width:56px;min-width:56px;height:40px;border:1px solid rgba(148,163,184,.35);background:#0b1220;color:#fff;border-radius:10px;font-size:28px;line-height:1}.te-row .stepVal{flex:1;min-height:40px;display:flex;align-items:center;justify-content:center;padding:0 10px;border:1px solid rgba(148,163,184,.25);border-radius:10px;background:#0f172a;color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}@media (max-width:480px){.te-row>label{flex-basis:105px !important}.stepBtn{flex-basis:52px !important;width:52px !important}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
 }
 
-
-// Branch plus-menus for Wye
 function initBranchPlusMenus(root){
   const LEN_STEP=50, LEN_MIN=0, LEN_MAX=3000;
   const ELEV_STEP=10, ELEV_MIN=-500, ELEV_MAX=500;
