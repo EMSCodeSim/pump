@@ -89,18 +89,17 @@ export function setSelectedHoses(ids){
   saveStore();
 }
 
-export function setSelectedNozzles(ids){
-
 function parseLooseNumber(input){
   if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
   const s = String(input ?? '').trim();
   if (!s) return NaN;
   const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
-  if (!cleaned || cleaned in ['+','-','.','+.','-.']) return NaN;
+  if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : NaN;
 }
 
+export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
   setDeptUiNozzles(store.deptSelectedNozzles);
