@@ -178,7 +178,7 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import {setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
 import './view.calc.enhance.js';
 
 
@@ -303,10 +303,15 @@ export async function render(container){
 
 
             
-            <!-- Diameter / hose size: same dropdown source used by Department Setup -->
+            <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
-              <select id="teSize"></select>
+              <input type="hidden" id="teSize" value="1.75">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
+                <div class="stepVal" id="sizeLabel">1 3/4″</div>
+                <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
+              </div>
             </div>
 
             <!-- Length: - [value] +, steps of 50' -->
@@ -917,7 +922,8 @@ function _setEditorOpen(open){
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
-      const teSizeField = tip.querySelector('#teSize');
+      const sizeMinus = tip.querySelector('#sizeMinus');
+      const sizePlus  = tip.querySelector('#sizePlus');
 
       // Remove any prior segSwitch from previous opens, then recreate
       let wrap = tip.querySelector('#segSwitch');
@@ -989,9 +995,11 @@ function _setEditorOpen(open){
         if (!mainShow){
           if (teSize) teSize.value = '1.75';
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-          if (teSizeField) teSizeField.disabled = true;
+          if (sizeMinus) sizeMinus.disabled = true;
+          if (sizePlus)  sizePlus.disabled  = true;
         }else{
-          if (teSizeField) teSizeField.disabled = false;
+          if (sizeMinus) sizeMinus.disabled = false;
+          if (sizePlus)  sizePlus.disabled  = false;
         }
 
         // where label polish
@@ -1029,7 +1037,8 @@ function gateWyeBySize(){
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
-      if (teSizeField) teSizeField.addEventListener('change', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
       updateWyeAndButtons();
@@ -1102,14 +1111,18 @@ function gateWyeBySize(){
       }
     }
     // Lock diameter on branches
+    const sizeMinus = container.querySelector('#sizeMinus');
+    const sizePlus  = container.querySelector('#sizePlus');
     const teSize    = container.querySelector('#teSize');
     const sizeLabel = container.querySelector('#sizeLabel');
     if (seg==='A' || seg==='B'){
       if (teSize) teSize.value = '1.75';
       if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-      if (teSize) teSize.disabled = true;
+      if (sizeMinus) sizeMinus.disabled = true;
+      if (sizePlus)  sizePlus.disabled  = true;
     } else {
-      if (teSize) teSize.disabled = false;
+      if (sizeMinus) sizeMinus.disabled = false;
+      if (sizePlus)  sizePlus.disabled  = false;
     }
 
     // Update “Where” label
@@ -2110,13 +2123,9 @@ function refreshEditorVisualsFromFields(){
     const sizeLabelEl = root.querySelector('#sizeLabel');
     if(sizeInput && sizeLabelEl){
       const val = String(sizeInput.value||'').trim();
-      const raw = String(sizeInput.value||'').trim();
-      const val = String(sizeInput.dataset.selectedDiameter || raw).trim();
       let label = val;
       if(val === '1.75') label = '1 3/4″';
-      else if(val === '1.5') label = '1 1/2″';
       else if(val === '2.5') label = '2 1/2″';
-      else if(val === '4') label = '4″';
       else if(val === '5') label = '5″';
       sizeLabelEl.textContent = label;
     }
@@ -2179,7 +2188,6 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       const sizeMain = mainSegs[0].size || '1.75';
       const totalLenMain = sumFt(mainSegs);
       teSize.value = sizeMain;
-      teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || sizeMain);
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
@@ -2216,12 +2224,12 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || seg.size); teLen.value = seg.lengthFt;
+      teSize.value = seg.size; teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || seg.size); teLen.value = seg.lengthFt;
+      teSize.value = seg.size; teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
@@ -2266,10 +2274,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     if(!editorContext) return;
     const {key, where} = editorContext;
     const L = state.lines[key];
-    const sizeId = teSize.value;
-    const size = resolveSelectedHoseDiameter(sizeId);
-    teSize.dataset.selectedDiameter = size;
-    refreshEditorVisualsFromFields();
+    const size = teSize.value;
     if (where==='main' && teWye.value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
@@ -2280,9 +2285,6 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
-
-    // Live preview in the editor should react immediately to hose-size changes.
-    try { recompute(); render(); } catch(_){ }
   });
 
   // Delegate click on "+"
@@ -2324,10 +2326,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
-    const sizeId = teSize.value;
-    const size = resolveSelectedHoseDiameter(sizeId);
-    teSize.dataset.selectedDiameter = size;
-    const len = Math.max(0, +teLen.value||0);
+    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
@@ -3042,16 +3041,9 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  // Build the hose-size dropdown from the same department hose list
-  // used by Department Setup / line editors so custom hoses appear here too.
+  // Build hose diameter sequence from department setup if available,
+  // and include the friction-loss C value in the displayed label.
   let sizeSeq = [];
-
-  function resolveSelectedHoseDiameter(rawValue){
-    const raw = String(rawValue || '').trim();
-    if (!raw) return '';
-    const match = sizeSeq.find(item => String(item.val) === raw);
-    return String(match?.diameter || raw).trim();
-  }
 
   function formatDiaPlain(val){
     const s = String(val || '').trim();
@@ -3073,65 +3065,40 @@ function initPlusMenus(root){
     return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, '');
   }
 
-  function buildLabel(id, diameter, c, label){
-    const cleanLabel = String(label || '').trim();
-    const diaText = formatDiaPlain(diameter || id);
-    const cText = formatCValue(c);
-    if (cleanLabel && /^custom_hose_/i.test(String(id || ''))) {
-      return cText ? `${cleanLabel} (${diaText}) C${cText}` : `${cleanLabel} (${diaText})`;
-    }
-    return cText ? `${diaText} C${cText}` : diaText;
-  }
-
-  function pushSizeItem(item){
-    if (!item) return;
-    const rawId = String(item.id ?? item.value ?? item.name ?? '').trim();
-    const rawDia = String(item.diameter ?? item.dia ?? item.size ?? rawId).trim();
-    const id = rawId || rawDia;
-    if (!id) return;
-    if (sizeSeq.some(x => String(x.val) === id)) return;
-    const c = item.c ?? item.cValue ?? item.flC ?? item.coeff ?? null;
-    sizeSeq.push({
-      val: id,
-      diameter: rawDia || id,
-      labelPlain: buildLabel(id, rawDia || id, c, item.label || item.name || '')
-    });
-  }
-
   try {
-    if (typeof getUiHoses === 'function') {
-      const uiHoses = getUiHoses() || [];
-      if (Array.isArray(uiHoses) && uiHoses.length) {
-        uiHoses.forEach(pushSizeItem);
-      }
-    }
+    const hoseMeta = new Map();
 
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem('fireops_dept_equipment_v1');
       if (raw) {
         const dept = JSON.parse(raw) || {};
         const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-        customs.forEach(pushSizeItem);
-
-        const hosesAll = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
-        const selected = new Set(Array.isArray(dept.selectedHoseIds) ? dept.selectedHoseIds.map(String) : []);
-        if (selected.size) {
-          hosesAll.filter(h => selected.has(String(h?.id ?? ''))).forEach(pushSizeItem);
-        } else {
-          hosesAll.forEach(pushSizeItem);
-        }
+        customs.forEach(h => {
+          const val = String(h?.diameter || h?.id || '').trim();
+          if (!val) return;
+          const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
+          hoseMeta.set(val, {
+            val,
+            labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+          });
+        });
       }
     }
 
-    if (!sizeSeq.length && typeof getDeptHoseDiameters === 'function') {
+    if (typeof getDeptHoseDiameters === 'function') {
       const diams = getDeptHoseDiameters() || [];
       if (Array.isArray(diams) && diams.length) {
-        diams.forEach(d => {
-          const val = String(d).trim();
-          if (!val) return;
-          const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
-          pushSizeItem({ id: val, diameter: val, c });
-        });
+        sizeSeq = diams
+          .map(d => {
+            const val = String(d).trim();
+            if (!val) return null;
+            const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
+            return hoseMeta.get(val) || {
+              val,
+              labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+            };
+          })
+          .filter(Boolean);
       }
     }
   } catch (_e) {
@@ -3140,23 +3107,22 @@ function initPlusMenus(root){
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { val: '1.75', diameter: '1.75', labelPlain: '1 3/4 C15.5' },
-      { val: '2.5',  diameter: '2.5',  labelPlain: '2 1/2 C2' },
-      { val: '5',    diameter: '5',    labelPlain: '5 C0.08' }
+      { val: "1.75", labelPlain: "1 3/4 C15.5" },
+      { val: "2.5",  labelPlain: "2 1/2 C2" },
+      { val: "5",    labelPlain: "5 C0.08" }
     ];
   }
 
   const teSize = root.querySelector('#teSize');
-  if (teSize) {
-    teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}" data-diameter="${String(item.diameter).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
-
-    const current = String(teSize.value || '').trim();
-    const exact = sizeSeq.find(item => String(item.val) === current);
-    const byDiameter = !exact ? sizeSeq.find(item => String(item.diameter) === current) : null;
-    const chosen = exact || byDiameter || sizeSeq[0];
-    if (chosen) teSize.value = String(chosen.val);
-    teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value);
-  }
+  const sizeLabel = root.querySelector('#sizeLabel');
+  const sizeMinus = root.querySelector('#sizeMinus');
+  const sizePlus = root.querySelector('#sizePlus');
+  let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
+  function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
+  function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
+  sizeMinus?.addEventListener('click', ()=> stepSize(-1));
+  sizePlus?.addEventListener('click', ()=> stepSize(+1));
+  drawSize();
 
   const teLen = root.querySelector('#teLen');
   const lenLabel = root.querySelector('#lenLabel');
