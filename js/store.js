@@ -70,24 +70,37 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-export function setSelectedHoses(ids){
-  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  // Dept UI hoses are a simple list used by dropdowns
-  setDeptUiHoses(getDeptHoses());
-  saveStore();
-}
-
-export function setSelectedNozzles(ids){
-
 function parseLooseNumber(input){
   if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
   const s = String(input ?? '').trim();
   if (!s) return NaN;
   const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
-  if (!cleaned || cleaned in ['+','-','.','+.','-.']) return NaN;
+  if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : NaN;
 }
+
+export function setSelectedHoses(ids){
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+
+  // Rebuild the shared UI hose list from the actual selected ids, using
+  // both built-ins and saved custom hoses. The old path reused getDeptHoses(),
+  // which could feed back a stale/partial UI list and drop selected built-ins.
+  const all = [
+    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
+    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
+  ];
+  const selected = new Set(store.deptSelectedHoses.map(String));
+  const uiList = selected.size
+    ? all.filter(h => selected.has(String(h?.id ?? '')))
+    : all;
+
+  setDeptUiHoses(uiList);
+  saveStore();
+}
+
+export function setSelectedNozzles(ids){
+
 
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
