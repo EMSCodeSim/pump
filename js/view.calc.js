@@ -3041,8 +3041,8 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  // Build hose diameter sequence from department setup if available,
-  // and include the friction-loss C value in the displayed label.
+  // Hose dropdown in the + menu: use the same selected department hose list
+  // that Department Setup / Preconnects use, including custom hoses.
   let sizeSeq = [];
 
   function formatDiaPlain(val){
@@ -3050,7 +3050,7 @@ function initPlusMenus(root){
     return (
       s === '1.75' ? '1 3/4' :
       s === '1.5'  ? '1 1/2' :
-      s === '2.0'  ? '2' :
+      s === '2.0' || s === '2' ? '2' :
       s === '2.5'  ? '2 1/2' :
       s === '3'    ? '3' :
       s === '4'    ? '4' :
@@ -3059,57 +3059,93 @@ function initPlusMenus(root){
     );
   }
 
+  function parseLooseNumber(input){
+    if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
+    const s = String(input ?? '').trim();
+    if (!s) return NaN;
+    const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
+    if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
   function formatCValue(c){
-    const n = Number(c);
+    const n = parseLooseNumber(c);
     if (!Number.isFinite(n) || n <= 0) return '';
     return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, '');
   }
 
-  try {
-    const hoseMeta = new Map();
+  function pushUnique(list, item){
+    if (!item || !item.val) return;
+    if (list.some(x => String(x.val) === String(item.val) && String(x.id || '') === String(item.id || ''))) return;
+    list.push(item);
+  }
 
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem('fireops_dept_equipment_v1');
-      if (raw) {
-        const dept = JSON.parse(raw) || {};
-        const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-        customs.forEach(h => {
-          const val = String(h?.diameter || h?.id || '').trim();
+  try {
+    const deptRaw = (typeof localStorage !== 'undefined') ? localStorage.getItem('fireops_dept_equipment_v1') : null;
+    const dept = deptRaw ? (JSON.parse(deptRaw) || {}) : {};
+    const selectedIds = Array.isArray(dept.hoses) ? dept.hoses.map(x => String(x)) : [];
+    const customHoses = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+    const selectedSet = new Set(selectedIds);
+
+    const builtIns = [
+      { id: '1.75', label: '1 3/4"', diameter: '1.75', c: COEFF?.['1.75'] ?? 15.5 },
+      { id: '2.5',  label: '2 1/2"', diameter: '2.5',  c: COEFF?.['2.5']  ?? 2.0 },
+      { id: '3',    label: '3"',      diameter: '3',    c: COEFF?.['3']    ?? 0.8 },
+      { id: '4',    label: '4"',      diameter: '4',    c: COEFF?.['4']    ?? 0.2 },
+      { id: '5',    label: '5"',      diameter: '5',    c: COEFF?.['5']    ?? 0.08 },
+    ];
+
+    const allOptions = [];
+
+    builtIns.forEach(h => {
+      if (!selectedSet.size || selectedSet.has(String(h.id)) || selectedSet.has(String(h.diameter))) {
+        pushUnique(allOptions, {
+          id: String(h.id),
+          val: String(h.diameter),
+          labelPlain: `${h.label.replace(/"/g, '')} C${formatCValue(h.c) || '?'}`,
+        });
+      }
+    });
+
+    customHoses.forEach(h => {
+      const id = String(h?.id ?? '').trim();
+      const dia = String(h?.diameter ?? h?.dia ?? h?.size ?? '').trim();
+      if (!id || !dia) return;
+      if (selectedSet.size && !selectedSet.has(id) && !selectedSet.has(dia)) return;
+      const labelBase = String(h?.label || h?.name || `${formatDiaPlain(dia)}`);
+      pushUnique(allOptions, {
+        id,
+        val: dia,
+        labelPlain: `${labelBase} (${formatDiaPlain(dia)}) C${formatCValue(h?.c ?? h?.C ?? h?.flC ?? h?.coeff) || '?'}`,
+      });
+    });
+
+    if (!allOptions.length && typeof getDeptHoseDiameters === 'function') {
+      const diams = getDeptHoseDiameters() || [];
+      if (Array.isArray(diams)) {
+        diams.forEach(d => {
+          const val = String(d || '').trim();
           if (!val) return;
-          const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
-          hoseMeta.set(val, {
+          pushUnique(allOptions, {
+            id: val,
             val,
-            labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+            labelPlain: `${formatDiaPlain(val)} C${formatCValue(COEFF?.[val]) || '?'}`,
           });
         });
       }
     }
 
-    if (typeof getDeptHoseDiameters === 'function') {
-      const diams = getDeptHoseDiameters() || [];
-      if (Array.isArray(diams) && diams.length) {
-        sizeSeq = diams
-          .map(d => {
-            const val = String(d).trim();
-            if (!val) return null;
-            const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
-            return hoseMeta.get(val) || {
-              val,
-              labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
-            };
-          })
-          .filter(Boolean);
-      }
-    }
+    sizeSeq = allOptions;
   } catch (_e) {
     sizeSeq = [];
   }
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { val: "1.75", labelPlain: "1 3/4 C15.5" },
-      { val: "2.5",  labelPlain: "2 1/2 C2" },
-      { val: "5",    labelPlain: "5 C0.08" }
+      { id: '1.75', val: '1.75', labelPlain: '1 3/4 C15.5' },
+      { id: '2.5',  val: '2.5',  labelPlain: '2 1/2 C2' },
+      { id: '5',    val: '5',    labelPlain: '5 C0.08' }
     ];
   }
 
@@ -3117,12 +3153,44 @@ function initPlusMenus(root){
   const sizeLabel = root.querySelector('#sizeLabel');
   const sizeMinus = root.querySelector('#sizeMinus');
   const sizePlus = root.querySelector('#sizePlus');
-  let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
-  function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
-  function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
-  sizeMinus?.addEventListener('click', ()=> stepSize(-1));
-  sizePlus?.addEventListener('click', ()=> stepSize(+1));
-  drawSize();
+
+  // Convert the old center step label into a real dropdown while keeping the
+  // hidden teSize input for the existing calc/save logic.
+  let sizeSelect = root.querySelector('#teSizeSelect');
+  if (!sizeSelect && sizeLabel) {
+    sizeSelect = document.createElement('select');
+    sizeSelect.id = 'teSizeSelect';
+    sizeSelect.className = 'stepSelect';
+    sizeSelect.style.width = '100%';
+    sizeSelect.style.background = 'transparent';
+    sizeSelect.style.color = 'inherit';
+    sizeSelect.style.border = 'none';
+    sizeSelect.style.font = 'inherit';
+    sizeSelect.style.textAlign = 'center';
+    sizeSelect.style.outline = 'none';
+    sizeSelect.style.appearance = 'none';
+    sizeLabel.textContent = '';
+    sizeLabel.appendChild(sizeSelect);
+  }
+
+  const currentVal = String(teSize?.value || '1.75');
+  if (sizeSelect) {
+    sizeSelect.innerHTML = sizeSeq.map(item => `<option value="${String(item.val)}">${String(item.labelPlain)}</option>`).join('');
+    const selectedVal = sizeSeq.some(s => String(s.val) === currentVal) ? currentVal : String((sizeSeq[0] || {}).val || '1.75');
+    sizeSelect.value = selectedVal;
+    if (teSize) teSize.value = selectedVal;
+    sizeSelect.addEventListener('change', () => {
+      if (teSize) {
+        teSize.value = sizeSelect.value;
+        teSize.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      try { if (typeof recompute === 'function') recompute(); } catch(_e){}
+      try { if (typeof render === 'function') render(); } catch(_e){}
+    });
+  }
+
+  if (sizeMinus) sizeMinus.style.display = 'none';
+  if (sizePlus) sizePlus.style.display = 'none';
 
   const teLen = root.querySelector('#teLen');
   const lenLabel = root.querySelector('#lenLabel');
