@@ -2110,9 +2110,13 @@ function refreshEditorVisualsFromFields(){
     const sizeLabelEl = root.querySelector('#sizeLabel');
     if(sizeInput && sizeLabelEl){
       const val = String(sizeInput.value||'').trim();
+      const raw = String(sizeInput.value||'').trim();
+      const val = String(sizeInput.dataset.selectedDiameter || raw).trim();
       let label = val;
       if(val === '1.75') label = '1 3/4″';
+      else if(val === '1.5') label = '1 1/2″';
       else if(val === '2.5') label = '2 1/2″';
+      else if(val === '4') label = '4″';
       else if(val === '5') label = '5″';
       sizeLabelEl.textContent = label;
     }
@@ -2175,6 +2179,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       const sizeMain = mainSegs[0].size || '1.75';
       const totalLenMain = sumFt(mainSegs);
       teSize.value = sizeMain;
+      teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || sizeMain);
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
@@ -2211,12 +2216,12 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
+      teSize.value = seg.size; teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || seg.size); teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
+      teSize.value = seg.size; teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value || seg.size); teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
@@ -2261,7 +2266,10 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     if(!editorContext) return;
     const {key, where} = editorContext;
     const L = state.lines[key];
-    const size = teSize.value;
+    const sizeId = teSize.value;
+    const size = resolveSelectedHoseDiameter(sizeId);
+    teSize.dataset.selectedDiameter = size;
+    refreshEditorVisualsFromFields();
     if (where==='main' && teWye.value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
@@ -2272,6 +2280,9 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       // Branch B keeps its “Fog 185 @ 50” rule if empty; otherwise honor size default
       if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
     }
+
+    // Live preview in the editor should react immediately to hose-size changes.
+    try { recompute(); render(); } catch(_){ }
   });
 
   // Delegate click on "+"
@@ -2313,7 +2324,10 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
+    const sizeId = teSize.value;
+    const size = resolveSelectedHoseDiameter(sizeId);
+    teSize.dataset.selectedDiameter = size;
+    const len = Math.max(0, +teLen.value||0);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
@@ -3032,6 +3046,13 @@ function initPlusMenus(root){
   // used by Department Setup / line editors so custom hoses appear here too.
   let sizeSeq = [];
 
+  function resolveSelectedHoseDiameter(rawValue){
+    const raw = String(rawValue || '').trim();
+    if (!raw) return '';
+    const match = sizeSeq.find(item => String(item.val) === raw);
+    return String(match?.diameter || raw).trim();
+  }
+
   function formatDiaPlain(val){
     const s = String(val || '').trim();
     return (
@@ -3127,13 +3148,14 @@ function initPlusMenus(root){
 
   const teSize = root.querySelector('#teSize');
   if (teSize) {
-    teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
+    teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}" data-diameter="${String(item.diameter).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
 
     const current = String(teSize.value || '').trim();
     const exact = sizeSeq.find(item => String(item.val) === current);
     const byDiameter = !exact ? sizeSeq.find(item => String(item.diameter) === current) : null;
     const chosen = exact || byDiameter || sizeSeq[0];
     if (chosen) teSize.value = String(chosen.val);
+    teSize.dataset.selectedDiameter = resolveSelectedHoseDiameter(teSize.value);
   }
 
   const teLen = root.querySelector('#teLen');

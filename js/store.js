@@ -72,8 +72,20 @@ export function saveStore(){
 
 export function setSelectedHoses(ids){
   store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  // Dept UI hoses are a simple list used by dropdowns
-  setDeptUiHoses(getDeptHoses());
+
+  // Rebuild the shared UI hose list from the actual selected ids, using
+  // both built-ins and saved custom hoses. The old path reused getDeptHoses(),
+  // which could feed back a stale/partial UI list and drop selected built-ins.
+  const all = [
+    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
+    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
+  ];
+  const selected = new Set(store.deptSelectedHoses.map(String));
+  const uiList = selected.size
+    ? all.filter(h => selected.has(String(h?.id ?? '')))
+    : all;
+
+  setDeptUiHoses(uiList);
   saveStore();
 }
 
