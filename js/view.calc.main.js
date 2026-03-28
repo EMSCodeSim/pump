@@ -303,15 +303,10 @@ export async function render(container){
 
 
             
-            <!-- Diameter: - [value] +, cycles 1 3/4, 2 1/2, 5" -->
+            <!-- Diameter / hose size: same dropdown source used by Department Setup -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
-              <input type="hidden" id="teSize" value="1.75">
-              <div class="steppers">
-                <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
-                <div class="stepVal" id="sizeLabel">1 3/4″</div>
-                <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
-              </div>
+              <select id="teSize"></select>
             </div>
 
             <!-- Length: - [value] +, steps of 50' -->
@@ -922,8 +917,7 @@ function _setEditorOpen(open){
       const branchBlock = tip.querySelector('#branchBlock');
       const aSect = tip.querySelector('#branchASection');
       const bSect = tip.querySelector('#branchBSection');
-      const sizeMinus = tip.querySelector('#sizeMinus');
-      const sizePlus  = tip.querySelector('#sizePlus');
+      const teSizeField = tip.querySelector('#teSize');
 
       // Remove any prior segSwitch from previous opens, then recreate
       let wrap = tip.querySelector('#segSwitch');
@@ -995,11 +989,9 @@ function _setEditorOpen(open){
         if (!mainShow){
           if (teSize) teSize.value = '1.75';
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-          if (sizeMinus) sizeMinus.disabled = true;
-          if (sizePlus)  sizePlus.disabled  = true;
+          if (teSizeField) teSizeField.disabled = true;
         }else{
-          if (sizeMinus) sizeMinus.disabled = false;
-          if (sizePlus)  sizePlus.disabled  = false;
+          if (teSizeField) teSizeField.disabled = false;
         }
 
         // where label polish
@@ -1037,8 +1029,7 @@ function gateWyeBySize(){
       if (wyeSel){
         wyeSel.addEventListener('change', updateWyeAndButtons);
       }
-      if (sizeMinus) sizeMinus.addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
-      if (sizePlus)  sizePlus .addEventListener('click', ()=>{ setTimeout(updateWyeAndButtons,0); });
+      if (teSizeField) teSizeField.addEventListener('change', ()=>{ setTimeout(updateWyeAndButtons,0); });
 
       // Initial state
       updateWyeAndButtons();
@@ -1111,18 +1102,14 @@ function gateWyeBySize(){
       }
     }
     // Lock diameter on branches
-    const sizeMinus = container.querySelector('#sizeMinus');
-    const sizePlus  = container.querySelector('#sizePlus');
     const teSize    = container.querySelector('#teSize');
     const sizeLabel = container.querySelector('#sizeLabel');
     if (seg==='A' || seg==='B'){
       if (teSize) teSize.value = '1.75';
       if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-      if (sizeMinus) sizeMinus.disabled = true;
-      if (sizePlus)  sizePlus.disabled  = true;
+      if (teSize) teSize.disabled = true;
     } else {
-      if (sizeMinus) sizeMinus.disabled = false;
-      if (sizePlus)  sizePlus.disabled  = false;
+      if (teSize) teSize.disabled = false;
     }
 
     // Update “Where” label
@@ -3041,8 +3028,8 @@ export default { render };
 /* === Plus-menu steppers for Diameter, Length, Elevation, Nozzle === */
 
 function initPlusMenus(root){
-  // Build hose diameter sequence from department setup if available,
-  // and include the friction-loss C value in the displayed label.
+  // Build the hose-size dropdown from the same department hose list
+  // used by Department Setup / line editors so custom hoses appear here too.
   let sizeSeq = [];
 
   function formatDiaPlain(val){
@@ -3065,63 +3052,65 @@ function initPlusMenus(root){
     return Number.isInteger(n) ? String(n) : String(n).replace(/\.0+$/, '');
   }
 
-  try {
-    const seen = new Set();
+  function buildLabel(id, diameter, c, label){
+    const cleanLabel = String(label || '').trim();
+    const diaText = formatDiaPlain(diameter || id);
+    const cText = formatCValue(c);
+    if (cleanLabel && /^custom_hose_/i.test(String(id || ''))) {
+      return cText ? `${cleanLabel} (${diaText}) C${cText}` : `${cleanLabel} (${diaText})`;
+    }
+    return cText ? `${diaText} C${cText}` : diaText;
+  }
 
-    // Prefer the same department UI hose list used by the working Line 1/2/3 editors.
+  function pushSizeItem(item){
+    if (!item) return;
+    const rawId = String(item.id ?? item.value ?? item.name ?? '').trim();
+    const rawDia = String(item.diameter ?? item.dia ?? item.size ?? rawId).trim();
+    const id = rawId || rawDia;
+    if (!id) return;
+    if (sizeSeq.some(x => String(x.val) === id)) return;
+    const c = item.c ?? item.cValue ?? item.flC ?? item.coeff ?? null;
+    sizeSeq.push({
+      val: id,
+      diameter: rawDia || id,
+      labelPlain: buildLabel(id, rawDia || id, c, item.label || item.name || '')
+    });
+  }
+
+  try {
     if (typeof getUiHoses === 'function') {
       const uiHoses = getUiHoses() || [];
       if (Array.isArray(uiHoses) && uiHoses.length) {
-        sizeSeq = uiHoses
-          .map(h => {
-            if (!h) return null;
-            const val = String(h.id ?? h.diameter ?? h.dia ?? h.size ?? '').trim();
-            if (!val || seen.has(val)) return null;
-            seen.add(val);
-            const c = Number(h.c ?? h.cValue ?? h.flC ?? ((typeof COEFF !== 'undefined' && COEFF) ? COEFF[val] : 0));
-            const customLabel = String(h.label ?? h.name ?? '').trim();
-            return {
-              val,
-              labelPlain: customLabel || `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
-            };
-          })
-          .filter(Boolean);
+        uiHoses.forEach(pushSizeItem);
       }
     }
 
-    // Fallback to the legacy diameter-only list if needed.
-    if (!sizeSeq.length && typeof getDeptHoseDiameters === 'function') {
-      const hoseMeta = new Map();
-      if (typeof localStorage !== 'undefined') {
-        const raw = localStorage.getItem('fireops_dept_equipment_v1');
-        if (raw) {
-          const dept = JSON.parse(raw) || {};
-          const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-          customs.forEach(h => {
-            const val = String(h?.diameter || h?.id || '').trim();
-            if (!val) return;
-            const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
-            hoseMeta.set(val, {
-              val,
-              labelPlain: String(h?.label || h?.name || '').trim() || `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
-            });
-          });
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem('fireops_dept_equipment_v1');
+      if (raw) {
+        const dept = JSON.parse(raw) || {};
+        const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+        customs.forEach(pushSizeItem);
+
+        const hosesAll = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+        const selected = new Set(Array.isArray(dept.selectedHoseIds) ? dept.selectedHoseIds.map(String) : []);
+        if (selected.size) {
+          hosesAll.filter(h => selected.has(String(h?.id ?? ''))).forEach(pushSizeItem);
+        } else {
+          hosesAll.forEach(pushSizeItem);
         }
       }
+    }
 
+    if (!sizeSeq.length && typeof getDeptHoseDiameters === 'function') {
       const diams = getDeptHoseDiameters() || [];
       if (Array.isArray(diams) && diams.length) {
-        sizeSeq = diams
-          .map(d => {
-            const val = String(d).trim();
-            if (!val) return null;
-            const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
-            return hoseMeta.get(val) || {
-              val,
-              labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
-            };
-          })
-          .filter(Boolean);
+        diams.forEach(d => {
+          const val = String(d).trim();
+          if (!val) return;
+          const c = (typeof COEFF !== 'undefined' && COEFF && COEFF[val] != null) ? COEFF[val] : null;
+          pushSizeItem({ id: val, diameter: val, c });
+        });
       }
     }
   } catch (_e) {
@@ -3130,22 +3119,22 @@ function initPlusMenus(root){
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { val: "1.75", labelPlain: "1 3/4 C15.5" },
-      { val: "2.5",  labelPlain: "2 1/2 C2" },
-      { val: "5",    labelPlain: "5 C0.08" }
+      { val: '1.75', diameter: '1.75', labelPlain: '1 3/4 C15.5' },
+      { val: '2.5',  diameter: '2.5',  labelPlain: '2 1/2 C2' },
+      { val: '5',    diameter: '5',    labelPlain: '5 C0.08' }
     ];
   }
 
   const teSize = root.querySelector('#teSize');
-  const sizeLabel = root.querySelector('#sizeLabel');
-  const sizeMinus = root.querySelector('#sizeMinus');
-  const sizePlus = root.querySelector('#sizePlus');
-  let sizeIdx = Math.max(0, sizeSeq.findIndex(s => s.val === (teSize?.value || "1.75")));
-  function drawSize(){ const item = sizeSeq[sizeIdx] || sizeSeq[0]; if(teSize) teSize.value = item.val; if(sizeLabel) sizeLabel.textContent = item.labelPlain; }
-  function stepSize(d){ sizeIdx = (sizeIdx + d + sizeSeq.length) % sizeSeq.length; drawSize(); }
-  sizeMinus?.addEventListener('click', ()=> stepSize(-1));
-  sizePlus?.addEventListener('click', ()=> stepSize(+1));
-  drawSize();
+  if (teSize) {
+    teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
+
+    const current = String(teSize.value || '').trim();
+    const exact = sizeSeq.find(item => String(item.val) === current);
+    const byDiameter = !exact ? sizeSeq.find(item => String(item.diameter) === current) : null;
+    const chosen = exact || byDiameter || sizeSeq[0];
+    if (chosen) teSize.value = String(chosen.val);
+  }
 
   const teLen = root.querySelector('#teLen');
   const lenLabel = root.querySelector('#lenLabel');

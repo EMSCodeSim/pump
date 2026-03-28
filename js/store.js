@@ -103,21 +103,17 @@ export function addCustomHose(label, diameter, cValue){
     id,
     label:String(label||'Custom hose'),
     diameter:String(diameter||''),
-    c:Number.isFinite(parsedC) ? parsedC : 0,
-    cValue:Number.isFinite(parsedC) ? parsedC : 0,
+    c:Number.isFinite(parsedC) ? parsedC : 0
   };
   store.customHoses.push(hose);
 
-  // Keep shared department-equipment storage in sync.
-  // The end-of-line + editor reads custom hoses from
-  // localStorage['fireops_dept_equipment_v1'].customHoses.
   try {
     const KEY = 'fireops_dept_equipment_v1';
     if (typeof localStorage !== 'undefined') {
       const raw = localStorage.getItem(KEY);
       const dept = raw ? JSON.parse(raw) : {};
-      const existing = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-      dept.customHoses = existing.concat([{
+      const existingCustoms = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+      const nextCustoms = existingCustoms.concat([{
         id: hose.id,
         label: hose.label,
         name: hose.label,
@@ -125,13 +121,39 @@ export function addCustomHose(label, diameter, cValue){
         dia: hose.diameter,
         size: hose.diameter,
         c: hose.c,
-        cValue: hose.cValue,
+        cValue: hose.c,
         flC: hose.c,
       }]);
+      dept.customHoses = nextCustoms;
+
+      const builtIns = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
+      dept.hosesAll = builtIns.concat([{
+        id: hose.id,
+        label: hose.label,
+        name: hose.label,
+        diameter: hose.diameter,
+        c: hose.c,
+      }]);
+
+      const selected = new Set(Array.isArray(dept.selectedHoseIds) ? dept.selectedHoseIds.map(String) : []);
+      selected.add(String(hose.id));
+      dept.selectedHoseIds = Array.from(selected);
+
+      const hoses = new Set(Array.isArray(dept.hoses) ? dept.hoses.map(String) : []);
+      hoses.add(String(hose.id));
+      dept.hoses = Array.from(hoses);
+
       localStorage.setItem(KEY, JSON.stringify(dept));
     }
   } catch (e) {
     console.warn('addCustomHose: failed to sync dept customHoses', e);
+  }
+
+  try {
+    const uiList = getDeptHoses();
+    setDeptUiHoses(uiList);
+  } catch (e) {
+    console.warn('addCustomHose: failed to refresh DEPT_UI_HOSES', e);
   }
 
   saveStore();
