@@ -78,8 +78,16 @@ function renderHoseSelector() {
     if (!wrapper) return;
 
     const builtIns = Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : [];
-    const customs = Array.isArray(store.customHoses) ? store.customHoses : [];
-    const hoses = [...builtIns, ...customs];
+    const deptCfg = loadDeptConfig();
+    const cfgCustoms = Array.isArray(deptCfg.customHoses) ? deptCfg.customHoses : [];
+    const storeCustoms = Array.isArray(store.customHoses) ? store.customHoses : [];
+    const seen = new Set();
+    const hoses = [...builtIns, ...storeCustoms, ...cfgCustoms].filter(h => {
+        const id = String(h?.id ?? '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
     const selected = new Set((Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses : []).map(String));
 
     wrapper.innerHTML = hoses.map(h => {
@@ -221,7 +229,33 @@ function setupCustomHoseForm() {
             return;
         }
 
-        addCustomHose(label, dia, c);
+        const hose = addCustomHose(label, dia, c);
+        if (hose && hose.id) {
+            const prev = Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses.map(String) : [];
+            const next = prev.includes(String(hose.id)) ? prev : [...prev, String(hose.id)];
+            store.deptSelectedHoses = next;
+            saveStore();
+            try {
+                saveDeptConfig({
+                    hoses: next,
+                    customHoses: Array.isArray(store.customHoses) ? store.customHoses : []
+                });
+            } catch (e) {
+                console.warn('saveDeptConfig after custom hose add failed', e);
+            }
+            try {
+                const selectedSet = new Set(next.map(String));
+                const deptCfg = loadDeptConfig();
+                const allHoses = [
+                    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
+                    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
+                    ...(Array.isArray(deptCfg.customHoses) ? deptCfg.customHoses : [])
+                ].filter((h, idx, arr) => h && arr.findIndex(x => String(x?.id) === String(h?.id)) === idx);
+                setDeptUiHoses(allHoses.filter(h => selectedSet.has(String(h.id))));
+            } catch (e) {
+                console.warn('setDeptUiHoses after custom hose add failed', e);
+            }
+        }
 
         // Re-render list
         renderHoseSelector();
@@ -316,7 +350,12 @@ function setupSaveButtons() {
             }
 
             try {
-                const allHoses = [...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []), ...(Array.isArray(store.customHoses) ? store.customHoses : [])];
+                const deptCfg = loadDeptConfig();
+                const allHoses = [
+                    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
+                    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
+                    ...(Array.isArray(deptCfg.customHoses) ? deptCfg.customHoses : [])
+                ].filter((h, idx, arr) => h && arr.findIndex(x => String(x?.id) === String(h?.id)) === idx);
                 const selectedSet = new Set(selections.map(String));
                 if (typeof setDeptUiHoses === "function") {
                     setDeptUiHoses(selections.length ? allHoses.filter(h => selectedSet.has(String(h.id))) : allHoses);
