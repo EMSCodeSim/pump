@@ -3162,14 +3162,23 @@ function initPlusMenus(root){
     sizeSelect.id = 'teSizeSelect';
     sizeSelect.className = 'stepSelect';
     sizeSelect.style.width = '100%';
-    sizeSelect.style.background = 'transparent';
-    sizeSelect.style.color = 'inherit';
-    sizeSelect.style.border = 'none';
+    sizeSelect.style.minHeight = '38px';
+    sizeSelect.style.padding = '8px 10px';
+    sizeSelect.style.background = '#1b2330';
+    sizeSelect.style.color = '#fff';
+    sizeSelect.style.border = '1px solid rgba(255,255,255,.18)';
+    sizeSelect.style.borderRadius = '10px';
     sizeSelect.style.font = 'inherit';
-    sizeSelect.style.textAlign = 'center';
+    sizeSelect.style.textAlign = 'left';
     sizeSelect.style.outline = 'none';
-    sizeSelect.style.appearance = 'none';
+    sizeSelect.style.appearance = 'auto';
+    sizeSelect.style.webkitAppearance = 'menulist';
+    sizeSelect.style.cursor = 'pointer';
     sizeLabel.textContent = '';
+    sizeLabel.style.width = '100%';
+    sizeLabel.style.padding = '0';
+    sizeLabel.style.background = 'transparent';
+    sizeLabel.style.border = 'none';
     sizeLabel.appendChild(sizeSelect);
   }
 
