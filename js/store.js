@@ -70,37 +70,6 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-
-function emitDeptUiChanged(){
-  try {
-    window.dispatchEvent(new CustomEvent('fireops:dept-ui-changed'));
-  } catch (_e) {}
-}
-
-function getAllDeptHoseCatalog(){
-  return [
-    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
-    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
-  ];
-}
-
-function refreshDeptUiHosesFromStore(){
-  const all = getAllDeptHoseCatalog();
-  const selected = new Set((Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses : []).map(String));
-  setDeptUiHoses(selected.size ? all.filter(h => selected.has(String(h?.id ?? ''))) : all);
-}
-
-function refreshDeptUiNozzlesFromStore(){
-  setDeptUiNozzles(Array.isArray(store.deptSelectedNozzles) ? store.deptSelectedNozzles.map(String) : []);
-}
-
-export function setSelectedHoses(ids){
-  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  refreshDeptUiHosesFromStore();
-  saveStore();
-  emitDeptUiChanged();
-}
-
 function parseLooseNumber(input){
   if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
   const s = String(input ?? '').trim();
@@ -111,22 +80,51 @@ function parseLooseNumber(input){
   return Number.isFinite(n) ? n : NaN;
 }
 
+function getAllDeptHoseOptions(){
+  const builtIns = Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS.slice() : [];
+  const customs = Array.isArray(store.customHoses) ? store.customHoses.slice() : [];
+  const all = [...builtIns, ...customs];
+  const seen = new Set();
+  return all.filter(h => {
+    const id = String(h?.id ?? '');
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export function setSelectedHoses(ids){
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  const selected = new Set(store.deptSelectedHoses.map(String));
+  const allHoses = getAllDeptHoseOptions();
+  const uiList = selected.size
+    ? allHoses.filter(h => selected.has(String(h.id)))
+    : allHoses;
+  setDeptUiHoses(uiList);
+  saveStore();
+}
+
 export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
-  refreshDeptUiNozzlesFromStore();
+  setDeptUiNozzles(store.deptSelectedNozzles);
   saveStore();
-  emitDeptUiChanged();
 }
-
 
 // Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
 export function addCustomHose(label, diameter, cValue){
   const id = `custom_hose_${Date.now()}`;
   const parsedC = parseLooseNumber(cValue);
-  const hose = { id, label:String(label||'Custom hose'), diameter:String(diameter||''), c:Number.isFinite(parsedC) ? parsedC : 0 };
+  const hose = {
+    id,
+    label: String(label || 'Custom hose'),
+    diameter: String(diameter || '').trim(),
+    c: Number.isFinite(parsedC) ? parsedC : 0,
+  };
   store.customHoses.push(hose);
 
+  // Keep the shared department equipment store in sync.
+  // Calc/main editor reads custom hoses from fireops_dept_equipment_v1.
   try {
     const KEY = 'fireops_dept_equipment_v1';
     if (typeof localStorage !== 'undefined') {
@@ -142,8 +140,8 @@ export function addCustomHose(label, diameter, cValue){
         size: hose.diameter,
         c: hose.c,
         C: hose.c,
-        coeff: hose.c,
         flC: hose.c,
+        coeff: hose.c,
       }]);
       localStorage.setItem(KEY, JSON.stringify(dept));
     }
@@ -151,9 +149,15 @@ export function addCustomHose(label, diameter, cValue){
     console.warn('addCustomHose: failed to sync dept customHoses', e);
   }
 
-  refreshDeptUiHosesFromStore();
+  // Refresh live UI hose list so the + menu can see it immediately after selection.
+  const selected = new Set((store.deptSelectedHoses || []).map(String));
+  const allHoses = getAllDeptHoseOptions();
+  const uiList = selected.size
+    ? allHoses.filter(h => selected.has(String(h.id)))
+    : allHoses;
+  setDeptUiHoses(uiList);
+
   saveStore();
-  emitDeptUiChanged();
   return hose;
 }
 
@@ -187,18 +191,20 @@ export function addCustomNozzle(label, gpm, np){
     console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
   }
 
-  refreshDeptUiNozzlesFromStore();
   saveStore();
-  emitDeptUiChanged();
   return noz;
 }
 
 export function getDeptHoses(){
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
 
-  const all = getAllDeptHoseCatalog();
-  const selected = new Set((Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses : []).map(String));
-  return selected.size ? all.filter(h => selected.has(String(h?.id ?? ''))) : all;
+  const allHoses = getAllDeptHoseOptions();
+  const selected = new Set((store.deptSelectedHoses || []).map(String));
+  if (selected.size) {
+    const filtered = allHoses.filter(h => selected.has(String(h.id)));
+    if (filtered.length) return filtered;
+  }
+  return allHoses.length ? allHoses : HOSES_MATCHING_CHARTS.slice();
 }
 
 
@@ -216,11 +222,6 @@ export function setDeptUiNozzles(list) {
 export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
-
-try {
-  refreshDeptUiHosesFromStore();
-  refreshDeptUiNozzlesFromStore();
-} catch (_e) {}
 
 
 /* =========================
