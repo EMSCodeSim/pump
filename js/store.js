@@ -70,30 +70,55 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
-export function setSelectedHoses(ids){
-  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  // Dept UI hoses are a simple list used by dropdowns
-  setDeptUiHoses(getDeptHoses());
-  saveStore();
+
+function emitDeptUiChanged(){
+  try {
+    window.dispatchEvent(new CustomEvent('fireops:dept-ui-changed'));
+  } catch (_e) {}
 }
 
-export function setSelectedNozzles(ids){
+function getAllDeptHoseCatalog(){
+  return [
+    ...(Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : []),
+    ...(Array.isArray(store.customHoses) ? store.customHoses : []),
+  ];
+}
+
+function refreshDeptUiHosesFromStore(){
+  const all = getAllDeptHoseCatalog();
+  const selected = new Set((Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses : []).map(String));
+  setDeptUiHoses(selected.size ? all.filter(h => selected.has(String(h?.id ?? ''))) : all);
+}
+
+function refreshDeptUiNozzlesFromStore(){
+  setDeptUiNozzles(Array.isArray(store.deptSelectedNozzles) ? store.deptSelectedNozzles.map(String) : []);
+}
+
+export function setSelectedHoses(ids){
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  refreshDeptUiHosesFromStore();
+  saveStore();
+  emitDeptUiChanged();
+}
 
 function parseLooseNumber(input){
   if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
   const s = String(input ?? '').trim();
   if (!s) return NaN;
   const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
-  if (!cleaned || cleaned in ['+','-','.','+.','-.']) return NaN;
+  if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : NaN;
 }
 
+export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
-  setDeptUiNozzles(store.deptSelectedNozzles);
+  refreshDeptUiNozzlesFromStore();
   saveStore();
+  emitDeptUiChanged();
 }
+
 
 // Minimal custom item creators for Department Setup UI (does not affect hydraulics unless ids are used elsewhere)
 export function addCustomHose(label, diameter, cValue){
@@ -101,7 +126,34 @@ export function addCustomHose(label, diameter, cValue){
   const parsedC = parseLooseNumber(cValue);
   const hose = { id, label:String(label||'Custom hose'), diameter:String(diameter||''), c:Number.isFinite(parsedC) ? parsedC : 0 };
   store.customHoses.push(hose);
+
+  try {
+    const KEY = 'fireops_dept_equipment_v1';
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(KEY);
+      const dept = raw ? JSON.parse(raw) : {};
+      const existing = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+      dept.customHoses = existing.concat([{
+        id: hose.id,
+        label: hose.label,
+        name: hose.label,
+        diameter: hose.diameter,
+        dia: hose.diameter,
+        size: hose.diameter,
+        c: hose.c,
+        C: hose.c,
+        coeff: hose.c,
+        flC: hose.c,
+      }]);
+      localStorage.setItem(KEY, JSON.stringify(dept));
+    }
+  } catch (e) {
+    console.warn('addCustomHose: failed to sync dept customHoses', e);
+  }
+
+  refreshDeptUiHosesFromStore();
   saveStore();
+  emitDeptUiChanged();
   return hose;
 }
 
@@ -135,14 +187,18 @@ export function addCustomNozzle(label, gpm, np){
     console.warn('addCustomNozzle: failed to sync dept customNozzles', e);
   }
 
+  refreshDeptUiNozzlesFromStore();
   saveStore();
+  emitDeptUiChanged();
   return noz;
 }
 
 export function getDeptHoses(){
-  // Use Dept UI list if present; otherwise show chart-matching hoses.
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
-  return HOSES_MATCHING_CHARTS.slice();
+
+  const all = getAllDeptHoseCatalog();
+  const selected = new Set((Array.isArray(store.deptSelectedHoses) ? store.deptSelectedHoses : []).map(String));
+  return selected.size ? all.filter(h => selected.has(String(h?.id ?? ''))) : all;
 }
 
 
@@ -160,6 +216,11 @@ export function setDeptUiNozzles(list) {
 export function setDeptUiHoses(list) {
   DEPT_UI_HOSES = Array.isArray(list) ? list : [];
 }
+
+try {
+  refreshDeptUiHosesFromStore();
+  refreshDeptUiNozzlesFromStore();
+} catch (_e) {}
 
 
 /* =========================

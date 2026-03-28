@@ -223,8 +223,9 @@ function setupCustomHoseForm() {
 
         addCustomHose(label, dia, c);
 
-        // Re-render list
+        // Re-render list and any dependent dropdowns
         renderHoseSelector();
+        populateDropdowns();
 
         // Clear fields
         nameInput.value = "";
@@ -326,6 +327,7 @@ function setupSaveButtons() {
             }
 
             setSelectedHoses(selections);
+            populateDropdowns();
             alert("Department hose selection saved!");
         };
     }

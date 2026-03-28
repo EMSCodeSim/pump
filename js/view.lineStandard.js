@@ -23,7 +23,12 @@ function _getCustomHoseById(id) {
 }
 
 function _diaToLabel(dia) {
-  const f = Number(dia);
+  const raw = String(dia ?? '').trim();
+  if (!raw) return '';
+  if (/^1\s*3\/4$/i.test(raw)) return '1 3/4"';
+  if (/^1\s*1\/2$/i.test(raw)) return '1 1/2"';
+  if (/^2\s*1\/2$/i.test(raw)) return '2 1/2"';
+  const f = Number(raw);
   if (!isFinite(f)) return '';
   const map = {1:'1"', 1.5:'1 1/2"', 1.75:'1 3/4"', 2:'2"', 2.5:'2 1/2"', 3:'3"', 4:'4"', 5:'5"'};
   for (const k of Object.keys(map)) {
