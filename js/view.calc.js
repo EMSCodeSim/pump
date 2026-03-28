@@ -178,7 +178,7 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import {setDeptEquipment, setDeptSelections, getUiNozzles, } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses } from './deptState.js';
 import './view.calc.enhance.js';
 
 
@@ -3066,26 +3066,49 @@ function initPlusMenus(root){
   }
 
   try {
-    const hoseMeta = new Map();
+    const seen = new Set();
 
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem('fireops_dept_equipment_v1');
-      if (raw) {
-        const dept = JSON.parse(raw) || {};
-        const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
-        customs.forEach(h => {
-          const val = String(h?.diameter || h?.id || '').trim();
-          if (!val) return;
-          const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
-          hoseMeta.set(val, {
-            val,
-            labelPlain: `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
-          });
-        });
+    // Prefer the same department UI hose list used by the working Line 1/2/3 editors.
+    if (typeof getUiHoses === 'function') {
+      const uiHoses = getUiHoses() || [];
+      if (Array.isArray(uiHoses) && uiHoses.length) {
+        sizeSeq = uiHoses
+          .map(h => {
+            if (!h) return null;
+            const val = String(h.id ?? h.diameter ?? h.dia ?? h.size ?? '').trim();
+            if (!val || seen.has(val)) return null;
+            seen.add(val);
+            const c = Number(h.c ?? h.cValue ?? h.flC ?? ((typeof COEFF !== 'undefined' && COEFF) ? COEFF[val] : 0));
+            const customLabel = String(h.label ?? h.name ?? '').trim();
+            return {
+              val,
+              labelPlain: customLabel || `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+            };
+          })
+          .filter(Boolean);
       }
     }
 
-    if (typeof getDeptHoseDiameters === 'function') {
+    // Fallback to the legacy diameter-only list if needed.
+    if (!sizeSeq.length && typeof getDeptHoseDiameters === 'function') {
+      const hoseMeta = new Map();
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem('fireops_dept_equipment_v1');
+        if (raw) {
+          const dept = JSON.parse(raw) || {};
+          const customs = Array.isArray(dept.customHoses) ? dept.customHoses : [];
+          customs.forEach(h => {
+            const val = String(h?.diameter || h?.id || '').trim();
+            if (!val) return;
+            const c = Number(h?.c ?? h?.cValue ?? h?.flC ?? 0);
+            hoseMeta.set(val, {
+              val,
+              labelPlain: String(h?.label || h?.name || '').trim() || `${formatDiaPlain(val)} C${formatCValue(c) || '?'}`,
+            });
+          });
+        }
+      }
+
       const diams = getDeptHoseDiameters() || [];
       if (Array.isArray(diams) && diams.length) {
         sizeSeq = diams

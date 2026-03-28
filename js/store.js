@@ -70,41 +70,25 @@ export function saveStore(){
   }catch(_){ return false; }
 }
 
+export function setSelectedHoses(ids){
+  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
+  // Dept UI hoses are a simple list used by dropdowns
+  setDeptUiHoses(getDeptHoses());
+  saveStore();
+}
+
+export function setSelectedNozzles(ids){
+
 function parseLooseNumber(input){
   if (typeof input === 'number') return Number.isFinite(input) ? input : NaN;
   const s = String(input ?? '').trim();
   if (!s) return NaN;
   const cleaned = s.replace(/~/g, '').replace(/[^0-9.+-]/g, '');
-  if (!cleaned || ['+','-','.','+.','-.'].includes(cleaned)) return NaN;
+  if (!cleaned || cleaned in ['+','-','.','+.','-.']) return NaN;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : NaN;
 }
 
-function getAllDeptHoseOptions(){
-  const builtIns = Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS.slice() : [];
-  const customs = Array.isArray(store.customHoses) ? store.customHoses.slice() : [];
-  const all = [...builtIns, ...customs];
-  const seen = new Set();
-  return all.filter(h => {
-    const id = String(h?.id ?? '');
-    if (!id || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
-
-export function setSelectedHoses(ids){
-  store.deptSelectedHoses = Array.isArray(ids) ? ids.map(String) : [];
-  const selected = new Set(store.deptSelectedHoses.map(String));
-  const allHoses = getAllDeptHoseOptions();
-  const uiList = selected.size
-    ? allHoses.filter(h => selected.has(String(h.id)))
-    : allHoses;
-  setDeptUiHoses(uiList);
-  saveStore();
-}
-
-export function setSelectedNozzles(ids){
   store.deptSelectedNozzles = Array.isArray(ids) ? ids.map(String) : [];
   // Dept UI nozzles are ids; getDeptNozzles() resolves to full nozzle objects
   setDeptUiNozzles(store.deptSelectedNozzles);
@@ -117,14 +101,16 @@ export function addCustomHose(label, diameter, cValue){
   const parsedC = parseLooseNumber(cValue);
   const hose = {
     id,
-    label: String(label || 'Custom hose'),
-    diameter: String(diameter || '').trim(),
-    c: Number.isFinite(parsedC) ? parsedC : 0,
+    label:String(label||'Custom hose'),
+    diameter:String(diameter||''),
+    c:Number.isFinite(parsedC) ? parsedC : 0,
+    cValue:Number.isFinite(parsedC) ? parsedC : 0,
   };
   store.customHoses.push(hose);
 
-  // Keep the shared department equipment store in sync.
-  // Calc/main editor reads custom hoses from fireops_dept_equipment_v1.
+  // Keep shared department-equipment storage in sync.
+  // The end-of-line + editor reads custom hoses from
+  // localStorage['fireops_dept_equipment_v1'].customHoses.
   try {
     const KEY = 'fireops_dept_equipment_v1';
     if (typeof localStorage !== 'undefined') {
@@ -139,23 +125,14 @@ export function addCustomHose(label, diameter, cValue){
         dia: hose.diameter,
         size: hose.diameter,
         c: hose.c,
-        C: hose.c,
+        cValue: hose.cValue,
         flC: hose.c,
-        coeff: hose.c,
       }]);
       localStorage.setItem(KEY, JSON.stringify(dept));
     }
   } catch (e) {
     console.warn('addCustomHose: failed to sync dept customHoses', e);
   }
-
-  // Refresh live UI hose list so the + menu can see it immediately after selection.
-  const selected = new Set((store.deptSelectedHoses || []).map(String));
-  const allHoses = getAllDeptHoseOptions();
-  const uiList = selected.size
-    ? allHoses.filter(h => selected.has(String(h.id)))
-    : allHoses;
-  setDeptUiHoses(uiList);
 
   saveStore();
   return hose;
@@ -196,15 +173,9 @@ export function addCustomNozzle(label, gpm, np){
 }
 
 export function getDeptHoses(){
+  // Use Dept UI list if present; otherwise show chart-matching hoses.
   if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) return DEPT_UI_HOSES;
-
-  const allHoses = getAllDeptHoseOptions();
-  const selected = new Set((store.deptSelectedHoses || []).map(String));
-  if (selected.size) {
-    const filtered = allHoses.filter(h => selected.has(String(h.id)));
-    if (filtered.length) return filtered;
-  }
-  return allHoses.length ? allHoses : HOSES_MATCHING_CHARTS.slice();
+  return HOSES_MATCHING_CHARTS.slice();
 }
 
 
