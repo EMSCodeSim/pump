@@ -307,7 +307,10 @@ export async function render(container){
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
               <input type="hidden" id="teSize" value="1.75">
-              <div class="steppers">
+              <select id="teSizeSelect" style="width:100%; min-height:48px; padding:10px 12px; background:#0f1724; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:14px; font:inherit; appearance:auto; -webkit-appearance:menulist; cursor:pointer;">
+                <option value="1.75">1 3/4" C15.5</option>
+              </select>
+              <div class="steppers" style="display:none">
                 <button type="button" class="stepBtn" id="sizeMinus" aria-label="Decrease hose size">−</button>
                 <div class="stepVal" id="sizeLabel">1 3/4″</div>
                 <button type="button" class="stepBtn" id="sizePlus" aria-label="Increase hose size">+</button>
@@ -3162,24 +3165,19 @@ function initPlusMenus(root){
     sizeSelect.id = 'teSizeSelect';
     sizeSelect.className = 'stepSelect';
     sizeSelect.style.width = '100%';
-    sizeSelect.style.minHeight = '38px';
-    sizeSelect.style.padding = '8px 10px';
-    sizeSelect.style.background = '#1b2330';
+    sizeSelect.style.minHeight = '48px';
+    sizeSelect.style.padding = '10px 12px';
+    sizeSelect.style.background = '#0f1724';
     sizeSelect.style.color = '#fff';
     sizeSelect.style.border = '1px solid rgba(255,255,255,.18)';
-    sizeSelect.style.borderRadius = '10px';
+    sizeSelect.style.borderRadius = '14px';
     sizeSelect.style.font = 'inherit';
-    sizeSelect.style.textAlign = 'left';
     sizeSelect.style.outline = 'none';
     sizeSelect.style.appearance = 'auto';
     sizeSelect.style.webkitAppearance = 'menulist';
     sizeSelect.style.cursor = 'pointer';
-    sizeLabel.textContent = '';
-    sizeLabel.style.width = '100%';
-    sizeLabel.style.padding = '0';
-    sizeLabel.style.background = 'transparent';
-    sizeLabel.style.border = 'none';
-    sizeLabel.appendChild(sizeSelect);
+    const rowSize = root.querySelector('#rowSize');
+    if (rowSize) rowSize.appendChild(sizeSelect);
   }
 
   const currentVal = String(teSize?.value || '1.75');
