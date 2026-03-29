@@ -170,7 +170,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptLineDefaults, COEFF } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -2174,7 +2174,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         : [{ size: '1.75', lengthFt: 200 }];
       const sizeMain = mainSegs[0].size || '1.75';
       const totalLenMain = sumFt(mainSegs);
-      teSize.value = sizeMain;
+      teSize.value = String(L._hoseId || mainSegs[0]._hoseId || sizeMain);
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
@@ -2211,12 +2211,12 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
       }
     } else if(where==='L'){
       const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
+      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
       ensureDefaultNozzleFor(L,'L',seg.size);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = seg.size; teLen.value = seg.lengthFt;
+      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
       setBranchBDefaultIfEmpty(L);
     }
 
@@ -2261,7 +2261,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     if(!editorContext) return;
     const {key, where} = editorContext;
     const L = state.lines[key];
-    const size = teSize.value;
+    const hoseMeta = _plusResolveHoseMeta(teSize.value);
+    const size = String(hoseMeta.diameter || teSize.value || '');
     if (where==='main' && teWye.value!=='on'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
@@ -2313,12 +2314,17 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   container.querySelector('#teApply').addEventListener('click', ()=>{
     if(!editorContext) return;
     const {key, where} = editorContext; const L = state.lines[key];
-    const size = teSize.value; const len = Math.max(0, +teLen.value||0);
+    const hoseMeta = _plusResolveHoseMeta(teSize.value);
+    const sizeRaw = String(teSize.value || '');
+    const size = String(hoseMeta.diameter || sizeRaw || '');
+    const cValue = Number.isFinite(Number(hoseMeta.c)) ? Number(hoseMeta.c) : null;
+    const len = Math.max(0, +teLen.value||0);
     const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
     L.elevFt = elev;
 
     if(where==='main'){
-      L.itemsMain = [{size, lengthFt:len}];
+      L._hoseId = sizeRaw;
+      L.itemsMain = [{size, lengthFt:len, cValue, _hoseId:sizeRaw}];
       if(!wyeOn){
         L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
         // default nozzle by diameter if unset OR use chosen
@@ -2336,8 +2342,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         L.hasWye=true;
         const lenA = Math.max(0, +teLenA?.value||0);
         const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB}] : [];
+        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA, cValue:null, _hoseId:'1.75'}] : [];
+        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB, cValue:null, _hoseId:'1.75'}] : [];
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
         // Branch B default if empty
         if (!(L.nozRight?.id)){
@@ -2346,11 +2352,11 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len}] : [];
+      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
       if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
       else ensureDefaultNozzleFor(L,'L',size);
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len}] : [];
+      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
@@ -3085,84 +3091,98 @@ function _plusDefaultCForHoseId(id) {
   return null;
 }
 
-function _plusFormatHoseLabel(hoseOrId) {
-  const raw = typeof hoseOrId === 'object'
-    ? String(hoseOrId?.id ?? hoseOrId?.value ?? hoseOrId?.name ?? '')
+function _plusResolveHoseMeta(hoseOrId) {
+  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+  const raw = obj
+    ? String(obj.id ?? obj.value ?? obj.name ?? '')
     : String(hoseOrId || '').trim();
 
-  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+  const fromObjDia = obj ? String(obj.diameter ?? obj.dia ?? obj.size ?? '').trim() : '';
+  const fromObjC = obj ? Number(obj.c ?? obj.C ?? obj.flC ?? obj.coeff) : NaN;
+  if (fromObjDia) {
+    return {
+      id: raw,
+      diameter: fromObjDia,
+      c: Number.isFinite(fromObjC) ? fromObjC : _plusDefaultCForHoseId(fromObjDia),
+      label: String(obj.label ?? obj.name ?? raw)
+    };
+  }
 
   if (/^custom_hose_/i.test(raw)) {
-    const h = obj || _plusGetCustomHoseById(raw);
-    const diaLbl = h ? (_plusDiaToLabel(h.diameter) || '') : '';
-    const cVal = h ? (h.c ?? h.C ?? h.flC ?? h.coeff) : null;
-    const cTxt = _plusCleanC(cVal);
-    if (diaLbl && cTxt) return `${diaLbl} C${cTxt}`;
-    if (diaLbl) return diaLbl;
-    return String(h?.label || h?.name || 'Custom hose');
+    const h = _plusGetCustomHoseById(raw);
+    if (h) {
+      const dia = String(h.diameter ?? h.dia ?? h.size ?? '').trim();
+      const c = Number(h.c ?? h.C ?? h.flC ?? h.coeff);
+      return {
+        id: raw,
+        diameter: dia,
+        c: Number.isFinite(c) ? c : null,
+        label: String(h.label ?? h.name ?? raw)
+      };
+    }
   }
 
-  if (/^h_lf_/i.test(raw)) {
-    const m = raw.match(/^h_lf_(\d+)/i);
+  if (/^h_lf_/i.test(raw) || /^h_/i.test(raw)) {
+    const m = raw.match(/(175|15|25|2|1|3|4|5)/i);
     const code = m ? m[1] : '';
-    const dia = code === '175' ? 1.75
-      : code === '15' ? 1.5
-      : code === '25' ? 2.5
-      : code === '2' ? 2.0
-      : code === '1' ? 1.0
-      : code === '4' ? 4.0
-      : code === '5' ? 5.0
-      : Number(code || NaN);
-    const base = _plusDiaToLabel(dia);
-    const cTxt = _plusCleanC(_plusDefaultCForHoseId(raw));
-    return base && cTxt ? `${base} C${cTxt}` : (base ? `${base} LF` : raw);
+    const dia = code === '175' ? '1.75'
+      : code === '15' ? '1.5'
+      : code === '25' ? '2.5'
+      : code === '2' ? '2.0'
+      : code === '1' ? '1'
+      : code === '3' ? '3'
+      : code === '4' ? '4'
+      : code === '5' ? '5'
+      : String(raw);
+
+    return {
+      id: raw,
+      diameter: dia,
+      c: _plusDefaultCForHoseId(raw),
+      label: String(obj?.label ?? obj?.name ?? raw)
+    };
   }
 
-  if (/^h_/i.test(raw)) {
-    const m = raw.match(/h_(\d+)/i);
-    const code = m ? m[1] : '';
-    const dia = code === '175' ? 1.75
-      : code === '15' ? 1.5
-      : code === '25' ? 2.5
-      : code === '2' ? 2.0
-      : code === '1' ? 1.0
-      : code === '3' ? 3.0
-      : code === '4' ? 4.0
-      : code === '5' ? 5.0
-      : Number(code || NaN);
-    const base = _plusDiaToLabel(dia);
-    const cTxt = _plusCleanC(_plusDefaultCForHoseId(raw));
-    return base && cTxt ? `${base} C${cTxt}` : (base || raw);
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    return {
+      id: raw,
+      diameter: raw === '2' ? '2.0' : raw,
+      c: _plusDefaultCForHoseId(raw),
+      label: String(obj?.label ?? obj?.name ?? raw)
+    };
   }
 
-  const explicitC = obj ? (obj.c ?? obj.C ?? obj.flC ?? obj.coeff) : null;
-  if (obj && obj.diameter != null) {
-    const base = _plusDiaToLabel(obj.diameter) || String(obj.label || obj.name || raw);
-    const cTxt = _plusCleanC(explicitC);
-    return cTxt ? `${base} C${cTxt}` : base;
-  }
+  return {
+    id: raw,
+    diameter: '',
+    c: null,
+    label: String(obj?.label ?? obj?.name ?? raw)
+  };
+}
 
-  const base = _plusDiaToLabel(raw);
-  if (base && base !== raw) {
-    const cTxt = _plusCleanC(explicitC);
-    return cTxt ? `${base} C${cTxt}` : base;
-  }
-
-  return String(obj?.label || obj?.name || raw);
+function _plusFormatHoseLabel(hoseOrId) {
+  const meta = _plusResolveHoseMeta(hoseOrId);
+  const diaLbl = _plusDiaToLabel(meta.diameter) || String(meta.label || meta.id || '');
+  const cTxt = _plusCleanC(meta.c);
+  return cTxt ? `${diaLbl} C${cTxt}` : diaLbl;
 }
 
 function _plusGetHoseListFromDept() {
   try {
+    const mapOne = (h, idx) => {
+      if (!h) return null;
+      const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
+      const meta = _plusResolveHoseMeta(h);
+      return {
+        id,
+        diameter: String(meta.diameter ?? ''),
+        c: Number.isFinite(Number(meta.c)) ? Number(meta.c) : null,
+        label: _plusFormatHoseLabel({ ...h, diameter: meta.diameter, c: meta.c }),
+      };
+    };
+
     if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
-      const liveList = DEPT_UI_HOSES.map((h, idx) => {
-        if (!h) return null;
-        const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
-        return {
-          id,
-          diameter: String(h.diameter ?? h.dia ?? h.size ?? id),
-          label: _plusFormatHoseLabel(h),
-        };
-      }).filter(Boolean);
+      const liveList = DEPT_UI_HOSES.map(mapOne).filter(Boolean);
       if (liveList.length) return liveList;
     }
 
@@ -3185,19 +3205,19 @@ function _plusGetHoseListFromDept() {
       }
 
       if (list.length) {
-        return list.map((h, idx) => ({
-          id: h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx),
-          diameter: String(h.diameter ?? h.dia ?? h.size ?? h.id ?? ''),
-          label: _plusFormatHoseLabel(h),
-        })).filter(Boolean);
+        return list.map(mapOne).filter(Boolean);
       }
 
       if (selectedIds.length) {
-        return selectedIds.map((id, idx) => ({
-          id: String(id),
-          diameter: String(id),
-          label: _plusFormatHoseLabel({ id: String(id) }),
-        })).filter(Boolean);
+        return selectedIds.map((id, idx) => {
+          const meta = _plusResolveHoseMeta(id);
+          return {
+            id: String(id),
+            diameter: String(meta.diameter ?? ''),
+            c: Number.isFinite(Number(meta.c)) ? Number(meta.c) : null,
+            label: _plusFormatHoseLabel({ id: String(id), diameter: meta.diameter, c: meta.c }),
+          };
+        }).filter(Boolean);
       }
     }
   } catch (e) {
@@ -3205,9 +3225,9 @@ function _plusGetHoseListFromDept() {
   }
 
   return [
-    { id: '1.75', diameter: '1.75', label: '1 3/4" C15.5' },
-    { id: '2.5',  diameter: '2.5',  label: '2 1/2" C2' },
-    { id: '5',    diameter: '5',    label: '5" C0.08' }
+    { id: '1.75', diameter: '1.75', c: 15.5, label: '1 3/4" C15.5' },
+    { id: '2.5',  diameter: '2.5',  c: 2,    label: '2 1/2" C2' },
+    { id: '5',    diameter: '5',    c: 0.08, label: '5" C0.08' }
   ];
 }
 
@@ -3295,6 +3315,7 @@ function initPlusMenus(root){
       if (typeof getUiNozzles === 'function') {
         const uiNozzles = getUiNozzles() || [];
         if (Array.isArray(uiNozzles) && uiNozzles.length) {
+          uiById = new Map(
           uiById = new Map(
             uiNozzles
               .filter(n => n && n.id != null)
