@@ -3087,13 +3087,36 @@ function initPlusMenus(root){
   try {
     const deptRaw = (typeof localStorage !== 'undefined') ? localStorage.getItem('fireops_dept_equipment_v1') : null;
     const dept = deptRaw ? (JSON.parse(deptRaw) || {}) : {};
-    const selectedIds = Array.isArray(dept.hoses) ? dept.hoses.map(x => String(x)) : [];
+    const selectedIds = Array.isArray(dept.hoses) ? dept.hoses.map(x => String(x).trim()).filter(Boolean) : [];
     const customHoses = Array.isArray(dept.customHoses) ? dept.customHoses : [];
     const selectedSet = new Set(selectedIds);
+    let selectedDiameters = [];
+    try {
+      if (typeof getDeptHoseDiameters === 'function') {
+        selectedDiameters = (getDeptHoseDiameters() || []).map(x => String(x).trim()).filter(Boolean);
+      }
+    } catch (_e) {}
+    const selectedDiameterSet = new Set(selectedDiameters);
+
+    function makeBuiltInLabel(dia, c){
+      return `${formatDiaPlain(dia)}" C${formatCValue(c) || '?'}`;
+    }
+    function makeCustomLabel(h, dia){
+      const raw = String(h?.label || h?.name || '').trim();
+      const cText = formatCValue(h?.c ?? h?.C ?? h?.flC ?? h?.coeff);
+      if (raw) {
+        if (/C\s*\d/i.test(raw)) return raw;
+        return cText ? `${raw} C${cText}` : raw;
+      }
+      return `${formatDiaPlain(dia)}" C${cText || '?'}`;
+    }
 
     const builtIns = [
-      { id: '1.75', label: '1 3/4"', diameter: '1.75', c: COEFF?.['1.75'] ?? 15.5 },
-      { id: '2.5',  label: '2 1/2"', diameter: '2.5',  c: COEFF?.['2.5']  ?? 2.0 },
+      { id: '1',    label: '1"',      diameter: '1',    c: COEFF?.['1']    ?? 80 },
+      { id: '1.5',  label: '1 1/2"',  diameter: '1.5',  c: COEFF?.['1.5']  ?? 24 },
+      { id: '1.75', label: '1 3/4"',  diameter: '1.75', c: COEFF?.['1.75'] ?? 15.5 },
+      { id: '2',    label: '2"',      diameter: '2',    c: COEFF?.['2']    ?? 8 },
+      { id: '2.5',  label: '2 1/2"',  diameter: '2.5',  c: COEFF?.['2.5']  ?? 2.0 },
       { id: '3',    label: '3"',      diameter: '3',    c: COEFF?.['3']    ?? 0.8 },
       { id: '4',    label: '4"',      diameter: '4',    c: COEFF?.['4']    ?? 0.2 },
       { id: '5',    label: '5"',      diameter: '5',    c: COEFF?.['5']    ?? 0.08 },
@@ -3102,11 +3125,11 @@ function initPlusMenus(root){
     const allOptions = [];
 
     builtIns.forEach(h => {
-      if (!selectedSet.size || selectedSet.has(String(h.id)) || selectedSet.has(String(h.diameter))) {
+      if (!selectedDiameterSet.size || selectedDiameterSet.has(String(h.diameter))) {
         pushUnique(allOptions, {
           id: String(h.id),
           val: String(h.diameter),
-          labelPlain: `${h.label.replace(/"/g, '')} C${formatCValue(h.c) || '?'}`,
+          labelPlain: makeBuiltInLabel(h.diameter, h.c),
         });
       }
     });
@@ -3115,28 +3138,24 @@ function initPlusMenus(root){
       const id = String(h?.id ?? '').trim();
       const dia = String(h?.diameter ?? h?.dia ?? h?.size ?? '').trim();
       if (!id || !dia) return;
-      if (selectedSet.size && !selectedSet.has(id) && !selectedSet.has(dia)) return;
-      const labelBase = String(h?.label || h?.name || `${formatDiaPlain(dia)}`);
+      const isSelected = !selectedSet.size || selectedSet.has(id) || selectedSet.has(dia) || selectedDiameterSet.has(dia);
+      if (!isSelected) return;
       pushUnique(allOptions, {
         id,
         val: dia,
-        labelPlain: `${labelBase} (${formatDiaPlain(dia)}) C${formatCValue(h?.c ?? h?.C ?? h?.flC ?? h?.coeff) || '?'}`,
+        labelPlain: makeCustomLabel(h, dia),
       });
     });
 
-    if (!allOptions.length && typeof getDeptHoseDiameters === 'function') {
-      const diams = getDeptHoseDiameters() || [];
-      if (Array.isArray(diams)) {
-        diams.forEach(d => {
-          const val = String(d || '').trim();
-          if (!val) return;
-          pushUnique(allOptions, {
-            id: val,
-            val,
-            labelPlain: `${formatDiaPlain(val)} C${formatCValue(COEFF?.[val]) || '?'}`,
-          });
+    if (!allOptions.length && selectedDiameters.length) {
+      selectedDiameters.forEach(val => {
+        if (!val) return;
+        pushUnique(allOptions, {
+          id: val,
+          val,
+          labelPlain: makeBuiltInLabel(val, COEFF?.[val]),
         });
-      }
+      });
     }
 
     sizeSeq = allOptions;
