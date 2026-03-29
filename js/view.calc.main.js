@@ -170,7 +170,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptLineDefaults } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptLineDefaults, COEFF } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
