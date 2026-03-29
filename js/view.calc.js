@@ -293,7 +293,6 @@ export async function render(container){
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
-            <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
             <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
               <button type="button" class="segBtn" data-seg="main">Main</button>
@@ -309,30 +308,34 @@ export async function render(container){
               <select id="teSize"></select>
             </div>
 
-            <!-- Length: - [value] +, steps of 50' -->
-            <div class="te-row" id="rowLen">
-              <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="50">
-              <div class="steppers">
-                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">50′</div>
-                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
-              </div>
-            </div>
-
             <!-- Nozzle: full list from charts (NOZ_LIST) -->
             <div class="te-row" id="rowNoz">
               <label>Nozzle</label>
               <select id="teNoz"></select>
             </div>
 
-            <!-- Elevation: - [value] +, steps of 1' -->
+            <!-- Length: + [value] -, steps of 50' -->
+            <div class="te-row" id="rowLen">
+              <label>Length (ft)</label>
+              <input type="hidden" id="teLen" value="50">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
+                <div class="stepVal" id="lenLabel">50′</div>
+                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
+              </div>
+            </div>
+
+            <!-- Elevation: + [value] -, steps of 10' -->
             <div class="te-row" id="rowElev">
               <label>Elevation (ft)</label>
               <input type="hidden" id="teElev" value="0">
               <div class="steppers">
-                <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
+                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
                 <div class="stepVal" id="elevLabel">0′</div>
+                <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
+              </div>
+            </div>
+
             <!-- Branch controls (visible only when Wye is active) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
@@ -344,18 +347,18 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenA" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
-                    <div class="stepVal" id="lenALabel">50′</div>
                     <button type="button" class="stepBtn" id="lenAPlus">+</button>
+                    <div class="stepVal" id="lenALabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenAMinus">−</button>
                   </div>
                 </div>
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevA" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
-                    <div class="stepVal" id="elevALabel">0′</div>
                     <button type="button" class="stepBtn" id="elevAPlus">+</button>
+                    <div class="stepVal" id="elevALabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevAMinus">−</button>
                   </div>
                 </div>
                 <div class="te-row">
@@ -371,18 +374,18 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenB" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
-                    <div class="stepVal" id="lenBLabel">50′</div>
                     <button type="button" class="stepBtn" id="lenBPlus">+</button>
+                    <div class="stepVal" id="lenBLabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenBMinus">−</button>
                   </div>
                 </div>
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevB" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
-                    <div class="stepVal" id="elevBLabel">0′</div>
                     <button type="button" class="stepBtn" id="elevBPlus">+</button>
+                    <div class="stepVal" id="elevBLabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevBMinus">−</button>
                   </div>
                 </div>
                 <div class="te-row">
@@ -391,10 +394,6 @@ export async function render(container){
                 </div>
               </div>
             </section>
-            
-                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
-              </div>
-            </div>
 
 
             <div class="te-row"><label>Wye</label>
@@ -2171,7 +2170,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
+    if (teWhere) teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
 
