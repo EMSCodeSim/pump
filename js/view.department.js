@@ -18,6 +18,7 @@ import { getDeptNozzleIds } from "./preset.js";
 import { setDeptUiNozzles, getLineDefaults, setLineDefaults } from "./store.js";
 
 import { DEPT_NOZZLE_LIBRARY } from "./deptNozzles.js";
+import { setDeptEquipment, setDeptSelections } from "./deptState.js";
 
 
 // ------- DOM Helpers -------
@@ -69,6 +70,55 @@ function saveDeptConfig(update) {
         localStorage.setItem(STORAGE_DEPT_KEY, JSON.stringify(merged));
     } catch (e) {
         console.warn("Dept config save failed", e);
+    }
+}
+
+function syncDeptStateLive() {
+    try {
+        const deptCfg = loadDeptConfig();
+        const builtIns = Array.isArray(HOSES_MATCHING_CHARTS) ? HOSES_MATCHING_CHARTS : [];
+        const cfgCustoms = Array.isArray(deptCfg.customHoses) ? deptCfg.customHoses : [];
+        const storeCustoms = Array.isArray(store.customHoses) ? store.customHoses : [];
+        const seen = new Set();
+        const hosesAll = [...builtIns, ...storeCustoms, ...cfgCustoms].filter(h => {
+            const id = String(h?.id ?? '');
+            if (!id || seen.has(id)) return false;
+            seen.add(id);
+            return true;
+        });
+
+        const nozzlesAll = getCalcNozzlesList().filter(n => n && n.id && String(n.id) !== 'closed');
+
+        const hoseIds = Array.isArray(store.deptSelectedHoses) && store.deptSelectedHoses.length
+            ? store.deptSelectedHoses.map(String)
+            : (Array.isArray(deptCfg.hoses) ? deptCfg.hoses.map(String) : []);
+
+        let nozzleIds = [];
+        try {
+            if (typeof getDeptNozzleIds === 'function') {
+                const ids = getDeptNozzleIds() || [];
+                if (Array.isArray(ids)) nozzleIds = ids.map(String);
+            }
+        } catch (e) {}
+        if (!nozzleIds.length && Array.isArray(deptCfg.nozzles)) {
+            nozzleIds = deptCfg.nozzles.map(String);
+        }
+        if (!nozzleIds.length && Array.isArray(store.deptSelectedNozzles)) {
+            nozzleIds = store.deptSelectedNozzles.map(String);
+        }
+
+        if (typeof setDeptEquipment === 'function') {
+            setDeptEquipment({
+                nozzlesAll,
+                hosesAll,
+                accessoriesAll: Array.isArray(deptCfg.accessoriesAll) ? deptCfg.accessoriesAll : []
+            });
+        }
+        if (typeof setDeptSelections === 'function') {
+            setDeptSelections({ nozzleIds, hoseIds });
+        }
+    } catch (e) {
+        console.warn('syncDeptStateLive failed', e);
     }
 }
 
@@ -259,6 +309,7 @@ function setupCustomHoseForm() {
 
         // Re-render list
         renderHoseSelector();
+        syncDeptStateLive();
 
         // Clear fields
         nameInput.value = "";
@@ -294,6 +345,7 @@ function setupCustomNozzleForm() {
 
         // Re-render list
         renderNozzleSelector();
+        syncDeptStateLive();
 
         // Clear
         nameInput.value = "";
@@ -365,6 +417,7 @@ function setupSaveButtons() {
             }
 
             setSelectedHoses(selections);
+            syncDeptStateLive();
             alert("Department hose selection saved!");
         };
     }
@@ -404,6 +457,7 @@ function setupSaveButtons() {
                 console.warn("setSelectedNozzles failed", e);
             }
 
+            syncDeptStateLive();
             alert("Department nozzle selection saved!");
         };
     }
@@ -549,6 +603,7 @@ export function initDepartmentView() {
     renderNozzleSelector();
 
     populateDropdowns();
+    syncDeptStateLive();
 
     setupCustomHoseForm();
     setupCustomNozzleForm();
