@@ -3084,109 +3084,93 @@ function initPlusMenus(root){
     list.push(item);
   }
 
+
   try {
     const deptRaw = (typeof localStorage !== 'undefined') ? localStorage.getItem('fireops_dept_equipment_v1') : null;
     const dept = deptRaw ? (JSON.parse(deptRaw) || {}) : {};
     const selectedIds = Array.isArray(dept.hoses) ? dept.hoses.map(x => String(x).trim()).filter(Boolean) : [];
     const customHoses = Array.isArray(dept.customHoses) ? dept.customHoses : [];
 
-    const HOSE_ID_TO_DIA = {
-      'h_1': '1', 'h_15': '1.5', 'h_175': '1.75', 'h_2': '2.0', 'h_25': '2.5',
-      'h_3': '3', 'h_3_supply': '3', 'h_4_ldh': '4', 'h_5_ldh': '5',
-      'h_w_1': '1', 'h_w_15': '1.5', 'h_booster_1': '1',
-      'h_lf_175': '1.75', 'h_lf_2': '2.0', 'h_lf_25': '2.5', 'h_lf_5': '5',
-    };
+    const builtIns = [
+      { id: '1',    label: '1"',      diameter: '1',    c: COEFF?.['1']    ?? 80 },
+      { id: '1.5',  label: '1 1/2"',  diameter: '1.5',  c: COEFF?.['1.5']  ?? 24 },
+      { id: '1.75', label: '1 3/4"',  diameter: '1.75', c: COEFF?.['1.75'] ?? 15.5 },
+      { id: '2',    label: '2"',      diameter: '2.0',  c: COEFF?.['2.0']  ?? COEFF?.['2'] ?? 8 },
+      { id: '2.5',  label: '2 1/2"',  diameter: '2.5',  c: COEFF?.['2.5']  ?? 2.0 },
+      { id: '3',    label: '3"',      diameter: '3',    c: COEFF?.['3']    ?? 0.8 },
+      { id: '4',    label: '4"',      diameter: '4',    c: COEFF?.['4']    ?? 0.2 },
+      { id: '5',    label: '5"',      diameter: '5',    c: COEFF?.['5']    ?? 0.08 },
+    ];
 
-    function normalizeDiaValue(input){
-      const raw = String(input ?? '').trim();
-      if (!raw) return '';
-      if (HOSE_ID_TO_DIA[raw]) return HOSE_ID_TO_DIA[raw];
-      const cleaned = raw.replace(/″|”|"|in\.?/gi, '').trim();
-      if (cleaned === '1 1/2' || cleaned === '1½') return '1.5';
-      if (cleaned === '1 3/4' || cleaned === '1¾') return '1.75';
-      if (cleaned === '2 1/2' || cleaned === '2½') return '2.5';
-      const n = Number(cleaned);
-      if (!Number.isFinite(n)) return raw;
-      if (Math.abs(n - 2) < 1e-9) return '2.0';
-      return String(n);
-    }
+    const builtByKey = new Map();
+    builtIns.forEach(h => {
+      const dia = normalizeDiaValue(h.diameter);
+      builtByKey.set(String(h.id), h);
+      builtByKey.set(dia, h);
+      if (dia === '2.0') builtByKey.set('2', h);
+    });
+
+    const customById = new Map();
+    customHoses.forEach(h => {
+      const id = String(h?.id ?? '').trim();
+      if (id) customById.set(id, h);
+    });
 
     function makeBuiltInLabel(dia, c){
       return `${formatDiaPlain(dia)}" C${formatCValue(c) || '?'}`;
     }
     function makeCustomLabel(h, dia){
       const raw = String(h?.label || h?.name || '').trim();
-      const cText = formatCValue(h?.c ?? h?.C ?? h?.flC ?? h?.coeff ?? h?.cValue);
+      const cText = formatCValue(h?.c ?? h?.C ?? h?.flC ?? h?.coeff);
       if (raw) {
-        if (/C\s*\d/i.test(raw)) return raw;
-        return cText ? `${raw} C${cText}` : raw;
+        return /\bC\s*\d/i.test(raw) ? raw : (cText ? `${raw} C${cText}` : raw);
       }
       return `${formatDiaPlain(dia)}" C${cText || '?'}`;
     }
 
-    const builtInC = {
-      '1': COEFF?.['1'] ?? 80,
-      '1.5': COEFF?.['1.5'] ?? 24,
-      '1.75': COEFF?.['1.75'] ?? 15.5,
-      '2.0': COEFF?.['2.0'] ?? COEFF?.['2'] ?? 8,
-      '2.5': COEFF?.['2.5'] ?? 2,
-      '3': COEFF?.['3'] ?? 0.8,
-      '4': COEFF?.['4'] ?? 0.2,
-      '5': COEFF?.['5'] ?? 0.08,
-    };
-
-    const customById = new Map();
-    const customByLabel = new Map();
-    customHoses.forEach((h, idx) => {
-      if (!h || typeof h !== 'object') return;
-      const id = String(h.id ?? `custom_hose_${idx}`).trim();
-      const label = String(h.label || h.name || '').trim();
-      if (id) customById.set(id, h);
-      if (label) customByLabel.set(label, h);
-    });
-
     const allOptions = [];
-    selectedIds.forEach(rawId => {
-      const exact = String(rawId || '').trim();
-      if (!exact) return;
-
-      const custom = customById.get(exact) || customByLabel.get(exact);
-      if (custom) {
-        const dia = normalizeDiaValue(custom.diameter ?? custom.dia ?? custom.size ?? '');
+    selectedIds.forEach(sel => {
+      const built = builtByKey.get(sel) || builtByKey.get(normalizeDiaValue(sel));
+      if (built) {
         pushUnique(allOptions, {
-          id: String(custom.id ?? exact),
-          val: String(custom.id ?? exact),
+          id: String(built.id),
+          val: normalizeDiaValue(built.diameter),
+          labelPlain: makeBuiltInLabel(normalizeDiaValue(built.diameter), built.c),
+        });
+        return;
+      }
+
+      const custom = customById.get(sel);
+      if (custom) {
+        const dia = normalizeDiaValue(custom?.diameter ?? custom?.dia ?? custom?.size ?? '');
+        if (!dia) return;
+        pushUnique(allOptions, {
+          id: String(custom.id),
+          val: dia,
           labelPlain: makeCustomLabel(custom, dia),
         });
         return;
       }
 
-      const dia = normalizeDiaValue(exact);
-      if (!dia) return;
-      pushUnique(allOptions, {
-        id: exact,
-        val: dia,
-        labelPlain: makeBuiltInLabel(dia, builtInC[dia] ?? COEFF?.[dia]),
-      });
-    });
-
-    if (!allOptions.length) {
-      customHoses.forEach((h, idx) => {
-        const id = String(h?.id ?? `custom_hose_${idx}`).trim();
-        const dia = normalizeDiaValue(h?.diameter ?? h?.dia ?? h?.size ?? '');
-        if (!id || !dia) return;
-        pushUnique(allOptions, {
-          id,
-          val: id,
-          labelPlain: makeCustomLabel(h, dia),
-        });
-      });
-
-      ['1.75','2.5','5'].forEach(dia => {
+      const dia = normalizeDiaValue(sel);
+      if (dia) {
         pushUnique(allOptions, {
           id: dia,
           val: dia,
-          labelPlain: makeBuiltInLabel(dia, builtInC[dia] ?? COEFF?.[dia]),
+          labelPlain: makeBuiltInLabel(dia, COEFF?.[dia]),
+        });
+      }
+    });
+
+    if (!allOptions.length && customHoses.length) {
+      customHoses.forEach(h => {
+        const dia = normalizeDiaValue(h?.diameter ?? h?.dia ?? h?.size ?? '');
+        const id = String(h?.id ?? '').trim();
+        if (!id || !dia) return;
+        pushUnique(allOptions, {
+          id,
+          val: dia,
+          labelPlain: makeCustomLabel(h, dia),
         });
       });
     }
@@ -3198,9 +3182,9 @@ function initPlusMenus(root){
 
   if (!sizeSeq.length) {
     sizeSeq = [
-      { id: '1.75', val: '1.75', labelPlain: '1 3/4" C15.5' },
-      { id: '2.5',  val: '2.5',  labelPlain: '2 1/2" C2' },
-      { id: '5',    val: '5',    labelPlain: '5" C0.08' }
+      { id: '1.75', val: '1.75', labelPlain: '1 3/4 C15.5' },
+      { id: '2.5',  val: '2.5',  labelPlain: '2 1/2 C2' },
+      { id: '5',    val: '5',    labelPlain: '5 C0.08' }
     ];
   }
 
@@ -3208,7 +3192,6 @@ function initPlusMenus(root){
   const sizeLabel = root.querySelector('#sizeLabel');
   const sizeMinus = root.querySelector('#sizeMinus');
   const sizePlus = root.querySelector('#sizePlus');
-  const sizeSteppers = root.querySelector('#rowSize .steppers');
 
   // Convert the old center step label into a real dropdown while keeping the
   // hidden teSize input for the existing calc/save logic.
@@ -3233,11 +3216,6 @@ function initPlusMenus(root){
     if (rowSize) rowSize.appendChild(sizeSelect);
   }
 
-  if (sizeSteppers) sizeSteppers.style.display = 'none';
-  if (sizeLabel) sizeLabel.style.display = 'none';
-  if (sizeMinus) sizeMinus.style.display = 'none';
-  if (sizePlus) sizePlus.style.display = 'none';
-
   const currentVal = String(teSize?.value || '1.75');
   if (sizeSelect) {
     sizeSelect.innerHTML = sizeSeq.map(item => `<option value="${String(item.val)}">${String(item.labelPlain)}</option>`).join('');
@@ -3253,6 +3231,9 @@ function initPlusMenus(root){
       try { if (typeof render === 'function') render(); } catch(_e){}
     });
   }
+
+  if (sizeMinus) sizeMinus.style.display = 'none';
+  if (sizePlus) sizePlus.style.display = 'none';
 
   const teLen = root.querySelector('#teLen');
   const lenLabel = root.querySelector('#lenLabel');
