@@ -3316,7 +3316,6 @@ function initPlusMenus(root){
         const uiNozzles = getUiNozzles() || [];
         if (Array.isArray(uiNozzles) && uiNozzles.length) {
           uiById = new Map(
-          uiById = new Map(
             uiNozzles
               .filter(n => n && n.id != null)
               .map(n => [String(n.id), n])
