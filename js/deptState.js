@@ -186,7 +186,7 @@ function normalizeNozzle(n, idx = 0) {
   return { id, label, gpm, np };
 }
 
-// Normalizes a hose into { id, label, c? }
+// Normalizes a hose into { id, label, diameter?, c? }
 function normalizeHose(h, idx = 0) {
   if (!h) return null;
 
@@ -202,18 +202,28 @@ function normalizeHose(h, idx = 0) {
 
   const label = h.label || h.name || String(id);
 
+  const diameterRaw = h.diameter ?? h.dia ?? h.size ?? null;
+  const diameter = diameterRaw != null && String(diameterRaw).trim() !== ''
+    ? String(diameterRaw).trim()
+    : null;
+
   let c = null;
   if (typeof h.c === 'number') {
     c = h.c;
+  } else if (typeof h.c === 'string' && h.c.trim() !== '') {
+    const n = Number(String(h.c).replace(/~/g, '').trim());
+    if (Number.isFinite(n)) c = n;
   } else if (COEFF) {
-    // If id looks like a diameter, we can pull from COEFF
-    const diamMatch = String(id).match(/(\d(?:\.\d+)?)/);
+    // If id or diameter looks like a diameter, we can pull from COEFF
+    const diamSource = String(diameter ?? id);
+    const diamMatch = diamSource.match(/(\d(?:\.\d+)?)/);
     if (diamMatch && COEFF[diamMatch[1]]) {
       c = COEFF[diamMatch[1]];
     }
   }
 
   const result = { id, label };
+  if (diameter != null) result.diameter = diameter;
   if (c != null) result.c = c;
   return result;
 }
