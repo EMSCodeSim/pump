@@ -1,1064 +1,1215 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>FireOps Calc — Fire pump calculator for hydrants, tender shuttle & line math</title>
-  <meta name="description" content="Phone-friendly fire pump calculator for hydrants, tender shuttles, and quick line math. Run hydrant % drop, tender shuttle GPM with round-trip timers, and fast line math presets."/>
-  <link rel="canonical" href="https://fireopscalc.com/"/>
-  <link rel="manifest" href="/manifest.json">
+// view.lineFoam.js
+// Simpler foam popup builder for a single line.
+//
+// Goals:
+// - Make foam setup easier to understand
+// - Use guided sections
+// - Show only the fields that matter
+// - Add common foam % presets
+// - Give a cleaner summary card
+// - Add a batch-mix helper
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9414291143716298"
-     crossorigin="anonymous"></script>
+let foamStylesInjected = false;
 
-  <!-- Open Graph -->
-  <meta property="og:type" content="website"/>
-  <meta property="og:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta property="og:description" content="Hydrant % drop to estimate flow, tender shuttle GPM with round trip, and quick line math — built for phones on the rig."/>
-  <meta property="og:url" content="https://fireopscalc.com/"/>
-  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
+function injectFoamStyles() {
+  if (foamStylesInjected) return;
+  foamStylesInjected = true;
 
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="FireOps Calc — Fast fire pump calculations"/>
-  <meta name="twitter:description" content="Hydrant % drop, tender shuttle GPM, and line math — phone friendly."/>
-  <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  const style = document.createElement('style');
+  style.textContent = `
+  .fm-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.55);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 32px;
+    z-index: 10080;
+    overflow-y: auto;
+  }
 
-  <!-- Icons / PWA -->
-  <link rel="icon" href="/favicon.ico">
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  .fm-panel {
+    position: relative;
+    max-width: 560px;
+    width: 100%;
+    margin: 0 12px 24px;
+    background: #020617;
+    border-radius: 18px;
+    box-shadow:
+      0 18px 30px rgba(15, 23, 42, 0.85),
+      0 0 0 1px rgba(148, 163, 184, 0.45);
+    padding: 12px 14px 12px;
+    color: #e5e7eb;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
 
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-6W3WSFVFGW"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){ dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-6W3WSFVFGW');
-  </script>
+  @media (min-width: 640px) {
+    .fm-panel {
+      margin-top: 12px;
+      border-radius: 20px;
+      padding: 14px 16px 14px;
+    }
+  }
 
-  <style>
-    :root{
-      --bg:#060d17; --panel:#0b1320; --edge:#15253b; --fg:#e9f1ff;
-      --muted:#cfe4ff; --accent:#46b0ff; --warn:#ffa74d; --alert:#ff6b6b;
-    }
-    *{box-sizing:border-box}
-    html,body{
-      margin:0;
-      padding:0;
-      background:var(--bg);
-      color:var(--fg);
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-      font-size:16px;
-    }
-    a{color:var(--accent);text-decoration:none}
-    a:hover{text-decoration:underline}
-    .shell{max-width:900px;margin:0 auto;padding:12px 12px 80px}
-    .card{background:#0b1320;border:1px solid var(--edge);border-radius:12px;padding:12px}
+  .fm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
 
-    /* AdSense slots (kept unobtrusive) */
-    .ad-slot{margin:12px 0;}
-    .ad-slot:empty{display:none;}
+  .fm-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
 
-    .grid{display:grid;gap:8px}
-    #app{min-height:50vh}
+  .fm-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.6);
+    background: radial-gradient(circle at 30% 30%, #1f2937, #020617);
+    color: #e5e7eb;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+  }
+  .fm-close:hover {
+    background: #111827;
+  }
 
-    /* Top header bar – styled for more pop */
-    .topbar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      margin-bottom:10px;
-      padding:8px 10px;
-      border-radius:16px;
-      border:1px solid rgba(70,176,255,0.35);
-      background:
-        radial-gradient(circle at 0% 0%, rgba(70,176,255,0.35), transparent 55%),
-        radial-gradient(circle at 100% 0%, rgba(255,255,255,0.06), transparent 60%),
-        linear-gradient(135deg, #050a14, #0b1525);
-      box-shadow:
-        0 0 0 1px rgba(0,0,0,0.35),
-        0 14px 28px rgba(0,0,0,0.75);
-    }
-    .brand{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      min-width:0;
-    }
-    .brand-logo{
-      width:36px;
-      height:36px;
-      border-radius:10px;
-      border:1px solid rgba(180,210,255,0.7);
-      background:#02050b;
-      box-shadow:
-        0 0 0 1px rgba(0,0,0,0.6),
-        0 8px 18px rgba(0,0,0,0.8);
-      flex-shrink:0;
-    }
-    .brand-title{
-      font-size:22px;
-      font-weight:700;
-      letter-spacing:.03em;
-      white-space:nowrap;
-      background:linear-gradient(120deg,#ffffff,#cfe4ff,#6fb7ff);
-      -webkit-background-clip:text;
-      background-clip:text;
-      color:transparent;
-      text-shadow:0 0 18px rgba(73,160,255,0.4);
-    }
-    .about-btn{
-      border-radius:999px;
-      border:1px solid rgba(120,162,220,0.9);
-      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.4), transparent 60%), #050a14;
-      color:#e3efff;
-      padding:4px 12px;
-      font-size:12px;
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      cursor:pointer;
-      box-shadow:0 4px 10px rgba(0,0,0,0.8);
-    }
-    .about-btn:hover{
-      border-color:#7fd0ff;
-      color:#ffffff;
-      box-shadow:0 0 0 1px rgba(127,208,255,0.4),0 8px 18px rgba(0,0,0,0.9);
-    }
+  .fm-body {
+    font-size: 0.88rem;
+    line-height: 1.45;
+    max-height: min(68vh, 620px);
+    overflow-y: auto;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
 
-    /* Quick-access buttons under header */
-    .top-actions{
-      display:flex;
-      gap:8px;
-      margin:10px 2px 12px;
-      flex-wrap:wrap;
-    }
-    .top-action-btn{
-      border-radius:999px;
-      border:1px solid rgba(120,162,220,0.9);
-      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.28), transparent 60%), #050a14;
-      color:#e3efff;
-      padding:7px 12px;
-      font-size:13px;
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      cursor:pointer;
-      box-shadow:0 6px 14px rgba(0,0,0,0.75);
-    }
-    .top-action-btn:hover{
-      border-color:#7fd0ff;
-      color:#ffffff;
-      box-shadow:0 0 0 1px rgba(127,208,255,0.35),0 10px 22px rgba(0,0,0,0.9);
-    }
+  .fm-footer {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+  }
 
-    /* Practice header buttons and other plain buttons inside cards */
-    .card button{
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#050a14;
-      color:#e9f1ff;
-      font-size:13px;
-      cursor:pointer;
-    }
-    .card button:disabled{
-      opacity:.6;
-      cursor:default;
-    }
+  .fm-btn-primary,
+  .fm-btn-secondary {
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 0.86rem;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-    /* KPI & helper styles used in calc view */
-    .kpis{display:flex;gap:8px;flex-wrap:wrap}
-    .kpi{
-      background:#050a14;
-      border:1px solid var(--edge);
-      border-radius:12px;
-      padding:8px 10px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-    }
-    .kpi b{font-size:18px}
-    .whyBtn{
-      margin-left:auto;
-      background:#0b1a29;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:5px 10px;
-      font-size:11px;
-      color:var(--muted);
-      cursor:pointer;
-    }
-    .whyBtn:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-    }
-    .status{
-      font-size:13px;
-      color:var(--muted);
-    }
-    .status .alert{color:#ff8585}
-    .status .ok{color:#6be38a}
-    .math{
-      background:#050913;
-      border-radius:10px;
-      border:1px solid #1c2940;
-      padding:8px 10px;
-      font-size:13px;
-    }
-    .pill{
-      border-radius:999px;
-      border:1px solid var(--edge);
-      padding:3px 7px;
-      font-size:11px;
-      color:#cfe4ff;
-    }
+  .fm-btn-primary {
+    background: linear-gradient(135deg, #38bdf8, #22c55e);
+    color: #020617;
+    font-weight: 700;
+  }
 
-    /* Generic .btn style (used for Check button etc.) */
-    .btn{
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#050a14;
-      color:#e9f1ff;
-      cursor:pointer;
-      font-size:13px;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:4px;
-    }
-    .btn.primary{
-      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
-      border-color:#58b4ff;
-      color:#ffffff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
-    }
-    .btn:disabled{
-      opacity:.5;
-      cursor:default;
-      box-shadow:none;
-    }
+  .fm-btn-secondary {
+    background: rgba(15, 23, 42, 0.95);
+    color: #e5e7eb;
+    border: 1px solid rgba(148, 163, 184, 0.7);
+  }
 
-    /* Hide Equations button in practice mode (but keep DOM for JS) */
-    #eqToggleBtn{
-      display:none !important;
-    }
+  .fm-btn-primary:active,
+  .fm-btn-secondary:active {
+    transform: translateY(1px);
+  }
 
-    /* Bottom nav – modern pill look */
-    .bottom-nav{
-      position:fixed;
-      left:0;
-      right:0;
-      bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      display:flex;
-      gap:10px;
-      padding:14px 14px calc(18px + env(safe-area-inset-bottom,0));
-      z-index:2000;
-    }
-    .navbtn{
-      flex:1 1 0;
-      border-radius:999px;
-      border:1px solid #192842;
-      background:#050a14;
-      color:#dbe8ff;
-      font-size:14px;
-      padding:11px 16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      gap:6px;
-      cursor:pointer;
-      white-space:nowrap;
-      touch-action:manipulation;
-    }
-    .navbtn span.icon{
-      font-size:16px;
-      line-height:1;
-    }
-    .navbtn.active{
-      background:radial-gradient(circle at 10% 0%,#1e82ff,#1b3a72);
-      border-color:#58b4ff;
-      color:#f4f8ff;
-      box-shadow:0 0 0 1px rgba(70,176,255,.3),0 10px 24px rgba(0,0,0,.6);
-    }
+  .fm-section {
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .fm-section:first-of-type {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
 
-    /* About / Help overlay */
-    #aboutOverlay{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.5);
-      backdrop-filter:saturate(120%) blur(2px);
-      display:none;
-      z-index:9999;
-    }
-    #aboutSheet{
-      position:absolute;
-      left:0;right:0;bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      border-radius:16px 16px 0 0;
-      max-height:85vh;
-      overflow:auto;
-      padding:10px 12px 14px;
-    }
-    #aboutHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
-    }
-    #aboutHeader h3{margin:0;font-size:16px}
-    #closeAbout{
-      background:transparent;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:12px;
-      color:var(--muted);
-      cursor:pointer;
-    }
-    #closeAbout:hover{
-      border-color:var(--accent);
-      color:var(--fg);
-    }
-    #aboutBody{
-      font-size:14px;
-      color:var(--muted);
-      padding:4px 2px 4px 2px;
-    }
+  .fm-section h3 {
+    margin: 0 0 8px 0;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #93c5fd;
+  }
 
-    /* Styled About menu list */
-    .about-list{
-      list-style:none;
-      padding:0;
-      margin:10px 0 0;
-      display:grid;
-      gap:8px;
-    }
-    .about-list li a,
-    .about-list li button{
-      width:100%;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid rgba(21,37,59,0.9);
-      background:
-        radial-gradient(circle at 0 0, rgba(70,176,255,0.15), transparent 55%),
-        #050913;
-      color:var(--fg);
-      text-decoration:none;
-      font-size:14px;
-      box-shadow:0 6px 14px rgba(0,0,0,0.8);
-    }
-    .about-list li a:hover,
-    .about-list li button:hover{
-      border-color:var(--accent);
-      box-shadow:0 8px 18px rgba(0,0,0,0.9);
-    }
-    .about-list li button{
-      cursor:pointer;
-      text-align:left;
-    }
-    .about-list li a small,
-    .about-list li button small{
-      font-size:11px;
-      color:var(--muted);
-    }
+  .fm-help {
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    opacity: 0.92;
+    margin-top: 2px;
+  }
 
-    /* Charts overlay (for Tables button) */
-    #chartsOverlay{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.5);
-      backdrop-filter:saturate(120%) blur(2px);
-      display:none;
-      z-index:9999;
+  .fm-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .fm-row label {
+    font-weight: 600;
+    font-size: 0.84rem;
+  }
+
+  .fm-row span {
+    font-size: 0.82rem;
+  }
+
+  .fm-panel input[type="text"],
+  .fm-panel input[type="number"],
+  .fm-panel select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(55, 65, 81, 0.95);
+    background: #020617;
+    color: #e5e7eb;
+    font-size: 0.86rem;
+    min-height: 38px;
+  }
+
+  .fm-panel input::placeholder {
+    color: rgba(148, 163, 184, 0.9);
+  }
+
+  .fm-toggle-group {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .fm-toggle-group button {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(75, 85, 99, 0.9);
+    background: rgba(15, 23, 42, 0.95);
+    font-size: 0.82rem;
+    color: #e5e7eb;
+    cursor: pointer;
+  }
+
+  .fm-toggle-on {
+    background: #0ea5e9 !important;
+    border-color: #0ea5e9 !important;
+    color: #020617 !important;
+    font-weight: 700;
+  }
+
+  .fm-chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .fm-chip {
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    background: rgba(15, 23, 42, 0.92);
+    color: #dbeafe;
+    cursor: pointer;
+    font-size: 0.8rem;
+  }
+
+  .fm-chip:hover {
+    background: rgba(30, 41, 59, 1);
+  }
+
+  .fm-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  @media (min-width: 640px) {
+    .fm-grid-2 {
+      grid-template-columns: 1fr 1fr;
     }
-    #chartsSheet{
-      position:absolute;
-      left:0;right:0;bottom:0;
-      background:#08111e;
-      border-top:1px solid var(--edge);
-      border-radius:16px 16px 0 0;
-      max-height:85vh;
-      overflow:auto;
-      padding:10px 12px 14px;
+  }
+
+  .fm-card {
+    border: 1px solid rgba(30, 64, 175, 0.45);
+    background: rgba(15, 23, 42, 0.88);
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .fm-card h4 {
+    margin: 0 0 6px 0;
+    font-size: 0.83rem;
+    color: #bfdbfe;
+  }
+
+  .fm-summary {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    background: radial-gradient(circle at 0% 0%, #0f172a, #020617);
+    border: 1px solid rgba(37, 99, 235, 0.8);
+  }
+
+  .fm-summary-title {
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #93c5fd;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .fm-summary-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  @media (min-width: 640px) {
+    .fm-summary-grid {
+      grid-template-columns: 1fr 1fr;
+      column-gap: 14px;
     }
-    #chartsHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      padding:6px 4px 10px 4px;
-      position:sticky;
-      top:0;
-      background:linear-gradient(#08111e,#08111e);
-      z-index:1;
-      border-bottom:1px solid #0d1b2b;
+  }
+
+  .fm-summary-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 0.84rem;
+  }
+
+  .fm-summary-item strong {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+
+  .fm-summary-item span {
+    color: #f8fafc;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  .fm-note {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+  }
+
+  .fm-explain-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.75);
+    backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+    z-index: 10090;
+    overflow-y: auto;
+  }
+
+  .fm-explain-panel {
+    max-width: 520px;
+    width: 100%;
+    margin: 0 12px 24px;
+    background: #020617;
+    border-radius: 18px;
+    box-shadow:
+      0 18px 30px rgba(15, 23, 42, 0.85),
+      0 0 0 1px rgba(148, 163, 184, 0.45);
+    padding: 12px 14px 10px;
+    color: #e5e7eb;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .fm-explain-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  }
+
+  .fm-explain-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .fm-explain-body {
+    font-size: 0.83rem;
+    line-height: 1.5;
+    max-height: min(60vh, 420px);
+    overflow-y: auto;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .fm-explain-body code {
+    font-size: 0.8rem;
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+
+  .fm-explain-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+  }
+  `;
+  document.head.appendChild(style);
+}
+
+function fmEl(tag, opts = {}, ...children) {
+  const e = document.createElement(tag);
+  if (opts.class) e.className = opts.class;
+  if (opts.text != null) e.textContent = opts.text;
+  if (opts.type) e.type = opts.type;
+  if (opts.value != null) e.value = opts.value;
+  if (opts.placeholder) e.placeholder = opts.placeholder;
+  if (opts.for) e.htmlFor = opts.for;
+  if (opts.id) e.id = opts.id;
+  if (opts.html != null) e.innerHTML = opts.html;
+  if (opts.onchange) e.addEventListener('change', opts.onchange);
+  if (opts.onclick) e.addEventListener('click', opts.onclick);
+  children.forEach(c => e.append(c));
+  return e;
+}
+
+function fmNumberInput(value, onChange, extra = {}) {
+  const input = fmEl('input', {
+    type: 'number',
+    value: value ?? '',
+    step: extra.step ?? '1',
+    min: extra.min ?? '0',
+    placeholder: extra.placeholder || '',
+    onchange: (e) => {
+      const raw = e.target.value;
+      if (raw === '') onChange('');
+      else onChange(Number(raw));
     }
-    #chartsHeader h3{margin:0;font-size:16px}
-    #closeCharts{
-      background:transparent;
-      border:1px solid var(--edge);
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:12px;
-      color:#cfe4ff;
-      cursor:pointer;
-    }
-    #closeCharts:hover{
-      border-color:var(--accent);
-      color:#fff;
-    }
-    #chartsMount > *{
-      margin-bottom:12px;
-    }
+  });
+  if (extra.disabled) input.disabled = true;
+  return input;
+}
 
+function fmSelect(options, current, onChange) {
+  const s = fmEl('select', { onchange: e => onChange(e.target.value) });
+  options.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.id;
+    o.textContent = opt.label;
+    if (String(opt.id) === String(current)) o.selected = true;
+    s.appendChild(o);
+  });
+  return s;
+}
 
-    /* Quick Start overlay */
-    .qs-modal{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,0.65);
-      backdrop-filter:blur(6px);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      z-index:99998;
-    }
-    .qs-modal.hidden{display:none;}
-    .qs-window{
-      background:#0b1320;
-      border:1px solid var(--edge);
-      border-radius:16px;
-      padding:18px 16px 16px;
-      width:90%;
-      max-width:480px;
-      max-height:85vh;
-      overflow-y:auto;
-      box-shadow:0 14px 32px rgba(0,0,0,0.8);
-      font-size:14px;
-    }
-    .qs-window h2{
-      margin:0 0 6px 0;
-      font-size:18px;
-      text-align:center;
-    }
-    .qs-window h3{
-      margin:14px 0 4px 0;
-      font-size:15px;
-    }
-    .qs-window p{
-      margin:0 0 6px 0;
-      color:var(--muted);
-    }
+function fmToggleGroup(items, currentValue, onChange) {
+  const root = fmEl('span', { class: 'fm-toggle-group' });
+  const buttons = items.map(item => {
+    const btn = fmEl('button', {
+      type: 'button',
+      text: item.label,
+      onclick: (e) => {
+        e.preventDefault();
+        onChange(item.id);
+        refresh();
+      }
+    });
+    root.appendChild(btn);
+    return { btn, id: item.id };
+  });
 
-	    /* Startup categories (Pump / Practice / Info) */
-	    .qs-home{display:grid;gap:10px;margin-top:10px}
-	    .qs-big{
-	      width:100%;
-	      text-align:left;
-	      padding:12px 12px;
-	      border-radius:14px;
-	      border:1px solid rgba(120,162,220,0.55);
-	      background:radial-gradient(circle at 0 0, rgba(118,191,255,0.22), transparent 60%), #050a14;
-	      color:#e9f1ff;
-	      cursor:pointer;
-	      box-shadow:0 10px 22px rgba(0,0,0,0.65);
-	    }
-	    .qs-big:hover{border-color:var(--accent);box-shadow:0 0 0 1px rgba(127,208,255,0.28),0 12px 26px rgba(0,0,0,0.8)}
-	    .qs-big-title{font-weight:900;font-size:16px;margin-bottom:4px}
-	    .qs-big-sub{color:var(--muted);font-size:13px;line-height:1.35}
+  function refresh() {
+    buttons.forEach(({ btn, id }) => {
+      btn.classList.toggle('fm-toggle-on', String(currentValue()) === String(id));
+    });
+  }
 
-	    .qs-detail{margin-top:6px}
-	    .qs-detail-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-	    .qs-back{
-	      border-radius:999px;
-	      border:1px solid #2a4066;
-	      background:#050a14;
-	      color:#e9f1ff;
-	      padding:6px 10px;
-	      font-size:12px;
-	      cursor:pointer;
-	      flex-shrink:0;
-	    }
-	    .qs-back:hover{border-color:var(--accent);color:#fff}
-	    .qs-actions{display:grid;gap:8px;margin-top:8px}
-	    .qs-mini{margin-top:8px;color:var(--muted);font-size:12px}
-    .qs-link{
-      margin-top:4px;
-      margin-bottom:8px;
-      width:100%;
-      padding:7px 10px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#050a14;
-      color:#e9f1ff;
-      font-size:13px;
-      cursor:pointer;
-      text-align:center;
-    }
-    .qs-link:hover{
-      border-color:var(--accent);
-      color:#fff;
-    }
-	    .qs-checkbox{
-      display:flex;
-      align-items:center;
-      gap:6px;
-      margin-top:8px;
-      font-size:13px;
-      color:var(--muted);
-    }
-    .qs-close{
-      margin-top:10px;
-      width:100%;
-      padding:9px 10px;
-      border-radius:999px;
-      border:1px solid #2a4066;
-      background:#141b2a;
-      color:#e9f1ff;
-      font-size:14px;
-      cursor:pointer;
-    }
+  refresh();
+  return { root, refresh };
+}
 
-    @media (min-width:768px){
-      .shell{padding:16px 16px 90px}
-      .navbtn{font-size:13px;padding:8px 10px}
-    }
-  </style>
-</head>
-<body>
-  <div class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <img src="/fireopscalc2.png" alt="FireOps Calc" class="brand-logo"/>
-        <span class="brand-title">FireOps Calc</span>
-      </div>
-      <button id="openAbout" type="button" class="about-btn" aria-haspopup="dialog" aria-controls="aboutOverlay">
-        About
-      </button>
-    </header>
+function fmFormatMinutes(v) {
+  if (v == null || !isFinite(v)) return '—';
+  return `${Math.round(v * 10) / 10} min`;
+}
 
-    <!-- Quick access for the most common setup task -->
-    <div class="top-actions" aria-label="Quick actions">
-      <button id="deptSetupTop" type="button" class="top-action-btn" title="Edit hoses, nozzles, and line presets">
-        <span aria-hidden="true">⚙️</span>
-        <span>Department Setup</span>
-      </button>
-    </div>
+function fmRound1(v) {
+  if (!isFinite(v)) return 0;
+  return Math.round(v * 10) / 10;
+}
 
-    <main id="app" class="grid" aria-live="polite" aria-busy="false">
-      <div class="card">Loading…</div>
-    </main>
-  </div>
+function fmParseGpmFromNozzle(nozzles, nozzleId) {
+  const noz = nozzles.find(n => String(n.id) === String(nozzleId));
+  if (!noz || !noz.label) return null;
+  const m = String(noz.label).match(/(\d+)\s*gpm/i);
+  return m ? Number(m[1]) : null;
+}
 
-  <nav class="bottom-nav">
-    <button class="navbtn active" data-view="calc">
-      <span class="icon">⚙️</span>
-      <span>Pump</span>
-    </button>
-    <button class="navbtn" data-view="practice">
-      <span class="icon">🎯</span>
-      <span>Practice</span>
-    </button>
-    <button class="navbtn" data-view="charts">
-      <span class="icon">📊</span>
-      <span>Info</span>
-    </button>
-    <!-- Hidden nav button for Department Setup (used as a fallback) -->
-    <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
-      Department Setup
-    </button>
-  </nav>
+function calcFoamNumbers(state) {
+  const waterGpm     = Number(state.waterGpm || 0);
+  const foamPercent  = Number(state.foamPercent || 0);
+  const foamTankGal  = Number(state.foamTankGal || 0);
+  const waterTankGal = Number(state.waterTankGal || 0);
 
-  <!-- About / Help overlay -->
-  <div id="aboutOverlay" role="dialog" aria-modal="true" aria-label="About and help">
-    <div id="aboutSheet">
-      <div id="aboutHeader">
-        <h3>About &amp; Help</h3>
-        <button id="closeAbout" type="button">Close</button>
-      </div>
-      <div id="aboutBody">
-        <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
-        <ul class="about-list">
-          <li>
-            <a href="/about.html">
-              <span>ℹ️ About FireOps Calc</span>
-              <small>Overview &amp; features</small>
-            </a>
-          </li>
-          <li>
-            <a href="/how-to.html">
-              <span>📘 How-to &amp; quick start</span>
-              <small>Step-by-step guide</small>
-            </a>
-          </li>
-          <li>
-            <button id="aboutDeptBtn" type="button">
-              <span>⚙️ Department setup</span>
-              <small>Edit hose, nozzles &amp; line presets</small>
-            </button>
-          </li>
-          <li>
-            <a href="/privacy-policy.html">
-              <span>🛡️ Privacy policy</span>
-              <small>Data &amp; tracking details</small>
-            </a>
-          </li>
-          <li>
-            <a href="/contact.html">
-              <span>✉️ Contact</span>
-              <small>Questions, feedback, or bugs</small>
-            </a>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </div>
+  const frac = foamPercent / 100;
+  const foamGpm = waterGpm * frac;
+  const solutionGpm = waterGpm + foamGpm;
 
-  <!-- Charts overlay (for Tables button / charts view) -->
-  <div id="chartsOverlay" role="dialog" aria-modal="true" aria-label="Reference tables">
-    <div id="chartsSheet">
-      <div id="chartsHeader">
-        <h3>Tables &amp; charts</h3>
-        <button id="closeCharts" type="button">Close</button>
-      </div>
-      <div id="chartsMount"></div>
-    </div>
-  </div>
+  let foamRuntimeMin = null;
+  let waterRuntimeMin = null;
 
+  if (foamGpm > 0 && foamTankGal > 0) {
+    foamRuntimeMin = foamTankGal / foamGpm;
+  }
+  if (waterGpm > 0 && waterTankGal > 0) {
+    waterRuntimeMin = waterTankGal / waterGpm;
+  }
 
-  <!-- Quick Start overlay -->
-  <div id="quickStartModal" class="qs-modal hidden" role="dialog" aria-modal="true" aria-label="Quick start guide">
-    <div class="qs-window">
-      <h2>FireOps Calc — Start Here</h2>
-      <p class="qs-sub">Pick a section to see what’s inside. Each one includes a quick walkthrough and a button to jump you straight into the app.</p>
+  let pdp = null;
+  if (state.systemType === 'eductor') {
+    pdp = Number(state.eductorPdp || 200);
+  } else if (state.targetPdp !== '' && state.targetPdp != null) {
+    pdp = Number(state.targetPdp || 0);
+  }
 
-      <!-- Home: 3 big category buttons -->
-      <div id="qsHome" class="qs-home" aria-label="Startup categories">
-        <button class="qs-big" type="button" data-qscat="pump">
-          <div class="qs-big-title">⚙️ Pump</div>
-          <div class="qs-big-sub">Real-world pumping calculations: preconnects, hydrant/tender supply, wye &amp; elevation.</div>
-        </button>
-        <button class="qs-big" type="button" data-qscat="practice">
-          <div class="qs-big-title">🎯 Practice</div>
-          <div class="qs-big-sub">Pump test prep with mixed questions and scenarios. Build speed and confidence.</div>
-        </button>
-        <button class="qs-big" type="button" data-qscat="info">
-          <div class="qs-big-title">📊 Info</div>
-          <div class="qs-big-sub">Reference tables + how-to. Quick math, rules of thumb, and fireground info.</div>
-        </button>
-      </div>
+  const batchFoamNeededGal = waterTankGal > 0
+    ? waterTankGal * frac
+    : 0;
 
-      <!-- Detail: Pump -->
-      <section id="qsDetailPump" class="qs-detail" hidden>
-        <div class="qs-detail-head">
-          <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Pump</h3>
-        </div>
-        <p class="qs-sub" style="margin-top:8px">This is the main calculator. Set up your engine once, then run fast, consistent numbers on the fireground.</p>
-        <div class="qs-detail-body">
-          <h4 style="margin:10px 0 6px">Walkthrough</h4>
-          <ol style="margin:0 0 10px 18px">
-            <li><b>Set up preconnects</b> (required): add 1–3 lines so “Line 1/2/3” matches your engine.</li>
-            <li><b>Deploy a line</b>: toggle Line 1–3 on, then use the <b>+</b> at the nozzle end to edit length/nozzle/elevation.</li>
-            <li><b>Pick a water supply</b>: Hydrant % drop or Tender shuttle.</li>
-            <li>Tap <b>Why?</b> to see the pressure breakdown (NP + FL + elevation + appliance loss).</li>
-          </ol>
-          <div class="qs-actions">
-            <button class="qs-link" type="button" data-qsgoto="preconnects">Open Preconnect Setup</button>
-            <button class="qs-link" type="button" data-qsgoto="calc">Go to Pump</button>
-          </div>
-          <div class="qs-mini">Tip: If your lines don’t match your engine, run Preconnect Setup again (you can change it anytime).</div>
-        </div>
-      </section>
+  return {
+    waterGpm: Math.round(waterGpm),
+    foamPercent: foamPercent,
+    foamGpm: fmRound1(foamGpm),
+    solutionGpm: fmRound1(solutionGpm),
+    foamRuntimeMin,
+    waterRuntimeMin,
+    pdp,
+    batchFoamNeededGal: fmRound1(batchFoamNeededGal),
+  };
+}
 
-      <!-- Detail: Practice -->
-      <section id="qsDetailPractice" class="qs-detail" hidden>
-        <div class="qs-detail-head">
-          <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Practice</h3>
-        </div>
-        <p class="qs-sub" style="margin-top:8px">Practice mode is for pump test prep: mixed questions, fast repetition, and instant feedback.</p>
-        <div class="qs-detail-body">
-          <h4 style="margin:10px 0 6px">Walkthrough</h4>
-          <ol style="margin:0 0 10px 18px">
-            <li>Pick a question type or use mixed mode.</li>
-            <li>Answer, then hit <b>Check</b> to see the breakdown.</li>
-            <li>Use <b>New Question</b> to grind reps and build speed.</li>
-          </ol>
-          <div class="qs-actions">
-            <button class="qs-link" type="button" data-qsgoto="practice">Go to Practice</button>
-          </div>
-        </div>
-      </section>
+function _fmDeptEquipRead() {
+  try {
+    const raw = localStorage.getItem('fireops_dept_equipment_v1');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
 
-      <!-- Detail: Info -->
-      <section id="qsDetailInfo" class="qs-detail" hidden>
-        <div class="qs-detail-head">
-          <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Info</h3>
-        </div>
-        <p class="qs-sub" style="margin-top:8px">Quick reference: tables, formulas, and the full how-to guide.</p>
-        <div class="qs-detail-body">
-          <h4 style="margin:10px 0 6px">What’s inside</h4>
-          <ul style="margin:0 0 10px 18px">
-            <li>Nozzles, hose friction, rules of thumb</li>
-            <li>Water supply math (hydrant &amp; tender)</li>
-            <li>Fireground reference (more coming soon)</li>
-          </ul>
-          <div class="qs-actions">
-            <button class="qs-link" type="button" data-qsgoto="charts">Open Info</button>
-            <a class="qs-link" href="/how-to.html" style="display:inline-flex;align-items:center;justify-content:center">Open How-to</a>
-          </div>
-        </div>
-      </section>
+function _fmGetCustomHoseById(id) {
+  const dept = _fmDeptEquipRead();
+  const list = dept && Array.isArray(dept.customHoses) ? dept.customHoses : [];
+  return list.find(h => h && h.id === id) || null;
+}
 
-	      <label class="qs-checkbox">
-        <input type="checkbox" id="qsDontShow" />
-        Do not show this again
-      </label>
+function _fmDiaToLabel(dia) {
+  const raw = String(dia ?? '').trim();
+  if (!raw) return '';
+  if (/^1\s*3\/4$/i.test(raw)) return '1 3/4"';
+  if (/^1\s*1\/2$/i.test(raw)) return '1 1/2"';
+  if (/^2\s*1\/2$/i.test(raw)) return '2 1/2"';
+  const f = Number(raw);
+  if (!isFinite(f)) return '';
+  const map = {1:'1"', 1.5:'1 1/2"', 1.75:'1 3/4"', 2:'2"', 2.5:'2 1/2"', 3:'3"', 4:'4"', 5:'5"'};
+  for (const k of Object.keys(map)) {
+    if (Math.abs(f - Number(k)) < 1e-6) return map[k];
+  }
+  return `${f}"`;
+}
 
-      <button class="qs-close" type="button" id="qsCloseBtn">Close</button>
-    </div>
-  </div>
-<!-- App JS (router + view.calc.js, etc.) -->
-  <script>
-    (function () {
-      // If we're inside the native app, pull JS from the live website so Android can't
-      // get stuck on an older bundled copy.
-      function isNativeApp() {
-        try {
-          if (window && (window.cordova || window.phonegap || window.PhoneGap)) return true;
-          if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function') return !!window.Capacitor.isNativePlatform();
-          const p = window.Capacitor && typeof window.Capacitor.getPlatform === 'function' ? window.Capacitor.getPlatform() : null;
-          if (p && p !== 'web') return true;
-        } catch (e) {}
-        const proto = (window.location && window.location.protocol || '').toLowerCase();
-        return proto === 'file:' || proto === 'capacitor:' || proto === 'ionic:';
+function _fmCleanC(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+function fmPrettyHoseLabelFromId(id) {
+  if (!id) return '';
+  if (id === 'h_1') return '1" attack hose';
+  if (id === 'h_15') return '1 1/2" attack hose';
+  if (id === 'h_175') return '1 3/4" attack hose';
+  if (id === 'h_2') return '2" attack hose';
+  if (id === 'h_25') return '2 1/2" attack hose';
+  if (id === 'h_3') return '3" attack hose';
+  if (id === 'h_3_supply') return '3" supply line';
+  if (id === 'h_4_ldh') return '4" LDH supply';
+  if (id === 'h_5_ldh') return '5" LDH supply';
+  if (id === 'h_w_1') return '1" wildland hose';
+  if (id === 'h_w_15') return '1 1/2" wildland hose';
+  if (id === 'h_booster_1') return '1" booster reel';
+  if (id === 'h_lf_175') return '1 3/4" low-friction attack';
+  return id;
+}
+
+function fmFormatHoseLabel(hoseOrId) {
+  const raw = typeof hoseOrId === 'object'
+    ? String(hoseOrId?.id ?? hoseOrId?.value ?? hoseOrId?.name ?? '')
+    : String(hoseOrId || '').trim();
+
+  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+
+  if (/^custom_hose_/i.test(raw)) {
+    const saved = _fmGetCustomHoseById(raw);
+    const h = (obj || saved) ? { ...(saved || {}), ...(obj || {}) } : null;
+    const diaLbl = h ? (_fmDiaToLabel(h.diameter ?? h.dia ?? h.size) || '') : '';
+    const cVal = h ? (h.c ?? h.C ?? h.flC ?? h.coeff) : null;
+    const cTxt = _fmCleanC(cVal);
+    if (diaLbl && cTxt) return `${diaLbl} C${cTxt}`;
+    if (diaLbl) return `${diaLbl} C`;
+    return 'Custom C';
+  }
+
+  if (obj && (obj.diameter || obj.dia || obj.size)) {
+    const base = _fmDiaToLabel(obj.diameter ?? obj.dia ?? obj.size) || raw;
+    const cTxt = _fmCleanC(obj.c ?? obj.C ?? obj.flC ?? obj.coeff);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
+
+  return fmPrettyHoseLabelFromId(raw);
+}
+
+function fmPrettyDiaFromCode(code) {
+  if (!code) return '';
+  if (code === '1') return '1"';
+  if (code === '15') return '1 1/2"';
+  if (code === '175') return '1 3/4"';
+  if (code === '2') return '2"';
+  if (code === '25') return '2 1/2"';
+  if (code === '3') return '3"';
+  if (code === '4') return '4"';
+  if (code === '5') return '5"';
+  return code + '"';
+}
+
+function fmPrettySbTipFromCode(code) {
+  if (!code) return '';
+  if (code === '78') return '7/8"';
+  if (code === '1516') return '15/16"';
+  if (code === '1') return '1"';
+  if (code === '118') return '1 1/8"';
+  return code + '" tip';
+}
+
+function fmPrettyNozzleLabelFromId(id) {
+  if (!id) return '';
+
+  const fogParts = String(id).split('_');
+  if (fogParts.length === 5 && fogParts[0] === 'fog') {
+    const [, model, diaCode, npRaw, gpmRaw] = fogParts;
+    const dia = fmPrettyDiaFromCode(diaCode);
+    const np = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    const modelLabel = model.toUpperCase();
+    return `${dia} ${modelLabel} fog ${gpm} gpm @ ${np} psi`;
+  }
+
+  const sbMatch = String(id).match(/^sb_([^_]+)_([^_]+)_([^_]+)/);
+  if (sbMatch) {
+    const tipCode = sbMatch[1];
+    const npRaw = sbMatch[2];
+    const gpmRaw = sbMatch[3];
+    const tip = fmPrettySbTipFromCode(tipCode);
+    const np = Number(npRaw) || npRaw;
+    const gpm = Number(gpmRaw) || gpmRaw;
+    return `${tip} smooth bore ${gpm} gpm @ ${np} psi`;
+  }
+
+  return id;
+}
+
+function fmNormalizeDeptList(list, kind) {
+  if (!Array.isArray(list)) return [];
+
+  return list.map((item, idx) => {
+    if (item && typeof item === 'object') {
+      const id = item.id != null
+        ? String(item.id)
+        : String(item.value ?? item.name ?? idx);
+      let label = item.label || item.name || '';
+
+      if (!label || label === id) {
+        if (kind === 'hose') label = fmFormatHoseLabel({ ...item, id });
+        else if (kind === 'nozzle') label = fmPrettyNozzleLabelFromId(id);
+        else label = id;
       }
 
-      const IS_APP = isNativeApp();
-      const base = IS_APP ? 'https://fireopscalc.com' : '';
-      const v = '20260204a'; // bump every release (cache buster)
+      return { ...item, id, label };
+    }
 
-      const s = document.createElement('script');
-      s.type = 'module';
-      s.src = base + '/js/app.js?v=' + v;
-      document.body.appendChild(s);
+    const id = String(item);
+    let label = id;
+    if (kind === 'hose') label = fmFormatHoseLabel({ id });
+    if (kind === 'nozzle') label = fmPrettyNozzleLabelFromId(id);
+    return { id, label, raw: item };
+  });
+}
 
-      // Web/PWA only: register the service worker (native app should NOT use SW)
-      if (!IS_APP && 'serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').catch(function(){});
-      }
-    })();
-  </script>
+export function openFoamPopup({
+  dept = {},
+  initial = null,
+  onSave = () => {},
+} = {}) {
+  injectFoamStyles();
 
+  const nozzles = fmNormalizeDeptList(dept.nozzles || [], 'nozzle');
+  const hoses = fmNormalizeDeptList(dept.hoses || [], 'hose');
 
-  <!-- Quick Start wiring -->
-  <script>
-    (function(){
-	      // Bump this when the onboarding UI changes so existing users see it once
-	      const GUIDE_VERSION = 3;
-      const MODAL_KEY = 'fireops_quickstart_seen_version';
-      const modal = document.getElementById('quickStartModal');
-	      const home = document.getElementById('qsHome');
-	      const pump = document.getElementById('qsDetailPump');
-	      const practice = document.getElementById('qsDetailPractice');
-	      const info = document.getElementById('qsDetailInfo');
-      const dontShowBox = document.getElementById('qsDontShow');
-      const closeBtn = document.getElementById('qsCloseBtn');
+  const state = {
+    foamType: 'classA',
+    systemType: 'eductor',
+    flowSource: nozzles.length ? 'nozzle' : 'manual',
+    nozzleId: nozzles[0]?.id || '',
+    hoseId: hoses[0]?.id || '',
+    waterGpm: 150,
+    foamPercent: 0.3,
+    foamTankGal: 30,
+    waterTankGal: 500,
+    eductorRatedGpm: 125,
+    eductorPdp: 200,
+    targetPdp: '',
+  };
 
-      function navClick(selector){
-        const btn = document.querySelector(selector);
-        if (btn) btn.click();
-      }
+  if (initial && typeof initial === 'object') {
+    Object.assign(state, initial);
 
-	      function go(screen){
-        switch(screen){
-          case 'preconnects':
-            window.location.href = '/setup-preconnects.html';
-            break;
-          case 'department':
-            try{
-              if (window && typeof window.fireopsOpenDeptSetup === 'function'){
-                window.fireopsOpenDeptSetup();
-              } else {
-                navClick('#navSettings');
-              }
-            }catch(e){}
-            break;
-          case 'calc':
-            navClick('.bottom-nav .navbtn[data-view="calc"]');
-            break;
-          case 'practice':
-            navClick('.bottom-nav .navbtn[data-view="practice"]');
-            break;
-	          case 'tables':
-	          case 'charts':
-            navClick('.bottom-nav .navbtn[data-view="charts"]');
-            break;
-        }
-        hide();
-      }
+    if (typeof initial.useNozzleFlow === 'boolean') {
+      state.flowSource = initial.useNozzleFlow ? 'nozzle' : 'manual';
+    } else if (!state.flowSource) {
+      state.flowSource = nozzles.length ? 'nozzle' : 'manual';
+    }
+  }
 
-	      function showHome(){
-	        if (home) home.hidden = false;
-	        if (pump) pump.hidden = true;
-	        if (practice) practice.hidden = true;
-	        if (info) info.hidden = true;
-	      }
+  const overlay = document.createElement('div');
+  overlay.className = 'fm-overlay';
 
-	      function showDetail(cat){
-	        if (!home || !pump || !practice || !info) return;
-	        home.hidden = true;
-	        pump.hidden = cat !== 'pump';
-	        practice.hidden = cat !== 'practice';
-	        info.hidden = cat !== 'info';
-	      }
+  const panel = document.createElement('div');
+  panel.className = 'fm-panel';
 
-      function hide(){
-        if (!modal) return;
-        if (dontShowBox && dontShowBox.checked){
-          try{ localStorage.setItem(MODAL_KEY, String(GUIDE_VERSION)); }catch(e){}
-        }
-        modal.classList.add('hidden');
-      }
+  const header = document.createElement('div');
+  header.className = 'fm-header';
 
-      function showIfNeeded(){
-        if (!modal) return;
-        let suppressed = false;
-        try{
-          suppressed = Number(localStorage.getItem(MODAL_KEY) || '0') >= GUIDE_VERSION;
-        }catch(e){}
-        if (!suppressed){
-	          showHome();
-          modal.classList.remove('hidden');
-        }
-      }
+  const title = document.createElement('div');
+  title.className = 'fm-title';
+  title.textContent = 'Foam line setup';
 
-	      if (modal){
-	        // button routing inside the modal
-	        modal.addEventListener('click', function(evt){
-	          const t = evt.target && evt.target.closest && evt.target.closest('button,[data-qsgoto]');
-	          if (!t) return;
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'fm-close';
+  closeBtn.textContent = '✕';
 
-	          if (t.matches('[data-qscat]')){
-	            const cat = t.getAttribute('data-qscat');
-	            showDetail(cat);
-	            return;
-	          }
-	          if (t.matches('[data-qsback]')){
-	            showHome();
-	            return;
-	          }
-	          if (t.matches('[data-qsgoto]')){
-	            const dest = t.getAttribute('data-qsgoto');
-	            go(dest);
-	          }
-	        });
-        if (closeBtn){
-          closeBtn.addEventListener('click', hide);
-        }
-        modal.addEventListener('click', function(evt){
-          if (evt.target === modal){
-            hide();
-          }
-        });
-      }
+  header.append(title, closeBtn);
 
-      document.addEventListener('DOMContentLoaded', showIfNeeded);
-    })();
-  </script>
+  const body = document.createElement('div');
+  body.className = 'fm-body';
 
+  const footer = document.createElement('div');
+  footer.className = 'fm-footer';
 
-  <!-- About overlay wiring + Department setup shortcut -->
-  <script>
-    (function(){
-      const aboutOverlay = document.getElementById('aboutOverlay');
-      const openAbout = document.getElementById('openAbout');
-      const closeAbout = document.getElementById('closeAbout');
-      const deptBtn = document.getElementById('aboutDeptBtn');
-      const deptTopBtn = document.getElementById('deptSetupTop');
-      const navSettings = document.getElementById('navSettings');
+  const explainBtn = document.createElement('button');
+  explainBtn.type = 'button';
+  explainBtn.className = 'fm-btn-secondary';
+  explainBtn.textContent = 'Explain math';
 
-      function open(){
-        if(!aboutOverlay) return;
-        aboutOverlay.style.display = 'block';
-      }
-      function close(){
-        if(!aboutOverlay) return;
-        aboutOverlay.style.display = 'none';
-      }
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'fm-btn-secondary';
+  cancelBtn.textContent = 'Cancel';
 
-      if(openAbout && aboutOverlay){
-        openAbout.addEventListener('click', open);
-      }
-      if(closeAbout && aboutOverlay){
-        closeAbout.addEventListener('click', close);
-      }
-      if(aboutOverlay){
-        aboutOverlay.addEventListener('click', function(evt){
-          if(evt.target === aboutOverlay){ close(); }
-        });
-      }
-      document.addEventListener('keydown', function(evt){
-        if(evt.key === 'Escape' && aboutOverlay && aboutOverlay.style.display === 'block'){
-          close();
-        }
-      });
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'fm-btn-primary';
+  saveBtn.textContent = 'Save';
 
-      // Department setup: prefer new Dept wizard in presets, fall back to old settings view
-      function openDeptSetup(){
-        try { close(); } catch (_) {}
-        try {
-          if (window && typeof window.fireopsOpenDeptSetup === 'function') {
-            window.fireopsOpenDeptSetup();   // new Dept wizard in preset.js
-            return;
-          }
-        } catch (err) {
-          console.warn('fireopsOpenDeptSetup failed, falling back to navSettings', err);
-        }
-        if (navSettings) {
-          navSettings.click();               // old view.settings.js fallback
-        }
-      }
+  footer.append(explainBtn, cancelBtn, saveBtn);
+  panel.append(header, body, footer);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
 
-      if (deptBtn) deptBtn.addEventListener('click', openDeptSetup);
-      if (deptTopBtn) deptTopBtn.addEventListener('click', openDeptSetup);
-    })();
-  </script>
+  function close() {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
 
-  <!-- Hide any "Reveal" button that practice view renders -->
-  <script>
-    (function(){
-      const app = document.getElementById('app');
-      if (!app) return;
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  closeBtn.addEventListener('click', close);
+  cancelBtn.addEventListener('click', close);
 
-      const hideRevealButtons = () => {
-        const buttons = app.querySelectorAll('button');
-        buttons.forEach(btn => {
-          if (btn.textContent && btn.textContent.trim().toLowerCase() === 'reveal') {
-            btn.style.display = 'none';
-          }
-        });
-      };
+  const foamTypeToggle = fmToggleGroup([
+    { id: 'classA', label: 'Class A' },
+    { id: 'classB', label: 'Class B' },
+  ], () => state.foamType, (val) => {
+    state.foamType = val;
+    if (val === 'classA' && (!state.foamPercent || state.foamPercent >= 1)) {
+      state.foamPercent = 0.3;
+    }
+    if (val === 'classB' && (!state.foamPercent || state.foamPercent < 1)) {
+      state.foamPercent = 3;
+    }
+    rerender();
+  });
 
-      hideRevealButtons();
+  const systemTypeToggle = fmToggleGroup([
+    { id: 'eductor', label: 'Inline eductor' },
+    { id: 'around', label: 'Around-the-pump' },
+    { id: 'batch', label: 'Batch mix' },
+    { id: 'cafs', label: 'CAFS' },
+  ], () => state.systemType, (val) => {
+    state.systemType = val;
+    rerender();
+  });
 
-      const observer = new MutationObserver(hideRevealButtons);
-      observer.observe(app, { childList: true, subtree: true });
-    })();
-  </script>
+  const flowSourceToggle = fmToggleGroup([
+    { id: 'nozzle', label: 'Use nozzle flow' },
+    { id: 'manual', label: 'Enter flow manually' },
+  ], () => state.flowSource, (val) => {
+    state.flowSource = val;
+    rerender();
+  });
 
-    <!-- App-only guards (web vs native app) -->
-  <script>
-    (function(){
-      const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.fireopscalc.app";
-      // TEMP: disable App-Only redirect guards on the website while making changes.
-      // Set to true to restore the normal web redirects to /app-only*.html.
-      const SHOW_APP_ONLY_GUARDS = false;
-      const IS_APP = (function(){
-        try{
-          if (window && window.Capacitor){
-            if (typeof window.Capacitor.isNativePlatform === 'function') return !!window.Capacitor.isNativePlatform();
-            if (typeof window.Capacitor.getPlatform === 'function') return window.Capacitor.getPlatform() !== 'web';
-          }
-        }catch(e){}
-        const proto = (window.location && window.location.protocol || '').toLowerCase();
-        return proto === 'capacitor:';
-      })();
+  const summaryCard = fmEl('div', { class: 'fm-summary' });
+  const summaryGrid = fmEl('div', { class: 'fm-summary-grid' });
+  summaryCard.append(
+    fmEl('div', { class: 'fm-summary-title', text: 'Foam summary' }),
+    summaryGrid
+  );
 
-      if (SHOW_APP_ONLY_GUARDS) {
-        // 1) Any "Presets" links/buttons → redirect on web
-        const presetButtons = [
-          ...document.querySelectorAll('[href*="presets"]'),
-          ...document.querySelectorAll('#openPresets')
+  function updateWaterGpmFromNozzle() {
+    if (state.flowSource !== 'nozzle') return;
+    const gpm = fmParseGpmFromNozzle(nozzles, state.nozzleId);
+    if (gpm != null) state.waterGpm = gpm;
+  }
+
+  function getFoamPresetButtons() {
+    const presets = state.foamType === 'classA'
+      ? [
+          { label: 'Mop up 0.3%', value: 0.3 },
+          { label: 'Wet line 0.5%', value: 0.5 },
+          { label: 'Heavy Class A 1%', value: 1.0 },
+        ]
+      : [
+          { label: 'Hydrocarbon 3%', value: 3 },
+          { label: 'Polar solvent 6%', value: 6 },
+          { label: 'Light Class B 1%', value: 1 },
         ];
-        presetButtons.forEach((pbtn) => {
-          pbtn.addEventListener('click', (e) => {
-            if (!IS_APP) {
-              e.preventDefault();
-              window.location.href = '/app-only-presets.html';
-            }
-          }, { capture: true });
-        });
 
-        // 2) Department Setup shortcuts → redirect on web
-        const deptButtons = [
-          document.getElementById('aboutDeptBtn'),
-          document.getElementById('navSettings'),
-          ...document.querySelectorAll('[data-qsgoto="department"]')
-        ].filter(Boolean);
-
-        deptButtons.forEach((btn) => {
-          btn.addEventListener('click', (e) => {
-            if (!IS_APP) {
-              e.preventDefault();
-              window.location.href = '/app-only.html';
-            }
-          }, { capture: true });
-        });
-      }
-
-      // 3) Optional: expose store url for any future UI
-      window.FIREOPS_PLAY_STORE_URL = PLAY_STORE_URL;
-      window.FIREOPS_IS_APP = IS_APP;
-    })();
-  </script>
-<!-- Screen Wake Lock to reduce phone timeouts on calc screen -->
-  <script>
-    (function(){
-      let wakeLock = null;
-
-      async function requestWakeLock(){
-        if (!('wakeLock' in navigator)) {
-          return;
+    const row = fmEl('div', { class: 'fm-chip-group' });
+    presets.forEach(p => {
+      row.appendChild(fmEl('button', {
+        class: 'fm-chip',
+        type: 'button',
+        text: p.label,
+        onclick: (e) => {
+          e.preventDefault();
+          state.foamPercent = p.value;
+          rerender();
         }
-        try {
-          wakeLock = await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release', () => {
-            wakeLock = null;
-          });
-        } catch (err) {
-          console && console.warn && console.warn('Wake Lock error:', err);
-        }
+      }));
+    });
+    return row;
+  }
+
+  function updateSummary() {
+    updateWaterGpmFromNozzle();
+    const vals = calcFoamNumbers(state);
+
+    summaryGrid.innerHTML = '';
+
+    const items = [
+      ['Foam type', state.foamType === 'classB' ? 'Class B' : 'Class A'],
+      ['System', state.systemType === 'eductor'
+        ? 'Inline eductor'
+        : state.systemType === 'around'
+          ? 'Around-the-pump'
+          : state.systemType === 'batch'
+            ? 'Batch mix'
+            : 'CAFS'],
+      ['Water flow', `${vals.waterGpm} gpm`],
+      ['Foam mix', `${vals.foamPercent}%`],
+      ['Foam concentrate', `${vals.foamGpm} gpm`],
+      ['Total solution', `${vals.solutionGpm} gpm`],
+      ['Foam runtime', fmFormatMinutes(vals.foamRuntimeMin)],
+      ['Water runtime', fmFormatMinutes(vals.waterRuntimeMin)],
+    ];
+
+    if (vals.pdp != null) {
+      items.push(['Target PDP', `${Math.round(vals.pdp)} psi`]);
+    }
+
+    if (state.systemType === 'batch' && Number(state.waterTankGal || 0) > 0) {
+      items.push(['Foam to add', `${vals.batchFoamNeededGal} gal`]);
+    }
+
+    items.forEach(([label, value]) => {
+      summaryGrid.appendChild(
+        fmEl('div', { class: 'fm-summary-item' },
+          fmEl('strong', { text: label }),
+          fmEl('span', { text: value })
+        )
+      );
+    });
+
+    let noteText = 'Use this summary to quickly see flow, mix, runtime, and pump pressure target.';
+    if (state.systemType === 'batch') {
+      noteText = `Batch mix helper: add about ${vals.batchFoamNeededGal} gallons of concentrate to ${Number(state.waterTankGal || 0)} gallons of water.`;
+    } else if (state.systemType === 'eductor') {
+      noteText = 'Inline eductor mode uses the eductor inlet pump pressure you enter below.';
+    }
+    const old = summaryCard.querySelector('.fm-note');
+    if (old) old.remove();
+    summaryCard.appendChild(fmEl('div', { class: 'fm-note', text: noteText }));
+  }
+
+  function openExplainPopup() {
+    updateWaterGpmFromNozzle();
+    const vals = calcFoamNumbers(state);
+
+    const overlay2 = document.createElement('div');
+    overlay2.className = 'fm-explain-overlay';
+
+    const panel2 = document.createElement('div');
+    panel2.className = 'fm-explain-panel';
+
+    const header2 = document.createElement('div');
+    header2.className = 'fm-explain-header';
+
+    const title2 = document.createElement('div');
+    title2.className = 'fm-explain-title';
+    title2.textContent = 'Foam math breakdown';
+
+    const close2 = document.createElement('button');
+    close2.type = 'button';
+    close2.className = 'fm-close';
+    close2.textContent = '✕';
+
+    header2.append(title2, close2);
+
+    const body2 = document.createElement('div');
+    body2.className = 'fm-explain-body';
+
+    const runtimeFoamText = vals.foamRuntimeMin != null ? `${fmRound1(vals.foamRuntimeMin)} minutes` : '—';
+    const runtimeWaterText = vals.waterRuntimeMin != null ? `${fmRound1(vals.waterRuntimeMin)} minutes` : '—';
+
+    body2.innerHTML = `
+      <p><strong>Water flow:</strong> <code>${vals.waterGpm} gpm</code></p>
+      <p><strong>Foam percentage:</strong> <code>${vals.foamPercent}%</code></p>
+
+      <p><strong>Foam concentrate flow:</strong></p>
+      <p><code>Foam GPM = Water GPM × (Foam% / 100)</code></p>
+      <p><code>${vals.waterGpm} × (${vals.foamPercent} / 100) = ${vals.foamGpm} gpm</code></p>
+
+      <p><strong>Total finished solution:</strong></p>
+      <p><code>Solution GPM = Water GPM + Foam GPM = ${vals.solutionGpm} gpm</code></p>
+
+      <p><strong>Foam tank runtime:</strong></p>
+      <p><code>${Number(state.foamTankGal || 0)} gal / ${vals.foamGpm || 1} gpm = ${runtimeFoamText}</code></p>
+
+      <p><strong>Water tank runtime:</strong></p>
+      <p><code>${Number(state.waterTankGal || 0)} gal / ${vals.waterGpm || 1} gpm = ${runtimeWaterText}</code></p>
+
+      ${state.systemType === 'batch' ? `
+        <p><strong>Batch mix helper:</strong></p>
+        <p><code>Foam needed = Water tank gallons × (Foam% / 100)</code></p>
+        <p><code>${Number(state.waterTankGal || 0)} × (${vals.foamPercent} / 100) = ${vals.batchFoamNeededGal} gal</code></p>
+      ` : ''}
+
+      ${vals.pdp != null ? `
+        <p><strong>Target pump pressure:</strong></p>
+        <p><code>${Math.round(vals.pdp)} psi</code></p>
+      ` : ''}
+
+      <p>This popup is meant to help answer: how much foam am I using, how long will the tanks last, and what pressure target am I trying to hold?</p>
+    `;
+
+    const footer2 = document.createElement('div');
+    footer2.className = 'fm-explain-footer';
+
+    const ok2 = document.createElement('button');
+    ok2.type = 'button';
+    ok2.className = 'fm-btn-primary';
+    ok2.textContent = 'Close';
+
+    footer2.appendChild(ok2);
+    panel2.append(header2, body2, footer2);
+    overlay2.appendChild(panel2);
+    document.body.appendChild(overlay2);
+
+    function closeExplain() {
+      if (overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
+    }
+
+    overlay2.addEventListener('click', (e) => {
+      if (e.target === overlay2) closeExplain();
+    });
+    close2.addEventListener('click', closeExplain);
+    ok2.addEventListener('click', closeExplain);
+  }
+
+  explainBtn.addEventListener('click', openExplainPopup);
+
+  function renderFlowSection() {
+    const section = fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '3. What are you flowing?' })
+    );
+
+    if (nozzles.length) {
+      section.appendChild(
+        fmEl('div', { class: 'fm-row' },
+          fmEl('label', { text: 'Flow source' }),
+          flowSourceToggle.root
+        )
+      );
+
+      if (state.flowSource === 'nozzle') {
+        section.appendChild(
+          fmEl('div', { class: 'fm-row' },
+            fmEl('label', { text: 'Nozzle' }),
+            fmSelect(nozzles, state.nozzleId, (v) => {
+              state.nozzleId = v;
+              updateWaterGpmFromNozzle();
+              updateSummary();
+            })
+          )
+        );
       }
+    }
 
-      // Re-acquire on visibility change (tab coming back to foreground)
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && !wakeLock) {
-          requestWakeLock();
-        }
-      });
+    if (hoses.length) {
+      section.appendChild(
+        fmEl('div', { class: 'fm-row' },
+          fmEl('label', { text: 'Hose' }),
+          fmSelect(hoses, state.hoseId, (v) => {
+            state.hoseId = v;
+            updateSummary();
+          })
+        )
+      );
+    }
 
-      // Only start after a user interaction (required by some browsers)
-      function armWakeLockOnce(){
-        document.removeEventListener('click', armWakeLockOnce);
-        document.removeEventListener('touchstart', armWakeLockOnce);
-        requestWakeLock();
-      }
+    section.appendChild(
+      fmEl('div', { class: 'fm-row' },
+        fmEl('label', { text: 'Water flow (GPM)' }),
+        fmNumberInput(state.waterGpm, (v) => {
+          state.waterGpm = v;
+          updateSummary();
+        }, { disabled: state.flowSource === 'nozzle' && nozzles.length })
+      )
+    );
 
-      document.addEventListener('click', armWakeLockOnce, { passive: true });
-      document.addEventListener('touchstart', armWakeLockOnce, { passive: true });
-    })();
-  </script>
+    return section;
+  }
 
-</body>
-</html>
+  function renderPercentSection() {
+    return fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '4. Foam percentage' }),
+      fmEl('div', { class: 'fm-help', text: state.foamType === 'classA'
+        ? 'Class A often runs around 0.1% to 1%.'
+        : 'Class B often runs around 1% to 6%, depending on product and fuel.' }),
+      fmEl('div', { class: 'fm-row' },
+        fmEl('label', { text: 'Foam %' }),
+        fmNumberInput(state.foamPercent, (v) => {
+          state.foamPercent = v;
+          updateSummary();
+        }, { step: '0.1' })
+      ),
+      getFoamPresetButtons()
+    );
+  }
+
+  function renderSystemSpecificSection() {
+    const section = fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '5. System details' })
+    );
+
+    if (state.systemType === 'eductor') {
+      section.appendChild(
+        fmEl('div', { class: 'fm-grid-2' },
+          fmEl('div', { class: 'fm-card' },
+            fmEl('h4', { text: 'Inline eductor settings' }),
+            fmEl('div', { class: 'fm-row' },
+              fmEl('label', { text: 'Eductor rated flow' }),
+              fmNumberInput(state.eductorRatedGpm, (v) => {
+                state.eductorRatedGpm = v;
+                updateSummary();
+              })
+            ),
+            fmEl('div', { class: 'fm-row' },
+              fmEl('label', { text: 'Eductor inlet PDP' }),
+              fmNumberInput(state.eductorPdp, (v) => {
+                state.eductorPdp = v;
+                updateSummary();
+              })
+            )
+          ),
+          fmEl('div', { class: 'fm-card' },
+            fmEl('h4', { text: 'Quick reminder' }),
+            fmEl('div', { class: 'fm-help', text: 'Use the eductor inlet pressure your department runs, often around 200 psi. Match your nozzle and hose package to the eductor setup.' })
+          )
+        )
+      );
+      return section;
+    }
+
+    if (state.systemType === 'batch') {
+      section.appendChild(
+        fmEl('div', { class: 'fm-card' },
+          fmEl('h4', { text: 'Batch mix helper' }),
+          fmEl('div', { class: 'fm-help', text: 'Enter your water tank size and foam % below. The summary card will tell you how many gallons of concentrate to add.' })
+        )
+      );
+      return section;
+    }
+
+    section.appendChild(
+      fmEl('div', { class: 'fm-card' },
+        fmEl('h4', { text: 'Pump pressure target' }),
+        fmEl('div', { class: 'fm-row' },
+          fmEl('label', { text: 'Target PDP (optional)' }),
+          fmNumberInput(state.targetPdp, (v) => {
+            state.targetPdp = v;
+            updateSummary();
+          })
+        ),
+        fmEl('div', { class: 'fm-help', text: 'Use this if you already know the pressure target from the main hose calculator.' })
+      )
+    );
+
+    return section;
+  }
+
+  function renderTankSection() {
+    return fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '6. Available tank volume' }),
+      fmEl('div', { class: 'fm-grid-2' },
+        fmEl('div', { class: 'fm-card' },
+          fmEl('h4', { text: 'Foam concentrate tank' }),
+          fmEl('div', { class: 'fm-row' },
+            fmEl('label', { text: 'Foam gallons' }),
+            fmNumberInput(state.foamTankGal, (v) => {
+              state.foamTankGal = v;
+              updateSummary();
+            })
+          )
+        ),
+        fmEl('div', { class: 'fm-card' },
+          fmEl('h4', { text: 'Water tank' }),
+          fmEl('div', { class: 'fm-row' },
+            fmEl('label', { text: 'Water gallons' }),
+            fmNumberInput(state.waterTankGal, (v) => {
+              state.waterTankGal = v;
+              updateSummary();
+            })
+          )
+        )
+      )
+    );
+  }
+
+  function rerender() {
+    body.innerHTML = '';
+
+    foamTypeToggle.refresh();
+    systemTypeToggle.refresh();
+    flowSourceToggle.refresh();
+
+    const introSection = fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '1. Foam type' }),
+      fmEl('div', { class: 'fm-row' },
+        fmEl('label', { text: 'Choose foam type' }),
+        foamTypeToggle.root
+      ),
+      fmEl('div', { class: 'fm-help', text: state.foamType === 'classA'
+        ? 'Class A is usually used for ordinary combustibles, wet lines, mop up, and exposures.'
+        : 'Class B is usually used for flammable liquids and fuel-related incidents.' })
+    );
+
+    const systemSection = fmEl('div', { class: 'fm-section' },
+      fmEl('h3', { text: '2. How are you making foam?' }),
+      fmEl('div', { class: 'fm-row' },
+        fmEl('label', { text: 'Choose system' }),
+        systemTypeToggle.root
+      ),
+      fmEl('div', { class: 'fm-help', text:
+        state.systemType === 'eductor'
+          ? 'Use this when you are flowing through an inline eductor.'
+          : state.systemType === 'around'
+            ? 'Use this when your apparatus is proportioning through an around-the-pump setup.'
+            : state.systemType === 'batch'
+              ? 'Use this when you are mixing concentrate directly into a water tank.'
+              : 'Use this when the apparatus is producing compressed air foam.' })
+    );
+
+    body.append(
+      introSection,
+      systemSection,
+      renderFlowSection(),
+      renderPercentSection(),
+      renderSystemSpecificSection(),
+      renderTankSection(),
+      summaryCard
+    );
+
+    updateSummary();
+  }
+
+  rerender();
+
+  saveBtn.addEventListener('click', () => {
+    updateWaterGpmFromNozzle();
+
+    const payload = {
+      foamType: state.foamType,
+      systemType: state.systemType,
+      flowSource: state.flowSource,
+      useNozzleFlow: state.flowSource === 'nozzle',
+      nozzleId: state.nozzleId,
+      hoseId: state.hoseId,
+      waterGpm: state.waterGpm,
+      foamPercent: state.foamPercent,
+      foamTankGal: state.foamTankGal,
+      waterTankGal: state.waterTankGal,
+      eductorRatedGpm: state.eductorRatedGpm,
+      eductorPdp: state.eductorPdp,
+      targetPdp: state.targetPdp,
+      lastCalc: calcFoamNumbers(state),
+    };
+    onSave(payload);
+    close();
+  });
+}
