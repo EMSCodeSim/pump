@@ -178,7 +178,7 @@ import {
   getDeptHoseDiameters,
   getDeptCustomNozzlesForCalc
 } from './preset.js';
-import {setDeptEquipment, setDeptSelections, getUiNozzles, getUiHoses } from './deptState.js';
+import {setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
 import './view.calc.enhance.js';
 
 
@@ -3153,30 +3153,24 @@ function _plusFormatHoseLabel(hoseOrId) {
 
 function _plusGetHoseListFromDept() {
   try {
-    if (typeof getUiHoses === 'function') {
-      const list = getUiHoses() || [];
-      if (Array.isArray(list) && list.length) {
-        return list.map((h, idx) => {
-          if (!h) return null;
-          const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
-          return {
-            id,
-            diameter: String(h.diameter ?? h.dia ?? h.size ?? h.id ?? ''),
-            label: _plusFormatHoseLabel(h),
-          };
-        }).filter(Boolean);
-      }
-    }
-
     const dept = _plusDeptEquipRead();
     if (dept && typeof dept === 'object') {
       const hosesAll = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
-      const selectedIds = Array.isArray(dept.selectedHoseIds) ? dept.selectedHoseIds.map(String) : [];
+      const selectedIds = Array.isArray(dept.selectedHoseIds)
+        ? dept.selectedHoseIds.map(String)
+        : (Array.isArray(dept.hoses) ? dept.hoses.map(String) : []);
       const selectedSet = new Set(selectedIds);
-      let list = hosesAll;
-      if (selectedSet.size) {
-        list = hosesAll.filter(h => selectedSet.has(String(h?.id ?? '')) || selectedSet.has(String(h?.label ?? '')));
+
+      let list = [];
+      if (hosesAll.length && selectedSet.size) {
+        list = hosesAll.filter(h => {
+          const id = String(h?.id ?? h?.value ?? h?.name ?? '');
+          return selectedSet.has(id);
+        });
+      } else if (hosesAll.length) {
+        list = hosesAll;
       }
+
       if (list.length) {
         return list.map((h, idx) => ({
           id: h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx),
@@ -3185,9 +3179,8 @@ function _plusGetHoseListFromDept() {
         })).filter(Boolean);
       }
 
-      const legacySelected = Array.isArray(dept.hoses) ? dept.hoses : [];
-      if (legacySelected.length) {
-        return legacySelected.map((id, idx) => ({
+      if (selectedIds.length) {
+        return selectedIds.map((id, idx) => ({
           id: String(id),
           diameter: String(id),
           label: _plusFormatHoseLabel({ id: String(id) }),
