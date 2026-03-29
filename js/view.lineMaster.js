@@ -391,52 +391,127 @@ function parseGpmFromLabel(label) {
   return m ? Number(m[1]) : 0;
 }
 
-// Normalize all hose labels consistently so phone & desktop show the same thing.
-function formatHoseLabel(idOrLabel) {
-  const raw = String(idOrLabel || '').trim();
-
-  // If it already looks like 2.5" / 4" / 5" style, keep but normalize spacing.
-  const quoteMatch = raw.match(/(\d(?:\.\d+)?)\s*"/);
-  if (quoteMatch) {
-    const v = quoteMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
+function _deptEquipRead() {
+  try {
+    const raw = localStorage.getItem('fireops_dept_equipment_v1');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
   }
+}
 
-  // Known internal ids, like "h_175"
-  if (/^h_?175$/.test(raw)) return '1 3/4"';
-  if (/^h_?15$/.test(raw))  return '1 1/2"';
-  if (/^h_?25$/.test(raw))  return '2 1/2"';
-  if (/^h_?3$/.test(raw))   return '3"';
-  if (/^h_?4$/.test(raw))   return '4"';
-  if (/^h_?5$/.test(raw))   return '5"';
+function _getCustomHoseById(id) {
+  const dept = _deptEquipRead();
+  const list = dept && Array.isArray(dept.customHoses) ? dept.customHoses : [];
+  return list.find(h => h && h.id === id) || null;
+}
 
-  // Custom hose ids: "custom_hose_<...>"
+function _diaToLabel(dia) {
+  const raw = String(dia ?? '').trim();
+  if (!raw) return '';
+  if (/^1\s*3\/4$/i.test(raw)) return '1 3/4"';
+  if (/^1\s*1\/2$/i.test(raw)) return '1 1/2"';
+  if (/^2\s*1\/2$/i.test(raw)) return '2 1/2"';
+  const f = Number(raw);
+  if (!isFinite(f)) return '';
+  const map = {1:'1"', 1.5:'1 1/2"', 1.75:'1 3/4"', 2:'2"', 2.5:'2 1/2"', 3:'3"', 4:'4"', 5:'5"'};
+  for (const k of Object.keys(map)) {
+    if (Math.abs(f - Number(k)) < 1e-6) return map[k];
+  }
+  return `${f}"`;
+}
+
+function _cleanC(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+}
+
+function _defaultCForHoseId(id) {
+  const raw = String(id || '').trim();
+  if (/^h_lf_175$/i.test(raw)) return 12;
+  if (/^h_lf_2$/i.test(raw))   return 6;
+  if (/^h_lf_25$/i.test(raw))  return 1.5;
+  if (/^h_lf_5$/i.test(raw))   return 0.06;
+  if (/^h_175$/i.test(raw))       return 15.5;
+  if (/^h_15$/i.test(raw))        return 24;
+  if (/^h_2$/i.test(raw))         return 8;
+  if (/^h_25$/i.test(raw))        return 2;
+  if (/^h_3$/i.test(raw))         return 0.8;
+  if (/^h_3_supply$/i.test(raw))  return 0.8;
+  if (/^h_4_ldh$/i.test(raw))     return 0.2;
+  if (/^h_5_ldh$/i.test(raw))     return 0.08;
+  return null;
+}
+
+function formatHoseLabel(hoseOrId) {
+  const raw = typeof hoseOrId === 'object'
+    ? String(hoseOrId?.id ?? hoseOrId?.value ?? hoseOrId?.name ?? '')
+    : String(hoseOrId || '').trim();
+
+  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+
   if (/^custom_hose_/i.test(raw)) {
-    // If the id includes a diameter hint like "_175_", "_25_", etc, use that.
-    if (/175/.test(raw)) return 'Custom 1 3/4"';
-    if (/15/.test(raw))  return 'Custom 1 1/2"';
-    if (/25/.test(raw))  return 'Custom 2 1/2"';
-    if (/3/.test(raw))   return 'Custom 3"';
-    if (/4/.test(raw))   return 'Custom 4"';
-    if (/5/.test(raw))   return 'Custom 5"';
+    const h = obj || _getCustomHoseById(raw);
+    const diaLbl = h ? (_diaToLabel(h.diameter ?? h.dia ?? h.size) || '') : '';
+    const cVal = h ? (h.c ?? h.C ?? h.flC ?? h.coeff) : null;
+    const cTxt = _cleanC(cVal);
+    if (diaLbl && cTxt) return `${diaLbl} C${cTxt}`;
+    if (diaLbl) return diaLbl;
     return 'Custom hose';
   }
 
-  // Text-based descriptions like "2.5 supply", "4 inch LDH"
-  const numMatch = raw.match(/(\d(?:\.\d+)?)/);
-  if (numMatch) {
-    const v = numMatch[1];
-    if (v === '1.75') return '1 3/4"';
-    if (v === '1.5')  return '1 1/2"';
-    if (v === '2.5')  return '2 1/2"';
-    if (v === '3')    return '3"';
-    if (v === '4')    return '4"';
-    if (v === '5')    return '5"';
+  if (/^h_lf_/i.test(raw)) {
+    const m = raw.match(/^h_lf_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : code === '4' ? 4.0
+      : code === '5' ? 5.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base ? `${base} LF` : `${raw} LF`);
+  }
+
+  if (/^h_/i.test(raw)) {
+    if (/h_4/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `4" C${cTxt}` : '4"';
+    }
+    if (/h_5/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `5" C${cTxt}` : '5"';
+    }
+    const m = raw.match(/h_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : code === '3' ? 3.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base || raw);
+  }
+
+  const explicitC = obj ? (obj.c ?? obj.C ?? obj.flC ?? obj.coeff) : null;
+  if (obj && (obj.diameter || obj.dia || obj.size)) {
+    const base = _diaToLabel(obj.diameter ?? obj.dia ?? obj.size) || String(obj.label || raw);
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
+
+  const parsed = raw.match(/(\d(?:\.\d+)?)/);
+  if (parsed) {
+    const base = _diaToLabel(parsed[1]) || raw;
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
   }
 
   return raw;
@@ -578,7 +653,7 @@ function msGetHoseListFromDept(dept) {
         ? String(h.id)
         : String(h.value ?? h.name ?? idx);
       const baseLabel = h.label || h.name || String(id);
-      return { id, label: formatHoseLabel(baseLabel) };
+      return { id, label: formatHoseLabel(h) };
     }).filter(Boolean);
   }
 
@@ -593,10 +668,10 @@ function msGetHoseListFromDept(dept) {
             ? String(h.id)
             : String(h.value ?? h.name ?? idx);
           const baseLabel = h.label || h.name || String(id);
-          return { id, label: formatHoseLabel(baseLabel) };
+          return { id, label: formatHoseLabel(h) };
         } else {
           const id = String(h);
-          return { id, label: formatHoseLabel(id) };
+          return { id, label: formatHoseLabel({ id }) };
         }
       }).filter(Boolean);
     }

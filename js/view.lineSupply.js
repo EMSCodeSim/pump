@@ -396,32 +396,135 @@ function calcSupplyNumbers(state, hoses) {
  *   - onSave: function(config) -> void
  */
 
+function _deptEquipRead() {
+  try {
+    const raw = localStorage.getItem('fireops_dept_equipment_v1');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _getCustomHoseById(id) {
+  const dept = _deptEquipRead();
+  const list = dept && Array.isArray(dept.customHoses) ? dept.customHoses : [];
+  return list.find(h => h && h.id === id) || null;
+}
+
+function _diaToLabel(dia) {
+  const raw = String(dia ?? '').trim();
+  if (!raw) return '';
+  if (/^1\s*3\/4$/i.test(raw)) return '1 3/4"';
+  if (/^1\s*1\/2$/i.test(raw)) return '1 1/2"';
+  if (/^2\s*1\/2$/i.test(raw)) return '2 1/2"';
+  const f = Number(raw);
+  if (!isFinite(f)) return '';
+  const map = {1:'1"', 1.5:'1 1/2"', 1.75:'1 3/4"', 2:'2"', 2.5:'2 1/2"', 3:'3"', 4:'4"', 5:'5"'};
+  for (const k of Object.keys(map)) {
+    if (Math.abs(f - Number(k)) < 1e-6) return map[k];
+  }
+  return `${f}"`;
+}
+
+function _cleanC(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '';
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+}
+
+function _defaultCForHoseId(id) {
+  const raw = String(id || '').trim();
+  if (/^h_lf_175$/i.test(raw)) return 12;
+  if (/^h_lf_2$/i.test(raw))   return 6;
+  if (/^h_lf_25$/i.test(raw))  return 1.5;
+  if (/^h_lf_5$/i.test(raw))   return 0.06;
+  if (/^h_175$/i.test(raw))       return 15.5;
+  if (/^h_15$/i.test(raw))        return 24;
+  if (/^h_2$/i.test(raw))         return 8;
+  if (/^h_25$/i.test(raw))        return 2;
+  if (/^h_3$/i.test(raw))         return 0.8;
+  if (/^h_3_supply$/i.test(raw))  return 0.8;
+  if (/^h_4_ldh$/i.test(raw))     return 0.2;
+  if (/^h_5_ldh$/i.test(raw))     return 0.08;
+  return null;
+}
+
+function formatHoseLabel(hoseOrId) {
+  const raw = typeof hoseOrId === 'object'
+    ? String(hoseOrId?.id ?? hoseOrId?.value ?? hoseOrId?.name ?? '')
+    : String(hoseOrId || '').trim();
+
+  const obj = (hoseOrId && typeof hoseOrId === 'object') ? hoseOrId : null;
+
+  if (/^custom_hose_/i.test(raw)) {
+    const h = obj || _getCustomHoseById(raw);
+    const diaLbl = h ? (_diaToLabel(h.diameter ?? h.dia ?? h.size) || '') : '';
+    const cVal = h ? (h.c ?? h.C ?? h.flC ?? h.coeff) : null;
+    const cTxt = _cleanC(cVal);
+    if (diaLbl && cTxt) return `${diaLbl} C${cTxt}`;
+    if (diaLbl) return diaLbl;
+    return 'Custom hose';
+  }
+
+  if (/^h_lf_/i.test(raw)) {
+    const m = raw.match(/^h_lf_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : code === '4' ? 4.0
+      : code === '5' ? 5.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base ? `${base} LF` : `${raw} LF`);
+  }
+
+  if (/^h_/i.test(raw)) {
+    if (/h_4/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `4" C${cTxt}` : '4"';
+    }
+    if (/h_5/i.test(raw)) {
+      const cTxt = _cleanC(_defaultCForHoseId(raw));
+      return cTxt ? `5" C${cTxt}` : '5"';
+    }
+    const m = raw.match(/h_(\d+)/i);
+    const code = m ? m[1] : '';
+    const dia = code === '175' ? 1.75
+      : code === '15' ? 1.5
+      : code === '25' ? 2.5
+      : code === '2' ? 2.0
+      : code === '1' ? 1.0
+      : code === '3' ? 3.0
+      : Number(code || NaN);
+    const base = _diaToLabel(dia);
+    const cTxt = _cleanC(_defaultCForHoseId(raw));
+    return base && cTxt ? `${base} C${cTxt}` : (base || raw);
+  }
+
+  const explicitC = obj ? (obj.c ?? obj.C ?? obj.flC ?? obj.coeff) : null;
+  if (obj && (obj.diameter || obj.dia || obj.size)) {
+    const base = _diaToLabel(obj.diameter ?? obj.dia ?? obj.size) || String(obj.label || raw);
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
+
+  const parsed = raw.match(/(\d(?:\.\d+)?)/);
+  if (parsed) {
+    const base = _diaToLabel(parsed[1]) || raw;
+    const cTxt = _cleanC(explicitC);
+    return cTxt ? `${base} C${cTxt}` : base;
+  }
+
+  return raw;
+}
+
 // Pretty label for internal hose IDs so the dropdown is easier to read.
 function supplyPrettyHoseLabelFromId(id) {
-  if (!id) return '';
-  // Common attack line sizes
-  if (id === 'h_1') return '1\" attack hose';
-  if (id === 'h_15') return '1 1/2\" attack hose';
-  if (id === 'h_175') return '1 3/4\" attack hose';
-  if (id === 'h_2') return '2\" attack hose';
-  if (id === 'h_25') return '2 1/2\" attack hose';
-  if (id === 'h_3') return '3\" attack hose';
-
-  // Supply / LDH
-  if (id === 'h_3_supply') return '3\" supply line';
-  if (id === 'h_4_ldh') return '4\" LDH supply';
-  if (id === 'h_5_ldh') return '5\" LDH supply';
-
-  // Wildland / booster
-  if (id === 'h_w_1') return '1\" wildland hose';
-  if (id === 'h_w_15') return '1 1/2\" wildland hose';
-  if (id === 'h_booster_1') return '1\" booster reel';
-
-  // Low-friction / special
-  if (id === 'h_lf_175') return '1 3/4\" low-friction attack';
-
-  // Fallback – show raw id
-  return id;
+  return formatHoseLabel({ id: String(id || '') });
 }
 export function openSupplyLinePopup({
   dept = {},
@@ -455,7 +558,7 @@ export function openSupplyLinePopup({
       const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
       let label = h.label || h.name || '';
       if (!label || label === id) {
-        label = supplyPrettyHoseLabelFromId(id);
+        label = formatHoseLabel(h);
       }
       return { ...h, id, label };
     });
