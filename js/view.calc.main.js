@@ -170,7 +170,7 @@ if (typeof window !== 'undefined') {
 }
 
 
-import { DEPT_UI_NOZZLES, getDeptLineDefaults } from './store.js';
+import { DEPT_UI_NOZZLES, DEPT_UI_HOSES, getDeptLineDefaults } from './store.js';
 import { WaterSupplyUI } from './waterSupply.js';
 import {
   setupPresets,
@@ -3153,6 +3153,19 @@ function _plusFormatHoseLabel(hoseOrId) {
 
 function _plusGetHoseListFromDept() {
   try {
+    if (Array.isArray(DEPT_UI_HOSES) && DEPT_UI_HOSES.length) {
+      const liveList = DEPT_UI_HOSES.map((h, idx) => {
+        if (!h) return null;
+        const id = h.id != null ? String(h.id) : String(h.value ?? h.name ?? idx);
+        return {
+          id,
+          diameter: String(h.diameter ?? h.dia ?? h.size ?? id),
+          label: _plusFormatHoseLabel(h),
+        };
+      }).filter(Boolean);
+      if (liveList.length) return liveList;
+    }
+
     const dept = _plusDeptEquipRead();
     if (dept && typeof dept === 'object') {
       const hosesAll = Array.isArray(dept.hosesAll) ? dept.hosesAll : [];
