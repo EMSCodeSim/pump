@@ -796,12 +796,19 @@ export async function render(container){
       const custom = customs.find(h => String(h.id) === raw);
       if (custom) {
         const dia = normalizeDiaValue(custom.diameter ?? custom.dia ?? custom.size ?? '');
+        const cVal = typeof custom.c === 'number'
+          ? custom.c
+          : (typeof custom.flC === 'number' ? custom.flC : (COEFF[dia] ?? 15.5));
+
+        const diaLabel =
+          dia === '1.75' ? '1 3/4' :
+          dia === '2.5'  ? '2 1/2' :
+          dia || raw;
+
         return {
           id: String(custom.id),
-          label: custom.label || custom.name || (dia ? `${dia}"` : raw),
-          c: typeof custom.c === 'number'
-            ? custom.c
-            : (typeof custom.flC === 'number' ? custom.flC : (COEFF[dia] ?? 15.5))
+          label: `${diaLabel} C${cVal}`,
+          c: cVal
         };
       }
 
