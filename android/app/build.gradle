@@ -11,7 +11,7 @@ android {
 
         // 🔢 Bump these as needed for Play uploads
         versionCode 80
-        versionName "9.0.0"
+        versionName "9.0.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
