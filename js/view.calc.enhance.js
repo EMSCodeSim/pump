@@ -295,7 +295,7 @@
       }
 
       function gateWyeOK() {
-        return !!(teWye && teWye.value === 'on' && teSize && String(teSize.value) === '2.5');
+        return !!(teWye && teWye.value === 'on');
       }
 
       function sync() {

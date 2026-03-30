@@ -999,7 +999,7 @@ function _setEditorOpen(open){
         }
       }
 function gateWyeBySize(){
-        const sizeOK = (teSize && String(teSize.value) === '2.5');
+        const sizeOK = true;
         const wyeSelect = tip.querySelector('#teWye');
         if (!sizeOK){
           // force off & hide everything Wye-related

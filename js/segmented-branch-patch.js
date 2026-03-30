@@ -105,7 +105,7 @@
     var rowNoz  = tip.querySelector('#rowNoz');
 
     function gateWyeBySize() {
-      var ok = !!(sizeHidden && String(sizeHidden.value) === '2.5');
+      var ok = true;
       if (!ok) {
         if (wyeSel) wyeSel.value = 'off';
         segWrap.style.display = 'none';
