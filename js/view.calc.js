@@ -1817,10 +1817,12 @@ function openPresetLineActions(id){
 
     // Department lines (Line 1/2/3)
     vis.forEach(([key, L])=>{
+      const reducerOn = !!L.hasReducer;
       const single = L.hasWye && isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
-                 : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
-                            : (L.nozRight?.gpm||0);
+                 : L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0))
+                 : reducerOn ? (L.nozRight?.gpm||0)
+                 : (L.nozRight?.gpm||0);
       const mainFL = FL_total_sections_175(flow, L.itemsMain);
       let PDP=0;
       if(single){
@@ -1837,6 +1839,10 @@ function openPresetLineActions(id){
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
         PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+      }else if(reducerOn){
+        const redLoss = (L.reducerLoss||10);
+        const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+        PDP = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
       }else{
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
@@ -2844,22 +2850,30 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
                     : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
       const mainFL = FL_total_sections_175(flowGpm, L.itemsMain);
       let ppPsi = 0;
+      let sectionPsiMain = 0;
+      let sectionPsiDown = 0;
       if (single) {
         const side = activeSide(L);
         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
         const branchFL = FL_total_sections_175(bnNoz?.gpm||0, bnSegs);
-        ppPsi = (bnNoz?.NP||0) + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (bnNoz?.NP||0) + branchFL;
+        ppPsi = sectionPsiMain + sectionPsiDown;
       } else if (L.hasWye) {
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        ppPsi = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        ppPsi = Math.max(lNeed, rNeed) + sectionPsiMain;
       } else if (reducerOn) {
         const redLoss = (L.reducerLoss||10);
         const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-        ppPsi = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + redLoss + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (L.nozRight?.NP||0) + downFL;
+        ppPsi = sectionPsiMain + sectionPsiDown;
       } else {
-        ppPsi = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+        ppPsi = sectionPsiDown;
       }
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
@@ -2921,7 +2935,9 @@ const row1 = (()=>{
 // - For non-wye lines, show PP + GPM.
 const row2 = (L.hasWye && !L.hasReducer)
   ? `Total ${Math.round(flowGpm)} gpm`
-  : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
+  : (L.hasReducer
+      ? `PP ${Math.round(sectionPsiMain)} psi • ${Math.round(flowGpm)} gpm`
+      : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
 
 // Lift bubbles higher so they don't get covered by the + hit target.
 addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-14:(key==='back')?-26:-38);
@@ -2940,10 +2956,10 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
           if(L.nozRight){
             const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
             const redLoss = (L.reducerLoss||10);
-            const redPP = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
+            const redSectionPP = (L.nozRight?.NP||0) + downFL;
             const redSize = hoseSizeForBubble(L.itemsRight);
             const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;
-            const row2R = `PP ${Math.round(redPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
+            const row2R = `PP ${Math.round(redSectionPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
             addLabel(G_labels, row1R + '\n' + row2R, endX-40, endY-22, -4);
           }
           addTip(G_tips, key,'R',endX,endY);
