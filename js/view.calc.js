@@ -293,6 +293,7 @@ export async function render(container){
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
+            <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
             <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
               <button type="button" class="segBtn" data-seg="main">Main</button>
@@ -308,34 +309,30 @@ export async function render(container){
               <select id="teSize"></select>
             </div>
 
+            <!-- Length: - [value] +, steps of 50' -->
+            <div class="te-row" id="rowLen">
+              <label>Length (ft)</label>
+              <input type="hidden" id="teLen" value="50">
+              <div class="steppers">
+                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
+                <div class="stepVal" id="lenLabel">50′</div>
+                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
+              </div>
+            </div>
+
             <!-- Nozzle: full list from charts (NOZ_LIST) -->
             <div class="te-row" id="rowNoz">
               <label>Nozzle</label>
               <select id="teNoz"></select>
             </div>
 
-            <!-- Length: + [value] -, steps of 50' -->
-            <div class="te-row" id="rowLen">
-              <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="50">
-              <div class="steppers">
-                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
-                <div class="stepVal" id="lenLabel">50′</div>
-                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-              </div>
-            </div>
-
-            <!-- Elevation: + [value] -, steps of 10' -->
+            <!-- Elevation: - [value] +, steps of 1' -->
             <div class="te-row" id="rowElev">
               <label>Elevation (ft)</label>
               <input type="hidden" id="teElev" value="0">
               <div class="steppers">
-                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
-                <div class="stepVal" id="elevLabel">0′</div>
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
-              </div>
-            </div>
-
+                <div class="stepVal" id="elevLabel">0′</div>
             <!-- Branch controls (visible only when Wye is active) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
@@ -347,18 +344,18 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenA" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenAPlus">+</button>
-                    <div class="stepVal" id="lenALabel">50′</div>
                     <button type="button" class="stepBtn" id="lenAMinus">−</button>
+                    <div class="stepVal" id="lenALabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenAPlus">+</button>
                   </div>
                 </div>
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevA" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevAPlus">+</button>
-                    <div class="stepVal" id="elevALabel">0′</div>
                     <button type="button" class="stepBtn" id="elevAMinus">−</button>
+                    <div class="stepVal" id="elevALabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevAPlus">+</button>
                   </div>
                 </div>
                 <div class="te-row">
@@ -374,18 +371,18 @@ export async function render(container){
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenB" value="50">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="lenBPlus">+</button>
-                    <div class="stepVal" id="lenBLabel">50′</div>
                     <button type="button" class="stepBtn" id="lenBMinus">−</button>
+                    <div class="stepVal" id="lenBLabel">50′</div>
+                    <button type="button" class="stepBtn" id="lenBPlus">+</button>
                   </div>
                 </div>
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevB" value="0">
                   <div class="steppers">
-                    <button type="button" class="stepBtn" id="elevBPlus">+</button>
-                    <div class="stepVal" id="elevBLabel">0′</div>
                     <button type="button" class="stepBtn" id="elevBMinus">−</button>
+                    <div class="stepVal" id="elevBLabel">0′</div>
+                    <button type="button" class="stepBtn" id="elevBPlus">+</button>
                   </div>
                 </div>
                 <div class="te-row">
@@ -394,6 +391,10 @@ export async function render(container){
                 </div>
               </div>
             </section>
+            
+                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
+              </div>
+            </div>
 
 
             <div class="te-row"><label>Wye</label>
@@ -795,19 +796,12 @@ export async function render(container){
       const custom = customs.find(h => String(h.id) === raw);
       if (custom) {
         const dia = normalizeDiaValue(custom.diameter ?? custom.dia ?? custom.size ?? '');
-        const cVal = typeof custom.c === 'number'
-          ? custom.c
-          : (typeof custom.flC === 'number' ? custom.flC : (COEFF[dia] ?? 15.5));
-
-        const diaLabel =
-          dia === '1.75' ? '1 3/4' :
-          dia === '2.5'  ? '2 1/2' :
-          dia || raw;
-
         return {
           id: String(custom.id),
-          label: `${diaLabel} C${cVal}`,
-          c: cVal
+          label: custom.label || custom.name || (dia ? `${dia}"` : raw),
+          c: typeof custom.c === 'number'
+            ? custom.c
+            : (typeof custom.flC === 'number' ? custom.flC : (COEFF[dia] ?? 15.5))
         };
       }
 
@@ -2170,7 +2164,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    if (teWhere) teWhere.value = where.toUpperCase();
+    teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye? 'on':'off';
 
@@ -3352,23 +3346,19 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#tipEditor{padding:18px !important}
-#tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
-#tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
-#tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important}
-#tipEditor .steppers{display:grid !important;grid-template-columns:1fr !important;grid-template-rows:auto auto auto !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;
-  background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
-#tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation}
-#tipEditor .stepBtn:active{transform:translateY(1px)}
-#tipEditor .stepVal{display:flex !important;align-items:center !important;justify-content:center !important;min-height:74px !important;padding:8px 10px !important;text-align:center !important;font-weight:900 !important;font-size:28px !important;white-space:nowrap !important;border-radius:16px !important;background:rgba(255,255,255,.04) !important;border:1px solid rgba(255,255,255,.08) !important}
-#tipEditor .segSwitch{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:10px !important;margin:10px 0 6px !important}
-#tipEditor .segBtn{min-height:54px !important;border-radius:14px !important;font-size:18px !important;font-weight:800 !important}
-#tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:18px !important}
-#tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
-#tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:480px){#tipEditor{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`;
+    s.textContent = `.te-row{display:flex !important;align-items:center !important;gap:14px !important;margin:12px 0 !important}
+.te-row>label{flex:0 0 128px !important;font-weight:800 !important;color:#eaf2ff !important;opacity:.95 !important;line-height:1.15 !important;font-size:16px !important}
+.te-row>select,.te-row>input:not([type="hidden"]),.te-row .steppers{flex:1 1 auto !important}
+.te-row>select,.te-row>input:not([type="hidden"]){width:100% !important;min-height:56px !important;height:56px !important;padding:12px 14px !important;border-radius:14px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;font-size:18px !important;font-weight:700 !important;line-height:1.2 !important}
+.te-row>select{padding-right:40px !important}
+.steppers{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;gap:0 !important;
+  background:#0b1a29;border:1px solid var(--edge);border-radius:14px;padding:0 !important;height:56px !important;width:100% !important;overflow:hidden !important}
+.stepBtn{background:rgba(255,255,255,.05);border:0 !important;color:#e9f1ff;font-weight:900;flex:0 0 60px !important;width:60px !important;height:56px !important;font-size:26px !important;touch-action:manipulation}
+.stepBtn:active{transform:translateY(1px)}
+.stepVal{flex:1 1 auto !important;text-align:center !important;font-weight:900 !important;font-size:19px !important;white-space:nowrap !important}
+.te-actions{display:flex !important;gap:10px !important;margin-top:14px !important}
+.te-actions .btn{min-height:54px !important;padding:12px 16px !important;font-size:17px !important;font-weight:800 !important}
+@media (max-width:480px){.te-row{flex-direction:column !important;align-items:stretch !important;gap:8px !important}.te-row>label{flex-basis:auto !important;width:100% !important;font-size:15px !important}.stepBtn{flex-basis:56px !important;width:56px !important;font-size:24px !important}.te-row>select,.te-row>input:not([type="hidden"]){font-size:17px !important}}`;
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
