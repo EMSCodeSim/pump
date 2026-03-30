@@ -66,6 +66,15 @@ function isNativeApp(){
 }
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
+
+function autoApplianceLoss(explicitLoss, flowGpm){
+  if (explicitLoss !== null && explicitLoss !== undefined && explicitLoss !== '') {
+    const num = Number(explicitLoss);
+    if (Number.isFinite(num)) return num;
+  }
+  return Number(flowGpm || 0) > 350 ? 10 : 0;
+}
+
 function resolveNozzleById(id){
   if (!id) return null;
   
@@ -1832,14 +1841,14 @@ function openPresetLineActions(id){
         PDP = (bnNoz.NP || 0)
             + branchFL
             + mainFL
-            + (L.wyeLoss || 10)
+            + autoApplianceLoss(L.wyeLoss, flow)
             + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        PDP = Math.max(lNeed, rNeed) + mainFL + autoApplianceLoss(L.wyeLoss, flow) + (L.elevFt * PSI_PER_FT);
       }else if(reducerOn){
-        const redLoss = (L.reducerLoss||10);
+        const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
         const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
         PDP = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
       }else{
@@ -1923,7 +1932,7 @@ function openPresetLineActions(id){
 
 const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(it => String(it?.size||'') === '5');
         if(L.hasWye && !single){
-          const wye = (L.wyeLoss ?? 10);
+          const wye = autoApplianceLoss(L.wyeLoss, bflow);
           wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
@@ -1960,7 +1969,7 @@ const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(i
           const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
           const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
           const noz = activeNozzle(L);
-          const wye = (L.wyeLoss ?? 10);
+          const wye = autoApplianceLoss(L.wyeLoss, bflow);
 
           wrap.innerHTML = `
             <details class="math" open>
@@ -2856,16 +2865,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
         const branchFL = FL_total_sections_175(bnNoz?.gpm||0, bnSegs);
-        sectionPsiMain = mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + autoApplianceLoss(L.wyeLoss, flowGpm) + (L.elevFt * PSI_PER_FT);
         sectionPsiDown = (bnNoz?.NP||0) + branchFL;
         ppPsi = sectionPsiMain + sectionPsiDown;
       } else if (L.hasWye) {
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        sectionPsiMain = mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + autoApplianceLoss(L.wyeLoss, flowGpm) + (L.elevFt * PSI_PER_FT);
         ppPsi = Math.max(lNeed, rNeed) + sectionPsiMain;
       } else if (reducerOn) {
-        const redLoss = (L.reducerLoss||10);
+        const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
         const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
         sectionPsiMain = mainFL + redLoss + (L.elevFt * PSI_PER_FT);
         sectionPsiDown = (L.nozRight?.NP||0) + downFL;
@@ -2955,7 +2964,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           if(L.nozRight){
             const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-            const redLoss = (L.reducerLoss||10);
+            const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
             const redSectionPP = (L.nozRight?.NP||0) + downFL;
             const redSize = hoseSizeForBubble(L.itemsRight);
             const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;

@@ -1,5 +1,14 @@
 // calcShared.js - shared math, geometry, persistence helpers for pump calc view
-import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
+import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST, applianceLoss } from './store.js';
+
+function autoApplianceLoss(explicitLoss, flowGpm){
+  if (explicitLoss !== null && explicitLoss !== undefined && explicitLoss !== '') {
+    const num = Number(explicitLoss);
+    if (Number.isFinite(num)) return num;
+  }
+  return applianceLoss(Number(flowGpm || 0));
+}
+
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
 
 function sectionsFor(items){
@@ -506,7 +515,7 @@ function ppExplainHTML(L){
     const rFLs = rSecs.map(sec => FL(L.nozRight?.gpm||0, sec.size, sec.lengthFt));
     const rParts = rSecs.map((sec,i)=>fmt(rFLs[i])+' ('+sec.lengthFt+'′ '+sizeLabel(sec.size)+')');
     const rSum = rFLs.reduce((x,y)=>x+y,0);
-    const reducerLoss = (L.reducerLoss||10);
+    const reducerLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
     const downNeed = (L.nozRight?.NP||0) + rSum;
     const total = downNeed + mainSum + reducerLoss + elevPsi;
     return `
@@ -529,7 +538,7 @@ function ppExplainHTML(L){
     const brFLs  = bnSecs.map(s => FL(noz.gpm || 0, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
-    const wyeLoss = (L.wyeLoss || 10);
+    const wyeLoss = autoApplianceLoss(L.wyeLoss, noz.gpm || 0);
     const total  = (noz.NP || 0) + brSum + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Single branch via wye):</b>
@@ -551,7 +560,7 @@ function ppExplainHTML(L){
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
     const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
     const maxNeed = Math.max(aNeed, bNeed);
-    const wyeLoss = (L.wyeLoss||10);
+    const wyeLoss = autoApplianceLoss(L.wyeLoss, (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0));
     const total = maxNeed + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Wye):</b>
