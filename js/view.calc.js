@@ -1052,75 +1052,23 @@ function gateWyeBySize(){
 
   function setSeg(seg){
     currentSeg = seg;
-
-    // helper show/hide with robust a11y + style guards
     const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
     const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-
-    // Highlight active button
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
+    ['#rowSize','#rowLen','#rowElev','#rowNoz'].forEach(sel=>{
       const el = container.querySelector(sel);
-      if (!el) return;
-      (seg==='main' ? showEl : hideEl)(el);
+      if (el) showEl(el);
     });
-    if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
-
-    // Branch sections — show only selected branch when wye is on
-    if (seg==='A'){ showEl(branchASection); hideEl(branchBSection); }
-    else if (seg==='B'){ showEl(branchBSection); hideEl(branchASection); }
-    else { hideEl(branchASection); hideEl(branchBSection); }
-
-    
-    // Additionally, for the legacy compact branchBlock, hide the opposite branch rows
+    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+    if (wyeRow) showEl(wyeRow);
+    hideEl(branchASection);
+    hideEl(branchBSection);
     const branchBlock = container.querySelector('#branchBlock');
-    if (branchBlock){
-      const rowA_len = branchBlock.querySelector('#teLenA')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenA"]')?.closest('.te-row');
-      const rowA_noz = branchBlock.querySelector('#teNozA')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch A noz")')?.closest('.te-row');
-      const rowB_len = branchBlock.querySelector('#teLenB')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenB"]')?.closest('.te-row');
-      const rowB_noz = branchBlock.querySelector('#teNozB')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch B noz")')?.closest('.te-row');
-      if (seg==='A'){
-        if (rowA_len) showEl(rowA_len);
-        if (rowA_noz) showEl(rowA_noz);
-        if (rowB_len) hideEl(rowB_len);
-        if (rowB_noz) hideEl(rowB_noz);
-      } else if (seg==='B'){
-        if (rowA_len) hideEl(rowA_len);
-        if (rowA_noz) hideEl(rowA_noz);
-        if (rowB_len) showEl(rowB_len);
-        if (rowB_noz) showEl(rowB_noz);
-      } else {
-        // main
-        if (rowA_len) hideEl(rowA_len);
-        if (rowA_noz) hideEl(rowA_noz);
-        if (rowB_len) hideEl(rowB_len);
-        if (rowB_noz) hideEl(rowB_noz);
-      }
-    }
-    // Lock diameter on branches
-    const teSize    = container.querySelector('#teSize');
-    const sizeLabel = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){
-      if (teSize) teSize.value = '1.75';
-      if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-      if (teSize) teSize.disabled = true;
-    } else {
-      if (teSize) teSize.disabled = false;
-    }
-
-    // Update “Where” label
-    const teWhere = container.querySelector('#teWhere');
-    if (teWhere){
-      teWhere.value = seg === 'main'
-        ? 'Main (to Wye)'
-        : seg === 'A'
-          ? 'Line A (left of wye)'
-          : 'Line B (right of wye)';
-    }
+    if (branchBlock) hideEl(branchBlock);
+    const branchWrap = container.querySelector('#branchPlusWrap');
+    if (branchWrap) branchWrap.style.display = 'none';
+    const teSize = container.querySelector('#teSize');
+    if (teSize) teSize.disabled = false;
   }
 function updateSegSwitchVisibility(){
     const wyeOn = teWye && teWye.value === 'on';
@@ -2214,14 +2162,20 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       }
     } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
-      ensureDefaultNozzleFor(L,'L',seg.size);
+      const branchHose = _plusGetDefaultBranchHose();
+      const seg = L.itemsLeft[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
+      teSize.value = String(seg._hoseId || branchHose.id || seg.size);
+      teLen.value = seg.lengthFt || 50;
+      ensureDefaultNozzleFor(L,'L',seg.size || branchHose.diameter);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
+      const branchHose = _plusGetDefaultBranchHose();
+      const seg = L.itemsRight[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
+      teSize.value = String(seg._hoseId || branchHose.id || seg.size);
+      teLen.value = seg.lengthFt || 50;
       setBranchBDefaultIfEmpty(L);
+      ensureDefaultNozzleFor(L,'R',seg.size || branchHose.diameter);
+      if(teNoz) teNoz.value = (L.nozRight?.id)||teNoz.value;
     }
 
     // After populating hidden values, sync the visible stepper labels
@@ -2286,9 +2240,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     if (typeof refreshNozzleSelectOptions === 'function') refreshNozzleSelectOptions();
     onOpenPopulateEditor(key, where);
-    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
-// Initialize segment selection based on clicked tip
-    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
+    if (container && container.__segEnsureUI) container.__segEnsureUI('main');
+    setSeg('main');
     updateSegSwitchVisibility();
 if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
@@ -2344,15 +2297,33 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         }
       }else{
         L.hasWye=true;
-        const lenA = Math.max(0, +teLenA?.value||0);
-        const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA, cValue:null, _hoseId:'1.75'}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB, cValue:null, _hoseId:'1.75'}] : [];
+        const branchHose = _plusGetDefaultBranchHose();
+        const lenA = Math.max(0, +teLenA?.value||50);
+        const lenB = Math.max(0, +teLenB?.value||50);
+        const leftSeed = (L.itemsLeft && L.itemsLeft[0]) ? L.itemsLeft[0] : null;
+        const rightSeed = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : null;
+        const leftId = String(leftSeed?._hoseId || branchHose.id || '1.75');
+        const rightId = String(rightSeed?._hoseId || branchHose.id || '1.75');
+        const leftMeta = _plusResolveHoseMeta(leftId);
+        const rightMeta = _plusResolveHoseMeta(rightId);
+        L.itemsLeft  = [{
+          size: String(leftMeta.diameter || branchHose.diameter || '1.75'),
+          lengthFt: lenA,
+          cValue: Number.isFinite(Number(leftMeta.c)) ? Number(leftMeta.c) : branchHose.c,
+          _hoseId: leftId
+        }];
+        L.itemsRight = [{
+          size: String(rightMeta.diameter || branchHose.diameter || '1.75'),
+          lengthFt: lenB,
+          cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c,
+          _hoseId: rightId
+        }];
+        ensureDefaultNozzleFor(L,'L',L.itemsLeft[0].size);
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
         if (!(L.nozRight?.id)){
           setBranchBDefaultIfEmpty(L);
         }
+        ensureDefaultNozzleFor(L,'R',L.itemsRight[0].size);
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
@@ -3233,6 +3204,24 @@ function _plusGetHoseListFromDept() {
     { id: '2.5',  diameter: '2.5',  c: 2,    label: '2 1/2" C2' },
     { id: '5',    diameter: '5',    c: 0.08, label: '5" C0.08' }
   ];
+}
+
+function _plusGetDefaultBranchHose() {
+  const list = _plusGetHoseListFromDept();
+  if (Array.isArray(list) && list.length) {
+    const preferred = list.find(item => {
+      const dia = String(item?.diameter ?? item?.id ?? '').trim();
+      return dia === '1.75' || dia === '1.5';
+    });
+    const chosen = preferred || list[0];
+    const meta = _plusResolveHoseMeta(chosen);
+    return {
+      id: String(chosen?.id ?? meta.id ?? '1.75'),
+      diameter: String(meta.diameter || '1.75'),
+      c: Number.isFinite(Number(meta.c)) ? Number(meta.c) : _plusDefaultCForHoseId(meta.diameter || '1.75')
+    };
+  }
+  return { id: '1.75', diameter: '1.75', c: 15.5 };
 }
 
 function initPlusMenus(root){
