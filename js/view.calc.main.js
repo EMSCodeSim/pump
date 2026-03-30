@@ -396,8 +396,8 @@ export async function render(container){
             </section>
 
 
-            <div class="te-row"><label>Wye</label>
-              <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
+            <div class="te-row"><label>Appliance</label>
+              <select id="teWye"><option value="off">None</option><option value="wye">Wye</option><option value="reducer">Reducer</option></select>
             </div>
 
             <div id="branchBlock" class="is-hidden">
@@ -1070,17 +1070,25 @@ function gateWyeBySize(){
     if (teSize) teSize.disabled = false;
   }
 function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value === 'on';
+    const appliance = teWye ? teWye.value : 'off';
+    const wyeOn = appliance === 'wye';
+    const reducerOn = appliance === 'reducer';
     if (segSwitch){
       // Hide seg switch UI completely; logic still works but buttons are not shown
       segSwitch.style.display = 'none';
     }
-    if (!wyeOn){
-      // Wye turned OFF → back to main and hide both branches
+    if (!wyeOn && !reducerOn){
       setSeg('main');
       return;
     }
-    // Wye turned ON → keep whatever segment matches the clicked "+" (main, A, or B)
+    if (reducerOn){
+      hideEl(branchASection);
+      if (branchBSection){ branchBSection.style.display=''; branchBSection.hidden=false; }
+      const bw = container.querySelector('#branchPlusWrap');
+      if (bw) bw.style.display = '';
+      setSeg(currentSeg==='R' ? 'R' : 'main');
+      return;
+    }
     setSeg(currentSeg);
   }
 
@@ -2045,8 +2053,19 @@ const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(i
 
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
-    const wyeOn = teWye?.value==='on';
+    const applianceMode = teWye?.value || 'off';
+    const wyeOn = applianceMode!=='off';
     if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
+    const bwTitle = container.querySelector('#branchPlusWrap .ink-strong');
+    if (bwTitle) bwTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branches (Wye)';
+    const aTitle = container.querySelector('#branchASection > div');
+    const bTitle = container.querySelector('#branchBSection > div');
+    if (aTitle) aTitle.textContent = 'Branch A';
+    if (bTitle) bTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branch B';
+    const aSec = container.querySelector('#branchASection');
+    if (aSec) aSec.style.display = (applianceMode==='reducer') ? 'none' : '';
+    const bSec = container.querySelector('#branchBSection');
+    if (bSec) bSec.style.display = wyeOn ? '' : 'none';
   }
 
   
@@ -2117,7 +2136,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
     if (teWhere) teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
-    teWye.value  = L.hasWye? 'on':'off';
+    teWye.value  = L.hasWye ? 'wye' : (L.hasReducer ? 'reducer' : 'off');
 
     if(where==='main'){
       const mainSegs = Array.isArray(L.itemsMain) && L.itemsMain.length
@@ -2254,9 +2273,11 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
     const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
-    const wyeOn = teWye.value==='on';
-    if (editorContext?.where==='main' && wyeOn){
+    if(branchWrap){ const on = teWye.value!=="off"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
+    const applianceMode = teWye.value||'off';
+    const wyeOn = applianceMode==='wye';
+    const reducerOn = applianceMode==='reducer';
+    if (editorContext?.where==='main' && (wyeOn || reducerOn)){
       const L = state.lines[editorContext.key];
       setBranchBDefaultIfEmpty(L);
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
@@ -2275,15 +2296,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     const size = String(hoseMeta.diameter || sizeRaw || '');
     const cValue = Number.isFinite(Number(hoseMeta.c)) ? Number(hoseMeta.c) : null;
     const len = Math.max(0, +teLen.value||0);
-    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
+    const elev=+teElev.value||0; const applianceMode = teWye.value||'off';
+    const wyeOn = applianceMode==='wye';
+    const reducerOn = applianceMode==='reducer';
     L.elevFt = elev;
 
     if(where==='main'){
       L._hoseId = sizeRaw;
       L.itemsMain = [{size, lengthFt:len, cValue, _hoseId:sizeRaw}];
-      if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // default nozzle by diameter if unset OR use chosen
+      if(!wyeOn && !reducerOn){
+        L.hasWye=false; L.hasReducer=false; L.itemsLeft=[]; L.itemsRight=[];
         if (teNoz && teNoz.value){
           const chosen = resolveNozzleById(teNoz.value);
           if (chosen){
@@ -2294,8 +2316,8 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         } else {
           ensureDefaultNozzleFor(L,'main',size);
         }
-      }else{
-        L.hasWye=true;
+      }else if(wyeOn){
+        L.hasWye=true; L.hasReducer=false;
         const branchHose = _plusGetDefaultBranchHose();
         const lenA = Math.max(0, +teLenA?.value||50);
         const lenB = Math.max(0, +teLenB?.value||50);
@@ -2305,32 +2327,32 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         const rightId = String(rightSeed?._hoseId || branchHose.id || '1.75');
         const leftMeta = _plusResolveHoseMeta(leftId);
         const rightMeta = _plusResolveHoseMeta(rightId);
-        L.itemsLeft  = [{
-          size: String(leftMeta.diameter || branchHose.diameter || '1.75'),
-          lengthFt: lenA,
-          cValue: Number.isFinite(Number(leftMeta.c)) ? Number(leftMeta.c) : branchHose.c,
-          _hoseId: leftId
-        }];
-        L.itemsRight = [{
-          size: String(rightMeta.diameter || branchHose.diameter || '1.75'),
-          lengthFt: lenB,
-          cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c,
-          _hoseId: rightId
-        }];
+        L.itemsLeft  = [{ size: String(leftMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenA, cValue: Number.isFinite(Number(leftMeta.c)) ? Number(leftMeta.c) : branchHose.c, _hoseId: leftId }];
+        L.itemsRight = [{ size: String(rightMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenB, cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c, _hoseId: rightId }];
         ensureDefaultNozzleFor(L,'L',L.itemsLeft[0].size);
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
-        }
+        if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
+        ensureDefaultNozzleFor(L,'R',L.itemsRight[0].size);
+        if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
+      }else{
+        L.hasWye=false; L.hasReducer=true; L.itemsLeft=[];
+        const branchHose = _plusGetDefaultBranchHose();
+        const lenB = Math.max(0, +teLenB?.value||50);
+        const rightSeed = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : null;
+        const rightId = String(rightSeed?._hoseId || branchHose.id || '1.75');
+        const rightMeta = _plusResolveHoseMeta(rightId);
+        L.itemsRight = [{ size: String(rightMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenB, cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c, _hoseId: rightId }];
+        L.nozLeft = null;
         ensureDefaultNozzleFor(L,'R',L.itemsRight[0].size);
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.hasWye = true; L.hasReducer = false; L.itemsLeft = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
       if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
       else ensureDefaultNozzleFor(L,'L',size);
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.itemsRight = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.hasWye = wyeOn; L.hasReducer = reducerOn || (!wyeOn && (L.hasReducer || applianceMode==='reducer'));
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
@@ -2375,6 +2397,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
           // Straight line, no wye branches
           L.hasWye    = false;
+          L.hasReducer = false;
           L.itemsLeft = [];
           L.itemsRight= [];
 
@@ -2592,6 +2615,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
       // Restore as a single straight line (no wye branches)
       L.hasWye = false;
+      L.hasReducer = false;
       L.itemsLeft = [];
       L.itemsRight = [];
 
@@ -2812,8 +2836,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       // Per-line flow + pump pressure (PDP) used for label bubbles
+      const reducerOn = !!L.hasReducer;
       const single = L.hasWye && isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : (L.hasWye ? null : L.nozRight);
+      const usedNoz = single ? activeNozzle(L) : ((L.hasWye && !reducerOn) ? null : L.nozRight);
       const flowGpm = single ? (usedNoz?.gpm||0)
                     : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
       const mainFL = FL_total_sections_175(flowGpm, L.itemsMain);
@@ -2828,6 +2853,10 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
         ppPsi = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+      } else if (reducerOn) {
+        const redLoss = (L.reducerLoss||10);
+        const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+        ppPsi = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
       } else {
         ppPsi = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
@@ -2880,19 +2909,48 @@ const row1 = (()=>{
   if (L.hasWye) {
     return `${mainFt}' ${mainSize} @ Wye`;
   }
+  if (L.hasReducer) {
+    return `${mainFt}' ${mainSize} @ Reducer`;
+  }
   return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
 
 // Row 2 rules:
 // - If a Wye is used, do NOT show PP on the trunk line bubble (engine -> wye). Show total flow instead.
 // - For non-wye lines, show PP + GPM.
-const row2 = L.hasWye
+const row2 = (L.hasWye && !L.hasReducer)
   ? `Total ${Math.round(flowGpm)} gpm`
   : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
 
 // Lift bubbles higher so they don't get covered by the + hit target.
 addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-14:(key==='back')?-26:-38);
 
+
+      if(L.hasReducer){
+        const redFt = sumFt(L.itemsRight||[]);
+        if(redFt>0){
+          const dirMul = key==='left' ? -1 : (key==='right' ? 1 : 0);
+          const run = (redFt/50)*PX_PER_50FT;
+          const endX = geom.endX + (dirMul===0 ? 0 : dirMul*run*0.92);
+          const endY = geom.endY - (dirMul===0 ? run : run*0.28);
+          const d = `M ${geom.endX} ${geom.endY} L ${endX} ${endY}`;
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', d); G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          if(L.nozRight){
+            const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+            const redLoss = (L.reducerLoss||10);
+            const redPP = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
+            const redSize = hoseSizeForBubble(L.itemsRight);
+            const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;
+            const row2R = `PP ${Math.round(redPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
+            addLabel(G_labels, row1R + '
+' + row2R, endX-40, endY-22, -4);
+          }
+          addTip(G_tips, key,'R',endX,endY);
+        } else {
+          addTip(G_tips, key,'R',geom.endX,geom.endY-20);
+        }
+      } else
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){

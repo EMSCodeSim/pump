@@ -562,6 +562,7 @@ function seedInitialDefaults(){
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
+      hasReducer: false,
       elevFt: 0,
       nozRight: NOZ.fog150_50 || null,
     },
@@ -572,6 +573,7 @@ function seedInitialDefaults(){
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
+      hasReducer: false,
       elevFt: 0,
       nozRight: NOZ.fog150_50 || null,
     },
@@ -582,6 +584,7 @@ function seedInitialDefaults(){
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
+      hasReducer: false,
       elevFt: 0,
       nozRight: NOZ.chiefXD265 || NOZ.chief185_50 || null,
     }
@@ -599,7 +602,7 @@ export function seedDefaultsForKey(key){
     && Array.isArray(L.itemsLeft) && L.itemsLeft.length === 0
     && Array.isArray(L.itemsRight) && L.itemsRight.length === 0
     && !L.nozRight && !L.nozLeft
-    && !L.hasWye;
+    && !L.hasWye && !L.hasReducer;
 
   if (key === 'left' || key === 'back' || key === 'right') {
     if (!existing || isPlaceholder(existing)) {
@@ -623,6 +626,7 @@ export function seedDefaultsForKey(key){
       itemsLeft: [],
       itemsRight: [],
       hasWye: false,
+      hasReducer: false,
       elevFt: 0,
       nozRight: null,
     };
