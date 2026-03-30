@@ -2930,10 +2930,11 @@ const row1 = (()=>{
 })();
 
 // Row 2 rules:
-// - If a Wye is used, do NOT show PP on the trunk line bubble (engine -> wye). Show total flow instead.
-// - For non-wye lines, show PP + GPM.
+// - For Wye and Reducer mains, show only the PP for the main/trunk section.
+// - Branch/end bubbles show only the PP for that branch section.
+// - Dashboard max PP still shows the combined total requirement.
 const row2 = (L.hasWye && !L.hasReducer)
-  ? `Total ${Math.round(flowGpm)} gpm`
+  ? `PP ${Math.round(sectionPsiMain)} psi • ${Math.round(flowGpm)} gpm`
   : (L.hasReducer
       ? `PP ${Math.round(sectionPsiMain)} psi • ${Math.round(flowGpm)} gpm`
       : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
@@ -2976,7 +2977,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
             const lenLeft = sumFt(L.itemsLeft||[]);
             if(lenLeft>0 && L.nozLeft){
               const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
-              const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const branchPP = (L.nozLeft?.NP||0) + branchFL;
               const brSizeL = hoseSizeForBubble(L.itemsLeft);
               const row1L = `${lenLeft}' ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
               const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
@@ -2994,7 +2995,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
             const lenRight = sumFt(L.itemsRight||[]);
             if(lenRight>0 && L.nozRight){
               const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-              const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const branchPP = (L.nozRight?.NP||0) + branchFL;
               const brSizeR = hoseSizeForBubble(L.itemsRight);
               const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;

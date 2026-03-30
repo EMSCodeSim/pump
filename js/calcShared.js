@@ -490,7 +490,7 @@ function ppExplainHTML(L){
   const elevPsi = (L.elevFt||0) * PSI_PER_FT;
   const elevStr = (elevPsi>=0? '+':'')+fmt(elevPsi)+' psi';
 
-  if(!L.hasWye){
+  if(!L.hasWye && !L.hasReducer){
     return `
       <div><b>Simple PP:</b>
         <ul class="simpleList">
@@ -499,6 +499,26 @@ function ppExplainHTML(L){
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
         <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
+      </div>
+    `;
+  } else if(L.hasReducer){
+    const rSecs = sectionsFor(L.itemsRight);
+    const rFLs = rSecs.map(sec => FL(L.nozRight?.gpm||0, sec.size, sec.lengthFt));
+    const rParts = rSecs.map((sec,i)=>fmt(rFLs[i])+' ('+sec.lengthFt+'′ '+sizeLabel(sec.size)+')');
+    const rSum = rFLs.reduce((x,y)=>x+y,0);
+    const reducerLoss = (L.reducerLoss||10);
+    const downNeed = (L.nozRight?.NP||0) + rSum;
+    const total = downNeed + mainSum + reducerLoss + elevPsi;
+    return `
+      <div><b>Simple PP (Reducer):</b>
+        <ul class="simpleList">
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Reducer</b> = +${fmt(reducerLoss)} psi</li>
+          <li><b>Downstream Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+          <li><b>Downstream FL</b> = ${rSecs.length ? rParts.join(' + ') : 0} = <b>${fmt(rSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
+        </ul>
+        <div style="margin-top:6px"><b>PP = Main FL + Reducer + NP (downstream) + Downstream FL ± Elev = ${fmt(mainSum)} + ${fmt(reducerLoss)} + ${fmt(L.nozRight?.NP||0)} + ${fmt(rSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else if(single){
@@ -536,9 +556,9 @@ function ppExplainHTML(L){
     return `
       <div><b>Simple PP (Wye):</b>
         <ul class="simpleList">
-          <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
-          <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
-          <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+          <li><b>Branch A section PP</b> = ${Math.round(aNeed)} psi</li>
+          <li><b>Branch B section PP</b> = ${Math.round(bNeed)} psi</li>
+          <li><b>Use the higher branch section PP</b> = <b>${Math.round(maxNeed)} psi</b></li>
           <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
           <li><b>Wye</b> = +${wyeLoss} psi</li>
           <li><b>Elevation</b> = ${elevStr}</li>
