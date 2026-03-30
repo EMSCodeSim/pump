@@ -2943,8 +2943,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
             const redSize = hoseSizeForBubble(L.itemsRight);
             const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;
             const row2R = `PP ${Math.round(redPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
-            addLabel(G_labels, row1R + '
-' + row2R, endX-40, endY-22, -4);
+            addLabel(G_labels, row1R + '\n' + row2R, endX-40, endY-22, -4);
           }
           addTip(G_tips, key,'R',endX,endY);
         } else {
