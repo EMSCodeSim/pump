@@ -503,22 +503,24 @@ function ppExplainHTML(L){
     `;
   } else if(single){
     // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
-    const noz = activeNozzle(L);
-    const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+    const noz = activeNozzle(L) || { NP: 0, gpm: 0 };
+    const bnSegs = side==='L'? (L.itemsLeft || []) : (L.itemsRight || []);
     const bnSecs = sectionsFor(bnSegs);
-    const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
+    const brFLs  = bnSecs.map(s => FL(noz.gpm || 0, s.size, s.lengthFt));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
-    const total  = noz.NP + brSum + mainSum + elevPsi;
+    const wyeLoss = (L.wyeLoss || 10);
+    const total  = (noz.NP || 0) + brSum + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP || 0)} psi</li>
           <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
           <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Wye</b> = +${fmt(wyeLoss)} psi</li>
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL + Wye ± Elev = ${fmt(noz.NP || 0)} + ${fmt(brSum)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else {

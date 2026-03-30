@@ -1869,10 +1869,14 @@ function openPresetLineActions(id){
       let PDP=0;
       if(single){
         const side = activeSide(L);
-        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
-        const bnNoz  = activeNozzle(L);
-        const branchFL = FL_total_sections_175(bnNoz.gpm, bnSegs);
-        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        const bnSegs = side==='L' ? (L.itemsLeft || []) : (L.itemsRight || []);
+        const bnNoz  = activeNozzle(L) || { NP: 0, gpm: 0 };
+        const branchFL = FL_total_sections_175(bnNoz.gpm || 0, bnSegs);
+        PDP = (bnNoz.NP || 0)
+            + branchFL
+            + mainFL
+            + (L.wyeLoss || 10)
+            + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);

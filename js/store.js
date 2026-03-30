@@ -636,30 +636,38 @@ export function seedDefaultsForKey(key){
  * ========================= */
 export function isSingleWye(L){
   if(!L || !L.hasWye) return false;
+
   const leftLen  = sumFt(L.itemsLeft || []);
   const rightLen = sumFt(L.itemsRight || []);
-  const leftOn   = leftLen > 0 || !!L.nozLeft;
-  const rightOn  = rightLen > 0 || !!L.nozRight;
+
+  const leftOn  = leftLen > 0;
+  const rightOn = rightLen > 0;
+
   return (leftOn && !rightOn) || (!leftOn && rightOn);
 }
 
 // These two exports MUST exist for view.calc.main.js and bubbles
 export function activeSide(L){
   if(!L) return 'R';
+
   const l = sumFt(L.itemsLeft || []);
   const r = sumFt(L.itemsRight || []);
+
   if(l > 0 && r <= 0) return 'L';
   if(r > 0 && l <= 0) return 'R';
+
   return 'R';
 }
 
 export function activeNozzle(L){
   if(!L) return null;
+
   if(isSingleWye(L)){
     return activeSide(L) === 'L'
-      ? (L.nozLeft || L.nozRight)
-      : (L.nozRight || L.nozLeft);
+      ? (L.nozLeft || null)
+      : (L.nozRight || null);
   }
+
   return L.nozRight || L.nozLeft || null;
 }
 
