@@ -455,7 +455,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     r.setAttribute('rx',5); r.setAttribute('ry',5);
     svg.appendChild(r);
 
-    const fl=FL(gpm,seg.size,seg.lengthFt);
+    const fl=FL(gpm, seg.size, seg.lengthFt, (seg.cValue ?? seg.c ?? null));
     const tx=document.createElementNS(svgNS,'text');
     tx.setAttribute('fill','#0b0f14'); tx.setAttribute('font-size','11');
     tx.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
@@ -493,7 +493,7 @@ function ppExplainHTML(L){
              : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
                         : (L.nozRight?.gpm||0);
   const mainSecs = sectionsFor(L.itemsMain);
-  const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
+  const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
   const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
   const mainSum = mainFLs.reduce((a,c)=>a+c,0);
   const elevPsi = (L.elevFt||0) * PSI_PER_FT;
@@ -512,7 +512,7 @@ function ppExplainHTML(L){
     `;
   } else if(L.hasReducer){
     const rSecs = sectionsFor(L.itemsRight);
-    const rFLs = rSecs.map(sec => FL(L.nozRight?.gpm||0, sec.size, sec.lengthFt));
+    const rFLs = rSecs.map(sec => FL(L.nozRight?.gpm||0, sec.size, sec.lengthFt, (sec.cValue ?? sec.c ?? null)));
     const rParts = rSecs.map((sec,i)=>fmt(rFLs[i])+' ('+sec.lengthFt+'′ '+sizeLabel(sec.size)+')');
     const rSum = rFLs.reduce((x,y)=>x+y,0);
     const reducerLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
@@ -535,7 +535,7 @@ function ppExplainHTML(L){
     const noz = activeNozzle(L) || { NP: 0, gpm: 0 };
     const bnSegs = side==='L'? (L.itemsLeft || []) : (L.itemsRight || []);
     const bnSecs = sectionsFor(bnSegs);
-    const brFLs  = bnSecs.map(s => FL(noz.gpm || 0, s.size, s.lengthFt));
+    const brFLs  = bnSecs.map(s => FL(noz.gpm || 0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
     const wyeLoss = autoApplianceLoss(L.wyeLoss, noz.gpm || 0);
@@ -555,8 +555,8 @@ function ppExplainHTML(L){
   } else {
     const aSecs = sectionsFor(L.itemsLeft);
     const bSecs = sectionsFor(L.itemsRight);
-    const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
-    const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
+    const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
+    const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
     const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
     const maxNeed = Math.max(aNeed, bNeed);
@@ -572,7 +572,7 @@ function ppExplainHTML(L){
           <li><b>Wye</b> = +${wyeLoss} psi</li>
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   }

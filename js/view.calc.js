@@ -1023,9 +1023,10 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
+        const applianceMode = tip.querySelector('#teWye')?.value || 'off';
+        const isOn = applianceMode !== 'off';
         const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        wrap.style.display = 'none';
         if (!(isOn && sizeOK)){
           // collapse back to Main if user turned Wye off or size is not 2.5
           setActive('main');
@@ -1080,26 +1081,15 @@ function gateWyeBySize(){
     if (teSize) teSize.disabled = false;
   }
 function updateSegSwitchVisibility(){
-    const appliance = teWye ? teWye.value : 'off';
-    const wyeOn = appliance === 'wye';
-    const reducerOn = appliance === 'reducer';
-    if (segSwitch){
-      // Hide seg switch UI completely; logic still works but buttons are not shown
-      segSwitch.style.display = 'none';
-    }
-    if (!wyeOn && !reducerOn){
-      setSeg('main');
-      return;
-    }
-    if (reducerOn){
-      hideEl(branchASection);
-      if (branchBSection){ branchBSection.style.display=''; branchBSection.hidden=false; }
-      const bw = container.querySelector('#branchPlusWrap');
-      if (bw) bw.style.display = '';
-      setSeg(currentSeg==='R' ? 'R' : 'main');
-      return;
-    }
-    setSeg(currentSeg);
+    if (segSwitch) segSwitch.style.display = 'none';
+    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+    hideEl(branchASection);
+    hideEl(branchBSection);
+    const branchBlock = container.querySelector('#branchBlock');
+    if (branchBlock) hideEl(branchBlock);
+    const bw = container.querySelector('#branchPlusWrap');
+    if (bw) bw.style.display = 'none';
+    setSeg('main');
   }
 
   // Bind seg buttons
@@ -2070,18 +2060,24 @@ const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(i
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
     const applianceMode = teWye?.value || 'off';
-    const wyeOn = applianceMode!=='off';
-    if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
+    const applianceOn = applianceMode !== 'off';
+    if(rowNoz) rowNoz.style.display = (where==='main' && applianceOn) ? 'none' : '';
+
+    // Old inline branch editor panels are no longer used.
+    // Branches / reducer downstream are edited from each hose end '+' only.
     const bwTitle = container.querySelector('#branchPlusWrap .ink-strong');
     if (bwTitle) bwTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branches (Wye)';
     const aTitle = container.querySelector('#branchASection > div');
     const bTitle = container.querySelector('#branchBSection > div');
     if (aTitle) aTitle.textContent = 'Branch A';
     if (bTitle) bTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branch B';
+
+    const branchWrap = container.querySelector('#branchPlusWrap');
+    if (branchWrap) branchWrap.style.display = 'none';
     const aSec = container.querySelector('#branchASection');
-    if (aSec) aSec.style.display = (applianceMode==='reducer') ? 'none' : '';
+    if (aSec) aSec.style.display = 'none';
     const bSec = container.querySelector('#branchBSection');
-    if (bSec) bSec.style.display = wyeOn ? '' : 'none';
+    if (bSec) bSec.style.display = 'none';
   }
 
   
@@ -2255,7 +2251,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const L = state.lines[key];
     const hoseMeta = _plusResolveHoseMeta(teSize.value);
     const size = String(hoseMeta.diameter || teSize.value || '');
-    if (where==='main' && teWye.value!=='on'){
+    if (where==='main' && (teWye?.value || 'off') === 'off'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
     } else if (where==='L'){
@@ -2289,7 +2285,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
     const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value!=="off"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
+    if(branchWrap){ branchWrap.style.display = 'none'; }
     const applianceMode = teWye.value||'off';
     const wyeOn = applianceMode==='wye';
     const reducerOn = applianceMode==='reducer';
@@ -2299,6 +2295,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
+    updateSegSwitchVisibility();
   });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
