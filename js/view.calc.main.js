@@ -309,8 +309,6 @@ export async function render(container){
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
 
-
-            
             <!-- Diameter / hose size: same dropdown source used by Department Setup -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
@@ -323,6 +321,8 @@ export async function render(container){
               <select id="teNoz"></select>
             </div>
 
+            <div class="te-row" id="rowWhere"><label>Where</label><input id="teWhere" readonly></div>
+
             <!-- Length: + [value] -, steps of 50' -->
             <div class="te-row" id="rowLen">
               <label>Length (ft)</label>
@@ -333,8 +333,7 @@ export async function render(container){
                 <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
               </div>
             </div>
-
-            <!-- Elevation: + [value] -, steps of 10' -->
+            <!-- Elevation: + [value] -, steps of 1' -->
             <div class="te-row" id="rowElev">
               <label>Elevation (ft)</label>
               <input type="hidden" id="teElev" value="0">
@@ -345,11 +344,10 @@ export async function render(container){
               </div>
             </div>
 
-            <!-- Branch controls (visible only when Wye is active) -->
+            <!-- Branch controls (kept hidden; branch editing is from each branch +) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
 
-              <!-- Branch A -->
               <div class="card" id="branchASection" style="padding:8px; margin-bottom:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch A</div>
                 <div class="te-row">
@@ -376,7 +374,6 @@ export async function render(container){
                 </div>
               </div>
 
-              <!-- Branch B -->
               <div class="card" id="branchBSection" style="padding:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch B</div>
                 <div class="te-row">
@@ -404,8 +401,7 @@ export async function render(container){
               </div>
             </section>
 
-
-            <div class="te-row"><label>Appliance</label>
+<div class="te-row"><label>Appliance</label>
               <select id="teWye"><option value="off">None</option><option value="wye">Wye</option><option value="reducer">Reducer</option></select>
             </div>
 
@@ -2952,21 +2948,19 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
       if(L.hasReducer){
         const redFt = sumFt(L.itemsRight||[]);
         if(redFt>0){
-          const dirMul = key==='left' ? -1 : (key==='right' ? 1 : 0);
           const run = (redFt/50)*PX_PER_50FT;
-          const endX = geom.endX + (dirMul===0 ? 0 : dirMul*run*0.92);
-          const endY = geom.endY - (dirMul===0 ? run : run*0.28);
+          const endX = geom.endX;
+          const endY = Math.max(8, geom.endY - run);
           const d = `M ${geom.endX} ${geom.endY} L ${endX} ${endY}`;
           const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', d); G_branches.appendChild(pathR);
           drawSegmentedPath(G_branches, pathR, L.itemsRight);
           if(L.nozRight){
             const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-            const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
             const redSectionPP = (L.nozRight?.NP||0) + downFL;
             const redSize = hoseSizeForBubble(L.itemsRight);
             const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;
             const row2R = `PP ${Math.round(redSectionPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
-            addLabel(G_labels, row1R + '\n' + row2R, endX-40, endY-22, -4);
+            addLabel(G_labels, row1R + '\n' + row2R, endX, endY-22, -4);
           }
           addTip(G_tips, key,'R',endX,endY);
         } else {
@@ -3418,26 +3412,27 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#tipEditor{padding:18px !important;font-size:16px !important;-webkit-text-size-adjust:100% !important}
+    s.textContent = `#tipEditor{padding:18px !important;display:flex !important;flex-direction:column !important}
 #tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
+#tipEditor #rowSize{order:10 !important}
+#tipEditor #rowNoz{order:11 !important}
+#tipEditor #rowWhere{order:12 !important}
+#tipEditor #rowLen{order:13 !important}
+#tipEditor #rowElev{order:14 !important}
 #tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
-#tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important;width:100% !important;flex:none !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers,#tipEditor #teWhere{width:100% !important;max-width:100% !important;box-sizing:border-box !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;font-weight:700 !important;border-radius:16px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;line-height:1.2 !important}
-#tipEditor .te-row>select{padding-right:42px !important}
-#tipEditor .steppers{display:grid !important;grid-template-columns:1fr !important;grid-template-rows:auto auto auto !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29 !important;border:1px solid var(--edge) !important;border-radius:20px !important;padding:12px !important;width:100% !important;overflow:hidden !important;height:auto !important}
-#tipEditor .stepBtn{background:rgba(255,255,255,.08) !important;border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff !important;font-weight:900 !important;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation !important;flex:none !important;height:auto !important}
+#tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important}
+#tipEditor .steppers{display:grid !important;grid-template-columns:1fr !important;grid-template-rows:auto auto auto !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
+#tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation}
 #tipEditor .stepBtn:active{transform:translateY(1px)}
-#tipEditor .stepVal{display:flex !important;align-items:center !important;justify-content:center !important;min-height:74px !important;padding:8px 10px !important;text-align:center !important;font-weight:900 !important;font-size:28px !important;white-space:nowrap !important;border-radius:16px !important;background:rgba(255,255,255,.04) !important;border:1px solid rgba(255,255,255,.08) !important;flex:none !important}
-#tipEditor .segSwitch{display:none !important}
+#tipEditor .stepVal{display:flex !important;align-items:center !important;justify-content:center !important;min-height:74px !important;padding:8px 10px !important;text-align:center !important;font-weight:900 !important;font-size:28px !important;white-space:nowrap !important;border-radius:16px !important;background:rgba(255,255,255,.04) !important;border:1px solid rgba(255,255,255,.08) !important}
+#tipEditor .segSwitch{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:10px !important;margin:10px 0 6px !important}
 #tipEditor .segBtn{min-height:54px !important;border-radius:14px !important;font-size:18px !important;font-weight:800 !important}
 #tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:18px !important}
 #tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
-#tipEditor #branchPlusWrap,#tipEditor #branchBlock{display:none !important}
-#tipEditor .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:768px){#tipEditor{padding:16px !important}#tipEditor .mini{font-size:19px !important}#tipEditor .te-row{margin:14px 0 !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:58px !important}#tipEditor .stepBtn{min-height:64px !important;font-size:32px !important}#tipEditor .stepVal{min-height:70px !important;font-size:26px !important}}
-@media (max-width:480px){#tipEditor{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:16px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:17px !important;min-height:56px !important;padding:13px 14px !important}#tipEditor .stepBtn{min-height:60px !important;font-size:30px !important}#tipEditor .stepVal{min-height:66px !important;font-size:24px !important}#tipEditor .te-actions .btn{min-height:56px !important;font-size:17px !important}}
-@media (max-width:380px){#tipEditor .te-actions{grid-template-columns:1fr !important}}`;
+#tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
+@media (max-width:480px){#tipEditor{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
