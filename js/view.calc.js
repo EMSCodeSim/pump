@@ -309,6 +309,8 @@ export async function render(container){
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
 
+            <div class="te-row" id="rowWhere"><label>Where</label><input id="teWhere" readonly></div>
+
             <!-- Diameter / hose size: same dropdown source used by Department Setup -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
@@ -321,7 +323,9 @@ export async function render(container){
               <select id="teNoz"></select>
             </div>
 
-            <div class="te-row" id="rowWhere"><label>Where</label><input id="teWhere" readonly></div>
+            <div class="te-row" id="rowApp"><label>Appliance</label>
+              <select id="teWye"><option value="off">None</option><option value="wye">Wye</option><option value="reducer">Reducer</option></select>
+            </div>
 
             <!-- Length: + [value] -, steps of 50' -->
             <div class="te-row" id="rowLen">
@@ -400,10 +404,6 @@ export async function render(container){
                 </div>
               </div>
             </section>
-
-            <div class="te-row"><label>Appliance</label>
-              <select id="teWye"><option value="off">None</option><option value="wye">Wye</option><option value="reducer">Reducer</option></select>
-            </div>
 
             <div id="branchBlock" class="is-hidden">
               <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
@@ -3413,11 +3413,12 @@ function initPlusMenus(root){
     const s=document.createElement('style');
     s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
 #tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
-#tipEditor #rowSize{order:10 !important}
-#tipEditor #rowNoz{order:11 !important}
-#tipEditor #rowWhere{order:12 !important}
-#tipEditor #rowLen{order:13 !important}
-#tipEditor #rowElev{order:14 !important}
+#tipEditor #rowWhere{order:10 !important}
+#tipEditor #rowSize{order:11 !important}
+#tipEditor #rowNoz{order:12 !important}
+#tipEditor #rowApp{order:13 !important}
+#tipEditor #rowLen{order:14 !important}
+#tipEditor #rowElev{order:15 !important}
 #tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
 #tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
 #tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
