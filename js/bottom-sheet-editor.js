@@ -90,22 +90,14 @@
         to   { opacity:1;   transform: translateZ(0) scale(1) }
       }
 
-      /* Comfy mobile controls */
-      #tipEditor .te-row label{
-        font-weight:800; color:#dfe9ff; display:block; margin:6px 0 4px;
-      }
-      #tipEditor .te-row input, #tipEditor .te-row select{
-        width:100%; padding:12px 14px; border-radius:14px;
-        background:#0b1420; color:#eaf2ff;
-        border:1px solid rgba(255,255,255,.22);
-      }
+      /* Mobile-friendly overlay shell only; field sizing lives in view.calc.js */
       #tipEditor .te-actions{
         position: sticky; bottom: 0;
-        background: rgba(14,21,30,.9);
-        padding-top: 8px; margin-top: 10px;
+        background: rgba(14,21,30,.94);
+        padding-top: 10px; margin-top: 12px;
       }
       #tipEditor .te-actions .btn{
-        min-height: 44px; padding: 10px 14px; border-radius:12px;
+        min-height: 52px; padding: 12px 14px; border-radius:14px;
       }
     `;
     document.head.appendChild(s);
@@ -229,7 +221,7 @@
 
   // ---- Wye toggle reveals branch inputs
   if(teWye && branchBlock){
-    const sync = ()=> branchBlock.classList.toggle('is-hidden', teWye.value !== 'on');
+    const sync = ()=> branchBlock.classList.toggle('is-hidden', !['on','wye'].includes(String(teWye.value||'').toLowerCase()));
     teWye.addEventListener('change', sync);
     requestAnimationFrame(sync);
   }
