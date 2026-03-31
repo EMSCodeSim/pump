@@ -2270,9 +2270,8 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     updateSegSwitchVisibility();
 if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
-      _setEditorOpen(true);
     } else {
-      // Minimal fallback
+      // Minimal fallback when the overlay helper is unavailable
       _setEditorOpen(true);
     }
   });
@@ -3412,7 +3411,7 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#tipEditor{padding:18px !important;display:flex !important;flex-direction:column !important}
+    s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
 #tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
 #tipEditor #rowSize{order:10 !important}
 #tipEditor #rowNoz{order:11 !important}
@@ -3433,7 +3432,7 @@ function initPlusMenus(root){
 #tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:18px !important}
 #tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
 #tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:480px){#tipEditor{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
+@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }
