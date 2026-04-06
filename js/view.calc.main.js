@@ -2106,7 +2106,7 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
+function onOpenPopulateEditor(key, where, opts = {}){ 
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -2135,7 +2135,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
+    if (teWhere) teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye ? 'wye' : (L.hasReducer ? 'reducer' : 'off');
 
@@ -2203,6 +2203,9 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
   }
+
+  window._openTipEditor = onOpenPopulateEditor;
+
   // Branch nozzle change listeners (mirror main lines)
   try {
     const nozA = tip.querySelector('#teNozA');
