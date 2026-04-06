@@ -2141,7 +2141,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
+    if (teWhere) teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
     teWye.value  = L.hasWye ? 'wye' : (L.hasReducer ? 'reducer' : 'off');
 
@@ -3459,8 +3459,7 @@ function initPlusMenus(root){
 #tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
 #tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
 #tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;font-weight:700 !important;line-height:1.2 !important}
-#tipEditor .te-row>select{padding-right:40px !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important}
 #tipEditor .steppers{display:grid !important;grid-template-columns:1fr 1.3fr 1fr !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
 #tipEditor .steppers.inline-stepper{grid-template-columns:minmax(72px,.9fr) minmax(112px,1.4fr) minmax(72px,.9fr) !important;grid-template-rows:1fr !important}
 #tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation;display:flex !important;align-items:center !important;justify-content:center !important}

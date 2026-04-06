@@ -1,5 +1,14 @@
 // calcShared.js - shared math, geometry, persistence helpers for pump calc view
-import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST } from './store.js';
+import { state, NOZ, COLORS, FL, FL_total, sumFt, splitIntoSections, PSI_PER_FT, seedDefaultsForKey, isSingleWye, activeNozzle, activeSide, sizeLabel, NOZ_LIST, applianceLoss } from './store.js';
+
+function autoApplianceLoss(explicitLoss, flowGpm){
+  if (explicitLoss !== null && explicitLoss !== undefined && explicitLoss !== '') {
+    const num = Number(explicitLoss);
+    if (Number.isFinite(num)) return num;
+  }
+  return applianceLoss(Number(flowGpm || 0));
+}
+
 // --- SEGMENTED FL HELPERS: force math to 50′/100′ problems ---
 
 function sectionsFor(items){
@@ -446,7 +455,7 @@ function drawHoseBar(containerEl, sections, gpm, npPsi, nozzleText, pillOverride
     r.setAttribute('rx',5); r.setAttribute('ry',5);
     svg.appendChild(r);
 
-    const fl=FL(gpm,seg.size,seg.lengthFt);
+    const fl=FL(gpm, seg.size, seg.lengthFt, (seg.cValue ?? seg.c ?? null));
     const tx=document.createElementNS(svgNS,'text');
     tx.setAttribute('fill','#0b0f14'); tx.setAttribute('font-size','11');
     tx.setAttribute('font-family','ui-monospace,Menlo,Consolas,monospace');
@@ -484,13 +493,13 @@ function ppExplainHTML(L){
              : L.hasWye ? (L.nozLeft?.gpm||0)+(L.nozRight?.gpm||0)
                         : (L.nozRight?.gpm||0);
   const mainSecs = sectionsFor(L.itemsMain);
-  const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt));
+  const mainFLs = mainSecs.map(s => FL(flow, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
   const mainParts = mainSecs.map((s,i)=>fmt(mainFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
   const mainSum = mainFLs.reduce((a,c)=>a+c,0);
   const elevPsi = (L.elevFt||0) * PSI_PER_FT;
   const elevStr = (elevPsi>=0? '+':'')+fmt(elevPsi)+' psi';
 
-  if(!L.hasWye){
+  if(!L.hasWye && !L.hasReducer){
     return `
       <div><b>Simple PP:</b>
         <ul class="simpleList">
@@ -501,47 +510,69 @@ function ppExplainHTML(L){
         <div style="margin-top:6px"><b>PP = NP + Main FL ± Elev = ${fmt(L.nozRight?.NP||0)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt((L.nozRight?.NP||0)+mainSum+elevPsi)} psi</span></b></div>
       </div>
     `;
+  } else if(L.hasReducer){
+    const rSecs = sectionsFor(L.itemsRight);
+    const rFLs = rSecs.map(sec => FL(L.nozRight?.gpm||0, sec.size, sec.lengthFt, (sec.cValue ?? sec.c ?? null)));
+    const rParts = rSecs.map((sec,i)=>fmt(rFLs[i])+' ('+sec.lengthFt+'′ '+sizeLabel(sec.size)+')');
+    const rSum = rFLs.reduce((x,y)=>x+y,0);
+    const reducerLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
+    const downNeed = (L.nozRight?.NP||0) + rSum;
+    const total = downNeed + mainSum + reducerLoss + elevPsi;
+    return `
+      <div><b>Simple PP (Reducer):</b>
+        <ul class="simpleList">
+          <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Reducer</b> = +${fmt(reducerLoss)} psi</li>
+          <li><b>Downstream Nozzle Pressure</b> = ${fmt(L.nozRight?.NP||0)} psi</li>
+          <li><b>Downstream FL</b> = ${rSecs.length ? rParts.join(' + ') : 0} = <b>${fmt(rSum)} psi</b></li>
+          <li><b>Elevation</b> = ${elevStr}</li>
+        </ul>
+        <div style="margin-top:6px"><b>PP = Main FL + Reducer + NP (downstream) + Downstream FL ± Elev = ${fmt(mainSum)} + ${fmt(reducerLoss)} + ${fmt(L.nozRight?.NP||0)} + ${fmt(rSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
+      </div>
+    `;
   } else if(single){
     // NOTE: For single-branch via wye we DO NOT list a main-line nozzle anymore.
-    const noz = activeNozzle(L);
-    const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
+    const noz = activeNozzle(L) || { NP: 0, gpm: 0 };
+    const bnSegs = side==='L'? (L.itemsLeft || []) : (L.itemsRight || []);
     const bnSecs = sectionsFor(bnSegs);
-    const brFLs  = bnSecs.map(s => FL(noz.gpm, s.size, s.lengthFt));
+    const brFLs  = bnSecs.map(s => FL(noz.gpm || 0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
     const brParts= bnSecs.map((s,i)=>fmt(brFLs[i])+' ('+s.lengthFt+'′ '+sizeLabel(s.size)+')');
     const brSum  = brFLs.reduce((x,y)=>x+y,0);
-    const total  = noz.NP + brSum + mainSum + elevPsi;
+    const wyeLoss = autoApplianceLoss(L.wyeLoss, noz.gpm || 0);
+    const total  = (noz.NP || 0) + brSum + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Single branch via wye):</b>
         <ul class="simpleList">
-          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP)} psi</li>
+          <li><b>Nozzle Pressure (branch)</b> = ${fmt(noz.NP || 0)} psi</li>
           <li><b>Branch FL</b> = ${bnSecs.length ? brParts.join(' + ') : 0} = <b>${fmt(brSum)} psi</b></li>
           <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
+          <li><b>Wye</b> = +${fmt(wyeLoss)} psi</li>
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL ± Elev = ${fmt(noz.NP)} + ${fmt(brSum)} + ${fmt(mainSum)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = NP (branch) + Branch FL + Main FL + Wye ± Elev = ${fmt(noz.NP || 0)} + ${fmt(brSum)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   } else {
     const aSecs = sectionsFor(L.itemsLeft);
     const bSecs = sectionsFor(L.itemsRight);
-    const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt));
-    const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt));
+    const aFLs = aSecs.map(s => FL(L.nozLeft?.gpm||0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
+    const bFLs = bSecs.map(s => FL(L.nozRight?.gpm||0, s.size, s.lengthFt, (s.cValue ?? s.c ?? null)));
     const aNeed = (L.nozLeft?.NP||0) + aFLs.reduce((x,y)=>x+y,0);
     const bNeed = (L.nozRight?.NP||0)+ bFLs.reduce((x,y)=>x+y,0);
     const maxNeed = Math.max(aNeed, bNeed);
-    const wyeLoss = (L.wyeLoss||10);
+    const wyeLoss = autoApplianceLoss(L.wyeLoss, (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0));
     const total = maxNeed + mainSum + wyeLoss + elevPsi;
     return `
       <div><b>Simple PP (Wye):</b>
         <ul class="simpleList">
-          <li><b>Branch A need</b> = ${Math.round(aNeed)} psi</li>
-          <li><b>Branch B need</b> = ${Math.round(bNeed)} psi</li>
-          <li><b>Take the higher branch</b> = <b>${Math.round(maxNeed)} psi</b></li>
+          <li><b>Branch A section PP</b> = ${Math.round(aNeed)} psi</li>
+          <li><b>Branch B section PP</b> = ${Math.round(bNeed)} psi</li>
+          <li><b>Use the higher branch section PP</b> = <b>${Math.round(maxNeed)} psi</b></li>
           <li><b>Main FL</b> = ${mainSecs.length ? mainParts.join(' + ') : 0} = <b>${fmt(mainSum)} psi</b></li>
           <li><b>Wye</b> = +${wyeLoss} psi</li>
           <li><b>Elevation</b> = ${elevStr}</li>
         </ul>
-        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879)">${fmt(total)} psi</span></b></div>
+        <div style="margin-top:6px"><b>PP = max(A,B) + Main FL + Wye ± Elev = ${fmt(maxNeed)} + ${fmt(mainSum)} + ${fmt(wyeLoss)} ${elevStr} = <span style="color:#9fe879">${fmt(total)} psi</span></b></div>
       </div>
     `;
   }

@@ -76,9 +76,9 @@
         pointer-events: auto;
         background: #0e151e;
         border: 1px solid rgba(255,255,255,.10);
-        border-radius: 12px;
-        box-shadow: 0 10px 24px rgba(0,0,0,.45);
-        padding: 12px;
+        border-radius: 22px;
+        box-shadow: 0 18px 48px rgba(0,0,0,.5);
+        padding: 16px;
         overflow: auto;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
@@ -92,10 +92,10 @@
 
       /* Comfy mobile controls */
       #tipEditor .te-row label{
-        font-weight:700; color:#dfe9ff; display:block; margin:6px 0 4px;
+        font-weight:800; color:#dfe9ff; display:block; margin:6px 0 4px;
       }
       #tipEditor .te-row input, #tipEditor .te-row select{
-        width:100%; padding:10px 12px; border-radius:12px;
+        width:100%; padding:12px 14px; border-radius:14px;
         background:#0b1420; color:#eaf2ff;
         border:1px solid rgba(255,255,255,.22);
       }
@@ -118,12 +118,13 @@
   }
 
   function positionPortalOverStage(){
-    const r = stage.getBoundingClientRect();
-    // Size and position the portal to exactly cover the stage’s on-screen rect
-    portal.style.left   = `${Math.round(r.left)}px`;
-    portal.style.top    = `${Math.round(r.top)}px`;
-    portal.style.width  = `${Math.round(r.width)}px`;
-    portal.style.height = `${Math.round(r.height)}px`;
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const inset = vw <= 640 ? 8 : 18;
+    portal.style.left   = `${inset}px`;
+    portal.style.top    = `${inset}px`;
+    portal.style.width  = `${Math.max(320, vw - (inset * 2))}px`;
+    portal.style.height = `${Math.max(320, vh - (inset * 2))}px`;
   }
 
   function mountEditorIntoPortal(){
@@ -228,7 +229,7 @@
 
   // ---- Wye toggle reveals branch inputs
   if(teWye && branchBlock){
-    const sync = ()=> branchBlock.classList.toggle('is-hidden', teWye.value !== 'on');
+    const sync = ()=> branchBlock.classList.toggle('is-hidden', teWye.value !== 'wye');
     teWye.addEventListener('change', sync);
     requestAnimationFrame(sync);
   }
