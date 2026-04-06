@@ -66,6 +66,15 @@ function isNativeApp(){
 }
 
 // Helper: resolve nozzle by id, including built-ins and department custom nozzles.
+
+function autoApplianceLoss(explicitLoss, flowGpm){
+  if (explicitLoss !== null && explicitLoss !== undefined && explicitLoss !== '') {
+    const num = Number(explicitLoss);
+    if (Number.isFinite(num)) return num;
+  }
+  return Number(flowGpm || 0) > 350 ? 10 : 0;
+}
+
 function resolveNozzleById(id){
   if (!id) return null;
   
@@ -179,7 +188,6 @@ import {
   getDeptCustomNozzlesForCalc
 } from './preset.js';
 import {setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
-import './view.calc.enhance.js';
 
 
 /*                                Main render                                 */
@@ -293,7 +301,6 @@ export async function render(container){
           <div id="tipEditor" class="tip-editor is-hidden" role="dialog" aria-modal="true" aria-labelledby="teTitle">
             <div class="mini" id="teTitle" style="margin-bottom:6px;opacity:.9">Edit Line</div>
 
-            <div class="te-row"><label>Where</label><input id="teWhere" readonly></div>
             <!-- Segment Switch (shown only when Wye is ON) -->
             <div id="segSwitch" class="segSwitch is-hidden" style="display:none; margin:6px 0 4px; gap:6px">
               <button type="button" class="segBtn" data-seg="main">Main</button>
@@ -301,23 +308,12 @@ export async function render(container){
               <button type="button" class="segBtn" data-seg="B">Line B</button>
             </div>
 
+            <input id="teWhere" type="hidden">
 
-            
             <!-- Diameter / hose size: same dropdown source used by Department Setup -->
             <div class="te-row" id="rowSize">
               <label>Diameter</label>
               <select id="teSize"></select>
-            </div>
-
-            <!-- Length: - [value] +, steps of 50' -->
-            <div class="te-row" id="rowLen">
-              <label>Length (ft)</label>
-              <input type="hidden" id="teLen" value="50">
-              <div class="steppers">
-                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
-                <div class="stepVal" id="lenLabel">50′</div>
-                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
-              </div>
             </div>
 
             <!-- Nozzle: full list from charts (NOZ_LIST) -->
@@ -326,24 +322,41 @@ export async function render(container){
               <select id="teNoz"></select>
             </div>
 
-            <!-- Elevation: - [value] +, steps of 1' -->
+            <div class="te-row" id="rowApp"><label>Appliance</label>
+              <select id="teWye"><option value="off">None</option><option value="wye">Wye</option><option value="reducer">Reducer</option></select>
+            </div>
+
+            <!-- Length: - [value] +, steps of 50' -->
+            <div class="te-row" id="rowLen">
+              <label>Length (ft)</label>
+              <input type="hidden" id="teLen" value="50">
+              <div class="steppers inline-stepper">
+                <button type="button" class="stepBtn" id="lenMinus" aria-label="Decrease length">−</button>
+                <div class="stepVal" id="lenLabel">50′</div>
+                <button type="button" class="stepBtn" id="lenPlus" aria-label="Increase length">+</button>
+              </div>
+            </div>
+            <!-- Elevation: - [value] +, steps of 10' -->
             <div class="te-row" id="rowElev">
               <label>Elevation (ft)</label>
               <input type="hidden" id="teElev" value="0">
-              <div class="steppers">
+              <div class="steppers inline-stepper">
                 <button type="button" class="stepBtn" id="elevMinus" aria-label="Decrease elevation">−</button>
                 <div class="stepVal" id="elevLabel">0′</div>
-            <!-- Branch controls (visible only when Wye is active) -->
+                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
+              </div>
+            </div>
+
+            <!-- Branch controls (kept hidden; branch editing is from each branch +) -->
             <section id="branchPlusWrap" style="display:none; margin-top:10px">
               <div class="ink-strong" style="font-weight:700;margin-bottom:6px">Branches (Wye)</div>
 
-              <!-- Branch A -->
               <div class="card" id="branchASection" style="padding:8px; margin-bottom:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch A</div>
                 <div class="te-row">
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenA" value="50">
-                  <div class="steppers">
+                  <div class="steppers inline-stepper">
                     <button type="button" class="stepBtn" id="lenAMinus">−</button>
                     <div class="stepVal" id="lenALabel">50′</div>
                     <button type="button" class="stepBtn" id="lenAPlus">+</button>
@@ -352,7 +365,7 @@ export async function render(container){
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevA" value="0">
-                  <div class="steppers">
+                  <div class="steppers inline-stepper">
                     <button type="button" class="stepBtn" id="elevAMinus">−</button>
                     <div class="stepVal" id="elevALabel">0′</div>
                     <button type="button" class="stepBtn" id="elevAPlus">+</button>
@@ -364,13 +377,12 @@ export async function render(container){
                 </div>
               </div>
 
-              <!-- Branch B -->
               <div class="card" id="branchBSection" style="padding:8px">
                 <div style="font-weight:700;margin-bottom:6px">Branch B</div>
                 <div class="te-row">
                   <label>Length (ft)</label>
                   <input type="hidden" id="teLenB" value="50">
-                  <div class="steppers">
+                  <div class="steppers inline-stepper">
                     <button type="button" class="stepBtn" id="lenBMinus">−</button>
                     <div class="stepVal" id="lenBLabel">50′</div>
                     <button type="button" class="stepBtn" id="lenBPlus">+</button>
@@ -379,7 +391,7 @@ export async function render(container){
                 <div class="te-row">
                   <label>Elevation (ft)</label>
                   <input type="hidden" id="teElevB" value="0">
-                  <div class="steppers">
+                  <div class="steppers inline-stepper">
                     <button type="button" class="stepBtn" id="elevBMinus">−</button>
                     <div class="stepVal" id="elevBLabel">0′</div>
                     <button type="button" class="stepBtn" id="elevBPlus">+</button>
@@ -391,22 +403,8 @@ export async function render(container){
                 </div>
               </div>
             </section>
-            
-                <button type="button" class="stepBtn" id="elevPlus" aria-label="Increase elevation">+</button>
-              </div>
-            </div>
 
-
-            <div class="te-row"><label>Wye</label>
-              <select id="teWye"><option value="off">Off</option><option value="on">On</option></select>
-            </div>
-
-            <div id="branchBlock" class="is-hidden">
-              <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
-              <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
-              <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
-              <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
-            </div>
+            <div id="branchBlock" class="is-hidden" aria-hidden="true"></div>
 
             <div class="te-actions">
               <button class="btn" id="teCancel">Cancel</button>
@@ -987,7 +985,7 @@ function _setEditorOpen(open){
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
         if (!mainShow){
-          if (teSize) teSize.value = '1.75';
+          if (teSize) _plusSelectHoseOptionValue(teSize, '1.75', '1.75');
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
           if (teSizeField) teSizeField.disabled = true;
         }else{
@@ -1000,7 +998,7 @@ function _setEditorOpen(open){
         }
       }
 function gateWyeBySize(){
-        const sizeOK = (teSize && String(teSize.value) === '2.5');
+        const sizeOK = true;
         const wyeSelect = tip.querySelector('#teWye');
         if (!sizeOK){
           // force off & hide everything Wye-related
@@ -1014,9 +1012,10 @@ function gateWyeBySize(){
       }
 
       function updateWyeAndButtons(){
-        const isOn = tip.querySelector('#teWye')?.value === 'on';
+        const applianceMode = tip.querySelector('#teWye')?.value || 'off';
+        const isOn = applianceMode !== 'off';
         const sizeOK = gateWyeBySize();
-        wrap.style.display = (isOn && sizeOK) ? 'flex' : 'none';
+        wrap.style.display = 'none';
         if (!(isOn && sizeOK)){
           // collapse back to Main if user turned Wye off or size is not 2.5
           setActive('main');
@@ -1052,89 +1051,34 @@ function gateWyeBySize(){
 
   function setSeg(seg){
     currentSeg = seg;
-
-    // helper show/hide with robust a11y + style guards
     const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
     const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
-
-    // Highlight active button
     segBtns.forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
-
-    // Toggle visibility of rows depending on segment
-    const mainRows = ['#rowSize','#rowLen','#rowElev','#rowNoz'];
-    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
-    mainRows.forEach(sel=>{
+    ['#rowSize','#rowLen','#rowElev','#rowNoz'].forEach(sel=>{
       const el = container.querySelector(sel);
-      if (!el) return;
-      (seg==='main' ? showEl : hideEl)(el);
+      if (el) showEl(el);
     });
-    if (wyeRow) (seg==='main' ? showEl : hideEl)(wyeRow);
-
-    // Branch sections — show only selected branch when wye is on
-    if (seg==='A'){ showEl(branchASection); hideEl(branchBSection); }
-    else if (seg==='B'){ showEl(branchBSection); hideEl(branchASection); }
-    else { hideEl(branchASection); hideEl(branchBSection); }
-
-    
-    // Additionally, for the legacy compact branchBlock, hide the opposite branch rows
+    const wyeRow = container.querySelector('#teWye')?.closest('.te-row');
+    if (wyeRow) showEl(wyeRow);
+    hideEl(branchASection);
+    hideEl(branchBSection);
     const branchBlock = container.querySelector('#branchBlock');
-    if (branchBlock){
-      const rowA_len = branchBlock.querySelector('#teLenA')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenA"]')?.closest('.te-row');
-      const rowA_noz = branchBlock.querySelector('#teNozA')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch A noz")')?.closest('.te-row');
-      const rowB_len = branchBlock.querySelector('#teLenB')?.closest('.te-row') || branchBlock.querySelector('label[for="teLenB"]')?.closest('.te-row');
-      const rowB_noz = branchBlock.querySelector('#teNozB')?.closest('.te-row') || branchBlock.querySelector('label:contains("Branch B noz")')?.closest('.te-row');
-      if (seg==='A'){
-        if (rowA_len) showEl(rowA_len);
-        if (rowA_noz) showEl(rowA_noz);
-        if (rowB_len) hideEl(rowB_len);
-        if (rowB_noz) hideEl(rowB_noz);
-      } else if (seg==='B'){
-        if (rowA_len) hideEl(rowA_len);
-        if (rowA_noz) hideEl(rowA_noz);
-        if (rowB_len) showEl(rowB_len);
-        if (rowB_noz) showEl(rowB_noz);
-      } else {
-        // main
-        if (rowA_len) hideEl(rowA_len);
-        if (rowA_noz) hideEl(rowA_noz);
-        if (rowB_len) hideEl(rowB_len);
-        if (rowB_noz) hideEl(rowB_noz);
-      }
-    }
-    // Lock diameter on branches
-    const teSize    = container.querySelector('#teSize');
-    const sizeLabel = container.querySelector('#sizeLabel');
-    if (seg==='A' || seg==='B'){
-      if (teSize) teSize.value = '1.75';
-      if (sizeLabel) sizeLabel.textContent = '1 3/4″';
-      if (teSize) teSize.disabled = true;
-    } else {
-      if (teSize) teSize.disabled = false;
-    }
-
-    // Update “Where” label
-    const teWhere = container.querySelector('#teWhere');
-    if (teWhere){
-      teWhere.value = seg === 'main'
-        ? 'Main (to Wye)'
-        : seg === 'A'
-          ? 'Line A (left of wye)'
-          : 'Line B (right of wye)';
-    }
+    if (branchBlock) hideEl(branchBlock);
+    const branchWrap = container.querySelector('#branchPlusWrap');
+    if (branchWrap) branchWrap.style.display = 'none';
+    const teSize = container.querySelector('#teSize');
+    if (teSize) teSize.disabled = false;
   }
 function updateSegSwitchVisibility(){
-    const wyeOn = teWye && teWye.value === 'on';
-    if (segSwitch){
-      // Hide seg switch UI completely; logic still works but buttons are not shown
-      segSwitch.style.display = 'none';
-    }
-    if (!wyeOn){
-      // Wye turned OFF → back to main and hide both branches
-      setSeg('main');
-      return;
-    }
-    // Wye turned ON → keep whatever segment matches the clicked "+" (main, A, or B)
-    setSeg(currentSeg);
+    if (segSwitch) segSwitch.style.display = 'none';
+    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+    hideEl(branchASection);
+    hideEl(branchBSection);
+    const branchBlock = container.querySelector('#branchBlock');
+    if (branchBlock) hideEl(branchBlock);
+    const bw = container.querySelector('#branchPlusWrap');
+    if (bw) bw.style.display = 'none';
+    setSeg('main');
   }
 
   // Bind seg buttons
@@ -1861,22 +1805,32 @@ function openPresetLineActions(id){
 
     // Department lines (Line 1/2/3)
     vis.forEach(([key, L])=>{
+      const reducerOn = !!L.hasReducer;
       const single = L.hasWye && isSingleWye(L);
       const flow = single ? (activeNozzle(L)?.gpm||0)
-                 : L.hasWye ? (L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)
-                            : (L.nozRight?.gpm||0);
+                 : L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0))
+                 : reducerOn ? (L.nozRight?.gpm||0)
+                 : (L.nozRight?.gpm||0);
       const mainFL = FL_total_sections_175(flow, L.itemsMain);
       let PDP=0;
       if(single){
         const side = activeSide(L);
-        const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
-        const bnNoz  = activeNozzle(L);
-        const branchFL = FL_total_sections_175(bnNoz.gpm, bnSegs);
-        PDP = bnNoz.NP + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        const bnSegs = side==='L' ? (L.itemsLeft || []) : (L.itemsRight || []);
+        const bnNoz  = activeNozzle(L) || { NP: 0, gpm: 0 };
+        const branchFL = FL_total_sections_175(bnNoz.gpm || 0, bnSegs);
+        PDP = (bnNoz.NP || 0)
+            + branchFL
+            + mainFL
+            + autoApplianceLoss(L.wyeLoss, flow)
+            + (L.elevFt * PSI_PER_FT);
       }else if(L.hasWye){
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        PDP = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        PDP = Math.max(lNeed, rNeed) + mainFL + autoApplianceLoss(L.wyeLoss, flow) + (L.elevFt * PSI_PER_FT);
+      }else if(reducerOn){
+        const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
+        const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+        PDP = (L.nozRight?.NP||0) + downFL + mainFL + redLoss + (L.elevFt * PSI_PER_FT);
       }else{
         PDP = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
       }
@@ -1958,7 +1912,7 @@ function openPresetLineActions(id){
 
 const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(it => String(it?.size||'') === '5');
         if(L.hasWye && !single){
-          const wye = (L.wyeLoss ?? 10);
+          const wye = autoApplianceLoss(L.wyeLoss, bflow);
           wrap.innerHTML = `
             <details class="math" open>
               <summary>Line math</summary>
@@ -1995,7 +1949,7 @@ const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(i
           const bnSegs = side==='L'? L.itemsLeft : L.itemsRight;
           const bnTitle = side==='L' ? 'Branch A' : 'Branch B';
           const noz = activeNozzle(L);
-          const wye = (L.wyeLoss ?? 10);
+          const wye = autoApplianceLoss(L.wyeLoss, bflow);
 
           wrap.innerHTML = `
             <details class="math" open>
@@ -2094,8 +2048,25 @@ const show5 = [L.itemsMain||[], L.itemsLeft||[], L.itemsRight||[]].flat().some(i
 
   function showHideMainNozzleRow(){
     const where = teWhere?.value?.toLowerCase();
-    const wyeOn = teWye?.value==='on';
-    if(rowNoz) rowNoz.style.display = (where==='main' && wyeOn) ? 'none' : '';
+    const applianceMode = teWye?.value || 'off';
+    const applianceOn = applianceMode !== 'off';
+    if(rowNoz) rowNoz.style.display = (where==='main' && applianceOn) ? 'none' : '';
+
+    // Old inline branch editor panels are no longer used.
+    // Branches / reducer downstream are edited from each hose end '+' only.
+    const bwTitle = container.querySelector('#branchPlusWrap .ink-strong');
+    if (bwTitle) bwTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branches (Wye)';
+    const aTitle = container.querySelector('#branchASection > div');
+    const bTitle = container.querySelector('#branchBSection > div');
+    if (aTitle) aTitle.textContent = 'Branch A';
+    if (bTitle) bTitle.textContent = (applianceMode==='reducer') ? 'After Reducer' : 'Branch B';
+
+    const branchWrap = container.querySelector('#branchPlusWrap');
+    if (branchWrap) branchWrap.style.display = 'none';
+    const aSec = container.querySelector('#branchASection');
+    if (aSec) aSec.style.display = 'none';
+    const bSec = container.querySelector('#branchBSection');
+    if (bSec) bSec.style.display = 'none';
   }
 
   
@@ -2135,7 +2106,9 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
+function onOpenPopulateEditor(key, where, opts = {}){
+    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+    const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -2164,9 +2137,9 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
 
     const whereLabel = where==='main'?'Main':('Branch '+where);
     teTitle.textContent = (L.label || key.toUpperCase())+' — '+whereLabel;
-    teWhere.value = where.toUpperCase();
+    if (teWhere) teWhere.value = where.toUpperCase();
     teElev.value = L.elevFt||0;
-    teWye.value  = L.hasWye? 'on':'off';
+    teWye.value  = L.hasWye ? 'wye' : (L.hasReducer ? 'reducer' : 'off');
 
     if(where==='main'){
       const mainSegs = Array.isArray(L.itemsMain) && L.itemsMain.length
@@ -2174,7 +2147,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         : [{ size: '1.75', lengthFt: 200 }];
       const sizeMain = mainSegs[0].size || '1.75';
       const totalLenMain = sumFt(mainSegs);
-      teSize.value = String(L._hoseId || mainSegs[0]._hoseId || sizeMain);
+      _plusSelectHoseOptionValue(teSize, (L._hoseId || mainSegs[0]._hoseId || sizeMain), sizeMain);
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
@@ -2210,14 +2183,20 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         setBranchBDefaultIfEmpty(L); // ensure B default when wye on
       }
     } else if(where==='L'){
-      const seg = L.itemsLeft[0] || {size:'1.75',lengthFt:100};
-      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
-      ensureDefaultNozzleFor(L,'L',seg.size);
+      const branchHose = _plusGetDefaultBranchHose();
+      const seg = L.itemsLeft[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
+      _plusSelectHoseOptionValue(teSize, (seg._hoseId || branchHose.id || seg.size), (seg.size || branchHose.diameter));
+      teLen.value = seg.lengthFt || 50;
+      ensureDefaultNozzleFor(L,'L',seg.size || branchHose.diameter);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
-      const seg = L.itemsRight[0] || {size:'1.75',lengthFt:100};
-      teSize.value = String(seg._hoseId || seg.size); teLen.value = seg.lengthFt;
+      const branchHose = _plusGetDefaultBranchHose();
+      const seg = L.itemsRight[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
+      _plusSelectHoseOptionValue(teSize, (seg._hoseId || branchHose.id || seg.size), (seg.size || branchHose.diameter));
+      teLen.value = seg.lengthFt || 50;
       setBranchBDefaultIfEmpty(L);
+      ensureDefaultNozzleFor(L,'R',seg.size || branchHose.diameter);
+      if(teNoz) teNoz.value = (L.nozRight?.id)||teNoz.value;
     }
 
     // After populating hidden values, sync the visible stepper labels
@@ -2263,7 +2242,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const L = state.lines[key];
     const hoseMeta = _plusResolveHoseMeta(teSize.value);
     const size = String(hoseMeta.diameter || teSize.value || '');
-    if (where==='main' && teWye.value!=='on'){
+    if (where==='main' && (teWye?.value || 'off') === 'off'){
       ensureDefaultNozzleFor(L,'main',size);
       if (L.nozRight?.id && teNoz) teNoz.value = L.nozRight.id;
     } else if (where==='L'){
@@ -2282,30 +2261,33 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     const key = tip.getAttribute('data-line'); const where = tip.getAttribute('data-where');
     if (typeof refreshNozzleSelectOptions === 'function') refreshNozzleSelectOptions();
     onOpenPopulateEditor(key, where);
-    if (container && container.__segEnsureUI) container.__segEnsureUI(where);
-// Initialize segment selection based on clicked tip
-    if (where==='L') setSeg('A'); else if (where==='R') setSeg('B'); else setSeg('main');
+    if (container && container.__segEnsureUI) container.__segEnsureUI('main');
+    setSeg('main');
     updateSegSwitchVisibility();
 if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function'){
       window.BottomSheetEditor.open();
-      _setEditorOpen(true);
     } else {
-      // Minimal fallback
+      // Minimal fallback when the overlay helper is unavailable
       _setEditorOpen(true);
     }
   });
 
+  window._openTipEditor = onOpenPopulateEditor;
+
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
-    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
-    if(branchWrap){ const on = teWye.value==="on"; branchWrap.style.display = on? "": "none"; if(on) initBranchPlusMenus(popupEl); }
-    const wyeOn = teWye.value==='on';
-    if (editorContext?.where==='main' && wyeOn){
+    const branchWrap = container?.querySelector?.("#branchPlusWrap");
+    if(branchWrap){ branchWrap.style.display = 'none'; }
+    const applianceMode = teWye.value||'off';
+    const wyeOn = applianceMode==='wye';
+    const reducerOn = applianceMode==='reducer';
+    if (editorContext?.where==='main' && (wyeOn || reducerOn)){
       const L = state.lines[editorContext.key];
       setBranchBDefaultIfEmpty(L);
       if(teNozB && L?.nozRight?.id) teNozB.value = L.nozRight.id;
     }
     showHideMainNozzleRow();
+    updateSegSwitchVisibility();
   });
 
   // Apply updates; close panel handled by bottom-sheet-editor.js (auto-close there)
@@ -2319,15 +2301,16 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     const size = String(hoseMeta.diameter || sizeRaw || '');
     const cValue = Number.isFinite(Number(hoseMeta.c)) ? Number(hoseMeta.c) : null;
     const len = Math.max(0, +teLen.value||0);
-    const elev=+teElev.value||0; const wyeOn = teWye.value==='on';
+    const elev=+teElev.value||0; const applianceMode = teWye.value||'off';
+    const wyeOn = applianceMode==='wye';
+    const reducerOn = applianceMode==='reducer';
     L.elevFt = elev;
 
     if(where==='main'){
       L._hoseId = sizeRaw;
       L.itemsMain = [{size, lengthFt:len, cValue, _hoseId:sizeRaw}];
-      if(!wyeOn){
-        L.hasWye=false; L.itemsLeft=[]; L.itemsRight=[];
-        // default nozzle by diameter if unset OR use chosen
+      if(!wyeOn && !reducerOn){
+        L.hasWye=false; L.hasReducer=false; L.itemsLeft=[]; L.itemsRight=[];
         if (teNoz && teNoz.value){
           const chosen = resolveNozzleById(teNoz.value);
           if (chosen){
@@ -2338,25 +2321,43 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
         } else {
           ensureDefaultNozzleFor(L,'main',size);
         }
-      }else{
-        L.hasWye=true;
-        const lenA = Math.max(0, +teLenA?.value||0);
-        const lenB = Math.max(0, +teLenB?.value||0);
-        L.itemsLeft  = lenA? [{size:'1.75',lengthFt:lenA, cValue:null, _hoseId:'1.75'}] : [];
-        L.itemsRight = lenB? [{size:'1.75',lengthFt:lenB, cValue:null, _hoseId:'1.75'}] : [];
+      }else if(wyeOn){
+        L.hasWye=true; L.hasReducer=false;
+        const branchHose = _plusGetDefaultBranchHose();
+        const lenA = Math.max(0, +teLenA?.value||50);
+        const lenB = Math.max(0, +teLenB?.value||50);
+        const leftSeed = (L.itemsLeft && L.itemsLeft[0]) ? L.itemsLeft[0] : null;
+        const rightSeed = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : null;
+        const leftId = String(leftSeed?._hoseId || branchHose.id || '1.75');
+        const rightId = String(rightSeed?._hoseId || branchHose.id || '1.75');
+        const leftMeta = _plusResolveHoseMeta(leftId);
+        const rightMeta = _plusResolveHoseMeta(rightId);
+        L.itemsLeft  = [{ size: String(leftMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenA, cValue: Number.isFinite(Number(leftMeta.c)) ? Number(leftMeta.c) : branchHose.c, _hoseId: leftId }];
+        L.itemsRight = [{ size: String(rightMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenB, cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c, _hoseId: rightId }];
+        ensureDefaultNozzleFor(L,'L',L.itemsLeft[0].size);
         if (teNozA?.value && NOZ[teNozA.value]) L.nozLeft  = NOZ[teNozA.value];
-        // Branch B default if empty
-        if (!(L.nozRight?.id)){
-          setBranchBDefaultIfEmpty(L);
-        }
+        if (!(L.nozRight?.id)) setBranchBDefaultIfEmpty(L);
+        ensureDefaultNozzleFor(L,'R',L.itemsRight[0].size);
+        if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
+      }else{
+        L.hasWye=false; L.hasReducer=true; L.itemsLeft=[];
+        const branchHose = _plusGetDefaultBranchHose();
+        const lenB = Math.max(0, +teLenB?.value||50);
+        const rightSeed = (L.itemsRight && L.itemsRight[0]) ? L.itemsRight[0] : null;
+        const rightId = String(rightSeed?._hoseId || branchHose.id || '1.75');
+        const rightMeta = _plusResolveHoseMeta(rightId);
+        L.itemsRight = [{ size: String(rightMeta.diameter || branchHose.diameter || '1.75'), lengthFt: lenB, cValue: Number.isFinite(Number(rightMeta.c)) ? Number(rightMeta.c) : branchHose.c, _hoseId: rightId }];
+        L.nozLeft = null;
+        ensureDefaultNozzleFor(L,'R',L.itemsRight[0].size);
         if (teNozB?.value && NOZ[teNozB.value]) L.nozRight = NOZ[teNozB.value];
       }
     } else if(where==='L'){
-      L.hasWye = wyeOn || true; L.itemsLeft = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.hasWye = true; L.hasReducer = false; L.itemsLeft = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
       if (teNoz?.value && NOZ[teNoz.value]) L.nozLeft = NOZ[teNoz.value];
       else ensureDefaultNozzleFor(L,'L',size);
     } else {
-      L.hasWye = wyeOn || true; L.itemsRight = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.itemsRight = len? [{size, lengthFt:len, cValue, _hoseId:sizeRaw}] : [];
+      L.hasWye = wyeOn; L.hasReducer = reducerOn || (!wyeOn && (L.hasReducer || applianceMode==='reducer'));
       if (!(L.nozRight?.id)){
         setBranchBDefaultIfEmpty(L);
       }
@@ -2401,6 +2402,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
           // Straight line, no wye branches
           L.hasWye    = false;
+          L.hasReducer = false;
           L.itemsLeft = [];
           L.itemsRight= [];
 
@@ -2618,6 +2620,7 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
 
       // Restore as a single straight line (no wye branches)
       L.hasWye = false;
+      L.hasReducer = false;
       L.itemsLeft = [];
       L.itemsRight = [];
 
@@ -2838,24 +2841,37 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
       const geom = mainCurve(dir, (mainFt/50)*PX_PER_50FT, viewH);
 
       // Per-line flow + pump pressure (PDP) used for label bubbles
+      const reducerOn = !!L.hasReducer;
       const single = L.hasWye && isSingleWye(L);
-      const usedNoz = single ? activeNozzle(L) : (L.hasWye ? null : L.nozRight);
+      const usedNoz = single ? activeNozzle(L) : ((L.hasWye && !reducerOn) ? null : L.nozRight);
       const flowGpm = single ? (usedNoz?.gpm||0)
                     : (L.hasWye ? ((L.nozLeft?.gpm||0) + (L.nozRight?.gpm||0)) : (L.nozRight?.gpm||0));
       const mainFL = FL_total_sections_175(flowGpm, L.itemsMain);
       let ppPsi = 0;
+      let sectionPsiMain = 0;
+      let sectionPsiDown = 0;
       if (single) {
         const side = activeSide(L);
         const bnSegs = side==='L' ? L.itemsLeft : L.itemsRight;
         const bnNoz  = activeNozzle(L);
         const branchFL = FL_total_sections_175(bnNoz?.gpm||0, bnSegs);
-        ppPsi = (bnNoz?.NP||0) + branchFL + mainFL + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + autoApplianceLoss(L.wyeLoss, flowGpm) + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (bnNoz?.NP||0) + branchFL;
+        ppPsi = sectionPsiMain + sectionPsiDown;
       } else if (L.hasWye) {
         const lNeed = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft) + (L.nozLeft?.NP||0);
         const rNeed = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight) + (L.nozRight?.NP||0);
-        ppPsi = Math.max(lNeed, rNeed) + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+        sectionPsiMain = mainFL + autoApplianceLoss(L.wyeLoss, flowGpm) + (L.elevFt * PSI_PER_FT);
+        ppPsi = Math.max(lNeed, rNeed) + sectionPsiMain;
+      } else if (reducerOn) {
+        const redLoss = autoApplianceLoss(L.reducerLoss, L.nozRight?.gpm||0);
+        const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+        sectionPsiMain = mainFL + redLoss + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (L.nozRight?.NP||0) + downFL;
+        ppPsi = sectionPsiMain + sectionPsiDown;
       } else {
-        ppPsi = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+        sectionPsiDown = (L.nozRight?.NP||0) + mainFL + (L.elevFt * PSI_PER_FT);
+        ppPsi = sectionPsiDown;
       }
 
       const base = document.createElementNS('http://www.w3.org/2000/svg','path'); base.setAttribute('d', geom.d); G_hoses.appendChild(base);
@@ -2906,19 +2922,48 @@ const row1 = (()=>{
   if (L.hasWye) {
     return `${mainFt}' ${mainSize} @ Wye`;
   }
+  if (L.hasReducer) {
+    return `${mainFt}' ${mainSize} @ Reducer`;
+  }
   return `${mainFt}' ${mainSize} @ ${(L.nozRight?.NP||0)}psi`;
 })();
 
 // Row 2 rules:
-// - If a Wye is used, do NOT show PP on the trunk line bubble (engine -> wye). Show total flow instead.
-// - For non-wye lines, show PP + GPM.
-const row2 = L.hasWye
-  ? `Total ${Math.round(flowGpm)} gpm`
-  : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`;
+// - For Wye and Reducer mains, show only the PP for the main/trunk section.
+// - Branch/end bubbles show only the PP for that branch section.
+// - Dashboard max PP still shows the combined total requirement.
+const row2 = (L.hasWye && !L.hasReducer)
+  ? `PP ${Math.round(sectionPsiMain)} psi • ${Math.round(flowGpm)} gpm`
+  : (L.hasReducer
+      ? `PP ${Math.round(sectionPsiMain)} psi • ${Math.round(flowGpm)} gpm`
+      : `PP ${Math.round(ppPsi)} psi • ${Math.round(flowGpm)} gpm`);
 
 // Lift bubbles higher so they don't get covered by the + hit target.
 addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-14:(key==='back')?-26:-38);
 
+
+      if(L.hasReducer){
+        const redFt = sumFt(L.itemsRight||[]);
+        if(redFt>0){
+          const run = (redFt/50)*PX_PER_50FT;
+          const endX = geom.endX;
+          const endY = Math.max(8, geom.endY - run);
+          const d = `M ${geom.endX} ${geom.endY} L ${endX} ${endY}`;
+          const pathR = document.createElementNS('http://www.w3.org/2000/svg','path'); pathR.setAttribute('d', d); G_branches.appendChild(pathR);
+          drawSegmentedPath(G_branches, pathR, L.itemsRight);
+          if(L.nozRight){
+            const downFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
+            const redSectionPP = (L.nozRight?.NP||0) + downFL;
+            const redSize = hoseSizeForBubble(L.itemsRight);
+            const row1R = `${redFt}' ${redSize} @ ${(L.nozRight?.NP||0)}psi`;
+            const row2R = `PP ${Math.round(redSectionPP)} psi • ${Math.round(L.nozRight?.gpm||0)} gpm`;
+            addLabel(G_labels, row1R + '\n' + row2R, endX, endY-22, -4);
+          }
+          addTip(G_tips, key,'R',endX,endY);
+        } else {
+          addTip(G_tips, key,'R',geom.endX,geom.endY-20);
+        }
+      } else
 
       if(L.hasWye){
         if(sumFt(L.itemsLeft)>0){
@@ -2929,7 +2974,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
             const lenLeft = sumFt(L.itemsLeft||[]);
             if(lenLeft>0 && L.nozLeft){
               const branchFL = FL_total_sections_175(L.nozLeft?.gpm||0, L.itemsLeft);
-              const branchPP = (L.nozLeft?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const branchPP = (L.nozLeft?.NP||0) + branchFL;
               const brSizeL = hoseSizeForBubble(L.itemsLeft);
               const row1L = `${lenLeft}' ${brSizeL} @ ${(L.nozLeft.NP||0)}psi`;
               const row2L = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozLeft.gpm||0)} gpm`;
@@ -2947,7 +2992,7 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
             const lenRight = sumFt(L.itemsRight||[]);
             if(lenRight>0 && L.nozRight){
               const branchFL = FL_total_sections_175(L.nozRight?.gpm||0, L.itemsRight);
-              const branchPP = (L.nozRight?.NP||0) + branchFL + mainFL + (L.wyeLoss||10) + (L.elevFt * PSI_PER_FT);
+              const branchPP = (L.nozRight?.NP||0) + branchFL;
               const brSizeR = hoseSizeForBubble(L.itemsRight);
               const row1R = `${lenRight}' ${brSizeR} @ ${(L.nozRight.NP||0)}psi`;
               const row2R = `PP ${Math.round(branchPP)} psi • ${Math.round(L.nozRight.gpm||0)} gpm`;
@@ -3231,6 +3276,63 @@ function _plusGetHoseListFromDept() {
   ];
 }
 
+function _plusGetDefaultBranchHose() {
+  const list = _plusGetHoseListFromDept();
+  if (Array.isArray(list) && list.length) {
+    const preferred = list.find(item => {
+      const dia = String(item?.diameter ?? item?.id ?? '').trim();
+      return dia === '1.75' || dia === '1.5';
+    });
+    const chosen = preferred || list[0];
+    const meta = _plusResolveHoseMeta(chosen);
+    return {
+      id: String(chosen?.id ?? meta.id ?? '1.75'),
+      diameter: String(meta.diameter || '1.75'),
+      c: Number.isFinite(Number(meta.c)) ? Number(meta.c) : _plusDefaultCForHoseId(meta.diameter || '1.75')
+    };
+  }
+  return { id: '1.75', diameter: '1.75', c: 15.5 };
+}
+
+function _plusSelectHoseOptionValue(selectEl, rawValue, fallbackDiameter = '') {
+  try {
+    if (!selectEl) return '';
+    const desired = String(rawValue ?? '').trim();
+    const fallbackDia = String(fallbackDiameter ?? '').trim();
+    const opts = Array.from(selectEl.options || []);
+    if (!opts.length) {
+      selectEl.value = desired;
+      return String(selectEl.value || '');
+    }
+
+    const exact = desired ? opts.find(opt => String(opt.value || '').trim() === desired) : null;
+    if (exact) {
+      selectEl.value = exact.value;
+      return String(selectEl.value || exact.value || '');
+    }
+
+    const meta = _plusResolveHoseMeta(desired || fallbackDia);
+    const targetDia = String(meta?.diameter || fallbackDia || '').trim();
+    const byDiameter = targetDia
+      ? opts.find(opt => {
+          const optionMeta = _plusResolveHoseMeta(String(opt.value || '').trim());
+          return String(optionMeta?.diameter || '').trim() === targetDia;
+        })
+      : null;
+    if (byDiameter) {
+      selectEl.value = byDiameter.value;
+      return String(selectEl.value || byDiameter.value || '');
+    }
+
+    const fallback = opts[0];
+    if (fallback) {
+      selectEl.value = fallback.value;
+      return String(selectEl.value || fallback.value || '');
+    }
+  } catch (_e) {}
+  return '';
+}
+
 function initPlusMenus(root){
   const sizeSeq = _plusGetHoseListFromDept().map(item => ({
     val: String(item.id),
@@ -3243,10 +3345,8 @@ function initPlusMenus(root){
     teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
 
     const current = String(teSize.value || '').trim();
-    const exact = sizeSeq.find(item => String(item.val) === current);
-    const byDiameter = !exact ? sizeSeq.find(item => String(item.diameter) === current) : null;
-    const chosen = exact || byDiameter || sizeSeq[0];
-    if (chosen) teSize.value = String(chosen.val);
+    const chosenValue = _plusSelectHoseOptionValue(teSize, current, current);
+    if (!chosenValue && sizeSeq[0]) teSize.value = String(sizeSeq[0].val);
   }
 
   const teLen = root.querySelector('#teLen');
@@ -3344,19 +3444,35 @@ function initPlusMenus(root){
   }
 
 
-  if(!root.__plusMenuStyles){
+  const PLUS_MENU_STYLE_ID = 'fireops-plus-menu-styles';
+  if(!document.getElementById(PLUS_MENU_STYLE_ID)){
     const s=document.createElement('style');
-    s.textContent = `.te-row{display:flex !important;align-items:center !important;gap:12px !important;margin:10px 0 !important}
-.te-row>label{flex:0 0 120px !important;font-weight:800 !important;color:#eaf2ff !important;opacity:.95 !important;line-height:1.1 !important}
-.te-row>select,.te-row>input:not([type="hidden"]),.te-row .steppers{flex:1 1 auto !important}
-.steppers{display:flex !important;flex-direction:row !important;flex-wrap:nowrap !important;align-items:center !important;justify-content:space-between !important;gap:0 !important;
-  background:#0b1a29;border:1px solid var(--edge);border-radius:14px;padding:0 !important;height:52px !important;width:100% !important;overflow:hidden !important}
-.stepBtn{background:rgba(255,255,255,.05);border:0 !important;color:#e9f1ff;font-weight:900;flex:0 0 56px !important;width:56px !important;height:52px !important;font-size:22px !important;touch-action:manipulation}
-.stepBtn:active{transform:translateY(1px)}
-.stepVal{flex:1 1 auto !important;text-align:center !important;font-weight:900 !important;font-size:18px !important;white-space:nowrap !important}
-@media (max-width:480px){.te-row>label{flex-basis:105px !important}.stepBtn{flex-basis:52px !important;width:52px !important}}`;
-    root.appendChild(s);
-    root.__plusMenuStyles = true;
+    s.id = PLUS_MENU_STYLE_ID;
+    s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
+#tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
+#tipEditor #rowSize{order:10 !important}
+#tipEditor #rowNoz{order:11 !important}
+#tipEditor #rowApp{order:12 !important}
+#tipEditor #rowLen{order:13 !important}
+#tipEditor #rowElev{order:14 !important}
+#tipEditor .te-actions{order:99 !important}
+#tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
+#tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;font-weight:700 !important;line-height:1.2 !important}
+#tipEditor .te-row>select{padding-right:40px !important}
+#tipEditor .steppers{display:grid !important;grid-template-columns:1fr 1.3fr 1fr !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
+#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(72px,.9fr) minmax(112px,1.4fr) minmax(72px,.9fr) !important;grid-template-rows:1fr !important}
+#tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation;display:flex !important;align-items:center !important;justify-content:center !important}
+#tipEditor .stepBtn:active{transform:translateY(1px)}
+#tipEditor .stepVal{display:flex !important;align-items:center !important;justify-content:center !important;min-height:74px !important;padding:8px 10px !important;text-align:center !important;font-weight:900 !important;font-size:28px !important;white-space:nowrap !important;border-radius:16px !important;background:rgba(255,255,255,.04) !important;border:1px solid rgba(255,255,255,.08) !important}
+#tipEditor .segSwitch{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:10px !important;margin:10px 0 6px !important}
+#tipEditor .segBtn{min-height:54px !important;border-radius:14px !important;font-size:18px !important;font-weight:800 !important}
+#tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:auto !important;padding-top:18px !important;position:sticky !important;bottom:0 !important;background:linear-gradient(180deg, rgba(6,14,22,0) 0%, rgba(6,14,22,.88) 20%, rgba(6,14,22,1) 100%) !important}
+#tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
+#tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
+@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]){font-size:18px !important;min-height:56px !important}#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(68px,.9fr) minmax(100px,1.35fr) minmax(68px,.9fr) !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`;
+    document.head.appendChild(s);
   }
 }
 
@@ -3466,22 +3582,6 @@ function initBranchPlusMenus(root){
       }catch(_){}
     });
     
-(function(){
-  try{
-    const st = document.createElement('style');
-    st.textContent = `
-    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
-    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
-    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
-.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
-
-    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
-    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
-    .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
-    `;
-    document.head.appendChild(st);
-  }catch(_){}
-})();
 
 
 
