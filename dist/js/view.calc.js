@@ -188,6 +188,7 @@ import {
   getDeptCustomNozzlesForCalc
 } from './preset.js';
 import {setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
+import './view.calc.enhance.js';
 
 
 /*                                Main render                                 */
@@ -404,7 +405,12 @@ export async function render(container){
               </div>
             </section>
 
-            <div id="branchBlock" class="is-hidden" aria-hidden="true"></div>
+            <div id="branchBlock" class="is-hidden">
+              <div class="te-row"><label>Branch A len</label><input type="number" id="teLenA" min="0" step="25" value="100"></div>
+              <div class="te-row"><label>Branch A noz</label><select id="teNozA"></select></div>
+              <div class="te-row"><label>Branch B len</label><input type="number" id="teLenB" min="0" step="25" value="100"></div>
+              <div class="te-row"><label>Branch B noz</label><select id="teNozB"></select></div>
+            </div>
 
             <div class="te-actions">
               <button class="btn" id="teCancel">Cancel</button>
@@ -2106,9 +2112,7 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where, opts = {}){
-    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
-    const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
+function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -2272,11 +2276,9 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
   });
 
-  window._openTipEditor = onOpenPopulateEditor;
-
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
-    const branchWrap = container?.querySelector?.("#branchPlusWrap");
+    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
     if(branchWrap){ branchWrap.style.display = 'none'; }
     const applianceMode = teWye.value||'off';
     const wyeOn = applianceMode==='wye';
@@ -3444,10 +3446,8 @@ function initPlusMenus(root){
   }
 
 
-  const PLUS_MENU_STYLE_ID = 'fireops-plus-menu-styles';
-  if(!document.getElementById(PLUS_MENU_STYLE_ID)){
+  if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.id = PLUS_MENU_STYLE_ID;
     s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
 #tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
 #tipEditor #rowSize{order:10 !important}
@@ -3471,8 +3471,9 @@ function initPlusMenus(root){
 #tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:auto !important;padding-top:18px !important;position:sticky !important;bottom:0 !important;background:linear-gradient(180deg, rgba(6,14,22,0) 0%, rgba(6,14,22,.88) 20%, rgba(6,14,22,1) 100%) !important}
 #tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
 #tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]){font-size:18px !important;min-height:56px !important}#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(68px,.9fr) minmax(100px,1.35fr) minmax(68px,.9fr) !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`;
-    document.head.appendChild(s);
+@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]){font-size:18px !important;min-height:56px !important}#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(68px,.9fr) minmax(100px,1.35fr) minmax(68px,.9fr) !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
+    root.appendChild(s);
+    root.__plusMenuStyles = true;
   }
 }
 
@@ -3582,6 +3583,22 @@ function initBranchPlusMenus(root){
       }catch(_){}
     });
     
+(function(){
+  try{
+    const st = document.createElement('style');
+    st.textContent = `
+    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
+    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
+.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+
+    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
+    .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
+    `;
+    document.head.appendChild(st);
+  }catch(_){}
+})();
 
 
 
