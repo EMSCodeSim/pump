@@ -1,78 +1,52 @@
 // bottom-sheet-editor.js
-// Popup editor that covers ONLY the fire-truck stage area, rendered in a fixed-position portal
-// above the SVG (so it can't get hidden behind it). Opens on "+", closes on Apply/Cancel.
+// Mobile editor overlay for the calc stage.
+// Re-resolves the current calc DOM on every open so Android cannot hold stale refs
+// after the calc view re-renders.
 
 (function(){
-  const cfg = {
-    lockScroll: false // set true to prevent body scroll while the panel is open
+  const cfg = { lockScroll: false };
+  const STYLE_ID = 'stage-overlay-style';
+  const PORTAL_ID = 'stageOverlayHost';
+  const BACKDROP_ID = 'stageOverlayBackdrop';
+
+  let state = {
+    isOpen: false,
+    portal: null,
+    backdrop: null,
+    tipEditor: null,
+    originalParent: null,
+    teWye: null,
+    branchBlock: null,
+    syncBranchBlock: null,
+    onResize: null,
   };
 
-  // ---- Locate host elements created by view.calc.js
-  const root        = document.querySelector('[data-calc-root]') || document.body;
-  const stage       = root.querySelector('#stage');           // wrapper around the truck/SVG
-  const stageSvg    = root.querySelector('#stageSvg') || root.querySelector('svg');
-  const tipEditor   = root.querySelector('#tipEditor');       // the editor markup already on the page
-  const teCancel    = root.querySelector('#teCancel');
-  const teApply     = root.querySelector('#teApply');
-  const teWye       = root.querySelector('#teWye');
-  const branchBlock = root.querySelector('#branchBlock');
-
-  if(!stage || !stageSvg || !tipEditor){
-    // Essentials not found; expose a no-op API to avoid runtime errors.
-    window.BottomSheetEditor = { open(){}, close(){}, configure(o){ Object.assign(cfg, o||{}); } };
-    return;
-  }
-
-  // ---- Create a fixed-position portal host attached to <body>
-  // We'll *move* #tipEditor into this host while open, then move it back on close.
-  let portal = document.getElementById('stageOverlayHost');
-  if(!portal){
-    portal = document.createElement('div');
-    portal.id = 'stageOverlayHost';
-    document.body.appendChild(portal);
-  }
-
-  // Backdrop lives inside the portal, covers only the portal bounds
-  let portalBackdrop = portal.querySelector('#stageOverlayBackdrop');
-  if(!portalBackdrop){
-    portalBackdrop = document.createElement('div');
-    portalBackdrop.id = 'stageOverlayBackdrop';
-    portal.appendChild(portalBackdrop);
-  }
-
-  // Keep original parent so we can restore on close
-  const originalParent = tipEditor.parentElement;
-
-  // ---- One-time safety / styling
-  const styleId = 'stage-overlay-style';
-  if(!document.getElementById(styleId)){
+  function ensureStyle(){
+    if (document.getElementById(STYLE_ID)) return;
     const s = document.createElement('style');
-    s.id = styleId;
+    s.id = STYLE_ID;
     s.textContent = `
-      /* Fixed portal positioned over the stage rect */
-      #stageOverlayHost{
+      #${PORTAL_ID}{
         position: fixed;
         left: 0; top: 0; width: 0; height: 0;
-        z-index: 9999;           /* HIGH to beat any SVG stacking quirks */
-        display: none;           /* shown when opening */
-        pointer-events: none;    /* children manage interactivity */
-        contain: layout paint;   /* avoid bleed/flicker */
+        z-index: 9999;
+        display: none;
+        pointer-events: none;
+        contain: layout paint;
       }
-      #stageOverlayBackdrop{
+      #${BACKDROP_ID}{
         position: absolute; inset: 0;
         background: rgba(0,0,0,0.45);
-        pointer-events: auto;    /* receive clicks to close */
-        display: none;           /* shown when open */
+        pointer-events: auto;
+        display: none;
         -webkit-backdrop-filter: none !important;
         backdrop-filter: none !important;
-        animation: fadeIn .14s ease-out;
+        animation: fireopsFadeIn .14s ease-out;
       }
-      @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-
-      /* Editor fills the portal area */
-      #stageOverlayHost #tipEditor.cover-stage{
+      @keyframes fireopsFadeIn { from{opacity:0} to{opacity:1} }
+      #${PORTAL_ID} #tipEditor.cover-stage{
         position: absolute; inset: 0;
-        display: none;           /* shown when open */
+        display: none;
         pointer-events: auto;
         background: #0e151e;
         border: 1px solid rgba(255,255,255,.10);
@@ -83,18 +57,17 @@
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transform: translateZ(0);
-        animation: stageIn .14s ease-out;
+        animation: fireopsStageIn .14s ease-out;
       }
-      @keyframes stageIn {
+      @keyframes fireopsStageIn {
         from { opacity:.75; transform: translateZ(0) scale(0.985) }
         to   { opacity:1;   transform: translateZ(0) scale(1) }
       }
-
-      /* Comfy mobile controls */
       #tipEditor .te-row label{
         font-weight:800; color:#dfe9ff; display:block; margin:6px 0 4px;
       }
-      #tipEditor .te-row input, #tipEditor .te-row select{
+      #tipEditor .te-row input,
+      #tipEditor .te-row select{
         width:100%; padding:12px 14px; border-radius:14px;
         background:#0b1420; color:#eaf2ff;
         border:1px solid rgba(255,255,255,.22);
@@ -105,140 +78,182 @@
         padding-top: 8px; margin-top: 10px;
       }
       #tipEditor .te-actions .btn{
-        min-height: 44px; padding: 10px 14px; border-radius:12px;
+        min-height: 52px; padding: 10px 14px; border-radius:14px;
       }
     `;
     document.head.appendChild(s);
   }
 
-  // ---- Utilities
+  function ensurePortal(){
+    ensureStyle();
+    let portal = document.getElementById(PORTAL_ID);
+    if (!portal){
+      portal = document.createElement('div');
+      portal.id = PORTAL_ID;
+      document.body.appendChild(portal);
+    }
+    let backdrop = portal.querySelector('#' + BACKDROP_ID);
+    if (!backdrop){
+      backdrop = document.createElement('div');
+      backdrop.id = BACKDROP_ID;
+      portal.appendChild(backdrop);
+    }
+    if (!backdrop.__fireopsBound){
+      backdrop.addEventListener('click', (e)=>{
+        if (e.target !== backdrop) return;
+        e.stopPropagation();
+        api.close();
+      });
+      backdrop.__fireopsBound = true;
+    }
+    state.portal = portal;
+    state.backdrop = backdrop;
+    return { portal, backdrop };
+  }
+
+  function getCurrentEls(){
+    const root = document.querySelector('[data-calc-root]') || document.body;
+    return {
+      root,
+      stage: root.querySelector('#stage'),
+      tipEditor: root.querySelector('#tipEditor'),
+      teCancel: root.querySelector('#teCancel'),
+      teApply: root.querySelector('#teApply'),
+      teWye: root.querySelector('#teWye'),
+      branchBlock: root.querySelector('#branchBlock'),
+    };
+  }
+
   function lockBodyScroll(lock){
-    if(!cfg.lockScroll) return;
+    if (!cfg.lockScroll) return;
     document.body.style.overflow = lock ? 'hidden' : '';
   }
 
-  function positionPortalOverStage(){
+  function positionPortal(){
+    if (!state.portal) return;
     const vw = window.innerWidth || document.documentElement.clientWidth || 0;
     const vh = window.innerHeight || document.documentElement.clientHeight || 0;
     const inset = vw <= 640 ? 8 : 18;
-    portal.style.left   = `${inset}px`;
-    portal.style.top    = `${inset}px`;
-    portal.style.width  = `${Math.max(320, vw - (inset * 2))}px`;
-    portal.style.height = `${Math.max(320, vh - (inset * 2))}px`;
+    state.portal.style.left = `${inset}px`;
+    state.portal.style.top = `${inset}px`;
+    state.portal.style.width = `${Math.max(320, vw - (inset * 2))}px`;
+    state.portal.style.height = `${Math.max(320, vh - (inset * 2))}px`;
   }
 
-  function mountEditorIntoPortal(){
-    if (tipEditor.parentElement !== portal){
-      tipEditor.classList.add('cover-stage');
-      portal.appendChild(tipEditor);
-    }
-  }
-
-  function unmountEditorToOriginal(){
-    if (tipEditor.parentElement === portal){
-      originalParent.appendChild(tipEditor);
-      tipEditor.classList.remove('cover-stage');
-    }
-  }
-
-  let isOpen = false;
-  let onScrollOrResizeBound = null;
-
-  function open(){
-    if (isOpen) return;
-
-    // Prepare geometry and mount
-    positionPortalOverStage();
-    mountEditorIntoPortal();
-
-    // Show portal + backdrop + editor
-    portal.style.display = 'block';
-    portalBackdrop.style.display = 'block';
-    tipEditor.classList.remove('is-hidden');
-    tipEditor.style.display = 'block';
-
-    // Keep aligned if the page scrolls or resizes while open
-    if(!onScrollOrResizeBound){
-      onScrollOrResizeBound = () => positionPortalOverStage();
-      window.addEventListener('scroll', onScrollOrResizeBound, { passive:true });
-      window.addEventListener('resize', onScrollOrResizeBound, { passive:true });
-    }
-
-    // Focus first control
-    const first = tipEditor.querySelector('input, select, textarea, button');
-    if(first) setTimeout(()=> first.focus(), 0);
-
-    lockBodyScroll(true);
-    isOpen = true;
-  }
-
-  function close(){
-    if (!isOpen) return;
-
-    // Hide UI
-    tipEditor.style.display = 'none';
-    portalBackdrop.style.display = 'none';
-    portal.style.display = 'none';
-
-    // Restore to original place so existing code keeps working
-    unmountEditorToOriginal();
-
-    // Stop following geometry
-    if(onScrollOrResizeBound){
-      window.removeEventListener('scroll', onScrollOrResizeBound);
-      window.removeEventListener('resize', onScrollOrResizeBound);
-      onScrollOrResizeBound = null;
-    }
-
-    lockBodyScroll(false);
-    isOpen = false;
-  }
-
-  // ---- Open only when clicking a real "+" (hose-end) inside the stage SVG
-  stageSvg.addEventListener('click', (e)=>{
-    const tip = e.target.closest('.hose-end');
-    if(!tip) return;
-    e.preventDefault();
-    e.stopPropagation();
-    open();
-  });
-
-  // ---- Backdrop closes (clicking outside the panel, but within the stage area)
-  portalBackdrop.addEventListener('click', (e)=>{
-    if(e.target !== portalBackdrop) return;
-    e.stopPropagation();
-    close();
-  });
-
-  // ---- Cancel closes
-  if(teCancel){
-    teCancel.addEventListener('click', (e)=>{
+  function attachCancel(btn){
+    if (!btn || btn.__fireopsCancelBound) return;
+    btn.addEventListener('click', (e)=>{
       e.preventDefault();
       e.stopPropagation();
-      close();
+      api.close();
     });
+    btn.__fireopsCancelBound = true;
   }
 
-  // ---- Apply closes (per your request)
-  if(teApply){
-    teApply.addEventListener('click', ()=>{
-      // Your host code applies changes; we just close the overlay.
-      close();
-    });
+  function attachApply(btn){
+    if (!btn || btn.__fireopsApplyBound) return;
+    btn.addEventListener('click', ()=> api.close());
+    btn.__fireopsApplyBound = true;
   }
 
-  // ---- Wye toggle reveals branch inputs
-  if(teWye && branchBlock){
-    const sync = ()=> branchBlock.classList.toggle('is-hidden', teWye.value !== 'wye');
-    teWye.addEventListener('change', sync);
-    requestAnimationFrame(sync);
+  function syncBranchBlockVisibility(){
+    if (!state.teWye || !state.branchBlock) return;
+    state.branchBlock.classList.toggle('is-hidden', state.teWye.value !== 'wye');
   }
 
-  // ---- Public API
-  window.BottomSheetEditor = {
-    open, close,
+  const api = {
+    open(){
+      const { portal, backdrop } = ensurePortal();
+      const els = getCurrentEls();
+      if (!els.stage || !els.tipEditor) return;
+
+      if (state.isOpen && state.tipEditor === els.tipEditor){
+        positionPortal();
+        return;
+      }
+
+      api.close();
+
+      state.tipEditor = els.tipEditor;
+      state.originalParent = els.tipEditor.parentElement;
+      state.teWye = els.teWye || null;
+      state.branchBlock = els.branchBlock || null;
+
+      els.tipEditor.classList.add('cover-stage');
+      portal.appendChild(els.tipEditor);
+      portal.style.display = 'block';
+      backdrop.style.display = 'block';
+      els.tipEditor.classList.remove('is-hidden');
+      els.tipEditor.style.display = 'block';
+
+      attachCancel(els.teCancel);
+      attachApply(els.teApply);
+
+      if (state.teWye){
+        state.syncBranchBlock = syncBranchBlockVisibility;
+        state.teWye.addEventListener('change', state.syncBranchBlock);
+        requestAnimationFrame(syncBranchBlockVisibility);
+      }
+
+      if (!state.onResize){
+        state.onResize = () => positionPortal();
+        window.addEventListener('scroll', state.onResize, { passive: true });
+        window.addEventListener('resize', state.onResize, { passive: true });
+      }
+
+      positionPortal();
+      const first = els.tipEditor.querySelector('input, select, textarea, button');
+      if (first) setTimeout(() => first.focus(), 0);
+      lockBodyScroll(true);
+      state.isOpen = true;
+    },
+
+    close(){
+      if (!state.isOpen && !state.tipEditor){
+        lockBodyScroll(false);
+        return;
+      }
+
+      const { portal, backdrop } = ensurePortal();
+      const tipEditor = state.tipEditor;
+      if (tipEditor){
+        tipEditor.style.display = 'none';
+        if (state.originalParent && tipEditor.parentElement === portal){
+          state.originalParent.appendChild(tipEditor);
+        }
+        tipEditor.classList.remove('cover-stage');
+      }
+
+      if (state.teWye && state.syncBranchBlock){
+        state.teWye.removeEventListener('change', state.syncBranchBlock);
+      }
+
+      backdrop.style.display = 'none';
+      portal.style.display = 'none';
+
+      if (state.onResize){
+        window.removeEventListener('scroll', state.onResize);
+        window.removeEventListener('resize', state.onResize);
+      }
+
+      state = {
+        isOpen: false,
+        portal,
+        backdrop,
+        tipEditor: null,
+        originalParent: null,
+        teWye: null,
+        branchBlock: null,
+        syncBranchBlock: null,
+        onResize: null,
+      };
+      lockBodyScroll(false);
+    },
+
     configure(opts){
-      if(opts && typeof opts === 'object') Object.assign(cfg, opts);
+      if (opts && typeof opts === 'object') Object.assign(cfg, opts);
     }
   };
+
+  window.BottomSheetEditor = api;
 })();
