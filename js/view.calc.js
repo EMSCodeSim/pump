@@ -23,7 +23,9 @@ document.addEventListener("click", (e) => {
   e.preventDefault(); e.stopPropagation();
   const key = tip.getAttribute("data-line");
   const where = tip.getAttribute("data-where");
-  if (window._openTipEditor) window._openTipEditor(key, where);
+  if (window._openTipEditor) {
+    window._openTipEditor(key, where, { open: true });
+  }
 });
 
 const UI_BUILD = 'ANDROID_UI_2026-02-04B';
@@ -910,6 +912,7 @@ function _setEditorOpen(open){
     bd.classList.remove('is-open');
   }
 }
+window._setTipEditorOpen = _setEditorOpen;
       // Wye row, branch container, and size steppers
       const wyeRow = tip.querySelector('#teWye')?.closest('.te-row');
       const branchBlock = tip.querySelector('#branchBlock');
@@ -2204,6 +2207,17 @@ function onOpenPopulateEditor(key, where, opts = {}){
 
     setBranchABEditorDefaults(key);
     showHideMainNozzleRow();
+
+    if (opts && opts.open) {
+      if (container && container.__segEnsureUI) container.__segEnsureUI('main');
+      try { setSeg('main'); } catch(_){ }
+      try { updateSegSwitchVisibility(); } catch(_){ }
+      if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'function') {
+        window.BottomSheetEditor.open();
+      } else {
+        _setEditorOpen(true);
+      }
+    }
   }
   // Branch nozzle change listeners (mirror main lines)
   try {
