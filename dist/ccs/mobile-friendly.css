@@ -167,3 +167,51 @@ text { paint-order: stroke; stroke: rgba(11,15,20,.35); stroke-width: 2px; }
 /* Prevent layout “wiggle” on active states: never change border widths on :active */
 .btn, .field input, .field select { border-width: 1px; }
 .btn:active, .field input:active { border-width: 1px; }
+
+
+/* ===== Android + menu fallback sizing ===== */
+html body #stageOverlayHost #tipEditor .steppers.inline-stepper,
+html body #tipEditor .steppers.inline-stepper {
+  grid-template-columns: minmax(72px, .9fr) minmax(112px, 1.4fr) minmax(72px, .9fr) !important;
+}
+
+html body #stageOverlayHost #tipEditor .stepBtn,
+html body #tipEditor .stepBtn {
+  min-height: 66px !important;
+  font-size: 34px !important;
+  font-weight: 900 !important;
+  border-radius: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  touch-action: manipulation !important;
+}
+
+html body #stageOverlayHost #tipEditor .stepVal,
+html body #tipEditor .stepVal {
+  min-height: 74px !important;
+  font-size: 28px !important;
+  font-weight: 900 !important;
+}
+
+@media (max-width: 480px) {
+  html body #stageOverlayHost #tipEditor .stepBtn,
+  html body #tipEditor .stepBtn {
+    min-height: 62px !important;
+    font-size: 32px !important;
+  }
+
+  html body #stageOverlayHost #tipEditor .stepVal,
+  html body #tipEditor .stepVal {
+    min-height: 68px !important;
+    font-size: 25px !important;
+  }
+
+  html body #stageOverlayHost #tipEditor .te-row > select,
+  html body #stageOverlayHost #tipEditor .te-row > input:not([type="hidden"]),
+  html body #tipEditor .te-row > select,
+  html body #tipEditor .te-row > input:not([type="hidden"]) {
+    min-height: 56px !important;
+    font-size: 18px !important;
+  }
+}
