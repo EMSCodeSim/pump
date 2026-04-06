@@ -2,7 +2,7 @@
 // Handles all logic for the segmented Wye UI:
 // - Main / Line A / Line B segment switching
 // - Showing/hiding branch panels
-// - Enforcing Wye only on 2.5"
+// - Allowing Wye on any hose size
 // - Locking branch size to 1.75"
 // - Defaulting branch nozzles to Fog 185@50
 
@@ -38,7 +38,7 @@ export function attachSegmentWyeUI(container, { NOZ_LIST, findNozzleId }) {
 
   const fogId = findFog185Id({ NOZ_LIST, findNozzleId });
 
-  /** Ensure Wye is allowed only if main size = 2.5 */
+  /** Wye is allowed on any main hose size. */
   function gateWye() {
     const ok = canUseWye(sizeHidden.value);
     if (!ok) {

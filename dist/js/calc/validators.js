@@ -6,7 +6,7 @@
  * A Wye may only be placed on a 2.5" line.
  */
 export function canUseWye(sizeInches) {
-  return String(sizeInches) === '2.5';
+  return true;
 }
 
 /**
@@ -14,14 +14,14 @@ export function canUseWye(sizeInches) {
  * Branches only exist when the Wye is ON *and* the main size is 2.5".
  */
 export function canEditBranch({ wye, size }) {
-  return wye === 'on' && String(size) === '2.5';
+  return wye === 'on';
 }
 
 /**
  * Should the UI show the segment switch (Main / Line A / Line B)?
  */
 export function shouldShowSegmentSwitch({ wye, size }) {
-  return wye === 'on' && String(size) === '2.5';
+  return wye === 'on';
 }
 
 /**
