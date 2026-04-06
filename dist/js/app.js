@@ -6,6 +6,8 @@ import { renderAdOnce } from './ads-guards.js';
 
 const ADS_CLIENT = 'ca-pub-9414291143716298';
 const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
+const BUILD_V = '20260406a';
+const modulePath = (name) => `./${name}.js?v=${BUILD_V}`;
 
 const app = document.getElementById('app');
 const buttons = Array.from(document.querySelectorAll('.navbtn'));
@@ -49,7 +51,7 @@ let _paywallMod = null;
 async function getPaywall() {
   if (!isNativeApp()) return null;
   if (_paywallMod) return _paywallMod;
-  _paywallMod = await import('./paywall.js');
+  _paywallMod = await import(modulePath('paywall'));
   return _paywallMod;
 }
 
@@ -62,10 +64,10 @@ function updateTopActionsVisibility(viewName) {
 
 // View loaders
 const loaders = {
-  calc:     () => import('./view.calc.js'),
-  practice: () => import('./view.practice.js'),
-  charts:   () => import('./view.charts.js'),
-  settings: () => import('./view.settings.js'),
+  calc:     () => import(modulePath('view.calc')),
+  practice: () => import(modulePath('view.practice')),
+  charts:   () => import(modulePath('view.charts')),
+  settings: () => import(modulePath('view.settings')),
 };
 
 // Charts overlay
