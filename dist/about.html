@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>About FireOps Calc</title>
+  <meta name="description" content="Learn more about FireOps Calc, a fire pump calculator built by a firefighter to help firefighters learn and visually track pumping in the field."/>
+  <link rel="canonical" href="https://fireopscalc.com/about.html"/>
+
+  <style>
+    :root{
+      --bg:#060d17; --panel:#0b1320; --edge:#15253b; --fg:#e9f1ff;
+      --muted:#cfe4ff; --accent:#46b0ff;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      padding:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
+      font-size:16px;
+      line-height:1.5;
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .shell{
+      max-width:900px;
+      margin:0 auto;
+      padding:16px 12px 40px;
+    }
+    header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:16px;
+    }
+    header img{
+      width:32px;
+      height:32px;
+      border-radius:8px;
+      border:1px solid var(--edge);
+    }
+    header h1{
+      margin:0;
+      font-size:24px;
+      letter-spacing:.02em;
+    }
+    .tagline{
+      margin:4px 0 0;
+      font-size:14px;
+      color:var(--muted);
+    }
+    .card{
+      background:var(--panel);
+      border:1px solid:var(--edge);
+      border-radius:12px;
+      padding:14px 12px;
+      margin-bottom:14px;
+      border:1px solid var(--edge);
+    }
+    h2{
+      margin:0 0 8px;
+      font-size:18px;
+    }
+    h3{
+      margin:12px 0 4px;
+      font-size:16px;
+    }
+    ul{
+      margin:4px 0 8px 20px;
+      padding:0;
+    }
+    li{margin-bottom:4px}
+    .pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin:4px 0 8px;
+    }
+    .pill{
+      border-radius:999px;
+      border:1px solid var(--edge);
+      padding:3px 8px;
+      font-size:11px;
+      color:var(--muted);
+    }
+    .back-link{
+      margin-top:16px;
+      font-size:14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <img src="/fireopscalc2.png" alt="FireOps Calc icon">
+      <div>
+        <h1>About FireOps Calc</h1>
+        <p class="tagline">Built by a firefighter, for firefighters.</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2>Why FireOps Calc exists</h2>
+      <p>
+        FireOps Calc was created by a firefighter to make pump calculations
+        faster, clearer, and easier to understand on real calls and during
+        training.
+      </p>
+      <p>
+        The goal is simple: help firefighters learn pump operations and visually
+        keep track of what they’re pumping in the field – without needing a
+        stack of paper charts or a complicated spreadsheet.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>What FireOps Calc does</h2>
+      <p>FireOps Calc is designed to be phone-friendly and easy to use on the rig. It focuses on three main areas:</p>
+
+      <div class="pill-row">
+        <span class="pill">Quick pump calculations</span>
+        <span class="pill">Training & practice</span>
+        <span class="pill">Reference tables</span>
+      </div>
+
+      <h3>1. Calculations (main screen)</h3>
+      <p>
+        The main screen is built for fast, real-world pump work. It lets you:
+      </p>
+      <ul>
+        <li>Set up attack lines with hose size, length, and nozzle type.</li>
+        <li>See the calculated pump pressure (PP) based on:
+          friction loss, nozzle pressure, elevation, appliances, and more.</li>
+        <li>Visually track multiple lines off the same engine.</li>
+        <li>Work with different hose sizes and C-values, including low-friction hose.</li>
+      </ul>
+
+      <h3>2. Water supply & relay (where enabled)</h3>
+      <p>
+        Depending on your version, FireOps Calc can help you estimate and track:
+      </p>
+      <ul>
+        <li>Hydrant flow using % drop.</li>
+        <li>Tender shuttle GPM based on round-trip times and tank sizes.</li>
+        <li>Relay pumping needs, including engine spacing and target intake pressure.</li>
+      </ul>
+
+      <h3>3. Practice mode</h3>
+      <p>
+        The practice view turns pump work into training reps. It lets you:
+      </p>
+      <ul>
+        <li>Answer pump problems and check your work against the calculator.</li>
+        <li>Use it as a quick drill tool for engineers, officers, or new drivers.</li>
+      </ul>
+
+      <h3>4. Tables view (reference charts)</h3>
+      <p>
+        The “Tables” button gives you a quick reference for:
+      </p>
+      <ul>
+        <li>Friction loss tables for common hose sizes.</li>
+        <li>Nozzle pressures and typical flows.</li>
+        <li>Rules of thumb you can use on the fireground.</li>
+      </ul>
+
+      <h3>5. Department presets and custom setups (app versions)</h3>
+      <p>
+        App builds of FireOps Calc are being designed to let departments:
+      </p>
+      <ul>
+        <li>Set department-specific hose sizes, C-values, and nozzle packages.</li>
+        <li>Save default line setups for Line 1, Line 2, Line 3, and special lines.</li>
+        <li>Use those presets across calculations so the math matches your rigs.</li>
+      </ul>
+      <p>
+        This helps keep training, drills, and on-scene calculations consistent with
+        your department’s actual equipment.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Learn how to use FireOps Calc</h2>
+      <p>
+        For step-by-step instructions, examples, and screenshots, check out the
+        how-to page:
+      </p>
+      <p>
+        👉 <a href="/how-to.html">FireOps Calc How-To &amp; Quick Start Guide</a>
+      </p>
+      <p>
+        That page walks through the main calculation screen, explains what each
+        field does, and shows how to use the different modes.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Feedback & future features</h2>
+      <p>
+        FireOps Calc is an active project that will continue to grow based on
+        feedback from firefighters and engineers in the field.
+      </p>
+      <p>
+        If you find a bug, have an idea, or want to request a feature, you can
+        reach out using the contact link from the app’s
+        <strong>About</strong> menu or site header.
+      </p>
+    </section>
+
+    <p class="back-link">
+      ← <a href="/">Back to FireOps Calc</a>
+    </p>
+  </div>
+</body>
+</html>

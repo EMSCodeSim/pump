@@ -1,0 +1,345 @@
+<!-- FireOps Calc Help Accordions (Quick Start + Full Guide)
+     Uses pure <details>/<summary> with simple icons + color coding.
+     Button labels matched to: Pump / Practice / Info
+-->
+
+<style>
+  /* ===== FireOps Calc Help Accordion Styles ===== */
+  .fo-help {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    line-height: 1.35;
+    color: #0f172a;
+  }
+
+  .fo-help h2 {
+    font-size: 1.1rem;
+    margin: 0 0 10px 0;
+  }
+  .fo-help .fo-muted { color: #475569; }
+  .fo-help .fo-spacer { height: 12px; }
+
+  .fo-accordion {
+    display: grid;
+    gap: 10px;
+  }
+
+  details.fo-card {
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 10px rgba(15, 23, 42, 0.06);
+  }
+
+  summary.fo-summary {
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Hide default marker */
+  summary.fo-summary::-webkit-details-marker { display: none; }
+
+  .fo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    white-space: nowrap;
+  }
+
+  .fo-title {
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  .fo-subtitle {
+    margin-top: 2px;
+    font-size: 0.9rem;
+    color: #475569;
+  }
+
+  .fo-caret {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: rgba(15, 23, 42, 0.06);
+    font-size: 0.95rem;
+  }
+
+  details[open] .fo-caret { transform: rotate(180deg); }
+
+  .fo-body {
+    padding: 12px 14px 14px 14px;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .fo-body p { margin: 8px 0; }
+  .fo-body ul { margin: 8px 0 0 18px; }
+  .fo-body li { margin: 6px 0; }
+
+  .fo-note {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.04);
+    border: 1px dashed rgba(15, 23, 42, 0.18);
+    margin-top: 10px;
+  }
+
+  /* ===== Color Coding ===== */
+  .fo-pump  .fo-chip { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
+  .fo-practice .fo-chip { background: rgba(16, 185, 129, 0.12); color: #047857; }
+  .fo-info  .fo-chip { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
+  .fo-how   .fo-chip { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+
+  .fo-sectionlabel {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #334155;
+    margin: 10px 0 6px 0;
+  }
+</style>
+
+<div class="fo-help">
+
+  <!-- ===================== QUICK START ===================== -->
+  <h2>Quick Start</h2>
+  <div class="fo-muted">Tap a section to see the fastest way to get going.</div>
+  <div class="fo-spacer"></div>
+
+  <div class="fo-accordion">
+
+    <details class="fo-card fo-pump">
+      <summary class="fo-summary">
+        <span class="fo-chip" aria-label="Pump">
+          <span aria-hidden="true">🚒</span> Pump
+        </span>
+        <div>
+          <div class="fo-title">Real-world pumping calculations</div>
+          <div class="fo-subtitle">Use on scene to get your pump discharge pressure fast.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Best first step:</strong> build your typical lines so you can calculate quickly on scene.</p>
+        <ul>
+          <li>Select your hoseline(s) and nozzle(s).</li>
+          <li>Enter lengths and any needed elevation changes.</li>
+          <li>Add appliances (wye / master stream / standpipe) if used.</li>
+          <li>Read your final pump discharge pressure and set the pump.</li>
+        </ul>
+        <div class="fo-note"><strong>Tip:</strong> If you’re unsure on a value, jump to <strong>Info</strong> to verify nozzle flows or friction loss tables.</div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-practice">
+      <summary class="fo-summary">
+        <span class="fo-chip" aria-label="Practice">
+          <span aria-hidden="true">🧠</span> Practice
+        </span>
+        <div>
+          <div class="fo-title">Driver / operator skill building</div>
+          <div class="fo-subtitle">Build speed and confidence with pump math questions.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Best first step:</strong> do a few questions until the setup feels automatic.</p>
+        <ul>
+          <li>Answer the pump pressure question.</li>
+          <li>Check feedback and correct your setup if needed.</li>
+          <li>Repeat for mixed scenarios (including appliances and master stream).</li>
+        </ul>
+        <div class="fo-note"><strong>Tip:</strong> Use <strong>Info</strong> if you need a quick reminder on flows, friction loss, or rules of thumb.</div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-info">
+      <summary class="fo-summary">
+        <span class="fo-chip" aria-label="Info">
+          <span aria-hidden="true">📘</span> Info
+        </span>
+        <div>
+          <div class="fo-title">Tables, formulas, and fireground reference</div>
+          <div class="fo-subtitle">Look up nozzle flows, friction loss, and quick rules.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Best first step:</strong> use this like a digital pump card.</p>
+        <ul>
+          <li>Look up nozzle flows and common tip sizes.</li>
+          <li>Use friction loss tables and rules of thumb.</li>
+          <li>Reference formulas (pump pressure, fire flow, standpipe basics).</li>
+        </ul>
+        <div class="fo-note"><strong>Tip:</strong> After you look something up here, go back to <strong>Pump</strong> to apply it, or <strong>Practice</strong> to reinforce it.</div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-how">
+      <summary class="fo-summary">
+        <span class="fo-chip" aria-label="How they work together">
+          <span aria-hidden="true">🔗</span> How they work together
+        </span>
+        <div>
+          <div class="fo-title">Simple workflow</div>
+          <div class="fo-subtitle">Info → Practice → Pump (learn, train, perform).</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <ul>
+          <li><strong>Info</strong> teaches and reminds (tables + formulas).</li>
+          <li><strong>Practice</strong> builds speed and confidence (questions + feedback).</li>
+          <li><strong>Pump</strong> applies it live (real incident calculations).</li>
+        </ul>
+      </div>
+    </details>
+
+  </div>
+
+  <div class="fo-spacer"></div>
+
+  <!-- ===================== FULL GUIDE ===================== -->
+  <h2>Full Guide</h2>
+  <div class="fo-muted">A complete walkthrough of each section and what the buttons do.</div>
+  <div class="fo-spacer"></div>
+
+  <div class="fo-accordion">
+
+    <details class="fo-card fo-pump">
+      <summary class="fo-summary">
+        <span class="fo-chip"><span aria-hidden="true">🚒</span> Pump</span>
+        <div>
+          <div class="fo-title">Real-World Pump Calculations</div>
+          <div class="fo-subtitle">Use this section while actively pumping or planning a pump operation.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Purpose:</strong> Get a reliable pump discharge pressure using your hose/nozzle setup and conditions on scene.</p>
+
+        <div class="fo-sectionlabel">What Pump does</div>
+        <ul>
+          <li>Applies friction loss based on hose size and length.</li>
+          <li>Accounts for nozzle type and flow (fog or smooth bore).</li>
+          <li>Adjusts for elevation gain/loss if applicable.</li>
+          <li>Includes losses for appliances (wye, master stream, standpipe, etc.).</li>
+          <li>Outputs a clear final pump discharge pressure.</li>
+        </ul>
+
+        <div class="fo-sectionlabel">How to use Pump (walkthrough)</div>
+        <ul>
+          <li><strong>Set up hoselines:</strong> choose hose diameter, length, and nozzle selection.</li>
+          <li><strong>Add conditions:</strong> include elevation or special factors if needed.</li>
+          <li><strong>Add appliances:</strong> wyes, master stream, standpipe—anything that changes pressure.</li>
+          <li><strong>Read the result:</strong> use the final pressure as your pump setting.</li>
+        </ul>
+
+        <div class="fo-note">
+          <strong>Works with:</strong> Use <strong>Info</strong> to verify nozzle flows and friction loss references, and use <strong>Practice</strong> to build speed so Pump is quick under stress.
+        </div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-practice">
+      <summary class="fo-summary">
+        <span class="fo-chip"><span aria-hidden="true">🧠</span> Practice</span>
+        <div>
+          <div class="fo-title">Driver / Operator Skill Building</div>
+          <div class="fo-subtitle">Train pump math the same way you’ll see it on tests and training.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Purpose:</strong> Build comfort and repetition so calculations become automatic.</p>
+
+        <div class="fo-sectionlabel">What Practice does</div>
+        <ul>
+          <li>Gives realistic pump problems (single line, multiple lines, appliances, master stream, mixed scenarios).</li>
+          <li>Lets you enter your answer and get immediate feedback.</li>
+          <li>Helps you learn consistent setup: hose → nozzle → friction loss → appliances → elevation → final pressure.</li>
+        </ul>
+
+        <div class="fo-sectionlabel">How to use Practice (walkthrough)</div>
+        <ul>
+          <li><strong>Read the scenario:</strong> identify hose sizes/lengths and nozzle type.</li>
+          <li><strong>Do the math:</strong> compute friction loss + nozzle pressure + adjustments.</li>
+          <li><strong>Enter your answer:</strong> submit your pump pressure.</li>
+          <li><strong>Use feedback:</strong> correct any setup mistakes and repeat until consistent.</li>
+        </ul>
+
+        <div class="fo-note">
+          <strong>Works with:</strong> If you get stuck, use <strong>Info</strong> for quick reference, then return to <strong>Practice</strong> until it clicks.
+        </div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-info">
+      <summary class="fo-summary">
+        <span class="fo-chip"><span aria-hidden="true">📘</span> Info</span>
+        <div>
+          <div class="fo-title">Tables, Rules, and Fireground Reference</div>
+          <div class="fo-subtitle">Your quick reference for flows, friction loss, formulas, and fundamentals.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p><strong>Purpose:</strong> Fast lookups and reminders without doing full calculations.</p>
+
+        <div class="fo-sectionlabel">What Info contains</div>
+        <ul>
+          <li><strong>Nozzle tables:</strong> common flows for fog and smooth bore.</li>
+          <li><strong>Friction loss tables:</strong> quick reference by hose size.</li>
+          <li><strong>Rules of thumb:</strong> shortcuts that help mental math.</li>
+          <li><strong>Formulas:</strong> pump pressure, fire flow basics, standpipe fundamentals.</li>
+          <li><strong>Wildland & special ops:</strong> longer lays and lower pressure considerations.</li>
+          <li><strong>Basic HazMat:</strong> awareness-level safety reminders.</li>
+        </ul>
+
+        <div class="fo-sectionlabel">How to use Info (walkthrough)</div>
+        <ul>
+          <li><strong>Look it up:</strong> find the value you need (flow, FL, rule, formula).</li>
+          <li><strong>Apply it:</strong> go back to <strong>Pump</strong> to calculate or to <strong>Practice</strong> to reinforce.</li>
+        </ul>
+
+        <div class="fo-note">
+          <strong>Works with:</strong> Info supports both <strong>Pump</strong> (fast, accurate operations) and <strong>Practice</strong> (learning and repetition).
+        </div>
+      </div>
+    </details>
+
+    <details class="fo-card fo-how">
+      <summary class="fo-summary">
+        <span class="fo-chip"><span aria-hidden="true">🔗</span> How they work together</span>
+        <div>
+          <div class="fo-title">The full workflow</div>
+          <div class="fo-subtitle">Use each section for what it’s best at.</div>
+        </div>
+        <span class="fo-caret" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="fo-body">
+        <p>FireOps Calc is built around a practical cycle:</p>
+        <ul>
+          <li><strong>Info</strong> → learn and reference (tables + formulas).</li>
+          <li><strong>Practice</strong> → train and sharpen (questions + feedback).</li>
+          <li><strong>Pump</strong> → perform on scene (real calculations).</li>
+        </ul>
+        <div class="fo-note">
+          <strong>Recommended path for new users:</strong> start in <strong>Practice</strong>, verify in <strong>Info</strong>, then use <strong>Pump</strong> during training and live incidents.
+        </div>
+      </div>
+    </details>
+
+  </div>
+</div>
