@@ -188,6 +188,7 @@ import {
   getDeptCustomNozzlesForCalc
 } from './preset.js';
 import {setDeptEquipment, setDeptSelections, getUiNozzles } from './deptState.js';
+import './view.calc.enhance.js';
 
 
 /*                                Main render                                 */
@@ -990,7 +991,7 @@ function _setEditorOpen(open){
         // lock branch size to 1 3/4
         const sizeLabel = tip.querySelector('#sizeLabel');
         if (!mainShow){
-          if (teSize) teSize.value = '1.75';
+          if (teSize) _plusSelectHoseOptionValue(teSize, '1.75', '1.75');
           if (sizeLabel) sizeLabel.textContent = '1 3/4″';
           if (teSizeField) teSizeField.disabled = true;
         }else{
@@ -2150,7 +2151,7 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
         : [{ size: '1.75', lengthFt: 200 }];
       const sizeMain = mainSegs[0].size || '1.75';
       const totalLenMain = sumFt(mainSegs);
-      teSize.value = String(L._hoseId || mainSegs[0]._hoseId || sizeMain);
+      _plusSelectHoseOptionValue(teSize, (L._hoseId || mainSegs[0]._hoseId || sizeMain), sizeMain);
       teLen.value = totalLenMain || mainSegs[0].lengthFt || 0;
 
       // Main nozzle: prefer existing, otherwise ensure a default based on diameter
@@ -2188,14 +2189,14 @@ function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = on
     } else if(where==='L'){
       const branchHose = _plusGetDefaultBranchHose();
       const seg = L.itemsLeft[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
-      teSize.value = String(seg._hoseId || branchHose.id || seg.size);
+      _plusSelectHoseOptionValue(teSize, (seg._hoseId || branchHose.id || seg.size), (seg.size || branchHose.diameter));
       teLen.value = seg.lengthFt || 50;
       ensureDefaultNozzleFor(L,'L',seg.size || branchHose.diameter);
       if(teNoz) teNoz.value = (L.nozLeft?.id)||teNoz.value;
     } else {
       const branchHose = _plusGetDefaultBranchHose();
       const seg = L.itemsRight[0] || {size: branchHose.diameter, lengthFt: 50, cValue: branchHose.c, _hoseId: branchHose.id};
-      teSize.value = String(seg._hoseId || branchHose.id || seg.size);
+      _plusSelectHoseOptionValue(teSize, (seg._hoseId || branchHose.id || seg.size), (seg.size || branchHose.diameter));
       teLen.value = seg.lengthFt || 50;
       setBranchBDefaultIfEmpty(L);
       ensureDefaultNozzleFor(L,'R',seg.size || branchHose.diameter);
@@ -3049,7 +3050,6 @@ addLabel(G_labels, row1 + '\n' + row2, geom.endX, geom.endY-22, (key==='left')?-
   
   try{ initPlusMenus(container); }catch(e){}
   return { dispose(){
-    try { window.BottomSheetEditor?.close?.(); } catch(_) {}
     stopAutoSave();
   }};
 
@@ -3296,6 +3296,45 @@ function _plusGetDefaultBranchHose() {
   return { id: '1.75', diameter: '1.75', c: 15.5 };
 }
 
+function _plusSelectHoseOptionValue(selectEl, rawValue, fallbackDiameter = '') {
+  try {
+    if (!selectEl) return '';
+    const desired = String(rawValue ?? '').trim();
+    const fallbackDia = String(fallbackDiameter ?? '').trim();
+    const opts = Array.from(selectEl.options || []);
+    if (!opts.length) {
+      selectEl.value = desired;
+      return String(selectEl.value || '');
+    }
+
+    const exact = desired ? opts.find(opt => String(opt.value || '').trim() === desired) : null;
+    if (exact) {
+      selectEl.value = exact.value;
+      return String(selectEl.value || exact.value || '');
+    }
+
+    const meta = _plusResolveHoseMeta(desired || fallbackDia);
+    const targetDia = String(meta?.diameter || fallbackDia || '').trim();
+    const byDiameter = targetDia
+      ? opts.find(opt => {
+          const optionMeta = _plusResolveHoseMeta(String(opt.value || '').trim());
+          return String(optionMeta?.diameter || '').trim() === targetDia;
+        })
+      : null;
+    if (byDiameter) {
+      selectEl.value = byDiameter.value;
+      return String(selectEl.value || byDiameter.value || '');
+    }
+
+    const fallback = opts[0];
+    if (fallback) {
+      selectEl.value = fallback.value;
+      return String(selectEl.value || fallback.value || '');
+    }
+  } catch (_e) {}
+  return '';
+}
+
 function initPlusMenus(root){
   const sizeSeq = _plusGetHoseListFromDept().map(item => ({
     val: String(item.id),
@@ -3308,10 +3347,8 @@ function initPlusMenus(root){
     teSize.innerHTML = sizeSeq.map(item => `<option value="${String(item.val).replace(/"/g, '&quot;')}">${String(item.labelPlain).replace(/</g,'&lt;')}</option>`).join('');
 
     const current = String(teSize.value || '').trim();
-    const exact = sizeSeq.find(item => String(item.val) === current);
-    const byDiameter = !exact ? sizeSeq.find(item => String(item.diameter) === current) : null;
-    const chosen = exact || byDiameter || sizeSeq[0];
-    if (chosen) teSize.value = String(chosen.val);
+    const chosenValue = _plusSelectHoseOptionValue(teSize, current, current);
+    if (!chosenValue && sizeSeq[0]) teSize.value = String(sizeSeq[0].val);
   }
 
   const teLen = root.querySelector('#teLen');
@@ -3407,10 +3444,10 @@ function initPlusMenus(root){
     if (teNozA) teNozA.innerHTML = optionsHtml;
     if (teNozB) teNozB.innerHTML = optionsHtml;
   }
-  const plusMenuStyleId = 'fireops-plusmenu-mobile-style';
-  if(!document.getElementById(plusMenuStyleId)){
+
+
+  if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.id = plusMenuStyleId;
     s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
 #tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
 #tipEditor #rowWhere{order:10 !important}
@@ -3422,8 +3459,7 @@ function initPlusMenus(root){
 #tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
 #tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
 #tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;font-weight:700 !important;line-height:1.2 !important}
-#tipEditor .te-row>select{padding-right:40px !important}
+#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important}
 #tipEditor .steppers{display:grid !important;grid-template-columns:1fr !important;grid-template-rows:auto auto auto !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
 #tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation}
 #tipEditor .stepBtn:active{transform:translateY(1px)}
@@ -3433,8 +3469,9 @@ function initPlusMenus(root){
 #tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:18px !important}
 #tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
 #tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`;
-    document.head.appendChild(s);
+@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{font-size:18px !important;min-height:56px !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
+    root.appendChild(s);
+    root.__plusMenuStyles = true;
   }
 }
 
@@ -3544,6 +3581,23 @@ function initBranchPlusMenus(root){
       }catch(_){}
     });
     
+(function(){
+  try{
+    const st = document.createElement('style');
+    st.textContent = `
+    .segSwitch{display:flex;gap:6px;margin:6px 0 4px}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2)}
+    .segBtn.active{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.6)}
+.pillVal{padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.08);font-variant-numeric:tabular-nums}
+
+    .segSwitch{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap}
+    .segBtn{padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);font-size:.85rem}
+    .segBtn.active{background:var(--brand,rgba(59,130,246,.25));border-color:rgba(59,130,246,.6)}
+    `;
+    document.head.appendChild(st);
+  }catch(_){}
+})();
+
 
 
 
