@@ -2204,7 +2204,7 @@ function onOpenPopulateEditor(key, where, opts = {}){
     showHideMainNozzleRow();
   }
 
-window._openTipEditor = onOpenPopulateEditor;
+  window._openTipEditor = onOpenPopulateEditor;
 
   // Branch nozzle change listeners (mirror main lines)
   try {
