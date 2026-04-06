@@ -2106,7 +2106,9 @@ function refreshEditorVisualsFromFields(){
   }catch(_){}
 }
 
-function onOpenPopulateEditor(key, where, opts = {}){ window._openTipEditor = onOpenPopulateEditor; 
+function onOpenPopulateEditor(key, where, opts = {}){
+    const hideEl = (el)=>{ if(!el) return; el.hidden = true; el.inert = true; el.style.display='none'; el.classList.add('is-hidden'); };
+    const showEl = (el)=>{ if(!el) return; el.hidden = false; el.inert = false; el.style.display=''; el.classList.remove('is-hidden'); };
     const L = seedDefaultsForKey(key);
     L.visible = true;
     editorContext = {key, where};
@@ -2270,9 +2272,11 @@ if (window.BottomSheetEditor && typeof window.BottomSheetEditor.open === 'functi
     }
   });
 
+  window._openTipEditor = onOpenPopulateEditor;
+
   // Keep rowNoz visibility in sync when Wye changes in-editor
   teWye?.addEventListener('change', ()=>{
-    const branchWrap = popupEl?.querySelector?.("#branchPlusWrap");
+    const branchWrap = container?.querySelector?.("#branchPlusWrap");
     if(branchWrap){ branchWrap.style.display = 'none'; }
     const applianceMode = teWye.value||'off';
     const wyeOn = applianceMode==='wye';
