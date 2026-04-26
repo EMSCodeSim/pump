@@ -1,0 +1,47 @@
+{
+  "id": "wye_test_001_mobile",
+  "title": "Engine 181 Wye Split Attack",
+  "difficulty": "intermediate",
+  "category": "wye",
+  "image": "wye_test_001_mobile.png",
+  "question": "Engine 181 is supplying a wye with 200’ of 2½” hose. Branch A is 150’ of 1¾” flowing 150 GPM with a fog nozzle at 50 PSI. Branch B is 200’ of 1¾” flowing 150 GPM with a fog nozzle at 50 PSI. What pump pressure should the operator set?",
+  "correctPP": 155,
+  "tolerance": 5,
+  "sceneElements": {
+    "engine": "Engine 181 on street side",
+    "hoses": [
+      "200’ 2½” blue supply line to wye",
+      "Branch A: 150’ 1¾” yellow attack line to front door",
+      "Branch B: 200’ 1¾” yellow attack line to side door"
+    ],
+    "nozzles": [
+      "Branch A fog nozzle, 150 GPM @ 50 PSI",
+      "Branch B fog nozzle, 150 GPM @ 50 PSI"
+    ],
+    "appliances": [
+      "Yellow wye near front walkway"
+    ],
+    "elevation": "0 PSI"
+  },
+  "formulaBreakdown": [
+    "PP = FL + NP ± elevation + appliance loss",
+    "Supply FL = 2 × (300 / 100)^2 × 2 = 36 PSI, rounded to 35 PSI",
+    "Branch A FL = 15.5 × (150 / 100)^2 × 1.5 = 52.3 PSI, rounded to 52 PSI",
+    "Branch A total = 35 + 52 + 50 = 137 PSI, rounded to 140 PSI",
+    "Branch B FL = 15.5 × (150 / 100)^2 × 2 = 69.75 PSI, rounded to 70 PSI",
+    "Branch B total = 35 + 70 + 50 = 155 PSI",
+    "Wye appliance loss = 0 PSI because total flow is 300 GPM",
+    "Highest pressure branch governs",
+    "Correct PP = 155 PSI"
+  ],
+  "artPrompt": "Create a vertical mobile-friendly firefighting training illustration for a phone display. Dark professional nighttime background, semi-isometric residential fireground diagram, realistic but simplified. Show Engine 181 on the street supplying a yellow wye near the front walkway with a 200’ 2½” blue supply hose. From the wye, show two yellow 1¾” attack lines: Branch A is 150’ 1¾” to the front door, labeled ‘A: 150’ 1¾ Fog 150 @ 50’; Branch B is 200’ 1¾” to the side door, labeled ‘B: 200’ 1¾ Fog 150 @ 50’. No direction arrows on hoses. Use large high-contrast labels, clean hose paths, readable phone layout, minimal clutter, and leave safe space at the bottom for the app question and answer UI.",
+  "tags": [
+    "wye split",
+    "attack line",
+    "intermediate",
+    "fog nozzle",
+    "highest branch governs",
+    "engine 181",
+    "mobile display"
+  ]
+}
