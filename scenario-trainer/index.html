@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>FireOps Scenario Trainer</title>
+  <link rel="stylesheet" href="./scenario-trainer.css" />
+</head>
+<body>
+  <main class="trainer-shell">
+    <header class="trainer-header">
+      <div>
+        <p class="eyebrow">FireOps Calc Lab</p>
+        <h1>Scenario Trainer</h1>
+      </div>
+      <button id="scenarioListBtn" class="ghost-btn" type="button">Scenarios</button>
+    </header>
+
+    <section class="scenario-card">
+      <div class="scenario-topline">
+        <div>
+          <h2 id="scenarioTitle">Loading…</h2>
+          <p id="scenarioSubtitle"></p>
+        </div>
+        <span id="scenarioTag" class="tag"></span>
+      </div>
+
+      <div id="artStage" class="art-stage" aria-label="Scenario artwork"></div>
+
+      <div class="dispatch-box">
+        <div class="dispatch-label">Scenario</div>
+        <p id="scenarioDescription"></p>
+      </div>
+    </section>
+
+    <section class="answer-card">
+      <h3>Your Answer</h3>
+      <div class="answer-grid">
+        <label>
+          Pump Pressure
+          <input id="answerPump" inputmode="numeric" type="number" placeholder="PSI" />
+        </label>
+        <label>
+          Friction Loss
+          <input id="answerFL" inputmode="numeric" type="number" placeholder="optional" />
+        </label>
+        <label>
+          Nozzle Pressure
+          <input id="answerNP" inputmode="numeric" type="number" placeholder="optional" />
+        </label>
+        <label>
+          Appliance / Elev.
+          <input id="answerOther" inputmode="numeric" type="number" placeholder="optional" />
+        </label>
+      </div>
+
+      <div class="button-row">
+        <button id="submitBtn" class="primary-btn" type="button">Submit Answer</button>
+        <button id="explainBtn" class="secondary-btn" type="button">Explain Math</button>
+        <button id="nextBtn" class="secondary-btn" type="button">Next</button>
+      </div>
+
+      <div id="resultBox" class="result-box" hidden></div>
+      <div id="mathBox" class="math-box" hidden></div>
+    </section>
+
+    <section id="scenarioDrawer" class="drawer" hidden>
+      <div class="drawer-panel">
+        <div class="drawer-head">
+          <h3>Scenario Bank</h3>
+          <button id="closeDrawerBtn" class="ghost-btn" type="button">Close</button>
+        </div>
+        <div id="scenarioList" class="scenario-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./scenario-trainer.js"></script>
+</body>
+</html>
