@@ -2,7 +2,7 @@
 // Goal: prevent "stuck old JS" on Android by NEVER cache-baking /js/
 //
 // Bump this every release:
-const CACHE = 'fireops-v708';
+const CACHE = 'fireops-v709-scenarios';
 
 const CORE_ASSETS = [
   '/',
