@@ -1,4 +1,4 @@
-export const scenarios = [
+[
   {
     "id": "single_line_preconnect_001",
     "title": "Basic 1¾ Preconnect to Front Door",
@@ -288,4 +288,4 @@ export const scenarios = [
       "Engine 181"
     ]
   }
-];
+]
