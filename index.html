@@ -576,7 +576,7 @@
     </button>
     <button class="navbtn" data-view="practice">
       <span class="icon">🎯</span>
-      <span>Practice</span>
+      <span>Scenarios</span>
     </button>
     <button class="navbtn" data-view="charts">
       <span class="icon">📊</span>
@@ -658,8 +658,8 @@
           <div class="qs-big-sub">Real-world pumping calculations: preconnects, hydrant/tender supply, wye &amp; elevation.</div>
         </button>
         <button class="qs-big" type="button" data-qscat="practice">
-          <div class="qs-big-title">🎯 Practice</div>
-          <div class="qs-big-sub">Pump test prep with mixed questions and scenarios. Build speed and confidence.</div>
+          <div class="qs-big-title">🎯 Scenarios</div>
+          <div class="qs-big-sub">Artwork-based pump scenarios with overlays, full answer fields, and instant feedback.</div>
         </button>
         <button class="qs-big" type="button" data-qscat="info">
           <div class="qs-big-title">📊 Info</div>
@@ -690,22 +690,22 @@
         </div>
       </section>
 
-      <!-- Detail: Practice -->
+      <!-- Detail: Scenarios -->
       <section id="qsDetailPractice" class="qs-detail" hidden>
         <div class="qs-detail-head">
           <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Practice</h3>
+          <h3 style="margin:0">Scenarios</h3>
         </div>
-        <p class="qs-sub" style="margin-top:8px">Practice mode is for pump test prep: mixed questions, fast repetition, and instant feedback.</p>
+        <p class="qs-sub" style="margin-top:8px">Scenario Trainer is for artwork-based pump-pressure practice. Enter friction loss, nozzle pressure, elevation, appliance loss, total GPM, and final pump pressure.</p>
         <div class="qs-detail-body">
           <h4 style="margin:10px 0 6px">Walkthrough</h4>
           <ol style="margin:0 0 10px 18px">
-            <li>Pick a question type or use mixed mode.</li>
-            <li>Answer, then hit <b>Check</b> to see the breakdown.</li>
-            <li>Use <b>New Question</b> to grind reps and build speed.</li>
+            <li>Review the scene image and scenario details.</li>
+            <li>Enter FL, NP, elevation, appliance loss, total GPM, and PP.</li>
+            <li>Submit to see grading, explain-mistake feedback, and the math breakdown.</li>
           </ol>
           <div class="qs-actions">
-            <button class="qs-link" type="button" data-qsgoto="practice">Go to Practice</button>
+            <button class="qs-link" type="button" data-qsgoto="practice">Go to Scenarios</button>
           </div>
         </div>
       </section>
@@ -775,7 +775,7 @@
   <script>
     (function(){
 	      // Bump this when the onboarding UI changes so existing users see it once
-	      const GUIDE_VERSION = 3;
+	      const GUIDE_VERSION = 4;
       const MODAL_KEY = 'fireops_quickstart_seen_version';
       const modal = document.getElementById('quickStartModal');
 	      const home = document.getElementById('qsHome');
@@ -945,7 +945,7 @@
     })();
   </script>
 
-  <!-- Hide any "Reveal" button that practice view renders -->
+  <!-- Legacy guard: hide any "Reveal" button if old practice view renders -->
   <script>
     (function(){
       const app = document.getElementById('app');
