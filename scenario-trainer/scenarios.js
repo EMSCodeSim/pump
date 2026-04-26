@@ -6,39 +6,11 @@ export const scenarios = [
     description:'Engine 1 is pumping a 200’ 1¾” preconnect flowing 150 GPM through a fog nozzle rated at 50 PSI. What pump pressure should the operator set?',
     line:{ hoseSize:'1.75', length:200, gpm:150, nozzlePressure:50 },
     applianceLoss:0, elevation:0, tolerance:5,
-    formulaBreakdown:[
-      'PP = FL + NP',
-      'FL = C × (GPM / 100)^2 × hose length in hundreds',
-      'FL = 15.5 × (150 / 100)^2 × 2',
-      'FL = 15.5 × 2.25 × 2',
-      'FL = 69.75 PSI, rounded to 70 PSI',
-      'PP = 70 + 50',
-      'PP = 120 PSI'
-    ]
+    formulaBreakdown:['PP = FL + NP','FL = C × (GPM / 100)^2 × hose length in hundreds','FL = 15.5 × (150 / 100)^2 × 2','FL = 15.5 × 2.25 × 2','FL = 69.75 PSI, rounded to 70 PSI','PP = 70 + 50','PP = 120 PSI']
   },
-  {
-    id:'single_001', type:'single', tag:'Single Line', hydrant:true,
-    title:'Single 1¾ Attack Line', subtitle:'Basic pump pressure problem',
-    description:'Engine 1 is pumping a 200 foot 1¾ inch attack line with a 165 gpm fog nozzle at 50 psi.',
-    line:{ hoseSize:'1.75', length:200, gpm:165, nozzlePressure:50 },
-    applianceLoss:0, elevation:0, tolerance:5
-  },
-  {
-    id:'wye_001', type:'wye', tag:'Wye Operation', hydrant:true,
-    title:'2½ Supply to Gated Wye', subtitle:'Use the highest branch requirement',
-    description:'A 200 foot 2½ inch line supplies a gated wye. Branch A is 200 feet of 1¾ inch hose with a 165 gpm fog nozzle at 50 psi. Branch B is 250 feet of 1¾ inch hose with a 150 gpm fog nozzle at 100 psi. Add 10 psi appliance loss for the wye.',
-    main:{ hoseSize:'2.5', length:200 },
-    branches:[
-      { label:'Branch A', hoseSize:'1.75', length:200, gpm:165, nozzlePressure:50 },
-      { label:'Branch B', hoseSize:'1.75', length:250, gpm:150, nozzlePressure:100 }
-    ],
-    applianceLoss:10, elevation:0, tolerance:5
-  },
-  {
-    id:'standpipe_001', type:'standpipe', tag:'Standpipe', hydrant:true,
-    title:'Standpipe Interior Line', subtitle:'FDC / standpipe allowance',
-    description:'Engine 1 supplies the FDC. Interior crew has 150 feet of 2½ inch hose flowing 250 gpm through a smooth bore nozzle at 50 psi. Use 25 psi for standpipe/elevation allowance.',
-    line:{ hoseSize:'2.5', length:150, gpm:250, nozzlePressure:50 },
-    standpipePressure:25, elevation:0, tolerance:5
-  }
+  { id:'single_001', type:'single', tag:'Single Line', hydrant:true, title:'Single 1¾ Attack Line', subtitle:'Basic pump pressure problem', description:'Engine 1 is pumping a 200 foot 1¾ inch attack line with a 165 gpm fog nozzle at 50 psi.', line:{ hoseSize:'1.75', length:200, gpm:165, nozzlePressure:50 }, applianceLoss:0, elevation:0, tolerance:5 },
+  { id:'wye_001', type:'wye', tag:'Wye Operation', hydrant:true, title:'2½ Supply to Gated Wye', subtitle:'Use the highest branch requirement', description:'A 200 foot 2½ inch line supplies a gated wye. Branch A is 200 feet of 1¾ inch hose with a 165 gpm fog nozzle at 50 psi. Branch B is 250 feet of 1¾ inch hose with a 150 gpm fog nozzle at 100 psi. Add 10 psi appliance loss for the wye.', main:{ hoseSize:'2.5', length:200 }, branches:[ { label:'Branch A', hoseSize:'1.75', length:200, gpm:165, nozzlePressure:50 }, { label:'Branch B', hoseSize:'1.75', length:250, gpm:150, nozzlePressure:100 } ], applianceLoss:10, elevation:0, tolerance:5 },
+  { id:'wye_002', type:'wye', tag:'Wye Operation', hydrant:true, title:'Apartment Courtyard Wye', subtitle:'Two branches from one gated wye', description:'Engine 1 pumps 250 feet of 2½ inch hose to a gated wye. Branch A is 150 feet of 1¾ inch hose flowing 150 gpm at 50 psi. Branch B is 200 feet of 1¾ inch hose flowing 165 gpm at 50 psi. Add 10 psi for the wye.', main:{ hoseSize:'2.5', length:250 }, branches:[ { label:'Branch A', hoseSize:'1.75', length:150, gpm:150, nozzlePressure:50 }, { label:'Branch B', hoseSize:'1.75', length:200, gpm:165, nozzlePressure:50 } ], applianceLoss:10, elevation:0, tolerance:5 },
+  { id:'master_001', type:'master', tag:'Master Stream', hydrant:true, title:'Portable Master Stream', subtitle:'Two 2½ lines supplying a portable monitor', description:'Engine 1 supplies a portable master stream with two 150 foot 2½ inch lines. The master stream is flowing 500 gpm at 80 psi. Add 25 psi appliance loss for the portable device.', feeds:[ { label:'Supply Line 1', hoseSize:'2.5', length:150, gpm:250 }, { label:'Supply Line 2', hoseSize:'2.5', length:150, gpm:250 } ], master:{ gpm:500, nozzlePressure:80 }, applianceLoss:25, elevation:0, tolerance:5 },
+  { id:'standpipe_001', type:'standpipe', tag:'Standpipe', hydrant:true, title:'Standpipe Interior Line', subtitle:'FDC / standpipe allowance', description:'Engine 1 supplies the FDC. Interior crew has 150 feet of 2½ inch hose flowing 250 gpm through a smooth bore nozzle at 50 psi. Use 25 psi for standpipe/elevation allowance.', line:{ hoseSize:'2.5', length:150, gpm:250, nozzlePressure:50 }, standpipePressure:25, elevation:0, tolerance:5 }
 ];
