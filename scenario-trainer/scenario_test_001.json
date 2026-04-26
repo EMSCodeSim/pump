@@ -1,0 +1,37 @@
+{
+  "id": "scenario_test_001",
+  "title": "Basic 200 Foot Preconnect",
+  "difficulty": "beginner",
+  "category": "attack line",
+  "image": "scenario_test_001.png",
+  "question": "Engine 1 is pumping a 200’ 1¾” preconnect flowing 150 GPM through a fog nozzle rated at 50 PSI. What pump pressure should the operator set?",
+  "correctPP": 120,
+  "tolerance": 5,
+  "sceneElements": {
+    "engine": "Engine 1 on street side",
+    "hoses": [
+      "200’ 1¾” attack line"
+    ],
+    "nozzles": [
+      "Fog nozzle, 150 GPM @ 50 PSI"
+    ],
+    "appliances": [],
+    "elevation": "0 PSI"
+  },
+  "formulaBreakdown": [
+    "PP = FL + NP",
+    "FL = C × (GPM / 100)^2 × hose length in hundreds",
+    "FL = 15.5 × (150 / 100)^2 × 2",
+    "FL = 15.5 × 2.25 × 2",
+    "FL = 69.75 PSI, rounded to 70 PSI",
+    "PP = 70 + 50",
+    "PP = 120 PSI"
+  ],
+  "tags": [
+    "single attack line",
+    "preconnect",
+    "fog nozzle",
+    "beginner",
+    "test"
+  ]
+}

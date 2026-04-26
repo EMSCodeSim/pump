@@ -51,6 +51,9 @@ function solve(s){
 }
 
 function renderArt(s){
+  if (s.image) {
+    return `<img class="scenario-photo" src="${s.image}" alt="${s.title}" loading="eager">`;
+  }
   const hydrant = s.hydrant ? `<circle cx="48" cy="232" r="14" fill="#c93333"/><rect x="42" y="204" width="12" height="34" rx="4" fill="#e04b4b"/>` : '';
   const building = `<rect x="285" y="56" width="190" height="160" rx="8" fill="#b9c0c6"/><rect x="310" y="90" width="36" height="42" fill="#1c2e40"/><rect x="365" y="90" width="36" height="42" fill="#1c2e40"/><rect x="420" y="90" width="32" height="92" fill="#4d3329"/>`;
   const engine = `<rect x="82" y="186" width="112" height="54" rx="9" fill="#bf1d1d"/><rect x="116" y="158" width="64" height="36" rx="6" fill="#e33"/><circle cx="107" cy="244" r="13" fill="#101820"/><circle cx="170" cy="244" r="13" fill="#101820"/><text x="102" y="219" fill="white" font-size="15" font-weight="800">E1</text>`;
@@ -97,10 +100,12 @@ function submit(){
 }
 
 function explain(){
-  const ans = solve(scenarios[index]);
+  const s = scenarios[index];
+  const ans = solve(s);
+  const steps = s.formulaBreakdown || ans.steps;
   const box = $('mathBox');
   box.hidden = false;
-  box.innerHTML = `<strong>Math Breakdown</strong><ol>${ans.steps.map(step => `<li>${step}</li>`).join('')}</ol>`;
+  box.innerHTML = `<strong>Math Breakdown</strong><ol>${steps.map(step => `<li>${step}</li>`).join('')}</ol>`;
 }
 
 function renderScenarioList(){

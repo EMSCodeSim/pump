@@ -1,5 +1,22 @@
 export const scenarios = [
   {
+    id:'scenario_test_001', type:'single', tag:'Test Scenario', difficulty:'beginner', category:'attack line', hydrant:false,
+    title:'Basic 200 Foot Preconnect', subtitle:'Beginner attack line problem',
+    image:'images/scenarios/scenario_test_001.png',
+    description:'Engine 1 is pumping a 200’ 1¾” preconnect flowing 150 GPM through a fog nozzle rated at 50 PSI. What pump pressure should the operator set?',
+    line:{ hoseSize:'1.75', length:200, gpm:150, nozzlePressure:50 },
+    applianceLoss:0, elevation:0, tolerance:5,
+    formulaBreakdown:[
+      'PP = FL + NP',
+      'FL = C × (GPM / 100)^2 × hose length in hundreds',
+      'FL = 15.5 × (150 / 100)^2 × 2',
+      'FL = 15.5 × 2.25 × 2',
+      'FL = 69.75 PSI, rounded to 70 PSI',
+      'PP = 70 + 50',
+      'PP = 120 PSI'
+    ]
+  },
+  {
     id:'single_001', type:'single', tag:'Single Line', hydrant:true,
     title:'Single 1¾ Attack Line', subtitle:'Basic pump pressure problem',
     description:'Engine 1 is pumping a 200 foot 1¾ inch attack line with a 165 gpm fog nozzle at 50 psi.',
