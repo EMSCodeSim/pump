@@ -2,7 +2,8 @@ import { scenarios } from './scenarios.js';
 
 const C_VALUES = { '1.75': 15.5, '2.5': 2, '3': 0.8, '4': 0.2, '5': 0.08 };
 const $ = (id) => document.getElementById(id);
-let index = 0;
+let index = Math.floor(Math.random() * scenarios.length);
+let lastIndex = index;
 
 function fl(hoseSize, gpm, length){
   const c = C_VALUES[String(hoseSize)] ?? 15.5;
@@ -74,7 +75,6 @@ function render(){
   $('artStage').innerHTML = renderArt(s);
   ['answerPump','answerFL','answerNP','answerOther'].forEach(id => $(id).value = '');
   $('resultBox').hidden = true; $('mathBox').hidden = true;
-  renderScenarioList();
 }
 
 function submit(){
@@ -108,21 +108,18 @@ function explain(){
   box.innerHTML = `<strong>Math Breakdown</strong><ol>${steps.map(step => `<li>${step}</li>`).join('')}</ol>`;
 }
 
-function renderScenarioList(){
-  $('scenarioList').innerHTML = scenarios.map((s,i)=>`<button class="scenario-option" type="button" data-pick="${i}"><strong>${s.title}</strong><span>${s.description}</span></button>`).join('');
+function pickRandomScenario(){
+  if (scenarios.length <= 1) return 0;
+  let nextIndex = Math.floor(Math.random() * scenarios.length);
+  while (nextIndex === lastIndex) {
+    nextIndex = Math.floor(Math.random() * scenarios.length);
+  }
+  lastIndex = nextIndex;
+  return nextIndex;
 }
 
 $('submitBtn').addEventListener('click', submit);
 $('explainBtn').addEventListener('click', explain);
-$('nextBtn').addEventListener('click', () => { index = (index + 1) % scenarios.length; render(); });
-$('scenarioListBtn').addEventListener('click', () => { $('scenarioDrawer').hidden = false; });
-$('closeDrawerBtn').addEventListener('click', () => { $('scenarioDrawer').hidden = true; });
-$('scenarioList').addEventListener('click', e => {
-  const btn = e.target.closest('[data-pick]');
-  if (!btn) return;
-  index = Number(btn.dataset.pick);
-  $('scenarioDrawer').hidden = true;
-  render();
-});
+$('nextBtn').addEventListener('click', () => { index = pickRandomScenario(); render(); });
 
 render();
