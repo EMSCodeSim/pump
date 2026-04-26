@@ -1,0 +1,14 @@
+{
+  "id": "single-line-engine181",
+  "title": "Single 1¾″ Attack Line",
+  "type": "single-line",
+  "chip": "BEGINNER • SINGLE LINE",
+  "image": "single-line-engine181.svg",
+  "scene": "Engine 181 is set up on the Alpha side. One attack crew is requesting water on a 1¾″ preconnect.",
+  "studentQuestion": "Calculate the pump pressure for this attack line.",
+  "details": ["200′ of 1¾″ hose", "185 gpm fog nozzle @ 50 psi", "No elevation change", "No appliance loss"],
+  "answers": { "frictionLoss": 106, "nozzlePressure": 50, "elevationPressure": 0, "applianceLoss": 0, "totalGpm": 185, "pumpPressure": 156 },
+  "instructorExplanation": "Using C=15.5 for 1¾″ hose: FL = 15.5 × (185/100)² × 2 = 106 psi. PP = 106 FL + 50 NP = 156 psi.",
+  "explainMistake": "If the student enters about 106 psi, they calculated friction loss but forgot to add nozzle pressure. If they enter about 50 psi, they used only nozzle pressure and did not calculate hose friction loss.",
+  "variations": ["Change the length to 250′ and have the student recalculate FL and PP.", "Change the nozzle to 150 gpm @ 100 psi and compare how NP changes the final answer."]
+}

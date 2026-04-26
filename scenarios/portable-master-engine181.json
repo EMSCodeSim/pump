@@ -1,0 +1,14 @@
+{
+  "id": "portable-master-engine181",
+  "title": "Portable Master Stream with Dual 2½″ Lines",
+  "type": "master-stream",
+  "chip": "MASTER STREAM",
+  "image": "portable-master-engine181.svg",
+  "scene": "Engine 181 is supplying a portable master stream device with two equal 2½″ lines.",
+  "studentQuestion": "Calculate the pump pressure for the portable master stream setup.",
+  "details": ["Portable master stream flowing 500 gpm total", "Two 200′ 2½″ supply lines feeding the appliance", "Each 2½″ line carries 250 gpm", "Master stream nozzle pressure: 80 psi", "Portable appliance loss: 25 psi", "No elevation change"],
+  "answers": { "frictionLoss": 25, "nozzlePressure": 80, "elevationPressure": 0, "applianceLoss": 25, "totalGpm": 500, "pumpPressure": 130 },
+  "instructorExplanation": "Each 2½″ line carries 250 gpm. FL per line = 2 × (250/100)² × 2 = 25 psi. PP = 25 FL + 80 NP + 25 appliance loss = 130 psi.",
+  "explainMistake": "For dual equal lines feeding one master stream, do not calculate each line at the full 500 gpm. Split the flow between the two equal supply lines, then use one line's FL in the final pressure calculation.",
+  "variations": ["Increase the master stream flow to 750 gpm and calculate each 2½″ line at 375 gpm.", "Change this to a deck gun mounted on the engine and remove hose friction loss and portable appliance loss."]
+}

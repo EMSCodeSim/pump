@@ -1,0 +1,15 @@
+{
+  "id": "wye-engine181",
+  "title": "2½″ Supply to Wye — Two Handlines",
+  "type": "wye",
+  "chip": "INTERMEDIATE • WYE",
+  "image": "wye-engine181.svg",
+  "scene": "Engine 181 has a 2½″ line stretched to a gated wye. Two 1¾″ handlines are operating from the wye.",
+  "studentQuestion": "Calculate the pump pressure. Use the higher branch requirement, then add main-line friction loss and wye loss.",
+  "details": ["Main line: 200′ of 2½″ hose from engine to wye", "Branch A: 200′ of 1¾″ hose, 165 gpm fog nozzle @ 50 psi", "Branch B: 250′ of 1¾″ hose, 150 gpm fog nozzle @ 100 psi", "Wye appliance loss: 10 psi", "No elevation change"],
+  "answers": { "frictionLoss": 227, "nozzlePressure": 0, "elevationPressure": 0, "applianceLoss": 10, "totalGpm": 315, "pumpPressure": 237 },
+  "calculation": { "mainFrictionLoss": 40, "branchARequirement": 134, "branchBRequirement": 187, "higherBranchRequirement": 187, "wyeLoss": 10, "pdp": 237 },
+  "instructorExplanation": "Total flow through the 2½″ main is 315 gpm. Main FL = 2 × (315/100)² × 2 = 40 psi. Branch A needs 84 FL + 50 NP = 134 psi. Branch B needs 87 FL + 100 NP = 187 psi. Use the higher branch: 187 + 40 main FL + 10 wye loss = 237 psi.",
+  "explainMistake": "Common errors: adding both branch pressures together, forgetting wye loss, or calculating the main line at only one branch flow instead of total flow.",
+  "variations": ["Make both branch nozzles 185 gpm @ 50 psi and recalculate total flow through the 2½″ main.", "Add 20′ of elevation above the pump and add the elevation pressure to the final answer."]
+}

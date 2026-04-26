@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "packId": "fireops_scene_trainer_core",
+  "title": "FireOps Scene Trainer Core Pack",
+  "scenarios": [
+    "single-line-engine181.json",
+    "wye-engine181.json",
+    "portable-master-engine181.json"
+  ]
+}
