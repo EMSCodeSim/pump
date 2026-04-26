@@ -1,0 +1,49 @@
+{
+  "id": "masterstream_181_001",
+  "title": "Engine 181 Portable Master Stream",
+  "difficulty": "advanced",
+  "category": "master stream",
+  "image": "masterstream_181_base.png",
+  "question": "Engine 181 is supplying a portable monitor with two 200’ 2½” lines. The monitor is flowing 500 GPM with a master stream nozzle pressure of 80 PSI. Use 15 PSI appliance loss for the portable monitor. What pump pressure should the operator set?",
+  "correctPP": 120,
+  "tolerance": 5,
+  "sceneElements": {
+    "engine": "Engine 181 positioned on the street side of a commercial building",
+    "hoses": [
+      "Two 200’ 2½” supply lines from Engine 181 to portable monitor",
+      "Each 2½” line carries 250 GPM"
+    ],
+    "nozzles": [
+      "Portable master stream nozzle flowing 500 GPM @ 80 PSI"
+    ],
+    "appliances": [
+      "Portable monitor, 15 PSI appliance loss"
+    ],
+    "elevation": "0 PSI"
+  },
+  "formulaBreakdown": [
+    "PP = FL + NP + appliance loss",
+    "Total flow = 500 GPM",
+    "Two equal 2½” lines means each line carries 250 GPM",
+    "2½” hose C = 2",
+    "FL = C × (GPM / 100)^2 × hose length in hundreds",
+    "FL = 2 × (250 / 100)^2 × 2",
+    "FL = 2 × 2.5^2 × 2",
+    "FL = 2 × 6.25 × 2",
+    "FL = 25 PSI",
+    "Nozzle pressure = 80 PSI",
+    "Portable monitor appliance loss = 15 PSI",
+    "PP = 25 + 80 + 15",
+    "PP = 120 PSI"
+  ],
+  "tags": [
+    "master stream",
+    "portable monitor",
+    "engine 181",
+    "commercial building",
+    "two 2.5 inch lines",
+    "advanced",
+    "phone display",
+    "reusable photo"
+  ]
+}
