@@ -1,10 +1,296 @@
 {
-  "version": 1,
-  "packId": "fireops_scene_trainer_core",
-  "title": "FireOps Scene Trainer Core Pack",
+  "version": 2,
+  "packId": "fireops_single_line_pack",
+  "title": "FireOps Single Line Scenario Pack",
   "scenarios": [
-    "single-line-engine181.json",
-    "wye-engine181.json",
-    "portable-master-engine181.json"
+    {
+      "id": "single_line_preconnect_001",
+      "title": "Basic 1¾ Preconnect to Front Door",
+      "difficulty": "beginner",
+      "category": "attack line",
+      "type": "pump",
+      "image": "single_line_preconnect_001.png",
+      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "correctPP": 120,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 120,
+        "tolerance": 5
+      },
+      "sceneElements": {
+        "engine": "Engine 181",
+        "hoses": [
+          {
+            "diameter": "1¾\"",
+            "length": "200'",
+            "flowGpm": 150,
+            "cValue": 15.5,
+            "status": "charged"
+          }
+        ],
+        "nozzles": [
+          {
+            "type": "fog",
+            "flowGpm": 150,
+            "nozzlePressure": 50
+          }
+        ],
+        "appliances": [],
+        "elevation": "0 PSI"
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "200' 1¾\"",
+          "x": 45,
+          "y": 52
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 70,
+          "y": 33
+        },
+        {
+          "label": "Elev",
+          "text": "Level grade",
+          "x": 49,
+          "y": 72
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (150 ÷ 100)^2",
+        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
+        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
+        "PP = 70 + 50 + 0 + 0 = 120 PSI"
+      ],
+      "variations": [
+        {
+          "change": "Change hose length to 150' 1¾\". Same flow and nozzle.",
+          "correctPP": 102
+        },
+        {
+          "change": "Change flow to 185 GPM. Same 200' 1¾\" line and 50 PSI fog nozzle.",
+          "correctPP": 156
+        },
+        {
+          "change": "Change nozzle pressure to 75 PSI. Same 200' 1¾\" line at 150 GPM.",
+          "correctPP": 145
+        }
+      ],
+      "tags": [
+        "single line",
+        "preconnect",
+        "1.75 inch",
+        "fog nozzle",
+        "beginner",
+        "Engine 181"
+      ]
+    },
+    {
+      "id": "single_line_extended_002",
+      "title": "Extended 1¾ Line to Second Floor",
+      "difficulty": "intermediate",
+      "category": "attack line",
+      "type": "pump",
+      "image": "single_line_extended_002.png",
+      "question": "Engine 181 has a 250' 1¾\" line stretched to a second-floor apartment fire. The fog nozzle is flowing 185 GPM at 50 PSI. Add 5 PSI for the floor above the pump. No appliance loss. What pump pressure should you set?",
+      "correctPP": 188,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 133,
+        "nozzlePressure": 50,
+        "elevation": 5,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 188,
+        "tolerance": 5
+      },
+      "sceneElements": {
+        "engine": "Engine 181",
+        "hoses": [
+          {
+            "diameter": "1¾\"",
+            "length": "250'",
+            "flowGpm": 185,
+            "cValue": 15.5,
+            "status": "charged"
+          }
+        ],
+        "nozzles": [
+          {
+            "type": "fog",
+            "flowGpm": 185,
+            "nozzlePressure": 50
+          }
+        ],
+        "appliances": [],
+        "elevation": "+5 PSI, one floor above pump"
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 69
+        },
+        {
+          "label": "Line",
+          "text": "250' 1¾\"",
+          "x": 43,
+          "y": 55
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 185 @ 50",
+          "x": 72,
+          "y": 29
+        },
+        {
+          "label": "Elev",
+          "text": "+5 PSI",
+          "x": 64,
+          "y": 39
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (185 ÷ 100)^2",
+        "FL per 100' = 15.5 × 3.4225 = 53.04875 PSI",
+        "Total FL = 53.04875 × 2.5 = 132.621875 ≈ 133 PSI",
+        "PP = 133 + 50 + 5 + 0 = 188 PSI"
+      ],
+      "variations": [
+        {
+          "change": "Change hose length to 200' 1¾\". Same 185 GPM nozzle and +5 PSI elevation.",
+          "correctPP": 161
+        },
+        {
+          "change": "Change flow to 150 GPM. Same 250' 1¾\" line and +5 PSI elevation.",
+          "correctPP": 142
+        },
+        {
+          "change": "Change elevation to three floors above the pump, +15 PSI. Same line and flow.",
+          "correctPP": 198
+        }
+      ],
+      "tags": [
+        "single line",
+        "extended preconnect",
+        "1.75 inch",
+        "fog nozzle",
+        "elevation",
+        "Engine 181"
+      ]
+    },
+    {
+      "id": "single_line_heavy_003",
+      "title": "Heavy 2½ Smooth Bore Attack Line",
+      "difficulty": "intermediate",
+      "category": "attack line",
+      "type": "pump",
+      "image": "single_line_heavy_003.png",
+      "question": "Engine 181 is supplying a 250' 2½\" attack line to the corner of a commercial strip. The nozzle is a 1⅛\" smooth bore flowing about 265 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "correctPP": 85,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 35,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 265,
+        "pumpPressure": 85,
+        "tolerance": 5
+      },
+      "sceneElements": {
+        "engine": "Engine 181",
+        "hoses": [
+          {
+            "diameter": "2½\"",
+            "length": "250'",
+            "flowGpm": 265,
+            "cValue": 2,
+            "status": "charged"
+          }
+        ],
+        "nozzles": [
+          {
+            "type": "smooth bore",
+            "tip": "1⅛\"",
+            "flowGpm": 265,
+            "nozzlePressure": 50
+          }
+        ],
+        "appliances": [],
+        "elevation": "0 PSI"
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 16,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "250' 2½\"",
+          "x": 43,
+          "y": 55
+        },
+        {
+          "label": "Nozzle",
+          "text": "SB 1⅛ @ 50",
+          "x": 73,
+          "y": 32
+        },
+        {
+          "label": "Target",
+          "text": "Commercial",
+          "x": 67,
+          "y": 20
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 2 × (265 ÷ 100)^2",
+        "FL per 100' = 2 × 7.0225 = 14.045 PSI",
+        "Total FL = 14.045 × 2.5 = 35.1125 ≈ 35 PSI",
+        "PP = 35 + 50 + 0 + 0 = 85 PSI"
+      ],
+      "variations": [
+        {
+          "change": "Change hose length to 200' 2½\". Same 1⅛\" smooth bore at 265 GPM.",
+          "correctPP": 78
+        },
+        {
+          "change": "Change nozzle to 1\" smooth bore flowing about 210 GPM. Same 250' 2½\" line.",
+          "correctPP": 72
+        },
+        {
+          "change": "Add one floor of elevation, +5 PSI. Same line, flow, and nozzle.",
+          "correctPP": 90
+        }
+      ],
+      "tags": [
+        "single line",
+        "2.5 inch",
+        "smooth bore",
+        "commercial",
+        "heavy attack",
+        "Engine 181"
+      ]
+    }
   ]
 }

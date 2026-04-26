@@ -1,16 +1,20 @@
-Scenario file loading
+FireOps Scenario Button Fix - Single Line Pack
 
-The Scenario button now loads JSON-driven scenario files from:
+This patch makes the Scenarios button load the uploaded single-line scenario pack.
 
-  scenarios/scenario-index.json
+Main files:
+- js/view.practice.js
+- dist/js/view.practice.js
+- scenarios/scenario-index.json
+- dist/scenarios/scenario-index.json
+- scenarios/single_line_preconnect_001.png
+- scenarios/single_line_extended_002.png
+- scenarios/single_line_heavy_003.png
+- dist/scenarios/single_line_preconnect_001.png
+- dist/scenarios/single_line_extended_002.png
+- dist/scenarios/single_line_heavy_003.png
 
-The app packages from dist, so the same files are also copied to:
-
-  dist/scenarios/scenario-index.json
-
-To add more scenarios:
-1. Add the new .json file and artwork file to scenarios/.
-2. Add the .json filename to scenarios/scenario-index.json.
-3. Copy the same files to dist/scenarios/ before building the mobile app.
-
-The scenario view supports fields named answers.frictionLoss, answers.nozzlePressure, answers.elevationPressure, answers.applianceLoss, answers.totalGpm, and answers.pumpPressure.
+Important:
+- Capacitor uses dist/, so the images and JSON must exist inside dist/scenarios/.
+- Old scenario JSON/SVG files can remain in the folder, but they are no longer referenced by scenario-index.json.
+- The loader now supports scenario-index.json as a manifest object or as a raw array of scenarios.
