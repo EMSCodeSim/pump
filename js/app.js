@@ -6,7 +6,7 @@ import { renderAdOnce } from './ads-guards.js';
 
 const ADS_CLIENT = 'ca-pub-9414291143716298';
 const SLOT_TABLES_BOTTOM = 'REPLACE_WITH_SLOT_ID';
-const BUILD_V = '20260426scenarios';
+const BUILD_V = '20260427scenario-random-v1';
 const modulePath = (name) => `./${name}.js?v=${BUILD_V}`;
 
 const app = document.getElementById('app');
