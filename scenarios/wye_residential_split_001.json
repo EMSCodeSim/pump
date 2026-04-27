@@ -1,0 +1,93 @@
+{
+  "id": "wye_residential_split_001",
+  "title": "Residential Wye Split",
+  "difficulty": "intermediate",
+  "category": "wye",
+  "type": "pump",
+  "image": "wye_residential_split_001.png",
+  "question": "Engine 181 is supplying a wye with 200' of 2½\" hose. Branch A is 150' of 1¾\" flowing 150 GPM with a fog nozzle at 50 PSI. Branch B is 200' of 1¾\" flowing 185 GPM with a fog nozzle at 50 PSI. What pump pressure should the operator set?",
+  "correctPP": 201,
+  "tolerance": 5,
+  "answers": {
+    "frictionLoss": 151,
+    "nozzlePressure": 50,
+    "elevation": 0,
+    "applianceLoss": 0,
+    "totalGpm": 335,
+    "pumpPressure": 201,
+    "tolerance": 5
+  },
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [
+      "200' 2½\" supply from Engine 181 to wye",
+      "150' 1¾\" Branch A from wye to front door",
+      "200' 1¾\" Branch B from wye to side C entry"
+    ],
+    "nozzles": [
+      "Branch A fog nozzle, 150 GPM at 50 PSI",
+      "Branch B fog nozzle, 185 GPM at 50 PSI"
+    ],
+    "appliances": [
+      "Wye"
+    ],
+    "elevation": "No elevation change"
+  },
+  "overlays": [
+    {
+      "label": "Supply",
+      "text": "200' 2½\"",
+      "x": 28,
+      "y": 55
+    },
+    {
+      "label": "Wye",
+      "text": "Split",
+      "x": 48,
+      "y": 44
+    },
+    {
+      "label": "Branch A",
+      "text": "150' 1¾\" Fog 150",
+      "x": 34,
+      "y": 31
+    },
+    {
+      "label": "Branch B",
+      "text": "200' 1¾\" Fog 185",
+      "x": 63,
+      "y": 35
+    }
+  ],
+  "formulaBreakdown": [
+    "Total GPM = 150 + 185 = 335 GPM",
+    "Supply FL = 2 × 3.35² × 2 = 45 PSI",
+    "Branch A FL = 15.5 × 1.5² × 1.5 = 52 PSI",
+    "Branch A total = 45 + 52 + 50 = 147 PSI",
+    "Branch B FL = 15.5 × 1.85² × 2 = 106 PSI",
+    "Branch B total = 45 + 106 + 50 = 201 PSI",
+    "Highest pressure branch governs",
+    "Pump Pressure = 201 PSI"
+  ],
+  "variations": [
+    {
+      "change": "Branch B is shortened to 150' of 1¾\"",
+      "correctPP": 175
+    },
+    {
+      "change": "Branch A is changed to 185 GPM",
+      "correctPP": 221
+    },
+    {
+      "change": "Supply line is changed to 250' of 2½\"",
+      "correctPP": 212
+    }
+  ],
+  "tags": [
+    "wye",
+    "residential",
+    "fog nozzle",
+    "highest branch governs",
+    "Engine 181"
+  ]
+}
