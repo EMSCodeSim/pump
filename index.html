@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>FireOps Calc | Fire Pump Calculator for Firefighters & Pump Operators</title>
-  <meta name="description" content="FireOps Calc is a firefighter-built pump pressure calculator for friction loss, nozzle pressure, relay pumping, water supply, standpipes, and driver/operator training."/>
+  <title>FireOps Calc | Fire Pump Calculator & Engineer Training Tools</title>
+  <meta name="description" content="FireOps Calc is a firefighter-built pump pressure calculator and training site with printable pump cards, pump scenarios, friction loss tools, relay pumping, water supply, and driver/operator resources."/>
   <link rel="canonical" href="https://fireopscalc.com/"/>
   <link rel="icon" href="/fireopscalc.png"/>
   <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
   <link rel="manifest" href="/manifest.json"/>
   <meta name="robots" content="index,follow,max-image-preview:large"/>
-  <meta name="theme-color" content="#08111e"/>
+  <meta name="theme-color" content="#07111f"/>
 
   <meta property="og:type" content="website"/>
-  <meta property="og:title" content="FireOps Calc — Fire Pump Calculator for Firefighters"/>
-  <meta property="og:description" content="Calculate pump pressure, friction loss, water supply, relay pumping, standpipe, and training scenarios from a phone-friendly firefighter-built tool."/>
+  <meta property="og:title" content="FireOps Calc — Fire Pump Calculator & Training Tools"/>
+  <meta property="og:description" content="Run pump pressure calculations, build printable pump cards, create training scenarios, and study fireground hydraulics from a firefighter-built web tool."/>
   <meta property="og:url" content="https://fireopscalc.com/"/>
   <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="FireOps Calc — Fire Pump Calculator"/>
-  <meta name="twitter:description" content="A phone-friendly pump pressure and fireground hydraulics calculator built for firefighters, engineers, and instructors."/>
+  <meta name="twitter:title" content="FireOps Calc — Fire Pump Calculator & Training Tools"/>
+  <meta name="twitter:description" content="A phone-friendly pump calculator, printable pump card creator, and engineer training resource built for firefighters."/>
   <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
 
   <script type="application/ld+json">
@@ -31,7 +31,7 @@
         "@id": "https://fireopscalc.com/#website",
         "name": "FireOps Calc",
         "url": "https://fireopscalc.com/",
-        "description": "Fire pump calculator and training tool for firefighters, pump operators, engineers, and fire instructors."
+        "description": "Fire pump calculator, printable pump card creator, printable training scenarios, and fireground hydraulics reference tools for firefighters."
       },
       {
         "@type": "SoftwareApplication",
@@ -41,7 +41,7 @@
         "image": "https://fireopscalc.com/fireopscalc.png",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "Web, iOS, Android",
-        "description": "A firefighter-built fire pump calculator for pump pressure, friction loss, water supply, relay pumping, standpipe calculations, and driver/operator training.",
+        "description": "A firefighter-built fire pump calculator and training tool for pump pressure, friction loss, water supply, relay pumping, standpipe calculations, pump cards, and driver/operator training.",
         "sameAs": [
           "https://apps.apple.com/us/app/fireopscalc/id6753922160",
           "https://play.google.com/store/apps/details?id=com.fireopscalc.app"
@@ -54,26 +54,17 @@
           {
             "@type": "Question",
             "name": "What is FireOps Calc?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "FireOps Calc is a phone-friendly fire pump calculator built for firefighters, engineers, pump operators, fire instructors, and driver/operator students."
-            }
+            "acceptedAnswer": {"@type": "Answer", "text": "FireOps Calc is a firefighter-built fire pump calculator and training resource for pump pressure, friction loss, printable pump cards, printable scenarios, and driver/operator practice."}
           },
           {
             "@type": "Question",
-            "name": "What can FireOps Calc calculate?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "FireOps Calc can help calculate pump pressure, friction loss, nozzle pressure, elevation, appliance loss, water supply, relay pumping, standpipe operations, master streams, and training scenarios."
-            }
+            "name": "What tools are available?",
+            "acceptedAnswer": {"@type": "Answer", "text": "FireOps Calc includes a web pump calculator, pump card creator, printable pump scenarios, how-to guides, and fireground hydraulics training pages."}
           },
           {
             "@type": "Question",
             "name": "Is FireOps Calc for training or real fireground use?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "FireOps Calc is designed for both training and quick reference. Users should always follow department SOPs, local guidelines, instructor direction, and manufacturer data."
-            }
+            "acceptedAnswer": {"@type": "Answer", "text": "FireOps Calc is designed for training, quick reference, and calculation support. Users should always follow department SOPs, local guidelines, instructor direction, and manufacturer data."}
           }
         ]
       }
@@ -83,109 +74,71 @@
 
   <style>
     :root{
-      --bg:#050a12;
-      --panel:#0b1320;
-      --panel2:#0e192a;
-      --edge:#1d3352;
-      --edge2:rgba(120,190,255,.34);
-      --fg:#edf5ff;
-      --muted:#c4d6ee;
-      --soft:#8ea7c7;
-      --accent:#46b0ff;
-      --accent2:#77d7ff;
-      --good:#6be38a;
-      --warn:#ffa74d;
-      --shadow:0 22px 60px rgba(0,0,0,.45);
+      --bg:#050914;
+      --bg2:#07111f;
+      --panel:#0b1422;
+      --panel2:#101d31;
+      --panel3:#132640;
+      --line:rgba(135,188,255,.20);
+      --line2:rgba(255,255,255,.12);
+      --fg:#f1f7ff;
+      --muted:#bdd0e8;
+      --soft:#8da7c7;
+      --accent:#4bb3ff;
+      --accent2:#76e0ff;
+      --fire:#ff7a2f;
+      --good:#72e99a;
+      --shadow:0 24px 70px rgba(0,0,0,.42);
+      --radius:22px;
     }
     *{box-sizing:border-box}
     html{scroll-behavior:smooth}
     body{
       margin:0;
-      background:
-        radial-gradient(circle at 15% -10%, rgba(70,176,255,.28), transparent 36rem),
-        radial-gradient(circle at 100% 0%, rgba(255,167,77,.12), transparent 28rem),
-        linear-gradient(180deg,#050a12,#07101d 42%,#050a12);
       color:var(--fg);
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
       line-height:1.5;
+      background:
+        radial-gradient(circle at 15% -12%, rgba(75,179,255,.30), transparent 34rem),
+        radial-gradient(circle at 90% 0%, rgba(255,122,47,.18), transparent 28rem),
+        linear-gradient(180deg,var(--bg),var(--bg2) 45%,var(--bg));
     }
     a{color:inherit}
-    .wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+    .wrap{max-width:1180px;margin:0 auto;padding:0 18px}
     .skip{position:absolute;left:-999px;top:auto;width:1px;height:1px;overflow:hidden}
     .skip:focus{left:16px;top:16px;width:auto;height:auto;background:#fff;color:#000;padding:8px 10px;border-radius:8px;z-index:9999}
-    .topbar{
-      position:sticky;
-      top:0;
-      z-index:20;
-      backdrop-filter:blur(16px);
-      background:rgba(5,10,18,.76);
-      border-bottom:1px solid rgba(120,190,255,.16);
-    }
-    .nav{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
-      padding:12px 0;
-    }
+    .topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(18px);background:rgba(5,9,20,.80);border-bottom:1px solid rgba(135,188,255,.14)}
+    .nav{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0}
     .brand{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:max-content}
-    .brand img{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.35)}
-    .brand strong{font-size:18px;letter-spacing:.02em}
+    .brand img{width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+    .brand strong{font-size:18px;letter-spacing:.01em}
     .navlinks{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:14px}
-    .navlinks a{text-decoration:none}
-    .navlinks a:hover{color:#fff}
-    .nav-cta{display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(70,176,255,.5);background:linear-gradient(135deg,#0f5ea9,#123666);color:#fff;text-decoration:none;border-radius:999px;padding:9px 14px;font-weight:800;box-shadow:0 10px 24px rgba(0,0,0,.28)}
-    .hero{padding:58px 0 28px}
-    .hero-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:28px;align-items:center}
-    .eyebrow{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(70,176,255,.32);background:rgba(70,176,255,.09);color:#dceeff;border-radius:999px;padding:7px 10px;font-size:13px;font-weight:750;margin-bottom:16px}
-    h1{font-size:clamp(34px,6vw,64px);line-height:1.02;margin:0 0 16px;letter-spacing:-.045em}
-    .lead{font-size:clamp(18px,2.2vw,22px);color:var(--muted);max-width:720px;margin:0 0 22px}
-    .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;padding:13px 16px;font-weight:900;text-decoration:none;border:1px solid rgba(255,255,255,.14);min-height:48px}
-    .btn.primary{background:linear-gradient(135deg,#1e82ff,#123c73);border-color:#58b4ff;box-shadow:0 18px 34px rgba(30,130,255,.22);color:#fff}
-    .btn.secondary{background:rgba(255,255,255,.06);color:#ecf5ff}
-    .btn.store{background:#050913;color:#f4f8ff;border-color:rgba(255,255,255,.22)}
-    .trust{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;color:var(--soft);font-size:13px}
-    .pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 9px}
-    .phone-card{background:linear-gradient(180deg,rgba(14,25,42,.92),rgba(8,17,30,.92));border:1px solid var(--edge2);border-radius:28px;padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
-    .phone-card:before{content:"";position:absolute;inset:-60px -80px auto auto;width:220px;height:220px;border-radius:50%;background:rgba(70,176,255,.20);filter:blur(18px)}
-    .screen{position:relative;border:1px solid rgba(255,255,255,.16);background:#07101d;border-radius:22px;padding:14px;min-height:460px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
-    .screen-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    .dotrow{display:flex;gap:5px}.dot{width:8px;height:8px;border-radius:50%;background:#314764}.live{font-size:12px;color:#9fd4ff;border:1px solid rgba(159,212,255,.3);padding:4px 8px;border-radius:999px}
-    .pump-result{background:radial-gradient(circle at 0 0, rgba(70,176,255,.22), transparent 55%),#0b1320;border:1px solid var(--edge);border-radius:18px;padding:16px;margin-bottom:12px}
-    .pump-result small{color:var(--soft);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
-    .pdp{font-size:54px;font-weight:950;line-height:1;margin:8px 0}.pdp span{font-size:18px;color:var(--muted)}
-    .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mini{background:#050913;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px}.mini b{display:block;font-size:18px}.mini span{display:block;color:var(--soft);font-size:12px}
-    .formula{margin-top:12px;background:#050913;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;color:#cfe4ff;font-size:13px}
-    .section{padding:42px 0}.section h2{font-size:clamp(26px,4vw,40px);line-height:1.12;margin:0 0 10px;letter-spacing:-.025em}.section-intro{color:var(--muted);font-size:18px;max-width:780px;margin:0 0 22px}
-    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:18px;box-shadow:0 14px 32px rgba(0,0,0,.22)}
-    .card h3{font-size:18px;margin:0 0 8px}.card p{color:var(--muted);margin:0}.icon{font-size:26px;margin-bottom:10px;display:block}
-    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.list{display:grid;gap:10px}.check{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.check b{display:block}.check span:last-child{color:var(--muted)}
-    .demo{background:rgba(255,255,255,.04);border:1px solid rgba(120,190,255,.18);border-radius:22px;padding:18px}.demo h3{margin-top:0}.calc-line{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);padding:9px 0;color:#dceeff}.calc-line span:first-child{color:var(--soft)}.calc-total{font-size:24px;font-weight:950;color:#fff}.notice{font-size:13px;color:var(--soft);margin-top:12px}
-    .steps{counter-reset:step;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{counter-increment:step;position:relative}.step:before{content:counter(step);display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#123c73;border:1px solid #58b4ff;font-weight:900;margin-bottom:12px}
-    .faq{display:grid;gap:10px}.faq details{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:14px}.faq summary{cursor:pointer;font-weight:850}.faq p{color:var(--muted);margin:10px 0 0}
-    .final-cta{background:radial-gradient(circle at 10% 0,rgba(70,176,255,.28),transparent 60%),linear-gradient(135deg,#0b1320,#0d1c31);border:1px solid rgba(120,190,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:var(--shadow)}
-    .final-cta h2{margin-bottom:8px}.final-cta p{color:var(--muted);margin:0 auto 18px;max-width:680px}
-    footer{border-top:1px solid rgba(255,255,255,.08);padding:28px 0 44px;color:var(--soft);font-size:14px}.footer-grid{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:var(--muted);text-decoration:none}.footer-links a:hover{color:#fff}
-    @media (max-width:860px){.navlinks{display:none}.hero{padding-top:34px}.hero-grid,.split{grid-template-columns:1fr}.cards,.steps{grid-template-columns:1fr}.phone-card{max-width:440px;margin:0 auto}.screen{min-height:auto}.pdp{font-size:46px}.cta-row .btn{flex:1 1 100%}}
+    .navlinks a{text-decoration:none}.navlinks a:hover{color:#fff}
+    .nav-cta{display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(75,179,255,.55);background:linear-gradient(135deg,#1684e8,#123b72);color:#fff;text-decoration:none;border-radius:999px;padding:9px 14px;font-weight:900;box-shadow:0 10px 24px rgba(0,0,0,.30)}
+    .hero{padding:68px 0 34px}.hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:32px;align-items:center}
+    .eyebrow{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(75,179,255,.34);background:rgba(75,179,255,.10);color:#e4f4ff;border-radius:999px;padding:7px 11px;font-size:13px;font-weight:850;margin-bottom:16px}
+    h1{font-size:clamp(36px,6.2vw,68px);line-height:1.02;margin:0 0 16px;letter-spacing:-.05em}.lead{font-size:clamp(18px,2.2vw,22px);color:var(--muted);max-width:750px;margin:0 0 22px}
+    .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:15px;padding:13px 16px;font-weight:950;text-decoration:none;border:1px solid rgba(255,255,255,.14);min-height:48px}.btn.primary{background:linear-gradient(135deg,#208aff,#123d74);border-color:#64bfff;box-shadow:0 18px 34px rgba(32,138,255,.24);color:#fff}.btn.secondary{background:rgba(255,255,255,.065);color:#ecf5ff}.btn.fire{background:linear-gradient(135deg,#ff7a2f,#9e3418);border-color:rgba(255,190,132,.65);color:#fff}.btn.store{background:#050913;color:#f4f8ff;border-color:rgba(255,255,255,.22)}
+    .trust{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;color:var(--soft);font-size:13px}.pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.045);border-radius:999px;padding:6px 9px}
+    .showcase{background:linear-gradient(180deg,rgba(16,29,49,.95),rgba(8,17,30,.95));border:1px solid rgba(135,188,255,.30);border-radius:30px;padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}.showcase:before{content:"";position:absolute;inset:-70px -70px auto auto;width:250px;height:250px;border-radius:50%;background:rgba(75,179,255,.20);filter:blur(18px)}.screen{position:relative;border:1px solid rgba(255,255,255,.16);background:#07101d;border-radius:24px;padding:16px;min-height:460px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}.screen-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.dotrow{display:flex;gap:5px}.dot{width:8px;height:8px;border-radius:50%;background:#314764}.live{font-size:12px;color:#9fd4ff;border:1px solid rgba(159,212,255,.3);padding:4px 8px;border-radius:999px}.pump-result{background:radial-gradient(circle at 0 0, rgba(75,179,255,.24), transparent 55%),#0b1422;border:1px solid rgba(135,188,255,.24);border-radius:20px;padding:17px;margin-bottom:12px}.pump-result small{color:var(--soft);font-weight:900;text-transform:uppercase;letter-spacing:.08em}.pdp{font-size:56px;font-weight:1000;line-height:1;margin:8px 0}.pdp span{font-size:18px;color:var(--muted)}.mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mini{background:#050913;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px}.mini b{display:block;font-size:18px}.mini span{display:block;color:var(--soft);font-size:12px}.formula{margin-top:12px;background:#050913;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;color:#cfe4ff;font-size:13px}
+    .section{padding:42px 0}.section h2{font-size:clamp(28px,4vw,43px);line-height:1.12;margin:0 0 10px;letter-spacing:-.03em}.section-intro{color:var(--muted);font-size:18px;max-width:820px;margin:0 0 22px}
+    .tools-band{padding:34px 0 18px}.tools-panel{background:linear-gradient(135deg,rgba(16,29,49,.88),rgba(7,17,31,.94));border:1px solid rgba(135,188,255,.25);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.tools-head{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:18px}.tools-head p{margin:0;color:var(--muted);max-width:780px}.tool-grid{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:15px}.tool-card{position:relative;display:flex;flex-direction:column;gap:12px;min-height:230px;padding:20px;border-radius:22px;text-decoration:none;background:rgba(11,20,34,.88);border:1px solid rgba(135,188,255,.20);box-shadow:0 14px 34px rgba(0,0,0,.24);overflow:hidden}.tool-card:hover{transform:translateY(-2px);border-color:rgba(118,224,255,.55);transition:.18s ease}.tool-card.featured{background:radial-gradient(circle at 0 0,rgba(255,122,47,.22),transparent 55%),linear-gradient(135deg,rgba(21,43,72,.98),rgba(12,24,41,.96));border-color:rgba(255,183,122,.35)}.tool-card .tag{align-self:flex-start;font-size:12px;font-weight:950;letter-spacing:.06em;text-transform:uppercase;color:#06101c;background:linear-gradient(135deg,#76e0ff,#4bb3ff);border-radius:999px;padding:5px 9px}.tool-card.featured .tag{background:linear-gradient(135deg,#ffd19a,#ff7a2f)}.tool-card .icon{font-size:32px}.tool-card h3{font-size:23px;line-height:1.12;margin:0}.tool-card p{color:var(--muted);margin:0}.tool-card .open{margin-top:auto;font-weight:950;color:#e9f7ff}.coming{opacity:.78}.coming .tag{background:rgba(255,255,255,.10);color:#cfe4ff;border:1px solid rgba(255,255,255,.15)}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:rgba(11,20,34,.84);border:1px solid rgba(135,188,255,.18);border-radius:18px;padding:18px;box-shadow:0 14px 32px rgba(0,0,0,.22)}.card h3{font-size:18px;margin:0 0 8px}.card p{color:var(--muted);margin:0}.icon{font-size:26px;margin-bottom:10px;display:block}.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.list{display:grid;gap:10px}.check{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.check b{display:block}.check span:last-child{color:var(--muted)}.demo{background:rgba(255,255,255,.045);border:1px solid rgba(135,188,255,.18);border-radius:22px;padding:18px}.demo h3{margin-top:0}.calc-line{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);padding:9px 0;color:#dceeff}.calc-line span:first-child{color:var(--soft)}.calc-total{font-size:24px;font-weight:950;color:#fff}.notice{font-size:13px;color:var(--soft);margin-top:12px}.steps{counter-reset:step;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{counter-increment:step;position:relative}.step:before{content:counter(step);display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#123c73;border:1px solid #58b4ff;font-weight:900;margin-bottom:12px}.platform-note{display:grid;grid-template-columns:1fr 1fr;gap:14px}.platform{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.11);border-radius:18px;padding:18px}.platform p{color:var(--muted);margin:0}.faq{display:grid;gap:10px}.faq details{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:14px}.faq summary{cursor:pointer;font-weight:850}.faq p{color:var(--muted);margin:10px 0 0}.final-cta{background:radial-gradient(circle at 10% 0,rgba(75,179,255,.28),transparent 60%),linear-gradient(135deg,#0b1422,#0d1c31);border:1px solid rgba(135,188,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:var(--shadow)}.final-cta h2{margin-bottom:8px}.final-cta p{color:var(--muted);margin:0 auto 18px;max-width:680px}footer{border-top:1px solid rgba(255,255,255,.08);padding:28px 0 44px;color:var(--soft);font-size:14px}.footer-grid{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:var(--muted);text-decoration:none}.footer-links a:hover{color:#fff}
+    @media (max-width:920px){.navlinks{display:none}.hero{padding-top:38px}.hero-grid,.split,.platform-note{grid-template-columns:1fr}.tool-grid{grid-template-columns:1fr}.cards,.steps{grid-template-columns:1fr}.showcase{max-width:460px;margin:0 auto}.screen{min-height:auto}.pdp{font-size:46px}.cta-row .btn{flex:1 1 100%}.tools-head{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="wrap nav">
-      <a class="brand" href="/" aria-label="FireOps Calc home">
-        <img src="/fireopscalc2.png" alt="FireOps Calc logo"/>
-        <strong>FireOps Calc</strong>
-      </a>
+      <a class="brand" href="/" aria-label="FireOps Calc home"><img src="/fireopscalc2.png" alt="FireOps Calc logo"/><strong>FireOps Calc</strong></a>
       <nav class="navlinks" aria-label="Main navigation">
-        <a href="#features">Features</a>
-        <a href="#calculator-guides">Guides</a>
         <a href="#tools">Tools</a>
+        <a href="#features">Calculator</a>
+        <a href="#guides">Guides</a>
         <a href="#training">Training</a>
         <a href="#water-supply">Water Supply</a>
         <a href="#faq">FAQ</a>
-        <a href="/how-to.html">How-to</a>
       </nav>
       <a class="nav-cta" href="/calculator.html">Open Calculator</a>
     </div>
@@ -195,22 +148,22 @@
     <section class="hero">
       <div class="wrap hero-grid">
         <div>
-          <div class="eyebrow">🚒 Firefighter-built pump calculator</div>
-          <h1>Fire pump calculations made fast, visual, and phone-friendly.</h1>
-          <p class="lead">FireOps Calc helps firefighters, engineers, pump operators, officers, and instructors calculate pump pressure, friction loss, nozzle pressure, water supply, relay pumping, standpipe operations, and pump training scenarios.</p>
+          <div class="eyebrow">🚒 Firefighter-built pump calculator and training tools</div>
+          <h1>Fire pump tools for engineers, instructors, and driver/operator training.</h1>
+          <p class="lead">Run pump pressure calculations, create printable pump cards, build printable practice scenarios, and use fireground hydraulics references from one clean FireOps Calc home page.</p>
           <div class="cta-row" aria-label="Primary actions">
-            <a class="btn primary" href="/calculator.html">Start the Web Calculator</a>
-            <a class="btn store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener">Download on iPhone</a>
-            <a class="btn store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app" target="_blank" rel="noopener">Get it on Android</a>
+            <a class="btn primary" href="#tools">View FireOps Tools</a>
+            <a class="btn fire" href="/calculator.html">Start Web Calculator</a>
+            <a class="btn secondary" href="/how-to.html">Read How-To Guides</a>
           </div>
           <div class="trust" aria-label="Highlights">
             <span class="pill">Pump pressure calculator</span>
-            <span class="pill">Friction loss calculator</span>
-            <span class="pill">Water supply tools</span>
-            <span class="pill">Training scenarios</span>
+            <span class="pill">Printable pump cards</span>
+            <span class="pill">Printable scenarios</span>
+            <span class="pill">Water supply training</span>
           </div>
         </div>
-        <aside class="phone-card" aria-label="FireOps Calc example result">
+        <aside class="showcase" aria-label="FireOps Calc example result">
           <div class="screen">
             <div class="screen-top"><div class="dotrow"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><span class="live">Example</span></div>
             <div class="pump-result">
@@ -222,70 +175,112 @@
                 <div class="mini"><b>300 ft</b><span>Hose Length</span></div>
                 <div class="mini"><b>20 PSI</b><span>Target Intake</span></div>
               </div>
-              <div class="formula">FL/100 = C × (GPM ÷ 100)²<br/>PDP = friction loss + nozzle pressure + elevation + appliance loss</div>
+              <div class="formula">FL/100 = C × (GPM ÷ 100)²<br/>PDP = NP + FL ± elevation + appliance loss</div>
             </div>
           </div>
         </aside>
       </div>
     </section>
 
+    <section class="tools-band" id="tools">
+      <div class="wrap">
+        <div class="tools-panel">
+          <div class="tools-head">
+            <div>
+              <h2>FireOps Calc Tools</h2>
+              <p>Useful web-based tools that load directly from the home page. Built for quick use at the station, in class, or while building department-specific references.</p>
+            </div>
+            <a class="btn secondary" href="/calculator.html">Open Calculator</a>
+          </div>
+          <div class="tool-grid">
+            <a class="tool-card featured" href="/tools/pump-card.html">
+              <span class="tag">Printable PDF</span>
+              <span class="icon">🧾</span>
+              <h3>Pump Card Creator</h3>
+              <p>Select department hose, nozzles, preconnects, and common rules. Create a clean one-page pump card that can be printed or saved as a PDF.</p>
+              <span class="open">Create a pump card →</span>
+            </a>
+            <a class="tool-card" href="/tools/printable-scenarios.html">
+              <span class="tag">Training Sheet</span>
+              <span class="icon">📝</span>
+              <h3>Printable Pump Scenarios</h3>
+              <p>Generate practice problems with a fire truck graphic, hose/nozzle labels, formula prompts, and answer spaces. Designed for about four problems per page.</p>
+              <span class="open">Build scenario worksheet →</span>
+            </a>
+            <a class="tool-card" href="/calculator.html">
+              <span class="tag">Live Tool</span>
+              <span class="icon">🧮</span>
+              <h3>Web Pump Calculator</h3>
+              <p>Calculate pump pressure, friction loss, nozzle pressure, elevation, appliance loss, water supply, and training examples from the browser.</p>
+              <span class="open">Run calculator →</span>
+            </a>
+            <a class="tool-card" href="/how-to.html">
+              <span class="tag">Reference</span>
+              <span class="icon">📚</span>
+              <h3>How-To Library</h3>
+              <p>Step-by-step pump pressure, friction loss, relay pumping, standpipe, wye, and water supply explanations for students and instructors.</p>
+              <span class="open">View guides →</span>
+            </a>
+            <a class="tool-card coming" href="/relay-pumping-calculator.html">
+              <span class="tag">Reference Page</span>
+              <span class="icon">🔁</span>
+              <h3>Relay Pumping</h3>
+              <p>Use relay pumping examples, engine spacing concepts, target intake pressure, and future calculator development notes.</p>
+              <span class="open">Open relay page →</span>
+            </a>
+            <a class="tool-card coming" href="/fire-pump-training-scenarios.html">
+              <span class="tag">Training</span>
+              <span class="icon">🎯</span>
+              <h3>Scenario Training</h3>
+              <p>Practice driver/operator-style pump problems and connect the math to real fireground layouts.</p>
+              <span class="open">View scenarios →</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="features">
       <div class="wrap">
         <h2>Built around the pump operator’s real workflow.</h2>
-        <p class="section-intro">Use FireOps Calc as a quick web calculator, a mobile app, or a training aid for driver/operator classes, engineer development, and company-level pump drills.</p>
+        <p class="section-intro">FireOps Calc is more than a basic friction loss calculator. It combines calculation, printable references, and training tools into one firefighter-focused platform.</p>
         <div class="cards">
-          <article class="card"><span class="icon">⚙️</span><h3>Pump pressure calculator</h3><p>Calculate PDP using friction loss, nozzle pressure, elevation change, appliance loss, master stream needs, and custom hose/nozzle setups.</p></article>
-          <article class="card"><span class="icon">📏</span><h3>Friction loss breakdowns</h3><p>Show the math by hose size, length, flow, and C-value so students can see why the answer changes instead of memorizing one number.</p></article>
-          <article class="card"><span class="icon">🎯</span><h3>Practice scenarios</h3><p>Use pump-pressure scenarios for engineers, promotion prep, fire academy driver training, and quick station drills.</p></article>
-          <article class="card"><span class="icon">🏢</span><h3>Standpipe & high-rise</h3><p>Build standpipe-style calculations with hose inside the building, elevation, nozzle pressure, and target pump pressure.</p></article>
-          <article class="card"><span class="icon">💦</span><h3>Water supply tools</h3><p>Plan hydrant, tender shuttle, relay pumping, drafting, and supply-line support without burying the user in a paper chart.</p></article>
-          <article class="card"><span class="icon">🚒</span><h3>Department setup</h3><p>In the app version, save department-specific hose, nozzle, appliance, and line presets so the numbers match your actual rigs.</p></article>
+          <article class="card"><span class="icon">⚙️</span><h3>Pump pressure calculator</h3><p>Calculate PDP using friction loss, nozzle pressure, elevation change, appliance loss, master streams, and custom hose/nozzle setups.</p></article>
+          <article class="card"><span class="icon">📏</span><h3>Friction loss breakdowns</h3><p>Show the math by hose size, length, flow, and C-value so students understand why the answer changes.</p></article>
+          <article class="card"><span class="icon">🖨️</span><h3>Printable references</h3><p>Create pump cards and training worksheets that can be handed out in driver/operator classes or used at the station.</p></article>
+          <article class="card"><span class="icon">🏢</span><h3>Standpipe & high-rise</h3><p>Support standpipe-style calculations with hose inside the building, elevation, nozzle pressure, and target pump pressure.</p></article>
+          <article class="card"><span class="icon">💦</span><h3>Water supply tools</h3><p>Plan hydrant, tender shuttle, relay pumping, drafting, and supply-line examples without burying users in paper charts.</p></article>
+          <article class="card"><span class="icon">🚒</span><h3>Department setup</h3><p>In the app version, save department-specific hose, nozzle, appliance, and line presets so the numbers match actual rigs.</p></article>
         </div>
       </div>
     </section>
 
-
-    <section class="section" id="tools">
+    <section class="section" id="platforms">
       <div class="wrap">
-        <h2>FireOps Calc Tools</h2>
-        <p class="section-intro">Start with the web calculator, then build printable department references for engineers, driver/operator students, and company-level training.</p>
-        <div class="cards">
-          <article class="card"><span class="icon">🧾</span><h3><a href="/tools/pump-card.html">Pump Card Creator</a></h3><p>Select your department hose, nozzles, preconnects, appliance loss rules, and common setups. FireOps Calc builds a clean printable pump card that can be saved as a PDF.</p></article>
-          <article class="card"><span class="icon">🧮</span><h3><a href="/calculator.html">Pump Calculator</a></h3><p>Run quick pump pressure, friction loss, nozzle pressure, elevation, appliance loss, and training calculations.</p></article>
-          <article class="card"><span class="icon">📝</span><h3><a href="/tools/printable-scenarios.html">Printable Pump Scenarios</a></h3><p>Create printable pump-pressure worksheets with apparatus graphics, hose/nozzle labels, formula reminders, and blank answer spaces. Four problems print per page.</p></article>
-          <article class="card"><span class="icon">🚧</span><h3>More tools coming</h3><p>Relay pumping, water supply flow, and more printable reference builders can all load from this tools section.</p></article>
+        <h2>iPhone, Android, and web versions.</h2>
+        <p class="section-intro">FireOps Calc is currently developed differently on each platform. The web version is becoming the public tool and training hub.</p>
+        <div class="platform-note">
+          <div class="platform"><h3>🍎 iPhone</h3><p>Clean, fast pump calculations built for simplicity and reliability. Designed for quick use on the fireground.</p></div>
+          <div class="platform"><h3>🤖 Android</h3><p>Expanded features including advanced setups, scenario tools, and ongoing development features. Both versions use the same core pump calculation logic.</p></div>
+        </div>
+        <div class="cta-row">
+          <a class="btn store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener">Download on iPhone</a>
+          <a class="btn store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app" target="_blank" rel="noopener">Get it on Android</a>
         </div>
       </div>
     </section>
 
-    <section class="section" id="calculator-guides">
+    <section class="section" id="guides">
       <div class="wrap">
         <h2>Fire pump calculator guides and training pages.</h2>
-        <p class="section-intro">Use these focused pages for quick reference, station training, driver/operator study, and search-friendly explanations of the calculations inside FireOps Calc.</p>
+        <p class="section-intro">Focused pages for quick reference, station training, driver/operator study, and search-friendly explanations of the calculations inside FireOps Calc.</p>
         <div class="cards">
           <article class="card"><span class="icon">🚒</span><h3><a href="/fire-pump-calculator.html">Fire pump calculator</a></h3><p>Pump discharge pressure, nozzle pressure, friction loss, elevation, and appliance loss.</p></article>
           <article class="card"><span class="icon">📏</span><h3><a href="/friction-loss-calculator.html">Friction loss calculator</a></h3><p>Fire hose friction loss by GPM, hose length, hose size, and coefficient.</p></article>
           <article class="card"><span class="icon">🔁</span><h3><a href="/relay-pumping-calculator.html">Relay pumping calculator</a></h3><p>Total relay distance, number of engines, spacing between engines, and relay PDP.</p></article>
           <article class="card"><span class="icon">🏢</span><h3><a href="/standpipe-pump-pressure-calculator.html">Standpipe pump pressure</a></h3><p>High-rise and standpipe-style pump pressure examples for building operations.</p></article>
           <article class="card"><span class="icon">🎯</span><h3><a href="/fire-pump-training-scenarios.html">Fire pump training scenarios</a></h3><p>Practice problems for driver/operator students, engineers, and instructors.</p></article>
-          <article class="card"><span class="icon">⚙️</span><h3><a href="/calculator.html">Open calculator</a></h3><p>Go directly to the working web calculator and start building a pump problem.</p></article>
-        </div>
-      </div>
-    </section>
-
-
-
-    <section class="section" id="how-to-library">
-      <div class="wrap">
-        <h2>Practical fire pump how-to library.</h2>
-        <p class="section-intro">FireOps Calc now includes useful training articles that explain the math behind pump pressure, friction loss, water supply, relay pumping, wyes, standpipes, and tender shuttle GPM.</p>
-        <div class="cards">
-          <article class="card"><span class="icon">🚒</span><h3><a href="/how-to/calculate-pump-discharge-pressure.html">Calculate pump discharge pressure</a></h3><p>Step-by-step PDP formula with a worked handline example.</p></article>
-          <article class="card"><span class="icon">📏</span><h3><a href="/how-to/calculate-fire-hose-friction-loss.html">Calculate fire hose friction loss</a></h3><p>Use GPM, hose length, and C-value to estimate pressure loss.</p></article>
-          <article class="card"><span class="icon">🔁</span><h3><a href="/how-to/relay-pumping-distance-between-engines.html">Relay pumping engine spacing</a></h3><p>Find number of sections, distance between engines, and per-section PDP.</p></article>
-          <article class="card"><span class="icon">🔗</span><h3><a href="/how-to/two-supply-lines-one-engine.html">Two supply lines to one engine</a></h3><p>Split total flow, calculate each supply line, and use the highest-loss path.</p></article>
-          <article class="card"><span class="icon">🏢</span><h3><a href="/how-to/calculate-standpipe-pump-pressure.html">Standpipe pump pressure</a></h3><p>Training process for high-rise and FDC-style pump pressure examples.</p></article>
-          <article class="card"><span class="icon">📚</span><h3><a href="/how-to.html">View all how-to guides</a></h3><p>Browse the full FireOps Calc training and reference library.</p></article>
+          <article class="card"><span class="icon">📚</span><h3><a href="/how-to.html">Full how-to library</a></h3><p>Browse the full FireOps Calc training and reference library.</p></article>
         </div>
       </div>
     </section>
@@ -294,7 +289,7 @@
       <div class="wrap split">
         <div>
           <h2>Water supply and relay pumping support.</h2>
-          <p class="section-intro">The website landing page should make it clear that FireOps Calc is more than a basic friction loss calculator. It is becoming a full fireground hydraulics and training tool.</p>
+          <p class="section-intro">The site is being built into a full fireground hydraulics reference tool, not just a simple calculator.</p>
           <div class="list">
             <div class="check"><span>✅</span><span><b>Single supply line</b>Enter total flow, hose size, length, C-value, and target intake pressure.</span></div>
             <div class="check"><span>✅</span><span><b>Two lines feeding one engine</b>Split total GPM across two supply lines and use the highest-loss line for PDP.</span></div>
@@ -311,15 +306,15 @@
           <div class="calc-line"><span>Distance Between Engines</span><b>1000 ft</b></div>
           <div class="calc-line"><span>Target Intake</span><b>20 PSI</b></div>
           <div class="calc-line calc-total"><span>Display</span><b>Engine 1 → 2, Engine 2 → 3</b></div>
-          <p class="notice">FireOps Calc should support quick equal-spacing mode plus an advanced manual layout for real-world uneven engine spacing.</p>
+          <p class="notice">Future tools can support quick equal-spacing mode plus advanced manual layouts for real-world uneven engine spacing.</p>
         </div>
       </div>
     </section>
 
     <section class="section" id="training">
       <div class="wrap">
-        <h2>A training tool for pump operators and instructors.</h2>
-        <p class="section-intro">The website can bring people in through search, then move them into the calculator, app store listing, how-to guide, or practice scenarios.</p>
+        <h2>A training hub for pump operators and instructors.</h2>
+        <p class="section-intro">The home page now drives users into tools, printable materials, app downloads, how-to guides, and practice scenarios.</p>
         <div class="steps">
           <article class="card step"><h3>Set the problem</h3><p>Choose a handline, wye, standpipe, master stream, relay, or water supply scenario.</p></article>
           <article class="card step"><h3>Show the math</h3><p>Break the answer into FL, NP, elevation, appliance loss, total GPM, and final PDP.</p></article>
@@ -332,22 +327,10 @@
       <div class="wrap">
         <h2>FireOps Calc FAQ</h2>
         <div class="faq">
-          <details open>
-            <summary>What is FireOps Calc?</summary>
-            <p>FireOps Calc is a firefighter-built fire pump calculator and training tool for pump pressure, friction loss, water supply, relay pumping, and driver/operator practice.</p>
-          </details>
-          <details>
-            <summary>Who is FireOps Calc for?</summary>
-            <p>It is designed for firefighters, engineers, apparatus operators, officers, fire instructors, fire academies, and students learning pump operations.</p>
-          </details>
-          <details>
-            <summary>Does FireOps Calc replace department SOPs?</summary>
-            <p>No. FireOps Calc is a calculator, reference, and training aid. Always follow your department SOPs, instructor direction, manufacturer data, and local requirements.</p>
-          </details>
-          <details>
-            <summary>Can I use the calculator on the web?</summary>
-            <p>Yes. Open the web calculator from this page. The iPhone and Android versions are also available for mobile use.</p>
-          </details>
+          <details open><summary>What is FireOps Calc?</summary><p>FireOps Calc is a firefighter-built fire pump calculator and training tool for pump pressure, friction loss, water supply, relay pumping, printable pump cards, and driver/operator practice.</p></details>
+          <details><summary>Who is FireOps Calc for?</summary><p>It is designed for firefighters, engineers, apparatus operators, officers, fire instructors, fire academies, and students learning pump operations.</p></details>
+          <details><summary>Does FireOps Calc replace department SOPs?</summary><p>No. FireOps Calc is a calculator, reference, and training aid. Always follow your department SOPs, instructor direction, manufacturer data, and local requirements.</p></details>
+          <details><summary>Can I use the calculator on the web?</summary><p>Yes. Open the web calculator from this page. The iPhone and Android versions are also available for mobile use.</p></details>
         </div>
       </div>
     </section>
@@ -355,11 +338,11 @@
     <section class="section">
       <div class="wrap">
         <div class="final-cta">
-          <h2>Try FireOps Calc now.</h2>
-          <p>Use the free web calculator, read the quick-start guide, or install the app so the tool is ready when you train, teach, or pump.</p>
+          <h2>Start with the tools.</h2>
+          <p>Use the web calculator, create a printable pump card, build a training worksheet, or install the app so FireOps Calc is ready when you train, teach, or pump.</p>
           <div class="cta-row" style="justify-content:center">
-            <a class="btn primary" href="/calculator.html">Open the Calculator</a>
-            <a class="btn secondary" href="/how-to.html">Read the How-To Guide</a>
+            <a class="btn primary" href="#tools">View Tools</a>
+            <a class="btn secondary" href="/calculator.html">Open Calculator</a>
             <a class="btn secondary" href="/about.html">About FireOps Calc</a>
           </div>
         </div>
@@ -372,9 +355,9 @@
       <div>© <span id="year">2026</span> FireOps Calc. Built for firefighters and fire training.</div>
       <div class="footer-links">
         <a href="/calculator.html">Calculator</a>
-        <a href="/how-to.html">How-to</a>
         <a href="/tools/pump-card.html">Pump Card Creator</a>
         <a href="/tools/printable-scenarios.html">Printable Scenarios</a>
+        <a href="/how-to.html">How-to</a>
         <a href="/about.html">About</a>
         <a href="/contact.html">Contact</a>
         <a href="/privacy-policy.html">Privacy</a>
