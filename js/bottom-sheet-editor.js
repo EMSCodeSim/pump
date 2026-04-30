@@ -1,10 +1,8 @@
 // bottom-sheet-editor.js
-// Mobile editor overlay for the calc stage.
-// Re-resolves the current calc DOM on every open so Android cannot hold stale refs
-// after the calc view re-renders.
+// Compact no-scroll editor overlay for the calc stage.
 
 (function(){
-  const cfg = { lockScroll: false };
+  const cfg = { lockScroll: true };
   const STYLE_ID = 'stage-overlay-style';
   const PORTAL_ID = 'stageOverlayHost';
   const BACKDROP_ID = 'stageOverlayBackdrop';
@@ -23,96 +21,288 @@
 
   function ensureStyle(){
     if (document.getElementById(STYLE_ID)) return;
+
     const s = document.createElement('style');
     s.id = STYLE_ID;
     s.textContent = `
       #${PORTAL_ID}{
         position: fixed;
-        left: 0; top: 0; width: 0; height: 0;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
         z-index: 9999;
         display: none;
         pointer-events: none;
         contain: layout paint;
       }
+
       #${BACKDROP_ID}{
-        position: absolute; inset: 0;
-        background: rgba(0,0,0,0.45);
+        position: absolute;
+        inset: 0;
+        background: rgba(0,0,0,0.55);
         pointer-events: auto;
         display: none;
-        -webkit-backdrop-filter: none !important;
-        backdrop-filter: none !important;
-        animation: fireopsFadeIn .14s ease-out;
       }
-      @keyframes fireopsFadeIn { from{opacity:0} to{opacity:1} }
+
       #${PORTAL_ID} #tipEditor.cover-stage{
-        position: absolute; inset: 0;
-        display: none;
-        pointer-events: auto;
-        background: #0e151e;
-        border: 1px solid rgba(255,255,255,.10);
-        border-radius: 18px;
-        box-shadow: 0 18px 48px rgba(0,0,0,.5);
-        padding: 10px;
-        overflow: hidden;
-        -webkit-font-smoothing: antialiased;
-        text-rendering: optimizeLegibility;
-        transform: translateZ(0);
-        animation: fireopsStageIn .14s ease-out;
+        position: absolute !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+
+        width: min(96vw, 620px) !important;
+        max-height: calc(100dvh - 16px) !important;
+
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px 10px !important;
+
+        background: #0e151e !important;
+        border: 1px solid rgba(255,255,255,.14) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 18px 48px rgba(0,0,0,.55) !important;
+        padding: 10px !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+        pointer-events: auto !important;
       }
-      @keyframes fireopsStageIn {
-        from { opacity:.75; transform: translateZ(0) scale(0.985) }
-        to   { opacity:1;   transform: translateZ(0) scale(1) }
+
+      #${PORTAL_ID} #tipEditor.cover-stage > #teTitle,
+      #${PORTAL_ID} #tipEditor.cover-stage > #segSwitch,
+      #${PORTAL_ID} #tipEditor.cover-stage > input[type="hidden"],
+      #${PORTAL_ID} #tipEditor.cover-stage > #branchPlusWrap,
+      #${PORTAL_ID} #tipEditor.cover-stage > #branchBlock,
+      #${PORTAL_ID} #tipEditor.cover-stage > .te-actions{
+        grid-column: 1 / -1 !important;
       }
-      #tipEditor .te-row label{
-        font-weight:800; color:#dfe9ff; display:block; margin:6px 0 4px;
+
+      #${PORTAL_ID} #tipEditor.cover-stage #teTitle{
+        margin: 0 !important;
+        font-size: 15px !important;
+        line-height: 1.1 !important;
+        font-weight: 900 !important;
       }
-      #tipEditor .te-row input,
-      #tipEditor .te-row select{
-        width:100%; padding:12px 14px; border-radius:14px;
-        background:#0b1420; color:#eaf2ff;
-        border:1px solid rgba(255,255,255,.22);
+
+      #${PORTAL_ID} #tipEditor.cover-stage .te-row{
+        margin: 0 !important;
+        min-width: 0 !important;
       }
-      #tipEditor .te-actions{
-        position: sticky; bottom: 0;
-        background: rgba(14,21,30,.9);
-        padding-top: 8px; margin-top: 10px;
+
+      #${PORTAL_ID} #tipEditor.cover-stage #rowNoz{
+        grid-column: 1 / -1 !important;
       }
-      #tipEditor .te-actions .btn{
-        min-height: 52px; padding: 10px 14px; border-radius:14px;
+
+      #${PORTAL_ID} #tipEditor.cover-stage .te-row label{
+        display: block !important;
+        margin: 0 0 3px !important;
+        font-size: 12px !important;
+        line-height: 1.1 !important;
+        font-weight: 800 !important;
+        color: #dfe9ff !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .te-row input,
+      #${PORTAL_ID} #tipEditor.cover-stage .te-row select{
+        width: 100% !important;
+        min-height: 38px !important;
+        height: 38px !important;
+        padding: 5px 10px !important;
+        border-radius: 11px !important;
+        background: #0b1420 !important;
+        color: #eaf2ff !important;
+        border: 1px solid rgba(95,133,201,.65) !important;
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        box-sizing: border-box !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .inline-stepper,
+      #${PORTAL_ID} #tipEditor.cover-stage .steppers{
+        width: 100% !important;
+        display: grid !important;
+        grid-template-columns: 40px 1fr 40px !important;
+        align-items: center !important;
+        gap: 6px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .stepBtn,
+      #${PORTAL_ID} #tipEditor.cover-stage .stepVal{
+        min-height: 38px !important;
+        height: 38px !important;
+        border-radius: 11px !important;
+        font-size: 18px !important;
+        font-weight: 900 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .stepVal{
+        font-size: 16px !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .te-actions{
+        position: static !important;
+        bottom: auto !important;
+        background: transparent !important;
+        padding: 4px 0 0 !important;
+        margin: 0 !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage .te-actions .btn{
+        min-height: 40px !important;
+        height: 40px !important;
+        padding: 8px 12px !important;
+        border-radius: 12px !important;
+        font-size: 15px !important;
+        font-weight: 900 !important;
+      }
+
+      #${PORTAL_ID} #tipEditor.cover-stage #branchPlusWrap:not(.is-hidden),
+      #${PORTAL_ID} #tipEditor.cover-stage #branchBlock:not(.is-hidden){
+        max-height: 30vh !important;
+        overflow: auto !important;
+        border-top: 1px solid rgba(255,255,255,.12) !important;
+        padding-top: 6px !important;
+      }
+
+      @media (max-width: 520px){
+        #${PORTAL_ID} #tipEditor.cover-stage{
+          width: calc(100vw - 12px) !important;
+          max-height: calc(100dvh - 12px) !important;
+          grid-template-columns: 1fr 1fr !important;
+          gap: 6px 8px !important;
+          padding: 8px !important;
+          border-radius: 14px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage #teTitle{
+          font-size: 13px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row label{
+          font-size: 10px !important;
+          margin-bottom: 2px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row input,
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row select{
+          min-height: 34px !important;
+          height: 34px !important;
+          padding: 4px 8px !important;
+          border-radius: 10px !important;
+          font-size: 12px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .inline-stepper,
+        #${PORTAL_ID} #tipEditor.cover-stage .steppers{
+          grid-template-columns: 34px 1fr 34px !important;
+          min-height: 34px !important;
+          gap: 5px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .stepBtn,
+        #${PORTAL_ID} #tipEditor.cover-stage .stepVal{
+          min-height: 34px !important;
+          height: 34px !important;
+          border-radius: 10px !important;
+          font-size: 16px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .stepVal{
+          font-size: 13px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-actions .btn{
+          min-height: 36px !important;
+          height: 36px !important;
+          font-size: 13px !important;
+        }
+      }
+
+      @media (max-height: 620px){
+        #${PORTAL_ID} #tipEditor.cover-stage{
+          grid-template-columns: 1fr 1fr 1fr !important;
+          gap: 5px 8px !important;
+          padding: 8px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage #rowNoz{
+          grid-column: auto !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row label{
+          font-size: 10px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row input,
+        #${PORTAL_ID} #tipEditor.cover-stage .te-row select,
+        #${PORTAL_ID} #tipEditor.cover-stage .stepBtn,
+        #${PORTAL_ID} #tipEditor.cover-stage .stepVal{
+          height: 31px !important;
+          min-height: 31px !important;
+          font-size: 12px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .inline-stepper,
+        #${PORTAL_ID} #tipEditor.cover-stage .steppers{
+          grid-template-columns: 31px 1fr 31px !important;
+          min-height: 31px !important;
+        }
+
+        #${PORTAL_ID} #tipEditor.cover-stage .te-actions .btn{
+          height: 34px !important;
+          min-height: 34px !important;
+        }
       }
     `;
+
     document.head.appendChild(s);
   }
 
   function ensurePortal(){
     ensureStyle();
+
     let portal = document.getElementById(PORTAL_ID);
     if (!portal){
       portal = document.createElement('div');
       portal.id = PORTAL_ID;
       document.body.appendChild(portal);
     }
+
     let backdrop = portal.querySelector('#' + BACKDROP_ID);
     if (!backdrop){
       backdrop = document.createElement('div');
       backdrop.id = BACKDROP_ID;
       portal.appendChild(backdrop);
     }
+
     if (!backdrop.__fireopsBound){
-      backdrop.addEventListener('click', (e)=>{
+      backdrop.addEventListener('click', function(e){
         if (e.target !== backdrop) return;
+        e.preventDefault();
         e.stopPropagation();
         api.close();
       });
       backdrop.__fireopsBound = true;
     }
+
     state.portal = portal;
     state.backdrop = backdrop;
+
     return { portal, backdrop };
   }
 
   function getCurrentEls(){
     const root = document.querySelector('[data-calc-root]') || document.body;
+
     return {
       root,
       stage: root.querySelector('#stage'),
@@ -126,38 +316,45 @@
 
   function lockBodyScroll(lock){
     if (!cfg.lockScroll) return;
+
+    document.documentElement.style.overflow = lock ? 'hidden' : '';
     document.body.style.overflow = lock ? 'hidden' : '';
   }
 
   function positionPortal(){
     if (!state.portal) return;
-    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
-    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-    const inset = vw <= 640 ? 8 : 18;
-    state.portal.style.left = `${inset}px`;
-    state.portal.style.top = `${inset}px`;
-    state.portal.style.width = `${Math.max(320, vw - (inset * 2))}px`;
-    state.portal.style.height = `${Math.max(320, vh - (inset * 2))}px`;
+
+    state.portal.style.left = '0';
+    state.portal.style.top = '0';
+    state.portal.style.width = '100vw';
+    state.portal.style.height = '100dvh';
   }
 
   function attachCancel(btn){
     if (!btn || btn.__fireopsCancelBound) return;
-    btn.addEventListener('click', (e)=>{
+
+    btn.addEventListener('click', function(e){
       e.preventDefault();
       e.stopPropagation();
       api.close();
     });
+
     btn.__fireopsCancelBound = true;
   }
 
   function attachApply(btn){
     if (!btn || btn.__fireopsApplyBound) return;
-    btn.addEventListener('click', ()=> api.close());
+
+    btn.addEventListener('click', function(){
+      api.close();
+    });
+
     btn.__fireopsApplyBound = true;
   }
 
   function syncBranchBlockVisibility(){
     if (!state.teWye || !state.branchBlock) return;
+
     state.branchBlock.classList.toggle('is-hidden', state.teWye.value !== 'wye');
   }
 
@@ -165,6 +362,7 @@
     open(){
       const { portal, backdrop } = ensurePortal();
       const els = getCurrentEls();
+
       if (!els.stage || !els.tipEditor) return;
 
       if (state.isOpen && state.tipEditor === els.tipEditor){
@@ -181,10 +379,12 @@
 
       els.tipEditor.classList.add('cover-stage');
       portal.appendChild(els.tipEditor);
+
       portal.style.display = 'block';
       backdrop.style.display = 'block';
+
       els.tipEditor.classList.remove('is-hidden');
-      els.tipEditor.style.display = 'block';
+      els.tipEditor.style.display = 'grid';
 
       attachCancel(els.teCancel);
       attachApply(els.teApply);
@@ -196,14 +396,15 @@
       }
 
       if (!state.onResize){
-        state.onResize = () => positionPortal();
-        window.addEventListener('scroll', state.onResize, { passive: true });
+        state.onResize = function(){
+          positionPortal();
+        };
+
         window.addEventListener('resize', state.onResize, { passive: true });
+        window.addEventListener('orientationchange', state.onResize, { passive: true });
       }
 
       positionPortal();
-      const first = els.tipEditor.querySelector('input, select, textarea, button');
-      if (first) setTimeout(() => first.focus(), 0);
       lockBodyScroll(true);
       state.isOpen = true;
     },
@@ -216,11 +417,14 @@
 
       const { portal, backdrop } = ensurePortal();
       const tipEditor = state.tipEditor;
+
       if (tipEditor){
         tipEditor.style.display = 'none';
+
         if (state.originalParent && tipEditor.parentElement === portal){
           state.originalParent.appendChild(tipEditor);
         }
+
         tipEditor.classList.remove('cover-stage');
       }
 
@@ -232,8 +436,8 @@
       portal.style.display = 'none';
 
       if (state.onResize){
-        window.removeEventListener('scroll', state.onResize);
         window.removeEventListener('resize', state.onResize);
+        window.removeEventListener('orientationchange', state.onResize);
       }
 
       state = {
@@ -247,11 +451,14 @@
         syncBranchBlock: null,
         onResize: null,
       };
+
       lockBodyScroll(false);
     },
 
     configure(opts){
-      if (opts && typeof opts === 'object') Object.assign(cfg, opts);
+      if (opts && typeof opts === 'object'){
+        Object.assign(cfg, opts);
+      }
     }
   };
 
