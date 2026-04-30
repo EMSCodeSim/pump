@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Printable Pump Scenarios | FireOps Calc</title>
+  <meta name="description" content="Create printable fire pump pressure training scenarios with hose layout graphics, labels, formulas, and blank answer spaces." />
+  <link rel="icon" href="/fireopscalc.png" />
+  <meta name="theme-color" content="#08111e" />
+  <style>
+    :root{
+      --bg:#050a12;--panel:#0b1320;--panel2:#0e192a;--edge:#1d3352;--fg:#edf5ff;--muted:#c4d6ee;--accent:#46b0ff;--warn:#ffa74d;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(180deg,#050a12,#07101d 45%,#050a12);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.45}
+    a{color:inherit}.wrap{max-width:1180px;margin:0 auto;padding:0 16px}.topbar{position:sticky;top:0;z-index:10;background:rgba(5,10,18,.85);backdrop-filter:blur(14px);border-bottom:1px solid rgba(120,190,255,.16)}
+    .nav{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0}.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:900}.brand img{width:38px;height:38px;border-radius:10px}.nav a.btn{background:#123c73;border:1px solid #58b4ff;border-radius:999px;padding:9px 14px;text-decoration:none;font-weight:900}
+    .hero{padding:34px 0 20px}.hero h1{font-size:clamp(30px,5vw,54px);line-height:1.04;margin:0 0 10px;letter-spacing:-.035em}.hero p{color:var(--muted);font-size:18px;max-width:820px;margin:0}
+    .grid{display:grid;grid-template-columns:390px 1fr;gap:18px;align-items:start}.panel{background:rgba(11,19,32,.92);border:1px solid rgba(120,190,255,.2);border-radius:18px;padding:16px;box-shadow:0 14px 32px rgba(0,0,0,.24)}
+    .panel h2{margin:0 0 12px;font-size:21px}.form{display:grid;gap:11px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.field{display:grid;gap:5px}.field label{font-size:12px;color:#dbe9ff;font-weight:850}.field input,.field select,.field textarea{width:100%;border:1px solid rgba(95,133,201,.65);background:#08111e;color:#f1f7ff;border-radius:11px;padding:10px;font-size:15px;font-weight:750}.field textarea{min-height:70px;resize:vertical}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.btn{border:1px solid rgba(255,255,255,.15);border-radius:13px;padding:12px 14px;background:rgba(255,255,255,.06);color:#fff;font-weight:950;cursor:pointer}.btn.primary{background:linear-gradient(135deg,#1e82ff,#123c73);border-color:#58b4ff}.btn.warn{background:rgba(255,167,77,.12);border-color:rgba(255,167,77,.42)}
+    .scenario-list{display:grid;gap:10px;margin-top:10px}.scenario-tab{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#07101d;border:1px solid rgba(255,255,255,.12);border-radius:13px;padding:10px}.scenario-tab button{border:0;border-radius:10px;padding:8px 10px;background:#10233c;color:#fff;font-weight:850;cursor:pointer}.scenario-tab.active{outline:2px solid rgba(70,176,255,.8)}
+    .preview-tools{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-bottom:12px}.preview-tools p{margin:0;color:var(--muted)}
+    .sheet{background:white;color:#111;width:8.5in;min-height:11in;margin:0 auto;padding:.35in;box-shadow:0 18px 52px rgba(0,0,0,.45)}.sheet-title{display:flex;justify-content:space-between;gap:12px;align-items:end;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:8px}.sheet-title h2{margin:0;font-size:20px;letter-spacing:.02em}.sheet-title small{font-size:11px;color:#333;text-align:right}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.print-card{break-inside:avoid;border:1.8px solid #111;border-radius:8px;padding:8px;min-height:4.85in;display:flex;flex-direction:column;gap:6px}.card-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #222;padding-bottom:5px}.card-head b{font-size:15px}.card-head span{font-size:11px;color:#333}.scene{border:1px solid #333;border-radius:7px;height:142px;background:#f4f6f8;overflow:hidden}.facts{display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:11px}.fact{border:1px solid #aaa;border-radius:5px;padding:3px 5px}.work{font-size:11px;border-top:1px solid #aaa;padding-top:5px}.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px}.blank{border-bottom:1px solid #111;min-height:19px;padding-top:2px}.big-blank{border:1px solid #111;border-radius:5px;min-height:45px;margin-top:4px}.answer{font-size:11px;color:#222;background:#f1f1f1;border-radius:5px;padding:5px;display:none}.show-answers .answer{display:block}.footer-note{font-size:9px;color:#333;margin-top:8px;text-align:center}
+    svg{width:100%;height:100%;display:block}.labelBox{fill:#fff;stroke:#111;stroke-width:.8}.labelText{font-size:8px;font-weight:700;fill:#111}.hose{fill:none;stroke:#d93838;stroke-width:5;stroke-linecap:round}.hose2{stroke:#376dff}.truck{fill:#c82828;stroke:#111;stroke-width:1}.ground{fill:#e8ecef}.building{fill:#d7dde5;stroke:#333;stroke-width:.8}.nozzle{fill:#222}
+    @media(max-width:960px){.grid{grid-template-columns:1fr}.sheet{transform-origin:top center;transform:scale(.94);margin-bottom:-.65in}.panel{max-width:720px;margin:0 auto;width:100%}}
+    @media(max-width:760px){.row{grid-template-columns:1fr}.sheet{width:100%;min-height:auto;padding:10px;transform:none}.scenario-grid{grid-template-columns:1fr}.print-card{min-height:auto}.scene{height:150px}.actions{grid-template-columns:1fr}}
+    @media print{
+      body{background:#fff;color:#000}.topbar,.hero,.builder,.preview-tools{display:none!important}.wrap{max-width:none;padding:0}.grid{display:block}.panel.preview{border:0;padding:0;box-shadow:none;background:#fff}.sheet{box-shadow:none;margin:0;width:8.5in;min-height:11in;padding:.35in}.print-card{min-height:4.85in}.scenario-grid{grid-template-columns:1fr 1fr} @page{size:letter;margin:0}
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="wrap nav"><a class="brand" href="/"><img src="/fireopscalc2.png" alt="FireOps Calc logo"> FireOps Calc</a><a class="btn" href="/calculator.html">Open Calculator</a></div></header>
+  <main>
+    <section class="hero"><div class="wrap"><h1>Printable Pump Scenarios</h1><p>Create a printable driver/operator worksheet with fireground-style graphics, hose/nozzle labels, formula reminders, and blank work areas. Four problems fit on one page.</p></div></section>
+    <section class="wrap grid">
+      <aside class="panel builder">
+        <h2>Scenario Builder</h2>
+        <div class="form">
+          <div class="row"><div class="field"><label>Worksheet title</label><input id="sheetTitle" value="Fire Pump Pressure Scenarios"></div><div class="field"><label>Department / Class</label><input id="deptName" value="Driver / Operator Practice"></div></div>
+          <div class="row"><div class="field"><label>Scenario #</label><select id="scenarioSelect"></select></div><div class="field"><label>Layout</label><select id="layoutType"><option value="single">Single attack line</option><option value="wye">Wye split</option><option value="standpipe">Standpipe</option><option value="master">Portable master stream</option></select></div></div>
+          <div class="field"><label>Scenario title</label><input id="title"></div>
+          <div class="row"><div class="field"><label>Engine / apparatus</label><input id="engine"></div><div class="field"><label>Difficulty</label><select id="difficulty"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div></div>
+          <div class="row"><div class="field"><label>Hose length</label><input id="length" placeholder="200'"></div><div class="field"><label>Hose size</label><input id="diameter" placeholder="1¾\""></div></div>
+          <div class="row"><div class="field"><label>Nozzle / flow</label><input id="nozzle" placeholder="185 gpm fog @ 50 psi"></div><div class="field"><label>Elevation / appliance</label><input id="extra" placeholder="0' elevation, no appliance"></div></div>
+          <div class="field"><label>Problem text</label><textarea id="problem"></textarea></div>
+          <div class="field"><label>Known facts shown on worksheet</label><textarea id="facts"></textarea></div>
+          <div class="field"><label>Answer key / instructor note</label><textarea id="answer"></textarea></div>
+          <div class="actions"><button class="btn primary" id="saveScenario">Save Scenario</button><button class="btn warn" id="resetExamples">Reset Examples</button><button class="btn" id="printPage">Print / Save PDF</button><button class="btn" id="toggleAnswers">Show Answers</button></div>
+        </div>
+        <div class="scenario-list" id="scenarioTabs"></div>
+      </aside>
+      <section class="panel preview">
+        <div class="preview-tools"><p>Preview: prints as 4 problems per letter-size page.</p><button class="btn primary" onclick="window.print()">Print / Save PDF</button></div>
+        <div class="sheet" id="printSheet"></div>
+      </section>
+    </section>
+  </main>
+  <script>
+    const defaults = [
+      {layout:'single',title:'Single Preconnect',engine:'Engine 181',difficulty:'Beginner',length:"200'",diameter:'1¾"',nozzle:'185 gpm fog @ 50 psi',extra:"0' elevation, no appliance",problem:'Engine 181 is pumping a single attack line. Find the required pump pressure.',facts:'Hose: 200 ft of 1¾ in\nNozzle: 185 gpm fog @ 50 psi\nElevation: 0 ft\nAppliance: none',answer:'PP = NP + FL. FL = C × Q² × L. Using C 15.5, Q 1.85, L 2: FL ≈ 106 psi. PP ≈ 156 psi.'},
+      {layout:'single',title:'Long 2½ Attack Line',engine:'Engine 181',difficulty:'Beginner',length:"250'",diameter:'2½"',nozzle:'265 gpm fog @ 50 psi',extra:"0' elevation, no appliance",problem:'Calculate the pump pressure for a 2½ inch attack line stretched from the engine.',facts:'Hose: 250 ft of 2½ in\nNozzle: 265 gpm fog @ 50 psi\nElevation: 0 ft\nAppliance: none',answer:'PP = NP + FL. FL depends on department C-value. With C 2, Q 2.65, L 2.5: FL ≈ 35 psi. PP ≈ 85 psi.'},
+      {layout:'wye',title:'Wye Split',engine:'Engine 181',difficulty:'Intermediate',length:"200' main + branches",diameter:'2½" to 1¾"',nozzle:'Branch A 150 @ 50 / Branch B 185 @ 50',extra:'Wye appliance loss if used by SOP',problem:'Engine 181 supplies a wye. Find the required pressure to support the highest-loss branch.',facts:'Supply: 200 ft of 2½ in to wye\nBranch A: 150 ft 1¾ in, 150 gpm fog @ 50\nBranch B: 200 ft 1¾ in, 185 gpm fog @ 50\nUse highest branch requirement',answer:'Calculate main supply loss plus highest branch loss plus nozzle pressure and appliance/elevation if used.'},
+      {layout:'standpipe',title:'Standpipe Hose Pack',engine:'Engine 181',difficulty:'Intermediate',length:"150'",diameter:'1¾"',nozzle:'Smooth bore 15/16 in @ 50 psi',extra:'5th floor standpipe outlet',problem:'Engine 181 supplies a standpipe operation. Determine the pump pressure using your department standpipe rule.',facts:'Standpipe outlet: 5th floor\nHose: 150 ft of 1¾ in\nNozzle: 15/16 in smooth bore @ 50 psi\nAdd standpipe/system pressure per SOP',answer:'Use department standpipe rule plus hose/nozzle package. Show NP, hose FL, elevation/system pressure, and final PDP.'}
+    ];
+    let scenarios = JSON.parse(localStorage.getItem('fireops_printable_scenarios') || 'null') || defaults;
+    let active = 0;
+    let showAnswers = false;
+    const $ = id => document.getElementById(id);
+    function esc(s){return String(s ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+    function lineList(text){return String(text||'').split('\n').filter(Boolean).map(x=>`<div class="fact">${esc(x)}</div>`).join('');}
+    function sceneSVG(s){
+      const label = (x,y,t)=>`<rect class="labelBox" x="${x}" y="${y}" rx="3" width="72" height="14"/><text class="labelText" x="${x+4}" y="${y+10}">${esc(t).slice(0,24)}</text>`;
+      if(s.layout==='wye') return `<svg viewBox="0 0 220 120"><rect class="ground" width="220" height="120"/><rect class="truck" x="12" y="45" width="44" height="28" rx="4"/><text class="labelText" x="18" y="62">${esc(s.engine||'Engine')}</text><path class="hose" d="M56 60 C85 60,94 60,112 60"/><circle cx="112" cy="60" r="5" fill="#111"/><path class="hose2" d="M112 60 C135 38,158 30,196 30"/><path class="hose" d="M112 60 C136 82,160 92,198 92"/><rect class="nozzle" x="194" y="25" width="12" height="8"/><rect class="nozzle" x="196" y="88" width="12" height="8"/>${label(62,42,s.length)}${label(124,12,'Branch A')} ${label(125,99,'Branch B')}</svg>`;
+      if(s.layout==='standpipe') return `<svg viewBox="0 0 220 120"><rect class="ground" width="220" height="120"/><rect class="truck" x="10" y="80" width="42" height="26" rx="4"/><rect class="building" x="150" y="12" width="50" height="94"/><path class="hose" d="M52 92 C88 92,120 92,150 92 L150 40 L190 40"/><rect class="nozzle" x="188" y="36" width="13" height="8"/>${label(59,74,s.length)}${label(135,18,'Standpipe')} ${label(121,54,s.nozzle)}</svg>`;
+      if(s.layout==='master') return `<svg viewBox="0 0 220 120"><rect class="ground" width="220" height="120"/><rect class="truck" x="12" y="45" width="44" height="28" rx="4"/><path class="hose" d="M56 54 C95 40,125 38,160 52"/><path class="hose2" d="M56 66 C95 82,125 82,160 68"/><rect class="nozzle" x="158" y="52" width="25" height="18" rx="4"/><path d="M182 58 L206 47" stroke="#111" stroke-width="5"/>${label(65,23,s.length)}${label(122,78,'Master stream')} ${label(134,36,s.nozzle)}</svg>`;
+      return `<svg viewBox="0 0 220 120"><rect class="ground" width="220" height="120"/><rect class="truck" x="12" y="46" width="44" height="28" rx="4"/><circle cx="23" cy="76" r="5" fill="#111"/><circle cx="45" cy="76" r="5" fill="#111"/><path class="hose" d="M56 60 C90 60,118 48,151 56 C170 61,185 66,202 60"/><rect class="nozzle" x="198" y="55" width="13" height="8"/>${label(18,32,s.engine||'Engine')} ${label(81,37,`${s.length} ${s.diameter}`)} ${label(123,76,s.nozzle)}</svg>`;
+    }
+    function card(s,i){return `<article class="print-card"><div class="card-head"><b>${i+1}. ${esc(s.title)}</b><span>${esc(s.difficulty)} • ${esc(s.engine)}</span></div><div class="scene">${sceneSVG(s)}</div><div style="font-size:11px"><b>Problem:</b> ${esc(s.problem)}</div><div class="facts">${lineList(s.facts)}</div><div class="work"><b>Show your work:</b><div>PP = NP + FL ± Elevation + Appliance Loss</div><div>FL = C × Q² × L</div><div class="work-grid"><div>NP:<div class="blank"></div></div><div>FL:<div class="blank"></div></div><div>Elevation/App:<div class="blank"></div></div><div>Final PP:<div class="blank"></div></div></div><div class="big-blank"></div></div><div class="answer"><b>Instructor note:</b> ${esc(s.answer)}</div></article>`}
+    function render(){
+      $('scenarioSelect').innerHTML = scenarios.map((_,i)=>`<option value="${i}" ${i===active?'selected':''}>Scenario ${i+1}</option>`).join('');
+      const s=scenarios[active]; ['layoutType','title','engine','difficulty','length','diameter','nozzle','extra','problem','facts','answer'].forEach(id=>{ const el=$(id); if(!el) return; el.value = id==='layoutType'?s.layout:(s[id]||''); });
+      $('scenarioTabs').innerHTML = scenarios.map((s,i)=>`<div class="scenario-tab ${i===active?'active':''}"><b>${i+1}. ${esc(s.title)}</b><button onclick="active=${i};render()">Edit</button></div>`).join('');
+      $('printSheet').classList.toggle('show-answers',showAnswers);
+      $('printSheet').innerHTML = `<div class="sheet-title"><h2>${esc($('sheetTitle').value)}</h2><small>${esc($('deptName').value)}<br>Name: __________________ Date: __________</small></div><div class="scenario-grid">${scenarios.slice(0,4).map(card).join('')}</div><div class="footer-note">FireOps Calc printable scenario builder. Follow department SOPs, instructor direction, and local hydraulic guidelines.</div>`;
+      localStorage.setItem('fireops_printable_scenarios', JSON.stringify(scenarios));
+    }
+    function saveActive(){scenarios[active]={layout:$('layoutType').value,title:$('title').value,engine:$('engine').value,difficulty:$('difficulty').value,length:$('length').value,diameter:$('diameter').value,nozzle:$('nozzle').value,extra:$('extra').value,problem:$('problem').value,facts:$('facts').value,answer:$('answer').value};render();}
+    $('saveScenario').addEventListener('click',saveActive); $('scenarioSelect').addEventListener('change',e=>{saveActive();active=Number(e.target.value);render();}); $('printPage').addEventListener('click',()=>{saveActive();window.print();}); $('toggleAnswers').addEventListener('click',()=>{showAnswers=!showAnswers;$('toggleAnswers').textContent=showAnswers?'Hide Answers':'Show Answers';render();}); $('resetExamples').addEventListener('click',()=>{if(confirm('Reset all four examples?')){scenarios=JSON.parse(JSON.stringify(defaults));active=0;render();}}); ['sheetTitle','deptName'].forEach(id=>$(id).addEventListener('input',render)); ['layoutType','title','engine','difficulty','length','diameter','nozzle','extra','problem','facts','answer'].forEach(id=>$(id).addEventListener('input',()=>{})); render();
+  </script>
+</body>
+</html>
