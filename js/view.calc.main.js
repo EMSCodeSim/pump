@@ -3448,30 +3448,170 @@ function initPlusMenus(root){
 
   if(!root.__plusMenuStyles){
     const s=document.createElement('style');
-    s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:18px !important;display:flex !important;flex-direction:column !important}
-#tipEditor .mini{font-size:20px !important;font-weight:900 !important;margin-bottom:10px !important}
+    s.textContent = `#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{
+  padding:10px !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  align-content:start !important;
+  gap:7px 8px !important;
+  overflow:hidden !important;
+  box-sizing:border-box !important;
+}
+#tipEditor .mini{
+  grid-column:1 / -1 !important;
+  font-size:16px !important;
+  font-weight:900 !important;
+  margin:0 !important;
+  line-height:1.1 !important;
+}
+#tipEditor #segSwitch,
+#tipEditor .segSwitch{
+  grid-column:1 / -1 !important;
+  display:grid !important;
+  grid-template-columns:repeat(3,1fr) !important;
+  gap:6px !important;
+  margin:0 !important;
+}
+#tipEditor .segBtn{
+  min-height:36px !important;
+  border-radius:11px !important;
+  font-size:13px !important;
+  font-weight:800 !important;
+}
 #tipEditor #rowSize{order:10 !important}
-#tipEditor #rowNoz{order:11 !important}
+#tipEditor #rowNoz{order:11 !important;grid-column:1 / -1 !important}
 #tipEditor #rowApp{order:12 !important}
 #tipEditor #rowLen{order:13 !important}
 #tipEditor #rowElev{order:14 !important}
-#tipEditor .te-actions{order:99 !important}
-#tipEditor .te-row{display:flex !important;flex-direction:column !important;align-items:stretch !important;gap:10px !important;margin:16px 0 !important}
-#tipEditor .te-row>label{display:block !important;font-weight:900 !important;font-size:18px !important;color:#eaf2ff !important;opacity:1 !important;line-height:1.1 !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor .te-row .steppers{width:100% !important;max-width:100% !important}
-#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]),#tipEditor #teWhere{min-height:60px !important;padding:14px 16px !important;font-size:19px !important;border-radius:16px !important;border:1px solid rgba(255,255,255,.18) !important;background:#0b1a29 !important;color:#e9f1ff !important;font-weight:700 !important;line-height:1.2 !important}
-#tipEditor .te-row>select{padding-right:40px !important}
-#tipEditor .steppers{display:grid !important;grid-template-columns:1fr 1.3fr 1fr !important;justify-items:stretch !important;align-items:stretch !important;gap:10px !important;background:#0b1a29;border:1px solid var(--edge);border-radius:20px;padding:12px !important;width:100% !important;overflow:hidden !important}
-#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(72px,.9fr) minmax(112px,1.4fr) minmax(72px,.9fr) !important;grid-template-rows:1fr !important}
-#tipEditor .stepBtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12) !important;color:#e9f1ff;font-weight:900;width:100% !important;min-height:66px !important;font-size:34px !important;border-radius:16px !important;touch-action:manipulation;display:flex !important;align-items:center !important;justify-content:center !important}
-#tipEditor .stepBtn:active{transform:translateY(1px)}
-#tipEditor .stepVal{display:flex !important;align-items:center !important;justify-content:center !important;min-height:74px !important;padding:8px 10px !important;text-align:center !important;font-weight:900 !important;font-size:28px !important;white-space:nowrap !important;border-radius:16px !important;background:rgba(255,255,255,.04) !important;border:1px solid rgba(255,255,255,.08) !important}
-#tipEditor .segSwitch{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:10px !important;margin:10px 0 6px !important}
-#tipEditor .segBtn{min-height:54px !important;border-radius:14px !important;font-size:18px !important;font-weight:800 !important}
-#tipEditor .te-actions{display:grid !important;grid-template-columns:1fr 1fr !important;gap:12px !important;margin-top:auto !important;padding-top:18px !important;position:sticky !important;bottom:0 !important;background:linear-gradient(180deg, rgba(6,14,22,0) 0%, rgba(6,14,22,.88) 20%, rgba(6,14,22,1) 100%) !important}
-#tipEditor .te-actions .btn{min-height:58px !important;font-size:18px !important;font-weight:800 !important;border-radius:16px !important}
-#tipEditor #branchPlusWrap .card{padding:14px !important;border-radius:18px !important}
-@media (max-width:480px){#stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{padding:14px !important}#tipEditor .mini{font-size:18px !important}#tipEditor .te-row>label{font-size:17px !important}#tipEditor .te-row>select,#tipEditor .te-row>input:not([type="hidden"]){font-size:18px !important;min-height:56px !important}#tipEditor .steppers.inline-stepper{grid-template-columns:minmax(68px,.9fr) minmax(100px,1.35fr) minmax(68px,.9fr) !important}#tipEditor .stepBtn{min-height:62px !important;font-size:32px !important}#tipEditor .stepVal{min-height:68px !important;font-size:25px !important}}`
+#tipEditor .te-actions{order:99 !important;grid-column:1 / -1 !important}
+#tipEditor .te-row{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  gap:2px !important;
+  margin:0 !important;
+  min-width:0 !important;
+}
+#tipEditor .te-row>label{
+  display:block !important;
+  font-weight:900 !important;
+  font-size:12px !important;
+  color:#eef4ff !important;
+  opacity:1 !important;
+  line-height:1.05 !important;
+  margin:0 !important;
+}
+#tipEditor .te-row>select,
+#tipEditor .te-row>input:not([type="hidden"]),
+#tipEditor .te-row .steppers{
+  width:100% !important;
+  max-width:100% !important;
+  min-width:0 !important;
+  box-sizing:border-box !important;
+}
+#tipEditor .te-row>select,
+#tipEditor .te-row>input:not([type="hidden"]),
+#tipEditor #teWhere{
+  min-height:38px !important;
+  height:38px !important;
+  padding:6px 8px !important;
+  font-size:14px !important;
+  border-radius:12px !important;
+  border:1px solid rgba(130,170,255,.26) !important;
+  background:linear-gradient(180deg,#0c1a30 0%,#0b1729 100%) !important;
+  color:#edf3ff !important;
+  font-weight:800 !important;
+  line-height:1.1 !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 0 0 1px rgba(255,255,255,.02) !important;
+}
+#tipEditor .te-row>select{
+  padding-right:26px !important;
+  white-space:nowrap !important;
+  text-overflow:ellipsis !important;
+}
+#tipEditor .steppers,
+#tipEditor .steppers.inline-stepper{
+  display:grid !important;
+  grid-template-columns:44px 1fr 44px !important;
+  justify-items:stretch !important;
+  align-items:stretch !important;
+  gap:5px !important;
+  background:linear-gradient(180deg,#091a35 0%,#0a1830 100%) !important;
+  border:1px solid rgba(69,121,214,.34) !important;
+  border-radius:14px !important;
+  padding:5px !important;
+  width:100% !important;
+  overflow:hidden !important;
+}
+#tipEditor .stepBtn{
+  background:linear-gradient(180deg,#253347 0%,#202c3f 100%) !important;
+  border:1px solid rgba(149,178,230,.16) !important;
+  color:#f2f6ff !important;
+  font-weight:900 !important;
+  width:100% !important;
+  min-height:34px !important;
+  height:34px !important;
+  font-size:26px !important;
+  line-height:1 !important;
+  border-radius:11px !important;
+  touch-action:manipulation !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+#tipEditor .stepVal{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-height:34px !important;
+  height:34px !important;
+  padding:4px 6px !important;
+  text-align:center !important;
+  font-weight:900 !important;
+  font-size:18px !important;
+  white-space:nowrap !important;
+  border-radius:11px !important;
+  background:linear-gradient(180deg,#19283f 0%,#142339 100%) !important;
+  border:1px solid rgba(149,178,230,.14) !important;
+  color:#f1f5ff !important;
+}
+#tipEditor .te-actions{
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  gap:8px !important;
+  margin:0 !important;
+  padding:2px 0 0 !important;
+  position:static !important;
+  background:transparent !important;
+}
+#tipEditor .te-actions .btn{
+  min-height:42px !important;
+  font-size:15px !important;
+  font-weight:900 !important;
+  border-radius:14px !important;
+}
+#tipEditor #branchPlusWrap,
+#tipEditor #branchBlock{
+  grid-column:1 / -1 !important;
+}
+#tipEditor #branchPlusWrap .card{
+  padding:8px !important;
+  border-radius:14px !important;
+}
+@media (max-width:480px){
+  #stageOverlayHost #tipEditor.cover-stage, #tipEditor.is-open{
+    padding:8px !important;
+    gap:6px !important;
+  }
+  #tipEditor .mini{font-size:15px !important}
+  #tipEditor .te-row>label{font-size:11px !important}
+  #tipEditor .te-row>select,
+  #tipEditor .te-row>input:not([type="hidden"]){font-size:13px !important;min-height:36px !important;height:36px !important}
+  #tipEditor .steppers.inline-stepper{grid-template-columns:40px 1fr 40px !important;padding:4px !important;gap:4px !important}
+  #tipEditor .stepBtn{min-height:32px !important;height:32px !important;font-size:24px !important}
+  #tipEditor .stepVal{min-height:32px !important;height:32px !important;font-size:17px !important}
+  #tipEditor .te-actions .btn{min-height:40px !important;font-size:14px !important}
+}`
     root.appendChild(s);
     root.__plusMenuStyles = true;
   }

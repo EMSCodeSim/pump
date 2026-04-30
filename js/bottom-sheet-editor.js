@@ -50,10 +50,10 @@
         pointer-events: auto;
         background: #0e151e;
         border: 1px solid rgba(255,255,255,.10);
-        border-radius: 22px;
+        border-radius: 18px;
         box-shadow: 0 18px 48px rgba(0,0,0,.5);
-        padding: 16px;
-        overflow: auto;
+        padding: 10px;
+        overflow: hidden;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
         transform: translateZ(0);

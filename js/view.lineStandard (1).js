@@ -508,26 +508,28 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   overlay.style.inset = '0';
   overlay.style.background = 'rgba(0,0,0,0.55)';
   overlay.style.display = 'flex';
-  overlay.style.alignItems = 'flex-end';
+  overlay.style.alignItems = 'center';
   overlay.style.justifyContent = 'center';
-  overlay.style.padding = '8px';
+  overlay.style.padding = '6px';
   overlay.style.zIndex = '9999';
   overlay.style.boxSizing = 'border-box';
-  overlay.style.overflowX = 'hidden';
+  overlay.style.overflow = 'hidden';
 
   const panel = document.createElement('div');
-  panel.style.maxWidth = '100vw';
-  panel.style.width = '100%';
-  panel.style.maxHeight = '90vh';
+  panel.style.width = 'min(96vw, 520px)';
+  panel.style.maxWidth = '520px';
+  panel.style.maxHeight = 'calc(100dvh - 12px)';
   panel.style.background = '#020617';
   panel.style.color = '#e5e7eb';
-  panel.style.borderRadius = '16px 16px 0 0';
+  panel.style.borderRadius = '16px';
   panel.style.boxShadow = '0 18px 30px rgba(15,23,42,0.75)';
   panel.style.border = '1px solid rgba(148,163,184,0.35)';
-  panel.style.padding = '12px 10px 10px';
+  panel.style.padding = '0';
   panel.style.fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif';
   panel.style.boxSizing = 'border-box';
   panel.style.overflow = 'hidden';
+  panel.style.display = 'flex';
+  panel.style.flexDirection = 'column';
 
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
@@ -544,13 +546,14 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   header.style.display = 'flex';
   header.style.alignItems = 'center';
   header.style.justifyContent = 'space-between';
-  header.style.marginBottom = '6px';
+  header.style.marginBottom = '0';
   header.style.borderBottom = '1px solid rgba(148,163,184,0.25)';
-  header.style.paddingBottom = '4px';
+  header.style.padding = '8px 10px 6px';
+  header.style.flexShrink = '0';
 
   const title = document.createElement('div');
-  title.textContent = 'Standard attack line';
-  title.style.fontSize = '16px';
+  title.textContent = initial ? 'Edit line' : 'Add line';
+  title.style.fontSize = '15px';
   title.style.fontWeight = '600';
 
   const closeBtn = document.createElement('button');
@@ -568,14 +571,16 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   header.append(title, closeBtn);
 
   const body = document.createElement('div');
-  body.style.maxHeight = '65vh';
-  body.style.overflowY = 'auto';
-  body.style.fontSize = '14px';
+  body.style.flex = '1 1 auto';
+  body.style.minHeight = '0';
+  body.style.overflow = 'hidden';
+  body.style.fontSize = '12px';
+  body.style.padding = '6px 8px';
 
   const modeRow = document.createElement('div');
   modeRow.style.display = 'flex';
   modeRow.style.gap = '6px';
-  modeRow.style.marginTop = '4px';
+  modeRow.style.marginTop = '0';
 
   const singleBtn = document.createElement('button');
   singleBtn.type = 'button';
@@ -587,13 +592,13 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
 
   [singleBtn, wyeBtn].forEach((b) => {
     b.style.flex = '1 1 0';
-    b.style.padding = '6px 4px';
+    b.style.padding = '5px 4px';
     b.style.borderRadius = '999px';
     b.style.border = '1px solid rgba(55,65,81,0.9)';
     b.style.background = 'rgba(15,23,42,0.9)';
     b.style.color = '#e5e7eb';
     b.style.cursor = 'pointer';
-    b.style.fontSize = '14px';
+    b.style.fontSize = '13px';
   });
 
   function updateModeButtons() {
@@ -625,25 +630,29 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   });
 
   const sectionsContainer = document.createElement('div');
-  sectionsContainer.style.marginTop = '8px';
+  sectionsContainer.style.marginTop = '6px';
   sectionsContainer.style.display = 'flex';
   sectionsContainer.style.flexDirection = 'column';
-  sectionsContainer.style.gap = '8px';
+  sectionsContainer.style.gap = '5px';
 
   function makeSection(titleText) {
     const box = document.createElement('div');
     box.style.border = '1px solid rgba(30,64,175,0.5)';
     box.style.borderRadius = '12px';
-    box.style.padding = '6px 8px';
+    box.style.padding = '5px 6px';
     box.style.background = 'rgba(15,23,42,0.85)';
+    box.style.display = 'grid';
+    box.style.gridTemplateColumns = 'repeat(2, minmax(0, 1fr))';
+    box.style.gap = '4px 6px';
 
     const h = document.createElement('div');
     h.textContent = titleText;
-    h.style.fontSize = '12px';
+    h.style.fontSize = '10px';
     h.style.fontWeight = '600';
     h.style.textTransform = 'uppercase';
     h.style.letterSpacing = '0.06em';
-    h.style.marginBottom = '4px';
+    h.style.marginBottom = '0';
+    h.style.gridColumn = '1 / -1';
     h.style.color = '#bfdbfe';
 
     box.appendChild(h);
@@ -654,22 +663,26 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.flexDirection = 'column';
-    row.style.gap = '2px';
-    row.style.marginBottom = '4px';
+    row.style.gap = '1px';
+    row.style.marginBottom = '0';
+    row.style.minWidth = '0';
 
     const label = document.createElement('label');
     label.textContent = labelText;
-    label.style.fontSize = '14px';
+    label.style.fontSize = '11px';
 
     const input = document.createElement('input');
     input.type = 'number';
     input.value = value;
-    input.style.padding = '6px 8px';
+    input.style.padding = '4px 6px';
     input.style.borderRadius = '8px';
     input.style.border = '1px solid rgba(55,65,81,0.9)';
     input.style.background = '#020617';
     input.style.color = '#e5e7eb';
-    input.style.fontSize = '16px';
+    input.style.fontSize = '14px';
+    input.style.minHeight = '30px';
+    input.style.boxSizing = 'border-box';
+    input.style.width = '100%';
 
     input.addEventListener('input', () => {
       const v = input.value === '' ? 0 : Number(input.value);
@@ -685,20 +698,24 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.flexDirection = 'column';
-    row.style.gap = '2px';
-    row.style.marginBottom = '4px';
+    row.style.gap = '1px';
+    row.style.marginBottom = '0';
+    row.style.minWidth = '0';
 
     const label = document.createElement('label');
     label.textContent = labelText;
-    label.style.fontSize = '14px';
+    label.style.fontSize = '11px';
 
     const sel = document.createElement('select');
-    sel.style.padding = '6px 8px';
+    sel.style.padding = '4px 6px';
     sel.style.borderRadius = '8px';
     sel.style.border = '1px solid rgba(55,65,81,0.9)';
     sel.style.background = '#020617';
     sel.style.color = '#e5e7eb';
-    sel.style.fontSize = '16px';
+    sel.style.fontSize = '14px';
+    sel.style.minHeight = '30px';
+    sel.style.boxSizing = 'border-box';
+    sel.style.width = '100%';
     sel.style.maxWidth = '100%';
     sel.style.whiteSpace = 'nowrap';
     sel.style.textOverflow = 'ellipsis';
@@ -819,12 +836,12 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   }
 
   const preview = document.createElement('div');
-  preview.style.marginTop = '8px';
-  preview.style.padding = '8px';
+  preview.style.marginTop = '5px';
+  preview.style.padding = '6px';
   preview.style.borderRadius = '10px';
   preview.style.border = '1px solid rgba(37,99,235,0.8)';
   preview.style.background = '#020617';
-  preview.style.fontSize = '14px';
+  preview.style.fontSize = '12px';
   preview.style.fontWeight = '600';
   preview.style.textAlign = 'center';
 
@@ -896,18 +913,21 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
 
   const footer = document.createElement('div');
   footer.style.display = 'flex';
-  footer.style.justifyContent = 'flex-end';
-  footer.style.gap = '6px';
-  footer.style.marginTop = '8px';
+  footer.style.justifyContent = 'stretch';
+  footer.style.gap = '8px';
+  footer.style.marginTop = '0';
   footer.style.borderTop = '1px solid rgba(148,163,184,0.25)';
-  footer.style.paddingTop = '6px';
+  footer.style.padding = '8px 10px';
+  footer.style.flexShrink = '0';
+  footer.style.background = '#020617';
 
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.textContent = 'Cancel';
   cancelBtn.style.borderRadius = '999px';
-  cancelBtn.style.padding = '6px 10px';
+  cancelBtn.style.padding = '8px 10px';
   cancelBtn.style.fontSize = '14px';
+  cancelBtn.style.flex = '1';
   cancelBtn.style.border = '1px solid rgba(148,163,184,0.7)';
   cancelBtn.style.background = '#020617';
   cancelBtn.style.color = '#e5e7eb';
@@ -918,8 +938,9 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   saveBtn.type = 'button';
   saveBtn.textContent = 'Save line';
   saveBtn.style.borderRadius = '999px';
-  saveBtn.style.padding = '6px 10px';
+  saveBtn.style.padding = '8px 10px';
   saveBtn.style.fontSize = '14px';
+  saveBtn.style.flex = '1';
   saveBtn.style.border = 'none';
   saveBtn.style.background = '#22c55e';
   saveBtn.style.color = '#020617';
@@ -963,7 +984,8 @@ function openStandardLinePopup({ dept = {}, initial = null, onSave = () => {} } 
   numbersNote.textContent =
     'GPM comes from nozzle selection (Closed = 0 gpm). PDP uses hose C, length, nozzle pressure, elevation, and (for a wye) both branches plus the engine line and wye loss.';
 
-  body.append(modeRow, sectionsContainer, numbersNote, preview);
+  // Keep the add-line menu compact: hide the long math note so Cancel/Save stay visible.
+  body.append(modeRow, sectionsContainer, preview);
   panel.append(header, body, footer);
 
   updateModeButtons();
