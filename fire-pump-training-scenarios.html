@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Fire Pump Training Scenarios | Driver Operator &amp; Engineer Practice</title>
+  <meta name="description" content="Practice fire pump calculations with handline, wye, siamese, relay pumping, standpipe, master stream, and water supply scenarios for firefighters and instructors."/>
+  <link rel="canonical" href="https://fireopscalc.com/fire-pump-training-scenarios.html"/>
+  <link rel="icon" href="/fireopscalc.png"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <meta name="theme-color" content="#08111e"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:title" content="Fire Pump Training Scenarios | Driver Operator &amp; Engineer Practice"/>
+  <meta property="og:description" content="Practice fire pump calculations with handline, wye, siamese, relay pumping, standpipe, master stream, and water supply scenarios for firefighters and instructors."/>
+  <meta property="og:url" content="https://fireopscalc.com/fire-pump-training-scenarios.html"/>
+  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://fireopscalc.com/fire-pump-training-scenarios.html#webpage",
+      "url": "https://fireopscalc.com/fire-pump-training-scenarios.html",
+      "name": "Fire Pump Training Scenarios | Driver Operator & Engineer Practice",
+      "description": "Practice fire pump calculations with handline, wye, siamese, relay pumping, standpipe, master stream, and water supply scenarios for firefighters and instructors.",
+      "isPartOf": {
+        "@id": "https://fireopscalc.com/#website"
+      }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://fireopscalc.com/#software",
+      "name": "FireOps Calc",
+      "url": "https://fireopscalc.com/",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "description": "A firefighter-built fire pump calculator for pump pressure, friction loss, water supply, relay pumping, standpipe calculations, and driver/operator training.",
+      "sameAs": [
+        "https://apps.apple.com/us/app/fireopscalc/id6753922160",
+        "https://play.google.com/store/apps/details?id=com.fireopscalc.app&pcampaignid=web_share"
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://fireopscalc.com/fire-pump-training-scenarios.html#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Who are these scenarios for?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "They are useful for firefighters, engineers, driver/operator students, instructors, and officers running pump training."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can instructors use FireOps Calc in class?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The scenario format is designed to support station drills, academy classes, and driver/operator practice."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Will there be more scenario types?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The site can expand with additional scenario pages for relay pumping, standpipes, master streams, water supply, and department-specific examples."
+          }
+        }
+      ]
+    }
+  ]
+}</script>
+  <style>
+    :root{
+      --bg:#050a12;
+      --panel:#0b1320;
+      --panel2:#0e192a;
+      --edge:#1d3352;
+      --edge2:rgba(120,190,255,.34);
+      --fg:#edf5ff;
+      --muted:#c4d6ee;
+      --soft:#8ea7c7;
+      --accent:#46b0ff;
+      --accent2:#77d7ff;
+      --good:#6be38a;
+      --warn:#ffa74d;
+      --shadow:0 22px 60px rgba(0,0,0,.45);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      background:
+        radial-gradient(circle at 15% -10%, rgba(70,176,255,.28), transparent 36rem),
+        radial-gradient(circle at 100% 0%, rgba(255,167,77,.12), transparent 28rem),
+        linear-gradient(180deg,#050a12,#07101d 42%,#050a12);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+      line-height:1.5;
+    }
+    a{color:inherit}
+    .wrap{max-width:1120px;margin:0 auto;padding:0 18px}
+    .skip{position:absolute;left:-999px;top:auto;width:1px;height:1px;overflow:hidden}
+    .skip:focus{left:16px;top:16px;width:auto;height:auto;background:#fff;color:#000;padding:8px 10px;border-radius:8px;z-index:9999}
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:20;
+      backdrop-filter:blur(16px);
+      background:rgba(5,10,18,.76);
+      border-bottom:1px solid rgba(120,190,255,.16);
+    }
+    .nav{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      padding:12px 0;
+    }
+    .brand{display:flex;align-items:center;gap:10px;text-decoration:none;min-width:max-content}
+    .brand img{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.18);box-shadow:0 8px 20px rgba(0,0,0,.35)}
+    .brand strong{font-size:18px;letter-spacing:.02em}
+    .navlinks{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:14px}
+    .navlinks a{text-decoration:none}
+    .navlinks a:hover{color:#fff}
+    .nav-cta{display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(70,176,255,.5);background:linear-gradient(135deg,#0f5ea9,#123666);color:#fff;text-decoration:none;border-radius:999px;padding:9px 14px;font-weight:800;box-shadow:0 10px 24px rgba(0,0,0,.28)}
+    .hero{padding:58px 0 28px}
+    .hero-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(320px,.85fr);gap:28px;align-items:center}
+    .eyebrow{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(70,176,255,.32);background:rgba(70,176,255,.09);color:#dceeff;border-radius:999px;padding:7px 10px;font-size:13px;font-weight:750;margin-bottom:16px}
+    h1{font-size:clamp(34px,6vw,64px);line-height:1.02;margin:0 0 16px;letter-spacing:-.045em}
+    .lead{font-size:clamp(18px,2.2vw,22px);color:var(--muted);max-width:720px;margin:0 0 22px}
+    .cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;padding:13px 16px;font-weight:900;text-decoration:none;border:1px solid rgba(255,255,255,.14);min-height:48px}
+    .btn.primary{background:linear-gradient(135deg,#1e82ff,#123c73);border-color:#58b4ff;box-shadow:0 18px 34px rgba(30,130,255,.22);color:#fff}
+    .btn.secondary{background:rgba(255,255,255,.06);color:#ecf5ff}
+    .btn.store{background:#050913;color:#f4f8ff;border-color:rgba(255,255,255,.22)}
+    .trust{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;color:var(--soft);font-size:13px}
+    .pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 9px}
+    .phone-card{background:linear-gradient(180deg,rgba(14,25,42,.92),rgba(8,17,30,.92));border:1px solid var(--edge2);border-radius:28px;padding:18px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+    .phone-card:before{content:"";position:absolute;inset:-60px -80px auto auto;width:220px;height:220px;border-radius:50%;background:rgba(70,176,255,.20);filter:blur(18px)}
+    .screen{position:relative;border:1px solid rgba(255,255,255,.16);background:#07101d;border-radius:22px;padding:14px;min-height:460px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+    .screen-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .dotrow{display:flex;gap:5px}.dot{width:8px;height:8px;border-radius:50%;background:#314764}.live{font-size:12px;color:#9fd4ff;border:1px solid rgba(159,212,255,.3);padding:4px 8px;border-radius:999px}
+    .pump-result{background:radial-gradient(circle at 0 0, rgba(70,176,255,.22), transparent 55%),#0b1320;border:1px solid var(--edge);border-radius:18px;padding:16px;margin-bottom:12px}
+    .pump-result small{color:var(--soft);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+    .pdp{font-size:54px;font-weight:950;line-height:1;margin:8px 0}.pdp span{font-size:18px;color:var(--muted)}
+    .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.mini{background:#050913;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:10px}.mini b{display:block;font-size:18px}.mini span{display:block;color:var(--soft);font-size:12px}
+    .formula{margin-top:12px;background:#050913;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;color:#cfe4ff;font-size:13px}
+    .section{padding:42px 0}.section h2{font-size:clamp(26px,4vw,40px);line-height:1.12;margin:0 0 10px;letter-spacing:-.025em}.section-intro{color:var(--muted);font-size:18px;max-width:780px;margin:0 0 22px}
+    .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:18px;box-shadow:0 14px 32px rgba(0,0,0,.22)}
+    .card h3{font-size:18px;margin:0 0 8px}.card p{color:var(--muted);margin:0}.icon{font-size:26px;margin-bottom:10px;display:block}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.list{display:grid;gap:10px}.check{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.check b{display:block}.check span:last-child{color:var(--muted)}
+    .demo{background:rgba(255,255,255,.04);border:1px solid rgba(120,190,255,.18);border-radius:22px;padding:18px}.demo h3{margin-top:0}.calc-line{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,.08);padding:9px 0;color:#dceeff}.calc-line span:first-child{color:var(--soft)}.calc-total{font-size:24px;font-weight:950;color:#fff}.notice{font-size:13px;color:var(--soft);margin-top:12px}
+    .steps{counter-reset:step;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.step{counter-increment:step;position:relative}.step:before{content:counter(step);display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#123c73;border:1px solid #58b4ff;font-weight:900;margin-bottom:12px}
+    .faq{display:grid;gap:10px}.faq details{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:14px}.faq summary{cursor:pointer;font-weight:850}.faq p{color:var(--muted);margin:10px 0 0}
+    .final-cta{background:radial-gradient(circle at 10% 0,rgba(70,176,255,.28),transparent 60%),linear-gradient(135deg,#0b1320,#0d1c31);border:1px solid rgba(120,190,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:var(--shadow)}
+    .final-cta h2{margin-bottom:8px}.final-cta p{color:var(--muted);margin:0 auto 18px;max-width:680px}
+    footer{border-top:1px solid rgba(255,255,255,.08);padding:28px 0 44px;color:var(--soft);font-size:14px}.footer-grid{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:var(--muted);text-decoration:none}.footer-links a:hover{color:#fff}
+
+    .breadcrumbs{font-size:13px;color:var(--soft);margin:18px 0 0}.breadcrumbs a{color:var(--muted);text-decoration:none}.breadcrumbs a:hover{color:#fff}
+    .article-hero{padding:44px 0 20px}.article-hero h1{max-width:920px}.article-lead{font-size:20px;color:var(--muted);max-width:860px;margin:0 0 18px}
+    .content-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start}.toc{position:sticky;top:86px;background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:16px}.toc strong{display:block;margin-bottom:8px}.toc a{display:block;color:var(--muted);text-decoration:none;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07)}.toc a:last-child{border-bottom:0}.toc a:hover{color:#fff}
+    .article-card{background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:22px;padding:22px;margin-bottom:16px;box-shadow:0 14px 32px rgba(0,0,0,.18)}
+    .article-card h2{font-size:clamp(24px,3vw,34px);margin-top:0}.article-card h3{margin-bottom:6px}.article-card p,.article-card li{color:var(--muted)}
+    .formula-box{background:#050913;border:1px solid rgba(255,255,255,.13);border-radius:16px;padding:16px;margin:14px 0;color:#dceeff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto}
+    .example-table{width:100%;border-collapse:collapse;margin:12px 0;border-radius:16px;overflow:hidden}.example-table th,.example-table td{border-bottom:1px solid rgba(255,255,255,.09);padding:10px;text-align:left}.example-table th{background:rgba(70,176,255,.12);color:#fff}.example-table td{color:var(--muted)}
+    .related{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.related a{display:block;text-decoration:none;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px;color:#fff}.related span{display:block;color:var(--soft);font-size:13px;margin-top:5px}
+    @media (max-width:900px){.content-grid{grid-template-columns:1fr}.toc{position:static}.related{grid-template-columns:1fr}}
+
+    @media (max-width:860px){.navlinks{display:none}.hero{padding-top:34px}.hero-grid,.split{grid-template-columns:1fr}.cards,.steps{grid-template-columns:1fr}.phone-card{max-width:440px;margin:0 auto}.screen{min-height:auto}.pdp{font-size:46px}.cta-row .btn{flex:1 1 100%}}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="wrap nav">
+      <a class="brand" href="/" aria-label="FireOps Calc home"><img src="/fireopscalc2.png" alt="FireOps Calc logo"/><strong>FireOps Calc</strong></a>
+      <nav class="navlinks" aria-label="Main navigation">
+        <a href="/fire-pump-calculator.html">Pump Calc</a>
+        <a href="/friction-loss-calculator.html">Friction Loss</a>
+        <a href="/relay-pumping-calculator.html">Relay</a>
+        <a href="/standpipe-pump-pressure-calculator.html">Standpipe</a>
+        <a href="/fire-pump-training-scenarios.html">Training</a>
+      </nav>
+      <a class="nav-cta" href="/calculator.html">Open Calculator</a>
+    </div>
+  </header>
+  <main id="main">
+    <section class="article-hero">
+      <div class="wrap">
+        <div class="breadcrumbs"><a href="/">Home</a> / Fire pump training scenarios for driver/operator practice</div>
+        <div class="eyebrow">🚒 FireOps Calc training reference</div>
+        <h1>Fire pump training scenarios for driver/operator practice</h1>
+        <p class="article-lead">FireOps Calc can be more than a calculator. Scenario-based pump problems help firefighters practice making decisions with realistic fireground layouts.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="/calculator.html">Open the Web Calculator</a>
+          <a class="btn store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener">Download on iPhone</a>
+          <a class="btn store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app&pcampaignid=web_share" target="_blank" rel="noopener">Get it on Android</a>
+        </div>
+        <div class="trust"><span class="pill">fire pump training scenarios</span><span class="pill">driver operator practice</span><span class="pill">pump operator training</span><span class="pill">engineer pump pressure scenarios</span></div>
+      </div>
+    </section>
+    <section class="section">
+      <div class="wrap content-grid">
+        <article>
+          <section class="article-card" id="s1"><h2>Scenario types to practice</h2><div class="cards"><article class="card"><h3>Single handline</h3><p>Basic attack line PDP, nozzle pressure, hose length, and elevation.</p></article><article class="card"><h3>Wye and siamese</h3><p>Branch lines, main supply sections, and highest-loss path decisions.</p></article><article class="card"><h3>Water supply</h3><p>Single supply line, two supply lines, relay pumping, and target intake pressure.</p></article><article class="card"><h3>Standpipe</h3><p>Building operations with interior hose, elevation, and standpipe outlet assumptions.</p></article><article class="card"><h3>Master stream</h3><p>Deck gun, portable monitor, appliance loss, and high-flow decisions.</p></article><article class="card"><h3>Foam operations</h3><p>Foam percentage, flow, and pump pressure practice.</p></article></div></section><section class="article-card" id="s2"><h2>How scenario practice should work</h2><ol><li>Show a short fireground setup.</li><li>Ask for the required pump pressure or supply decision.</li><li>Let the student calculate the answer.</li><li>Reveal the final answer with a step-by-step explanation.</li><li>Offer variations that change hose length, GPM, elevation, or appliance loss.</li></ol></section><section class="article-card" id="s3"><h2>Example training problem</h2><div class="demo"><h3>Residential wye split</h3><p>Engine 181 supplies a wye with 200 ft of 2½&quot;. Branch A is 150 ft of 1¾&quot; flowing 150 GPM. Branch B is 200 ft of 1¾&quot; flowing 185 GPM. Calculate the required pump pressure using the highest-loss branch path.</p><div class="formula-box">PDP = main supply FL + highest branch FL + nozzle pressure + appliance/elevation as needed</div></div></section><section class="article-card" id="s4"><h2>Why this helps SEO and users</h2><p>Training scenario pages answer the exact questions firefighters and instructors search for. They also give visitors a reason to open the calculator, download the app, and come back for more practice.</p></section>
+          <section class="article-card" id="faq">
+            <h2>FAQ</h2>
+            <div class="faq"><details><summary>Who are these scenarios for?</summary><p>They are useful for firefighters, engineers, driver/operator students, instructors, and officers running pump training.</p></details><details><summary>Can instructors use FireOps Calc in class?</summary><p>Yes. The scenario format is designed to support station drills, academy classes, and driver/operator practice.</p></details><details><summary>Will there be more scenario types?</summary><p>The site can expand with additional scenario pages for relay pumping, standpipes, master streams, water supply, and department-specific examples.</p></details></div>
+          </section>
+          <section class="article-card">
+            <h2>Related FireOps Calc pages</h2>
+            <div class="related"><a href="/fire-pump-calculator.html"><b>Fire pump calculator</b><span>PDP, nozzle pressure, elevation, and appliance loss</span></a><a href="/friction-loss-calculator.html"><b>Friction loss calculator</b><span>Fire hose FL by GPM, length, and C value</span></a><a href="/relay-pumping-calculator.html"><b>Relay pumping calculator</b><span>Distance between engines and relay PDP</span></a><a href="/standpipe-pump-pressure-calculator.html"><b>Standpipe pump pressure</b><span>High-rise and building pump math</span></a></div>
+          </section>
+          <section class="final-cta">
+            <h2>Run the calculation in FireOps Calc.</h2>
+            <p>Use the website calculator, install the app, or keep reading the training pages to build stronger pump operator habits.</p>
+            <div class="cta-row" style="justify-content:center">
+              <a class="btn primary" href="/calculator.html">Open Calculator</a>
+              <a class="btn secondary" href="/how-to.html">How-To Guide</a>
+            </div>
+          </section>
+        </article>
+        <aside class="toc" aria-label="Page contents">
+          <strong>On this page</strong>
+          <a href="#s1">Scenario types to practice</a><a href="#s2">How scenario practice should work</a><a href="#s3">Example training problem</a><a href="#s4">Why this helps SEO and users</a>
+          <a href="#faq">FAQ</a>
+          <hr style="border-color:rgba(255,255,255,.09);border-style:solid none none;margin:12px 0"/>
+          <strong>Open FireOps Calc</strong>
+          <a href="/calculator.html">Web calculator</a>
+          <a href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener">Apple App Store</a>
+          <a href="https://play.google.com/store/apps/details?id=com.fireopscalc.app&pcampaignid=web_share" target="_blank" rel="noopener">Google Play</a>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="wrap footer-grid">
+      <div>© <span id="year">2026</span> FireOps Calc. Built for firefighters and fire training.</div>
+      <div class="footer-links"><a href="/calculator.html">Calculator</a><a href="/how-to.html">How-to</a><a href="/about.html">About</a><a href="/contact.html">Contact</a><a href="/privacy-policy.html">Privacy</a></div>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>
