@@ -38,7 +38,57 @@
   <url>
     <loc>https://fireopscalc.com/how-to.html</loc>
     <lastmod>2026-04-30</lastmod>
-    <priority>0.8</priority>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/calculate-pump-discharge-pressure.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/calculate-fire-hose-friction-loss.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/pump-1-3-4-attack-line.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/pump-2-1-2-attack-line.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/calculate-wye-pump-pressure.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/calculate-standpipe-pump-pressure.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/relay-pumping-distance-between-engines.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/two-supply-lines-one-engine.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/tender-shuttle-gpm.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/smooth-bore-vs-fog-nozzle-pump-pressure.html</loc>
+    <lastmod>2026-04-30</lastmod>
+    <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/about.html</loc>
