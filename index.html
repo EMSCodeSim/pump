@@ -78,6 +78,10 @@
     @media (min-width:1050px){.hero{min-height:610px}.hero-content{padding-top:88px}.hero h1{font-size:70px}.hero .lead{max-width:560px}.graphic-panel{display:block}}
     @media (max-width:1049px){.hero-visual{display:none}.hero:before{background-position:center right}}
     
+
+    .practice-showcase{background:linear-gradient(135deg,#111,#050505);color:#fff;padding:62px 0;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
+    .practice-grid{display:grid;grid-template-columns:1fr 430px;gap:34px;align-items:center}.practice-copy h2{font-size:clamp(34px,4vw,54px);line-height:1;margin:8px 0 12px;letter-spacing:-.05em}.practice-copy p{font-size:18px;color:#d7d7d7;max-width:690px;margin:0 0 20px}.practice-actions{display:flex;gap:12px;flex-wrap:wrap}.practice-showcase .btn.red{background:var(--red);color:#fff}.practice-showcase .btn.dark{background:#fff;color:#111}.practice-preview{background:#fff;color:#111;border-radius:22px;padding:14px;box-shadow:0 24px 70px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.18)}.preview-top,.preview-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center}.preview-top span{font-weight:1000;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#555}.preview-scene{position:relative;height:245px;border-radius:16px;background:linear-gradient(160deg,#242424,#121212);overflow:hidden;margin:12px 0}.mini-engine{position:absolute;left:34px;bottom:42px;background:var(--red);color:#fff;border-radius:10px;width:88px;height:54px;display:flex;align-items:center;justify-content:center;font-weight:1000;box-shadow:0 12px 28px rgba(0,0,0,.3)}.mini-engine:after{content:"";position:absolute;left:16px;right:16px;bottom:-12px;height:18px;background:radial-gradient(circle,#111 45%,transparent 48%) left/28px 18px repeat-x}.mini-hose{position:absolute;left:116px;bottom:70px;width:250px;height:98px;border-bottom:13px solid #d73731;border-right:13px solid #d73731;border-radius:0 0 80px 0;transform:skewX(-15deg)}.mini-nozzle{position:absolute;right:45px;top:54px;width:44px;height:24px;background:#eee;border-radius:5px;transform:rotate(-18deg)}.mini-tag{position:absolute;background:rgba(0,0,0,.78);color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:1000}.mini-tag.a{left:144px;bottom:102px}.mini-tag.b{right:42px;top:88px}.preview-bottom{align-items:flex-start}.preview-bottom strong{font-size:13px}.preview-bottom span{font-size:12px;color:#777;font-weight:900}@media(max-width:1000px){.practice-grid{grid-template-columns:1fr}.practice-preview{max-width:520px}.practice-showcase{padding:48px 0}}
+
   </style>
 </head>
 <body>
@@ -86,7 +90,7 @@
     <div class="wrap nav">
       <a class="brand" href="/" aria-label="FireOps Calc home"><img src="/fireopscalc2.png" alt="FireOps Calc logo"><span class="brand-text"><span>Fire</span><span>OpsCalc</span></span></a>
       <nav class="navlinks" aria-label="Main navigation">
-        <a href="#tools">Calculators</a><a href="/fire-pump-training-scenarios.html">Scenario Trainer</a><a href="/how-to.html">References</a><a href="#faq">FAQ</a><a href="/about.html">About</a><a href="/contact.html">Contact</a>
+        <a href="#tools">Calculators</a><a href="/fire-pump-training-scenarios.html">Scenario Trainer</a><a href="/practice-scenarios.html">Practice</a><a href="/how-to.html">References</a><a href="#faq">FAQ</a><a href="/about.html">About</a><a href="/contact.html">Contact</a>
       </nav>
       <a class="nav-cta" href="/calculator.html">Launch Calculator</a>
     </div>
@@ -100,7 +104,7 @@
         <p class="lead">FireOps Calc gives firefighters, engineers, instructors, and driver/operator students fast pump pressure tools, printable references, and training scenarios for real fireground hydraulics.</p>
         <div class="cta-row">
           <a class="btn primary" href="/calculator.html">▦ Launch Calculator</a>
-          <a class="btn secondary" href="/fire-pump-training-scenarios.html">▷ Try a Scenario</a>
+          <a class="btn secondary" href="/practice-scenarios.html">▷ Practice Scenarios</a>
           <a class="btn secondary" href="#tools">View Tools</a>
         </div>
         <div class="trust-row">
@@ -165,6 +169,29 @@
       </div>
     </section>
 
+
+    <section class="practice-showcase" id="practice-scenarios">
+      <div class="wrap practice-grid">
+        <div class="practice-copy">
+          <div class="eyered">New practice section</div>
+          <h2>Practice Pump Scenarios</h2>
+          <p>Use the scenarios saved inside the <strong>/scenarios</strong> folder as an interactive practice bank. Students can calculate pump pressure, check their answer, and open the formula breakdown for instructor review.</p>
+          <div class="practice-actions">
+            <a class="btn red" href="/practice-scenarios.html">Start Practice Scenarios</a>
+            <a class="btn dark" href="/tools/printable-scenarios.html">Print Scenario Sheets</a>
+          </div>
+        </div>
+        <div class="practice-preview" aria-label="Practice scenario preview">
+          <div class="preview-top"><span>Engine 181</span><span>Scenario 001</span></div>
+          <div class="preview-scene">
+            <div class="mini-engine">E181</div><div class="mini-hose"></div><div class="mini-nozzle"></div>
+            <span class="mini-tag a">200' 1¾&quot;</span><span class="mini-tag b">Fog 150 @ 50</span>
+          </div>
+          <div class="preview-bottom"><strong>PP = NP + FL ± Elevation + AL</strong><span>Answer check + explain math</span></div>
+        </div>
+      </div>
+    </section>
+
     <section class="cred">
       <div class="wrap cred-grid">
         <div class="cred-copy"><div class="eyered">Built by experience</div><h2>Built by a Firefighter.<br>For Firefighters.</h2><p>FireOps Calc is built around practical driver/operator work: pump math, hose layouts, water supply, printable references, and training scenarios that reflect how firefighters actually operate.</p></div>
@@ -206,7 +233,7 @@
     <div class="wrap footer-grid">
       <div><div class="footer-brand"><img src="/fireopscalc2.png" alt=""><span class="brand-text"><span>Fire</span><span>OpsCalc</span></span></div><p>Accurate. Fast. Dependable.<br>Built for real world fireground operations.</p><p>© <span id="year">2026</span> FireOps Calc.</p></div>
       <div class="foot-links">
-        <div><h4>Quick Links</h4><a href="/calculator.html">Calculator</a><a href="/fire-pump-training-scenarios.html">Scenario Trainer</a><a href="/how-to.html">References</a></div>
+        <div><h4>Quick Links</h4><a href="/calculator.html">Calculator</a><a href="/fire-pump-training-scenarios.html">Scenario Trainer</a><a href="/practice-scenarios.html">Practice</a><a href="/how-to.html">References</a></div>
         <div><h4>Tools</h4><a href="/tools/hydrant-flow.html">Hydrant Flow</a><a href="/tools/friction-loss-quick.html">Friction Loss Quick</a><a href="/tools/relay-pumping.html">Relay Pumping</a><a href="/tools/nozzle-reaction.html">Nozzle Reaction</a><a href="/tools/tank-duration.html">Tank Duration</a><a href="/tools/elevation-pressure.html">Elevation Pressure</a></div>
         <div><h4>Printables</h4><a href="/tools/pump-card.html">Pump Card</a><a href="/tools/printable-scenarios.html">Pump Scenarios</a><a href="/tools/tender-timer.html">Tender Timer</a></div>
         <div><h4>Company</h4><a href="/about.html">About</a><a href="/contact.html">Contact</a><a href="/privacy-policy.html">Privacy Policy</a></div>
