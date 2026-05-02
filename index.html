@@ -57,6 +57,25 @@
     footer{background:#09090b;color:#c7c7ce;padding:34px 0}.footer-grid{display:grid;grid-template-columns:1.2fr 2fr;gap:30px;align-items:start}.footer-brand{display:flex;align-items:center;gap:10px;margin-bottom:10px}.footer-brand img{width:34px}.foot-links{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}.foot-links h4{color:#fff;margin:0 0 10px}.foot-links a{display:block;color:#c7c7ce;text-decoration:none;margin:7px 0;font-size:14px}.foot-links a:hover{color:#fff}
     @media(max-width:1000px){.navlinks{display:none}.tool-grid{grid-template-columns:repeat(2,1fr)}.strip-grid{grid-template-columns:repeat(2,1fr)}.strip-card:nth-child(2){border-right:0}.cred-grid,.content-grid,.appgrid,.footer-grid{grid-template-columns:1fr}.cred-copy{padding-left:0;padding-top:170px}.stats{grid-template-columns:repeat(2,1fr);border-top:1px solid rgba(255,255,255,.12)}.hero:before{background-position:center right}.hero-content{padding-top:54px}.appgrid{text-align:center}.store-row{justify-content:center}}
     @media(max-width:560px){.wrap{padding:0 16px}.brand-text{font-size:21px}.nav{min-height:64px}.nav-cta{padding:10px 12px;font-size:13px}.hero{min-height:0}.hero:before{background:linear-gradient(90deg,rgba(0,0,0,.96),rgba(0,0,0,.72)),url('/assets/engine181.png');background-size:cover;background-position:center}.trust-row{gap:14px}.trust-item{width:100%}.strip-grid,.tool-grid{grid-template-columns:1fr}.strip-card{border-right:0;border-bottom:1px solid #e2e2e6}.tool-card p{min-height:auto}.stats{grid-template-columns:1fr}.foot-links{grid-template-columns:1fr 1fr}.hero h1{font-size:40px}}
+
+    /* Graphic upgrade pack */
+    .graphic-panel{display:none}
+    .hero-visual{position:absolute;right:clamp(12px,4vw,70px);bottom:38px;width:min(44vw,620px);z-index:2;opacity:.96;filter:drop-shadow(0 28px 55px rgba(0,0,0,.55))}
+    .hero-visual img{width:100%;display:block;border-radius:24px;border:1px solid rgba(255,255,255,.16)}
+    .hero-content{max-width:620px}
+    .tool-card{position:relative;overflow:hidden}
+    .tool-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(229,37,37,.10),transparent 42%);opacity:0;transition:.18s opacity}
+    .tool-card:hover:before{opacity:1}
+    .tool-icon{width:68px;height:68px;object-fit:contain;display:block;margin:0 auto 12px;position:relative;z-index:1}
+    .tool-card h3,.tool-card p,.tool-card .open{position:relative;z-index:1}
+    .strip-card .bigicon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,#fff,#fff3f3);border:1px solid #f1d5d5;box-shadow:0 12px 28px rgba(229,37,37,.10);font-size:30px}
+    .visual-divider{height:8px;background:linear-gradient(90deg,#7d0b0b,#e52525,#ff5454,#e52525,#7d0b0b)}
+    .content{background:linear-gradient(180deg,#f7f7f9,#fff)}
+    .info-card{position:relative;overflow:hidden}
+    .info-card:after{content:"";position:absolute;right:-60px;top:-60px;width:170px;height:170px;border-radius:50%;background:rgba(229,37,37,.08)}
+    @media (min-width:1050px){.hero{min-height:610px}.hero-content{padding-top:88px}.hero h1{font-size:70px}.hero .lead{max-width:560px}.graphic-panel{display:block}}
+    @media (max-width:1049px){.hero-visual{display:none}.hero:before{background-position:center right}}
+    
   </style>
 </head>
 <body>
@@ -88,7 +107,9 @@
           <div class="trust-item"><span class="trust-icon">🛡</span><span><b>Reliable</b><small>Built for training and ops</small></span></div>
         </div>
       </div>
+      <div class="hero-visual graphic-panel" aria-hidden="true"><img src="/assets/fireops-hero-diagram.svg" alt=""></div>
     </section>
+    <div class="visual-divider" aria-hidden="true"></div>
 
     <section class="feature-strip" aria-label="FireOps Calc highlights">
       <div class="wrap strip-grid">
@@ -103,16 +124,16 @@
       <div class="wrap">
         <div class="section-title"><h2>Calculators & Tools</h2><p>Everything you need to solve common fireground pump, water supply, and training problems.</p></div>
         <div class="tool-grid">
-          <a class="tool-card" href="/calculator.html"><span class="icon">🧮</span><h3>Pump Calculator</h3><p>Calculate pump pressure, friction loss, elevation, appliance loss, and total pressure.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/hydrant-flow.html"><span class="icon">🚰</span><h3>Hydrant Flow</h3><p>Calculate available flow from hydrant static, residual, and flow pressures.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/relay-pumping.html"><span class="icon">🚒</span><h3>Relay Pumping</h3><p>Determine relay distance, pump spacing, engine count, and pressure loss.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/tender-timer.html"><span class="icon">🚚</span><h3>Tender Shuttle</h3><p>Calculate fill time, dump time, travel time, delivered GPM, and tenders needed.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/nozzle-reaction.html"><span class="icon">🧯</span><h3>Nozzle Reaction</h3><p>Calculate reaction force for smooth bore and fog nozzles.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/calculator.html"><span class="icon">🔀</span><h3>Wye / Split Line</h3><p>Calculate flow and pressure for split appliance lines using the highest line loss.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/calculator.html"><span class="icon">🔗</span><h3>Siamese</h3><p>Combine multiple supply lines and calculate total flow and pressure.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/standpipe-pump-pressure-calculator.html"><span class="icon">🏢</span><h3>Standpipe</h3><p>Calculate standpipe pump pressure with elevation, hose, and nozzle needs.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/fire-load-calculator.html"><span class="icon">🔥</span><h3>Fire Flow Needed</h3><p>Estimate fire flow needs and attack line requirements for training.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/pump-card.html"><span class="icon">📈</span><h3>Pump Card</h3><p>Create custom printable pump charts for your apparatus and department setup.</p><span class="open">Generate →</span></a>
+          <a class="tool-card" href="/calculator.html"><img class="tool-icon" src="/assets/tool-icons/pump.svg" alt="" loading="lazy"><h3>Pump Calculator</h3><p>Calculate pump pressure, friction loss, elevation, appliance loss, and total pressure.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/hydrant-flow.html"><img class="tool-icon" src="/assets/tool-icons/hydrant.svg" alt="" loading="lazy"><h3>Hydrant Flow</h3><p>Calculate available flow from hydrant static, residual, and flow pressures.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/relay-pumping.html"><img class="tool-icon" src="/assets/tool-icons/relay.svg" alt="" loading="lazy"><h3>Relay Pumping</h3><p>Determine relay distance, pump spacing, engine count, and pressure loss.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/tender-timer.html"><img class="tool-icon" src="/assets/tool-icons/tender.svg" alt="" loading="lazy"><h3>Tender Shuttle</h3><p>Calculate fill time, dump time, travel time, delivered GPM, and tenders needed.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/nozzle-reaction.html"><img class="tool-icon" src="/assets/tool-icons/nozzle.svg" alt="" loading="lazy"><h3>Nozzle Reaction</h3><p>Calculate reaction force for smooth bore and fog nozzles.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/calculator.html"><img class="tool-icon" src="/assets/tool-icons/wye.svg" alt="" loading="lazy"><h3>Wye / Split Line</h3><p>Calculate flow and pressure for split appliance lines using the highest line loss.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/calculator.html"><img class="tool-icon" src="/assets/tool-icons/siamese.svg" alt="" loading="lazy"><h3>Siamese</h3><p>Combine multiple supply lines and calculate total flow and pressure.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/standpipe-pump-pressure-calculator.html"><img class="tool-icon" src="/assets/tool-icons/standpipe.svg" alt="" loading="lazy"><h3>Standpipe</h3><p>Calculate standpipe pump pressure with elevation, hose, and nozzle needs.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/fire-load-calculator.html"><img class="tool-icon" src="/assets/tool-icons/fireflow.svg" alt="" loading="lazy"><h3>Fire Flow Needed</h3><p>Estimate fire flow needs and attack line requirements for training.</p><span class="open">Calculate →</span></a>
+          <a class="tool-card" href="/tools/pump-card.html"><img class="tool-icon" src="/assets/tool-icons/pumpcard.svg" alt="" loading="lazy"><h3>Pump Card</h3><p>Create custom printable pump charts for your apparatus and department setup.</p><span class="open">Generate →</span></a>
         </div>
         <div class="tool-actions"><a class="btn dark" href="/how-to.html">View References & How-To Guides</a></div>
       </div>
