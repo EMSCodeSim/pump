@@ -2,107 +2,162 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://fireopscalc.com/</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/calculator.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.9</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/fire-pump-calculator.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/friction-loss-calculator.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/relay-pumping-calculator.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/standpipe-pump-pressure-calculator.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.85</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/fire-pump-training-scenarios.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/scenario-player.html</loc>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.85</priority>
   </url>
   <url>
+    <loc>https://fireopscalc.com/tools/pump-card.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/printable-scenarios.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/hydrant-flow.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/relay-pumping.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/tender-timer.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/nozzle-reaction.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/tank-duration.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/elevation-pressure.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/friction-loss-quick.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/fire-load-calculator.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
     <loc>https://fireopscalc.com/how-to.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://fireopscalc.com/how-to/calculate-pump-discharge-pressure.html</loc>
-    <lastmod>2026-04-30</lastmod>
-    <priority>0.75</priority>
-  </url>
-  <url>
     <loc>https://fireopscalc.com/how-to/calculate-fire-hose-friction-loss.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
-    <loc>https://fireopscalc.com/how-to/pump-1-3-4-attack-line.html</loc>
-    <lastmod>2026-04-30</lastmod>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/how-to/pump-2-1-2-attack-line.html</loc>
-    <lastmod>2026-04-30</lastmod>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/how-to/calculate-wye-pump-pressure.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <loc>https://fireopscalc.com/how-to/calculate-pump-discharge-pressure.html</loc>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/how-to/calculate-standpipe-pump-pressure.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/calculate-wye-pump-pressure.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/pump-1-3-4-attack-line.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/pump-2-1-2-attack-line.html</loc>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/how-to/relay-pumping-distance-between-engines.html</loc>
-    <lastmod>2026-04-30</lastmod>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/how-to/two-supply-lines-one-engine.html</loc>
-    <lastmod>2026-04-30</lastmod>
-    <priority>0.75</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/how-to/tender-shuttle-gpm.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/how-to/smooth-bore-vs-fog-nozzle-pump-pressure.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/tender-shuttle-gpm.html</loc>
+    <lastmod>2026-05-03</lastmod>
+    <priority>0.75</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/how-to/two-supply-lines-one-engine.html</loc>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/about.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/contact.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/privacy-policy.html</loc>
-    <lastmod>2026-04-30</lastmod>
+    <lastmod>2026-05-03</lastmod>
     <priority>0.3</priority>
   </url>
 </urlset>
