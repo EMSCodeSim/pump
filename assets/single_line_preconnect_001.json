@@ -1,0 +1,96 @@
+{
+  "id": "single_line_preconnect_001",
+  "title": "Basic 1\u00be Preconnect to Front Door",
+  "difficulty": "beginner",
+  "category": "attack line",
+  "type": "pump",
+  "image": "single_line_preconnect_001.png",
+  "question": "Engine 181 is stretching a 200' 1\u00be\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+  "correctPP": 120,
+  "tolerance": 5,
+  "answers": {
+    "frictionLoss": 70,
+    "nozzlePressure": 50,
+    "elevation": 0,
+    "applianceLoss": 0,
+    "totalGpm": 150,
+    "pumpPressure": 120,
+    "tolerance": 5
+  },
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [
+      {
+        "diameter": "1\u00be\"",
+        "length": "200'",
+        "flowGpm": 150,
+        "cValue": 15.5,
+        "status": "charged"
+      }
+    ],
+    "nozzles": [
+      {
+        "type": "fog",
+        "flowGpm": 150,
+        "nozzlePressure": 50
+      }
+    ],
+    "appliances": [],
+    "elevation": "0 PSI"
+  },
+  "overlays": [
+    {
+      "label": "Engine",
+      "text": "Engine 181",
+      "x": 18,
+      "y": 68
+    },
+    {
+      "label": "Line",
+      "text": "200' 1\u00be\"",
+      "x": 45,
+      "y": 52
+    },
+    {
+      "label": "Nozzle",
+      "text": "Fog 150 @ 50",
+      "x": 70,
+      "y": 33
+    },
+    {
+      "label": "Elev",
+      "text": "Level grade",
+      "x": 49,
+      "y": 72
+    }
+  ],
+  "formulaBreakdown": [
+    "PP = FL + NP + elevation + appliance loss",
+    "FL per 100' = 15.5 \u00d7 (150 \u00f7 100)^2",
+    "FL per 100' = 15.5 \u00d7 2.25 = 34.875 PSI",
+    "Total FL = 34.875 \u00d7 2 = 69.75 \u2248 70 PSI",
+    "PP = 70 + 50 + 0 + 0 = 120 PSI"
+  ],
+  "variations": [
+    {
+      "change": "Change hose length to 150' 1\u00be\". Same flow and nozzle.",
+      "correctPP": 102
+    },
+    {
+      "change": "Change flow to 185 GPM. Same 200' 1\u00be\" line and 50 PSI fog nozzle.",
+      "correctPP": 156
+    },
+    {
+      "change": "Change nozzle pressure to 75 PSI. Same 200' 1\u00be\" line at 150 GPM.",
+      "correctPP": 145
+    }
+  ],
+  "tags": [
+    "single line",
+    "preconnect",
+    "1.75 inch",
+    "fog nozzle",
+    "beginner",
+    "Engine 181"
+  ]
+}
