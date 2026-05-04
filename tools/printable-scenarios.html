@@ -4,13 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Printable Pump Scenarios | FireOps Calc</title>
-  <meta name="description" content="Generate printable firefighter pump pressure practice sheets with random single-line scenarios, blank student work areas, and an answer key." />
+  <meta name="description" content="Generate printable firefighter pump pressure practice sheets using reusable scene artwork files." />
   <link rel="icon" href="/fireopscalc.png" />
   <meta name="theme-color" content="#07101d" />
   <style>
-    :root{
-      --bg:#060a10;--panel:#101824;--panel2:#151f2d;--line:#26374d;--text:#f7fbff;--muted:#b8c6d8;--red:#e53935;--red2:#9f1d18;--paper:#fff;--ink:#111;
-    }
+    :root{--bg:#060a10;--panel:#101824;--panel2:#151f2d;--line:#26374d;--text:#f7fbff;--muted:#b8c6d8;--red:#e53935;--red2:#9f1d18;--paper:#fff;--ink:#111;}
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(circle at 15% 0%,rgba(229,57,53,.18),transparent 34%),linear-gradient(180deg,#07101d,#05070b);color:var(--text)}
     a{color:inherit}.wrap{max-width:1180px;margin:0 auto;padding:0 18px}.topbar{position:sticky;top:0;z-index:20;background:rgba(5,8,13,.9);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08)}
@@ -18,10 +16,23 @@
     .nav-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.toplink{border:1px solid rgba(255,255,255,.14);background:#111b28;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:850;font-size:14px}
     .hero{padding:34px 0 20px}.eyebrow{color:#ff9a94;text-transform:uppercase;font-size:12px;font-weight:950;letter-spacing:.16em;margin-bottom:8px}.hero h1{font-size:clamp(30px,5vw,56px);line-height:1.02;margin:0 0 10px;letter-spacing:-.055em}.hero p{font-size:18px;color:var(--muted);max-width:840px;line-height:1.5;margin:0}.hero strong{color:#fff}
     .layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;padding-bottom:42px}.panel{background:rgba(16,24,36,.92);border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 70px rgba(0,0,0,.28);border-radius:22px;padding:16px}.panel h2{margin:0 0 12px;font-size:21px;letter-spacing:-.02em}.hint{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 12px}.controls{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#d9e5f5;font-weight:950}.field input,.field select{width:100%;border:1px solid #31435c;background:#07101d;color:#fff;border-radius:13px;padding:11px 12px;font-size:15px;font-weight:760}.checkrow{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:#d8e2ee;line-height:1.35}.checkrow input{margin-top:3px}.btn{border:1px solid rgba(255,255,255,.16);background:#172335;color:#fff;border-radius:15px;padding:12px 13px;font-weight:950;cursor:pointer;text-align:center}.btn.primary{background:linear-gradient(135deg,#f04438,#9f1d18);border-color:rgba(255,255,255,.14);box-shadow:0 14px 28px rgba(229,57,53,.2)}.btn.light{background:#f6f8fb;color:#121923}.btn-row{display:grid;grid-template-columns:1fr;gap:10px}.small-note{font-size:12px;color:#9fb0c4;line-height:1.45;margin:10px 0 0}.scenario-mini{display:grid;gap:8px;margin-top:12px}.mini{border:1px solid rgba(255,255,255,.1);background:#0b131f;border-radius:14px;padding:10px}.mini b{display:block;font-size:13px}.mini span{display:block;color:#aebed1;font-size:12px;margin-top:2px}.preview-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}.preview-head p{margin:0;color:var(--muted);font-size:13px}.screen-sheet{overflow:auto;padding:6px}.sheet{background:var(--paper);color:var(--ink);width:8.5in;min-height:11in;margin:0 auto;padding:.38in;box-shadow:0 22px 70px rgba(0,0,0,.45)}
-    .sheet-title{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:8px}.sheet-title h2{margin:0;font-size:21px;letter-spacing:.01em}.sheet-title small{font-size:10.5px;line-height:1.35;text-align:right;color:#222}.student-line{display:grid;grid-template-columns:1.2fr .8fr .7fr;gap:8px;margin:0 0 8px;font-size:11px}.line{border-bottom:1.4px solid #111;min-height:18px}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{break-inside:avoid;border:2px solid #111;border-radius:10px;padding:8px;min-height:4.72in;display:flex;flex-direction:column;gap:6px}.card-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #222;padding-bottom:5px}.card-head b{font-size:14.2px}.card-head span{font-size:10px;color:#333;text-transform:uppercase;font-weight:800;letter-spacing:.05em}.scene{height:132px;border:1.4px solid #111;border-radius:8px;overflow:hidden;background:#fff}.problem{font-size:10.5px;line-height:1.35}.facts{display:grid;grid-template-columns:1fr 1fr;gap:4px}.fact{border:1px solid #aaa;border-radius:5px;padding:3px 5px;font-size:9.7px;line-height:1.2;background:#fafafa}.formula{border:1px solid #111;border-radius:6px;padding:5px;font-size:10px;line-height:1.25;background:#f5f5f5}.work{font-size:10px}.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}.blank{border-bottom:1.2px solid #111;min-height:18px;padding-top:2px}.scratch{border:1px solid #111;border-radius:6px;min-height:48px;margin-top:4px}.answer-box{display:none;font-size:9.8px;line-height:1.28;border:1px solid #111;border-radius:6px;background:#f7f7f7;padding:5px}.answers-on .answer-box{display:block}.answers-on .scratch{min-height:22px}.footer{font-size:8.8px;color:#333;text-align:center;margin-top:7px}.answer-page{display:none}.answers-on .answer-page{display:block;page-break-before:always;margin-top:.35in}.answer-table{width:100%;border-collapse:collapse;font-size:11px}.answer-table th,.answer-table td{border:1px solid #111;padding:6px;vertical-align:top}.answer-table th{background:#eee;text-align:left}.asset-stroke{stroke:#111;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round;fill:none}.thin{stroke-width:2.5}.fillwhite{fill:#fff;stroke:#111;stroke-width:4.5;stroke-linecap:round;stroke-linejoin:round}.label{font-size:7px;font-weight:900;fill:#111}.label-bg{fill:#fff;stroke:#111;stroke-width:.8}.hoseLine{stroke:#111;stroke-width:7;stroke-linecap:round;fill:none}.hoseInner{stroke:#fff;stroke-width:3.3;stroke-linecap:round;fill:none}.ground{stroke:#111;stroke-width:1.2;stroke-dasharray:4 6;opacity:.35}
+    .sheet-title{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:8px}.sheet-title h2{margin:0;font-size:21px;letter-spacing:.01em}.sheet-title small{font-size:10.5px;line-height:1.35;text-align:right;color:#222}.student-line{display:grid;grid-template-columns:1.2fr .8fr .7fr;gap:8px;margin:0 0 8px;font-size:11px}.line{border-bottom:1.4px solid #111;min-height:18px}.scenario-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{break-inside:avoid;border:2px solid #111;border-radius:10px;padding:8px;min-height:4.78in;display:flex;flex-direction:column;gap:6px}.card-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #222;padding-bottom:5px}.card-head b{font-size:14.2px}.card-head span{font-size:10px;color:#333;text-transform:uppercase;font-weight:800;letter-spacing:.05em}.scene{position:relative;height:150px;border:1.4px solid #111;border-radius:8px;overflow:hidden;background:#fff}.groundline{position:absolute;left:0;right:0;bottom:18px;border-top:1px dashed rgba(0,0,0,.35)}
+    .asset{position:absolute;display:block;object-fit:contain;filter:grayscale(1) contrast(1.05)}
+    .scene .truck{left:2px;bottom:20px;width:102px;height:102px;z-index:4}
+    .scene .target.house{right:6px;bottom:18px;width:92px;height:92px;z-index:4}
+    .scene .target.building{right:12px;bottom:15px;width:84px;height:112px;z-index:4}
+    .scene .hydrant{left:98px;bottom:18px;width:34px;height:56px;z-index:4}
+    .scene .hose-curved{left:72px;bottom:38px;width:118px;height:32px;z-index:3;transform:rotate(-3deg)}
+    .scene .hose-straight{left:78px;bottom:22px;width:92px;height:22px;z-index:2;transform:rotate(-1deg)}
+    .scene .hose-nozzle{right:66px;bottom:24px;width:84px;height:26px;z-index:5;transform:rotate(-2deg)}
+    .scene .bush{right:104px;bottom:18px;width:42px;height:42px;z-index:4}
+    .scene .sedan{right:102px;bottom:18px;width:62px;height:42px;z-index:4}
+    .scene .scene-label{position:absolute;top:6px;padding:3px 6px;border:1px solid #111;border-radius:5px;background:#fff;font-size:8.7px;font-weight:900;line-height:1;z-index:8}
+    .scene .lbl-hose{left:6px}.scene .lbl-flow{right:6px}
+    .problem{font-size:10.5px;line-height:1.35}.facts{display:grid;grid-template-columns:1fr 1fr;gap:4px}.fact{border:1px solid #aaa;border-radius:5px;padding:3px 5px;font-size:9.7px;line-height:1.2;background:#fafafa}.formula{border:1px solid #111;border-radius:6px;padding:5px;font-size:10px;line-height:1.25;background:#f5f5f5}.work{font-size:10px}.work-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px}.blank{border-bottom:1.2px solid #111;min-height:18px;padding-top:2px}.scratch{border:1px solid #111;border-radius:6px;min-height:48px;margin-top:4px}.answer-box{display:none;font-size:9.8px;line-height:1.28;border:1px solid #111;border-radius:6px;background:#f7f7f7;padding:5px}.answers-on .answer-box{display:block}.answers-on .scratch{min-height:22px}.footer{font-size:8.8px;color:#333;text-align:center;margin-top:7px}.answer-page{display:none}.answers-on .answer-page{display:block;page-break-before:always;margin-top:.35in}.answer-table{width:100%;border-collapse:collapse;font-size:11px}.answer-table th,.answer-table td{border:1px solid #111;padding:6px;vertical-align:top}.answer-table th{background:#eee;text-align:left}
     @media(max-width:980px){.layout{grid-template-columns:1fr}.panel{max-width:760px;width:100%;margin:0 auto}.sheet{transform:scale(.86);transform-origin:top center;margin-bottom:-1.45in}.preview-head{max-width:760px;margin-left:auto;margin-right:auto}.screen-sheet{padding:0}}
-    @media(max-width:760px){.sheet{width:100%;min-height:auto;transform:none;padding:10px}.scenario-grid{grid-template-columns:1fr}.card{min-height:auto}.layout{padding-bottom:24px}.student-line{grid-template-columns:1fr}.nav{align-items:flex-start}.scene{height:150px}}
-    @media print{body{background:#fff;color:#000}.topbar,.hero,.builder,.preview-head{display:none!important}.wrap{max-width:none;padding:0}.layout{display:block;padding:0}.panel.preview{border:0;background:#fff;box-shadow:none;padding:0}.screen-sheet{overflow:visible;padding:0}.sheet{box-shadow:none;margin:0;width:8.5in;min-height:11in;padding:.38in}.scenario-grid{grid-template-columns:1fr 1fr}.card{min-height:4.72in}.answer-page{page-break-before:always}.answers-on .answer-page{margin-top:0}@page{size:letter;margin:0}}
+    @media(max-width:760px){.sheet{width:100%;min-height:auto;transform:none;padding:10px}.scenario-grid{grid-template-columns:1fr}.card{min-height:auto}.layout{padding-bottom:24px}.student-line{grid-template-columns:1fr}.nav{align-items:flex-start}.scene{height:165px}}
+    @media print{body{background:#fff;color:#000}.topbar,.hero,.builder,.preview-head{display:none!important}.wrap{max-width:none;padding:0}.layout{display:block;padding:0}.panel.preview{border:0;background:#fff;box-shadow:none;padding:0}.screen-sheet{overflow:visible;padding:0}.sheet{box-shadow:none;margin:0;width:8.5in;min-height:11in;padding:.38in}.scenario-grid{grid-template-columns:1fr 1fr}.card{min-height:4.78in}.answer-page{page-break-before:always}.answers-on .answer-page{margin-top:0}@page{size:letter;margin:0}}
   </style>
 </head>
 <body>
@@ -35,16 +46,16 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Printable Scenario Creator V1</div>
-        <h1>Random single-line pump practice sheets.</h1>
-        <p>Generate <strong>four beginner driver/operator problems per page</strong> using a clean black-and-white scene, blank student work space, and an optional answer key.</p>
+        <div class="eyebrow">Printable Scenario Creator V2</div>
+        <h1>Printable scenarios built from reusable artwork files.</h1>
+        <p>This version assembles each printable scene from <strong>individual art files</strong> so you can reuse the same truck, hydrant, building, and hose artwork across many problems.</p>
       </div>
     </section>
 
     <section class="wrap layout">
       <aside class="panel builder">
         <h2>Build worksheet</h2>
-        <p class="hint">V1 keeps it simple: single attack line problems only. Later versions can add wye, standpipe, master stream, and department-selected equipment.</p>
+        <p class="hint">V2 still focuses on single-line driver/operator math, but the scene now comes from reusable image assets instead of inline placeholder graphics.</p>
         <div class="controls">
           <div class="field"><label>Worksheet title</label><input id="title" value="Fire Pump Pressure Practice"></div>
           <div class="field"><label>Class / department</label><input id="dept" value="Driver / Operator Training"></div>
@@ -52,35 +63,36 @@
           <label class="checkrow"><input type="checkbox" id="answers"> <span>Include answer key when printing / saving PDF</span></label>
           <div class="btn-row"><button class="btn primary" id="generate">Generate New Sheet</button><button class="btn" id="printBtn">Print / Save PDF</button><button class="btn light" id="copyJson">Copy Scenario JSON</button></div>
         </div>
-        <p class="small-note">The math uses PP = NP + FL ± Elevation + Appliance Loss and FL = C × (GPM/100)² × hose length in hundreds of feet.</p>
+        <p class="small-note">Required artwork folder for this page: <code>assets/printable-scenarios/</code>. Keep the included PNG files there.</p>
         <div class="scenario-mini" id="miniList"></div>
       </aside>
 
       <section class="panel preview">
-        <div class="preview-head"><p>Preview below. The printed page is formatted for letter paper with 4 problems per page.</p><button class="btn primary" onclick="window.print()">Print / Save PDF</button></div>
+        <div class="preview-head"><h2 style="margin:0">Worksheet preview</h2><p>Four random problems per page • optional answer key</p></div>
         <div class="screen-sheet"><div class="sheet" id="sheet"></div></div>
       </section>
     </section>
   </main>
 
 <script>
-(function(){
-  const $ = (id)=>document.getElementById(id);
-  const C = { "1¾ in":15.5, "2 in":8, "2½ in":2 };
+(() => {
+  const $ = id => document.getElementById(id);
+  const ASSET = '../assets/printable-scenarios/';
   const equipment = [
-    {hose:"1¾ in", lengths:[150,200,250], nozzles:[{name:"Chief XD fog",gpm:185,np:50},{name:"150 gpm fog",gpm:150,np:100},{name:"15/16 smooth bore",gpm:265,np:50}]},
-    {hose:"2 in", lengths:[200,250,300], nozzles:[{name:"250 gpm fog",gpm:250,np:50},{name:"1 in smooth bore",gpm:328,np:50}]},
-    {hose:"2½ in", lengths:[200,250,300,400], nozzles:[{name:"Chief XD fog",gpm:265,np:50},{name:"1⅛ smooth bore",gpm:400,np:50},{name:"portable monitor",gpm:500,np:80}]}
+    { hose:'1¾ inch', lengths:[150,200,250,300], nozzles:[{name:'Chief XD Fog', gpm:185, np:50},{name:'Fog Nozzle', gpm:150, np:50}] },
+    { hose:'2½ inch', lengths:[150,200,250,300], nozzles:[{name:'Smooth Bore 1 1/8', gpm:265, np:50},{name:'Fog Nozzle', gpm:250, np:50}] }
   ];
+  const C = {'1¾ inch':15.5,'2½ inch':2};
   const elevationsBeginner = [0,0,0,10,-10];
-  const elevationsMixed = [0,10,15,20,-10,-20,30];
-  const appliancesBeginner = [0,0,0];
-  const appliancesMixed = [0,0,10,15,25];
+  const elevationsMixed = [0,10,-10,20,-20,30];
+  const appliancesBeginner = [0,0,0,10];
+  const appliancesMixed = [0,0,10,10,15];
+  const targetTypes = ['house','building'];
   let scenarios = [];
 
   function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
   function round5(n){ return Math.round(n/5)*5; }
-  function escape(s){ return String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function elevText(e){ if(e === 0) return 'Level grade'; return e > 0 ? `${e} ft uphill` : `${Math.abs(e)} ft downhill`; }
   function applianceText(a){ return a ? `${a} psi appliance loss` : 'No appliance'; }
 
@@ -95,15 +107,15 @@
     const q = nozzle.gpm / 100;
     const l = length / 100;
     const c = C[eq.hose];
-    const flRaw = c * q * q * l;
-    const fl = Math.round(flRaw);
+    const fl = Math.round(c * q * q * l);
     const ppRaw = nozzle.np + fl + elevationPsi + appliance;
     const pp = round5(ppRaw);
-    const scene = i % 4;
+    const targetType = pick(targetTypes);
+    const sceneTitle = targetType === 'house' ? pick(['Residential Attack Line','Front Door Stretch','Garage Fire Stretch']) : pick(['Apartment Line','Commercial Stretch','Storefront Attack Line']);
     return {
       id:`single_line_${Date.now()}_${i}`,
       type:'single_line',
-      title:['Residential Attack Line','Preconnect Stretch','Garage Fire Stretch','Long Driveway Stretch'][i] || 'Single Line',
+      title: sceneTitle,
       apparatus:'Engine 181',
       hose:eq.hose,
       length,
@@ -116,117 +128,65 @@
       appliance,
       fl,
       pp,
-      scene,
-      problem:`${['Engine 181 is stretching to a small residential fire.','Engine 181 has one attack line operating to the front door.','Engine 181 is pumping a single line for fire attack.','Engine 181 is supplying one handline on a longer stretch.'][i]} Calculate the pump discharge pressure.`,
+      targetType,
+      problem: targetType === 'house'
+        ? 'Engine 181 is stretching one attack line to a residential fire. Calculate the pump discharge pressure.'
+        : 'Engine 181 is pumping one handline to a small commercial / apartment building fire. Calculate the pump discharge pressure.',
       math:`FL = ${c} × (${q.toFixed(2)})² × ${l.toFixed(1)} = ${fl} psi. PP = ${nozzle.np} + ${fl} ${elevationPsi>=0?'+':'-'} ${Math.abs(elevationPsi)} + ${appliance} = ${ppRaw} psi. Round to ${pp} psi.`
     };
   }
 
-  function generate(){
-    scenarios = [0,1,2,3].map(makeScenario);
-    render();
-  }
+  function generate(){ scenarios = [0,1,2,3].map(makeScenario); render(); }
 
-
-  function truck(x,y,s){return `<g transform="translate(${x} ${y}) scale(${s})">
-    <path class="fillwhite" d="M8 70 V45 Q8 36 18 36 H72 Q83 36 88 46 L92 54 V95 H8 Z"/>
-    <path class="fillwhite" d="M92 50 H152 Q161 50 161 58 V95 H92 Z"/>
-    <path class="fillwhite thin" d="M18 46 H41 V67 H16 V48 Q16 46 18 46 Z"/>
-    <path class="fillwhite thin" d="M43 46 H70 V67 H43 Z"/>
-    <rect class="fillwhite thin" x="74" y="49" width="11" height="15" rx="2"/>
-    <rect class="fillwhite thin" x="12" y="74" width="31" height="13" rx="2"/>
-    <path class="asset-stroke thin" d="M17 79 H38 M17 83 H38"/>
-    <rect class="fillwhite thin" x="47" y="74" width="10" height="10" rx="1.5"/>
-    <rect class="fillwhite thin" x="61" y="74" width="10" height="10" rx="1.5"/>
-    <path class="asset-stroke thin" d="M9 89 H91 M92 62 H161"/>
-    <rect class="fillwhite thin" x="105" y="56" width="19" height="30" rx="2"/>
-    <path class="asset-stroke thin" d="M105 62 H124 M105 68 H124 M105 74 H124 M105 80 H124"/>
-    <rect class="fillwhite thin" x="128" y="56" width="25" height="30" rx="2"/>
-    <path class="asset-stroke thin" d="M128 64 H153 M128 70 H153 M128 76 H153"/>
-    <rect class="fillwhite thin" x="95" y="58" width="7" height="6" rx="1"/>
-    <circle class="fillwhite thin" cx="98" cy="71" r="2.2"/><circle class="fillwhite thin" cx="98" cy="78" r="2.2"/><circle class="fillwhite thin" cx="101" cy="84" r="2.8"/>
-    <path class="fillwhite thin" d="M24 30 H60 V36 H24 Z"/>
-    <path class="asset-stroke thin" d="M77 31 H148 M83 26 H154 M88 26 L79 31 M100 26 L91 31 M112 26 L103 31 M124 26 L115 31 M136 26 L127 31 M148 26 L139 31"/>
-    <rect class="fillwhite thin" x="5" y="50" width="4" height="16" rx="2"/>
-    <rect class="fillwhite thin" x="76" y="68" width="3" height="14" rx="1.5"/>
-    <circle class="fillwhite" cx="46" cy="96" r="15"/><circle class="fillwhite thin" cx="46" cy="96" r="8"/><circle fill="#111" cx="46" cy="96" r="2.6"/>
-    <circle class="fillwhite" cx="132" cy="96" r="15"/><circle class="fillwhite thin" cx="132" cy="96" r="8"/><circle fill="#111" cx="132" cy="96" r="2.6"/>
-    <path class="fillwhite thin" d="M96 86 h11 q4 0 4 4 v0 q0 4-4 4 h-11 z"/>
-  </g>`}
-
-  function house(x,y,s,flames=true){return `<g transform="translate(${x} ${y}) scale(${s})">
-    <path class="fillwhite" d="M25 44 L58 17 L93 44 V95 H25 Z"/>
-    <path class="fillwhite" d="M93 44 L118 34 L144 52 V95 H93 Z"/>
-    <path class="asset-stroke" d="M18 45 L58 10 L100 46"/>
-    <path class="asset-stroke thin" d="M93 44 L118 34 L145 52"/>
-    <path class="asset-stroke thin" d="M33 58 H85 M33 64 H85 M33 70 H85 M33 76 H85 M33 82 H85"/>
-    <path class="asset-stroke thin" d="M101 57 H135 M101 63 H135 M101 69 H135 M101 75 H135"/>
-    <rect class="fillwhite thin" x="52" y="66" width="18" height="29" rx="2.5"/>
-    <circle fill="#111" cx="66" cy="81" r="2"/>
-    <path class="fillwhite thin" d="M49 95 H74 M51 90 H72"/>
-    <rect class="fillwhite thin" x="35" y="58" width="14" height="18" rx="1.8"/>
-    <path class="asset-stroke thin" d="M42 58 V76 M35 67 H49"/>
-    <rect class="fillwhite thin" x="108" y="60" width="14" height="18" rx="1.8"/>
-    <path class="asset-stroke thin" d="M115 60 V78 M108 69 H122"/>
-    <path class="fillwhite thin" d="M23 94 q-8 1 -12 -4 q4 -6 12 -4 q5 0 8 4 q-3 4 -8 4 Z"/>
-    <path class="fillwhite thin" d="M138 94 q9 1 13 -4 q-4 -6 -13 -4 q-5 0 -8 4 q3 4 8 4 Z"/>
-    ${flames?`<path class="fillwhite" d="M36 33 C26 18 40 10 42 23 C48 7 66 6 64 29 C74 11 91 13 86 34 C97 21 111 25 106 43 C98 40 93 47 86 40 C79 53 65 47 68 35 C58 45 44 43 36 33 Z"/><path class="asset-stroke" d="M36 33 C26 18 40 10 42 23 C48 7 66 6 64 29 C74 11 91 13 86 34 C97 21 111 25 106 43 C98 40 93 47 86 40 C79 53 65 47 68 35 C58 45 44 43 36 33 Z"/><path class="asset-stroke thin" d="M68 35 C71 26 77 24 77 34 M87 39 C92 31 97 34 96 41"/>`:''}
-  </g>`}
-
-  function hydrant(x,y,s){return `<g transform="translate(${x} ${y}) scale(${s})">
-    <path class="fillwhite" d="M20 28 Q20 16 31 16 H37 Q48 16 48 28 V36 H52 Q60 36 60 44 V54 H48 V88 H20 V54 H8 V44 Q8 36 16 36 H20 Z"/>
-    <circle class="fillwhite thin" cx="34" cy="14" r="5"/>
-    <circle class="fillwhite thin" cx="12" cy="46" r="6"/>
-    <circle class="fillwhite thin" cx="56" cy="46" r="6"/>
-    <circle class="fillwhite thin" cx="34" cy="46" r="7"/>
-    <path class="asset-stroke thin" d="M25 60 H43 M25 67 H43 M25 74 H43"/>
-    <path class="fillwhite thin" d="M18 88 H50 V93 H18 Z"/>
-  </g>`}
-
-  function labels(s){return `<g>
-    <rect class="label-bg" x="7" y="5" width="92" height="18" rx="4"/><text class="label" x="12" y="16">${escape(s.length+' ft '+s.hose)}</text>
-    <rect class="label-bg" x="120" y="5" width="92" height="18" rx="4"/><text class="label" x="125" y="16">${escape(s.gpm+' gpm @ '+s.np+' psi')}</text>
-  </g>`}
-
-  function hoseCoupling(cx,cy,angle,scale=1){return `<g transform="translate(${cx} ${cy}) rotate(${angle}) scale(${scale})">
-    <rect class="fillwhite thin" x="-8" y="-5" width="16" height="10" rx="3"/>
-    <path class="asset-stroke thin" d="M-3 -6 V6 M3 -6 V6"/>
-  </g>`}
-
-  function sceneSVG(s){
-    const main = [
-      'M90 87 C112 92 122 96 139 94 C151 93 162 87 173 83',
-      'M90 87 C113 75 126 81 141 90 C156 99 166 89 173 83',
-      'M90 87 C113 88 126 79 141 82 C156 85 165 86 173 83',
-      'M90 87 C109 98 125 96 141 89 C155 83 166 82 173 83'
-    ][s.scene || 0];
-    const supply = 'M100 102 C118 103 126 103 139 101 C150 99 156 100 164 100';
-    return `<svg viewBox="0 0 220 120" role="img" aria-label="simple fireground scene">
-      <path class="ground" d="M6 104 H214"/>
-      ${truck(1,10,.52)}
-      ${house(140,23,.52,true)}
-      ${hydrant(120,72,.34)}
-      <path class="hoseLine" d="${main}"/><path class="hoseInner" d="${main}"/>
-      ${hoseCoupling(92,87,18,.9)}${hoseCoupling(173,83,-10,.82)}
-      <path class="hoseLine" d="${supply}"/><path class="hoseInner" d="${supply}"/>
-      ${hoseCoupling(100,102,0,.68)}${hoseCoupling(164,100,0,.68)}
-      ${labels(s)}
-    </svg>`;
+  function sceneHTML(s){
+    const target = s.targetType === 'house'
+      ? `<img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">`
+      : `<img class="asset target building" alt="Building" src="${ASSET}urban-building.png">`;
+    const extra = s.targetType === 'house'
+      ? `<img class="asset bush" alt="Bush" src="${ASSET}bush.png">`
+      : `<img class="asset sedan" alt="Sedan" src="${ASSET}sedan.png">`;
+    return `<div class="scene">
+      <div class="scene-label lbl-hose">${escapeHtml(s.length + ' ft ' + s.hose)}</div>
+      <div class="scene-label lbl-flow">${escapeHtml(s.gpm + ' gpm @ ' + s.np + ' psi')}</div>
+      <div class="groundline"></div>
+      <img class="asset truck" alt="Fire truck" src="${ASSET}fire-truck.png">
+      <img class="asset hydrant" alt="Hydrant" src="${ASSET}hydrant.png">
+      <img class="asset hose-straight" alt="Supply hose" src="${ASSET}hose-straight.png">
+      <img class="asset hose-curved" alt="Attack hose" src="${ASSET}hose-curved.png">
+      <img class="asset hose-nozzle" alt="Nozzle hose" src="${ASSET}hose-nozzle.png">
+      ${target}
+      ${extra}
+    </div>`;
   }
 
   function card(s,i){
-    return `<article class="card"><div class="card-head"><b>${i+1}. ${escape(s.title)}</b><span>Single line</span></div><div class="scene">${sceneSVG(s)}</div><div class="problem"><b>Problem:</b> ${escape(s.problem)}</div><div class="facts"><div class="fact"><b>Hose:</b> ${s.length} ft ${escape(s.hose)}</div><div class="fact"><b>C:</b> ${s.c}</div><div class="fact"><b>Nozzle:</b> ${escape(s.nozzle)}</div><div class="fact"><b>Flow:</b> ${s.gpm} gpm @ ${s.np} psi</div><div class="fact"><b>Elevation:</b> ${escape(elevText(s.elevationFeet))}</div><div class="fact"><b>Appliance:</b> ${escape(applianceText(s.appliance))}</div></div><div class="formula"><b>Formula:</b> PP = NP + FL ± Elevation + Appliance<br/>FL = C × (GPM/100)² × Length/100</div><div class="work"><b>Student work:</b><div class="work-grid"><div>NP:<div class="blank"></div></div><div>FL:<div class="blank"></div></div><div>Elevation/App:<div class="blank"></div></div><div>Final PP:<div class="blank"></div></div></div><div class="scratch"></div></div><div class="answer-box"><b>Answer:</b> ${s.pp} psi<br/>${escape(s.math)}</div></article>`;
+    return `<article class="card">
+      <div class="card-head"><b>${i+1}. ${escapeHtml(s.title)}</b><span>Single line</span></div>
+      ${sceneHTML(s)}
+      <div class="problem"><b>Problem:</b> ${escapeHtml(s.problem)}</div>
+      <div class="facts">
+        <div class="fact"><b>Hose:</b> ${s.length} ft ${escapeHtml(s.hose)}</div>
+        <div class="fact"><b>C:</b> ${s.c}</div>
+        <div class="fact"><b>Nozzle:</b> ${escapeHtml(s.nozzle)}</div>
+        <div class="fact"><b>Flow:</b> ${s.gpm} gpm @ ${s.np} psi</div>
+        <div class="fact"><b>Elevation:</b> ${escapeHtml(elevText(s.elevationFeet))}</div>
+        <div class="fact"><b>Appliance:</b> ${escapeHtml(applianceText(s.appliance))}</div>
+      </div>
+      <div class="formula"><b>Formula:</b> PP = NP + FL ± Elevation + Appliance<br>FL = C × (GPM/100)² × Length/100</div>
+      <div class="work"><b>Student work:</b><div class="work-grid"><div>NP:<div class="blank"></div></div><div>FL:<div class="blank"></div></div><div>Elevation/App:<div class="blank"></div></div><div>Final PP:<div class="blank"></div></div></div><div class="scratch"></div></div>
+      <div class="answer-box"><b>Answer:</b> ${s.pp} psi<br>${escapeHtml(s.math)}</div>
+    </article>`;
   }
 
   function answerRows(){
-    return scenarios.map((s,i)=>`<tr><td><b>${i+1}. ${escape(s.title)}</b><br/>${s.length} ft ${escape(s.hose)}, ${s.gpm} gpm, NP ${s.np}</td><td>${s.fl} psi</td><td>${s.elevationPsi} psi / ${s.appliance} psi</td><td><b>${s.pp} psi</b></td><td>${escape(s.math)}</td></tr>`).join('');
+    return scenarios.map((s,i)=>`<tr><td><b>${i+1}. ${escapeHtml(s.title)}</b><br>${s.length} ft ${escapeHtml(s.hose)}, ${s.gpm} gpm, NP ${s.np}</td><td>${s.fl} psi</td><td>${s.elevationPsi} psi / ${s.appliance} psi</td><td><b>${s.pp} psi</b></td><td>${escapeHtml(s.math)}</td></tr>`).join('');
   }
 
   function render(){
     const answers = $('answers').checked;
     $('sheet').classList.toggle('answers-on', answers);
-    $('sheet').innerHTML = `<div class="sheet-title"><h2>${escape($('title').value)}</h2><small>${escape($('dept').value)}<br/>Generated by FireOps Calc<br/>Name: __________________ Date: __________</small></div><div class="student-line"><div>Name:<div class="line"></div></div><div>Class:<div class="line"></div></div><div>Score:<div class="line"></div></div></div><div class="scenario-grid">${scenarios.map(card).join('')}</div><div class="footer">Training worksheet only. Follow local SOPs, instructor direction, and department hydraulic guidelines.</div><section class="answer-page"><div class="sheet-title"><h2>Answer Key</h2><small>${escape($('dept').value)}<br/>Single-line scenarios</small></div><table class="answer-table"><thead><tr><th>Scenario</th><th>FL</th><th>Elev/App</th><th>PP</th><th>Math</th></tr></thead><tbody>${answerRows()}</tbody></table></section>`;
-    $('miniList').innerHTML = scenarios.map((s,i)=>`<div class="mini"><b>${i+1}. ${escape(s.title)} — ${s.pp} psi</b><span>${s.length} ft ${escape(s.hose)} • ${s.gpm} gpm • ${escape(elevText(s.elevationFeet))}</span></div>`).join('');
+    $('sheet').innerHTML = `<div class="sheet-title"><h2>${escapeHtml($('title').value)}</h2><small>${escapeHtml($('dept').value)}<br>Generated by FireOps Calc<br>Name: __________________ Date: __________</small></div><div class="student-line"><div>Name:<div class="line"></div></div><div>Class:<div class="line"></div></div><div>Score:<div class="line"></div></div></div><div class="scenario-grid">${scenarios.map(card).join('')}</div><div class="footer">Training worksheet only. Follow local SOPs, instructor direction, and department hydraulic guidelines.</div><section class="answer-page"><div class="sheet-title"><h2>Answer Key</h2><small>${escapeHtml($('dept').value)}<br>Single-line scenarios</small></div><table class="answer-table"><thead><tr><th>Scenario</th><th>FL</th><th>Elev/App</th><th>PP</th><th>Math</th></tr></thead><tbody>${answerRows()}</tbody></table></section>`;
+    $('miniList').innerHTML = scenarios.map((s,i)=>`<div class="mini"><b>${i+1}. ${escapeHtml(s.title)} — ${s.pp} psi</b><span>${s.length} ft ${escapeHtml(s.hose)} • ${s.gpm} gpm • ${escapeHtml(elevText(s.elevationFeet))}</span></div>`).join('');
   }
 
   $('generate').addEventListener('click', generate);
@@ -235,11 +195,12 @@
   $('title').addEventListener('input', render);
   $('dept').addEventListener('input', render);
   $('difficulty').addEventListener('change', generate);
-  $('copyJson').addEventListener('click', async ()=>{
-    const payload = {version:'printable_scenarios_v1', type:'single_line', generatedAt:new Date().toISOString(), scenarios};
+  $('copyJson').addEventListener('click', async () => {
+    const payload = {version:'printable_scenarios_asset_based_v1', type:'single_line', generatedAt:new Date().toISOString(), assetFolder:'assets/printable-scenarios', scenarios};
     try{ await navigator.clipboard.writeText(JSON.stringify(payload,null,2)); $('copyJson').textContent='Copied JSON'; setTimeout(()=>$('copyJson').textContent='Copy Scenario JSON',1400); }
     catch(e){ alert(JSON.stringify(payload,null,2)); }
   });
+
   generate();
 })();
 </script>
