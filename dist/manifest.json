@@ -1,7 +1,7 @@
 {
   "name": "FireOps Calc",
   "short_name": "FireOpsCalc",
-  "start_url": "/",
+  "start_url": "/calculator.html",
   "display": "standalone",
   "background_color": "#0b0f14",
   "theme_color": "#0b0f14",

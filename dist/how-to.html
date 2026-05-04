@@ -1,345 +1,92 @@
-<!-- FireOps Calc Help Accordions (Quick Start + Full Guide)
-     Uses pure <details>/<summary> with simple icons + color coding.
-     Button labels matched to: Pump / Practice / Info
--->
-
-<style>
-  /* ===== FireOps Calc Help Accordion Styles ===== */
-  .fo-help {
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    line-height: 1.35;
-    color: #0f172a;
-  }
-
-  .fo-help h2 {
-    font-size: 1.1rem;
-    margin: 0 0 10px 0;
-  }
-  .fo-help .fo-muted { color: #475569; }
-  .fo-help .fo-spacer { height: 12px; }
-
-  .fo-accordion {
-    display: grid;
-    gap: 10px;
-  }
-
-  details.fo-card {
-    border: 1px solid rgba(15, 23, 42, 0.12);
-    border-radius: 14px;
-    overflow: hidden;
-    background: #fff;
-    box-shadow: 0 1px 10px rgba(15, 23, 42, 0.06);
-  }
-
-  summary.fo-summary {
-    list-style: none;
-    cursor: pointer;
-    user-select: none;
-    padding: 12px 14px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 10px;
-    align-items: center;
-  }
-
-  /* Hide default marker */
-  summary.fo-summary::-webkit-details-marker { display: none; }
-
-  .fo-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 10px;
-    border-radius: 999px;
-    font-weight: 700;
-    font-size: 0.95rem;
-    white-space: nowrap;
-  }
-
-  .fo-title {
-    font-weight: 800;
-    font-size: 1rem;
-  }
-  .fo-subtitle {
-    margin-top: 2px;
-    font-size: 0.9rem;
-    color: #475569;
-  }
-
-  .fo-caret {
-    width: 28px;
-    height: 28px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    background: rgba(15, 23, 42, 0.06);
-    font-size: 0.95rem;
-  }
-
-  details[open] .fo-caret { transform: rotate(180deg); }
-
-  .fo-body {
-    padding: 12px 14px 14px 14px;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-  }
-
-  .fo-body p { margin: 8px 0; }
-  .fo-body ul { margin: 8px 0 0 18px; }
-  .fo-body li { margin: 6px 0; }
-
-  .fo-note {
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: rgba(15, 23, 42, 0.04);
-    border: 1px dashed rgba(15, 23, 42, 0.18);
-    margin-top: 10px;
-  }
-
-  /* ===== Color Coding ===== */
-  .fo-pump  .fo-chip { background: rgba(220, 38, 38, 0.12); color: #b91c1c; }
-  .fo-practice .fo-chip { background: rgba(16, 185, 129, 0.12); color: #047857; }
-  .fo-info  .fo-chip { background: rgba(59, 130, 246, 0.14); color: #1d4ed8; }
-  .fo-how   .fo-chip { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
-
-  .fo-sectionlabel {
-    font-size: 0.85rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    color: #334155;
-    margin: 10px 0 6px 0;
-  }
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Fire Pump Calculation How-To Library | FireOps Calc</title>
+  <meta name="description" content="Practical fire pump calculation guides for pump discharge pressure, friction loss, attack lines, wyes, standpipes, relay pumping, water supply, and tender shuttle GPM."/>
+  <link rel="canonical" href="https://fireopscalc.com/how-to.html"/>
+  <link rel="icon" href="/fireopscalc.png"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <meta name="theme-color" content="#08111e"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:title" content="Fire Pump Calculation How-To Library | FireOps Calc"/>
+  <meta property="og:description" content="Practical fire pump calculation guides for pump discharge pressure, friction loss, attack lines, wyes, standpipes, relay pumping, water supply, and tender shuttle GPM."/>
+  <meta property="og:url" content="https://fireopscalc.com/how-to.html"/>
+  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="Fire Pump Calculation How-To Library | FireOps Calc"/>
+  <meta name="twitter:description" content="Practical fire pump calculation guides for pump discharge pressure, friction loss, attack lines, wyes, standpipes, relay pumping, water supply, and tender shuttle GPM."/>
+  <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"CollectionPage","name":"FireOps Calc How-To Library","description":"Fire pump calculation how-to guides for pump operators, firefighters, instructors, and driver/operator students.","url":"https://fireopscalc.com/how-to.html"}</script>
+  <style>
+:root{--bg:#050a12;--panel:#0b1320;--panel2:#0e192a;--edge:#1d3352;--edge2:rgba(120,190,255,.30);--fg:#edf5ff;--muted:#c4d6ee;--soft:#8ea7c7;--accent:#46b0ff;--warn:#ffa74d;--good:#6be38a;--shadow:0 22px 60px rgba(0,0,0,.35)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% -10%,rgba(70,176,255,.25),transparent 34rem),linear-gradient(180deg,#050a12,#07101d 42%,#050a12);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;line-height:1.58}a{color:inherit}.wrap{max-width:1100px;margin:0 auto;padding:0 18px}.skip{position:absolute;left:-999px}.skip:focus{left:16px;top:16px;background:#fff;color:#000;padding:8px 10px;border-radius:8px;z-index:9999}.topbar{position:sticky;top:0;z-index:20;background:rgba(5,10,18,.78);backdrop-filter:blur(16px);border-bottom:1px solid rgba(120,190,255,.16)}.nav{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0}.brand{display:flex;align-items:center;gap:10px;text-decoration:none}.brand img{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.18)}.brand strong{font-size:18px}.navlinks{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:14px}.navlinks a{text-decoration:none}.navlinks a:hover{color:#fff}.nav-cta,.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:900}.nav-cta{border:1px solid rgba(70,176,255,.5);background:linear-gradient(135deg,#0f5ea9,#123666);border-radius:999px;padding:9px 14px}.hero{padding:50px 0 26px}.crumbs{font-size:13px;color:var(--soft);margin-bottom:18px}.crumbs a{text-decoration:none;color:#cfe4ff}.eyebrow{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(70,176,255,.32);background:rgba(70,176,255,.09);border-radius:999px;padding:7px 10px;font-size:13px;font-weight:800;margin-bottom:16px}h1{font-size:clamp(34px,6vw,58px);line-height:1.04;margin:0 0 14px;letter-spacing:-.04em}h2{font-size:clamp(25px,4vw,38px);line-height:1.15;margin:0 0 10px;letter-spacing:-.025em}h3{font-size:20px;margin:0 0 8px}.lead{font-size:clamp(18px,2.1vw,22px);color:var(--muted);max-width:820px;margin:0 0 22px}.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}.btn{border-radius:14px;padding:13px 16px;border:1px solid rgba(255,255,255,.14);min-height:48px}.btn.primary{background:linear-gradient(135deg,#1e82ff,#123c73);border-color:#58b4ff}.btn.secondary{background:rgba(255,255,255,.06);color:#ecf5ff}.btn.store{background:#050913;color:#f4f8ff;border-color:rgba(255,255,255,.22)}.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 9px;color:var(--soft);font-size:13px}.section{padding:34px 0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid.two{grid-template-columns:repeat(2,1fr)}.card,.article-card,.example,.note,.formula,.warning{background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:18px;box-shadow:0 14px 32px rgba(0,0,0,.18)}.article-card{text-decoration:none;display:block}.article-card:hover{border-color:rgba(120,190,255,.48);transform:translateY(-1px)}.article-card p,.card p,.note p,.warning p{color:var(--muted);margin:0}.article-card small{color:var(--soft);font-weight:800;text-transform:uppercase;letter-spacing:.08em}.content{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}.main-article{display:grid;gap:18px}.toc{position:sticky;top:78px;background:rgba(11,19,32,.88);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:16px}.toc strong{display:block;margin-bottom:8px}.toc a{display:block;color:var(--muted);text-decoration:none;padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}.toc a:hover{color:#fff}.formula{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#dceeff}.example h3{color:#fff}.line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.08);padding:9px 0}.line span:first-child{color:var(--soft)}.line b{text-align:right}.total{font-size:22px;color:#fff}.steps{counter-reset:step;display:grid;gap:12px}.step{counter-increment:step;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:start;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.step:before{content:counter(step);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#123c73;border:1px solid #58b4ff;font-weight:900}.step b{display:block}.step span{color:var(--muted)}.warning{border-color:rgba(255,167,77,.32);background:rgba(255,167,77,.07)}.note{background:rgba(255,255,255,.04)}.faq details{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:14px;margin-bottom:10px}.faq summary{cursor:pointer;font-weight:850}.faq p{color:var(--muted);margin:10px 0 0}.final-cta{background:radial-gradient(circle at 10% 0,rgba(70,176,255,.28),transparent 60%),linear-gradient(135deg,#0b1320,#0d1c31);border:1px solid rgba(120,190,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:var(--shadow)}footer{border-top:1px solid rgba(255,255,255,.08);padding:28px 0 44px;color:var(--soft);font-size:14px}.footer-grid{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:var(--muted);text-decoration:none}.footer-links a:hover{color:#fff}ul{color:var(--muted)}li{margin:7px 0}.muted{color:var(--muted)}.icon{font-size:26px;display:block;margin-bottom:8px}@media (max-width:880px){.navlinks{display:none}.content{grid-template-columns:1fr}.toc{position:static}.grid,.grid.two{grid-template-columns:1fr}.cta-row .btn{flex:1 1 100%}h1{font-size:38px}.hero{padding-top:32px}}
 </style>
 
-<div class="fo-help">
+  <link rel="stylesheet" href="css/fireops-unified.css?v=20260503b">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="wrap nav">
+      <a class="brand" href="/" aria-label="FireOps Calc home"><img src="/fireopscalc2.png" alt="FireOps Calc logo"/><strong>FireOps Calc</strong></a>
+      <nav class="navlinks" aria-label="Main navigation">
+        <a href="/how-to.html">How-To Library</a>
+        <a href="/fire-pump-calculator.html">Pump Calculator</a>
+        <a href="/friction-loss-calculator.html">Friction Loss</a>
+        <a href="/relay-pumping-calculator.html">Relay</a>
+        <a href="/fire-pump-training-scenarios.html">Training</a>
+      </nav>
+      <a class="nav-cta" href="/calculator.html">Open Calculator</a>
+    </div>
+  </header>
 
-  <!-- ===================== QUICK START ===================== -->
-  <h2>Quick Start</h2>
-  <div class="fo-muted">Tap a section to see the fastest way to get going.</div>
-  <div class="fo-spacer"></div>
-
-  <div class="fo-accordion">
-
-    <details class="fo-card fo-pump">
-      <summary class="fo-summary">
-        <span class="fo-chip" aria-label="Pump">
-          <span aria-hidden="true">🚒</span> Pump
-        </span>
-        <div>
-          <div class="fo-title">Real-world pumping calculations</div>
-          <div class="fo-subtitle">Use on scene to get your pump discharge pressure fast.</div>
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <div class="crumbs"><a href="/">Home</a> / How-To Library</div>
+        <div class="eyebrow">📚 FireOps Calc training library</div>
+        <h1>Fire pump calculation how-to guides.</h1>
+        <p class="lead">Useful, practical explanations for firefighters, engineers, pump operators, driver/operator students, and instructors. Each guide explains the math, shows a worked example, and links back to the FireOps Calc web calculator.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="/calculator.html">Open the Web Calculator</a>
+          <a class="btn store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener">Download on iPhone</a>
+          <a class="btn store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app" target="_blank" rel="noopener">Get it on Android</a>
         </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Best first step:</strong> build your typical lines so you can calculate quickly on scene.</p>
-        <ul>
-          <li>Select your hoseline(s) and nozzle(s).</li>
-          <li>Enter lengths and any needed elevation changes.</li>
-          <li>Add appliances (wye / master stream / standpipe) if used.</li>
-          <li>Read your final pump discharge pressure and set the pump.</li>
-        </ul>
-        <div class="fo-note"><strong>Tip:</strong> If you’re unsure on a value, jump to <strong>Info</strong> to verify nozzle flows or friction loss tables.</div>
+        <div class="pills"><span class="pill">Pump pressure</span><span class="pill">Friction loss</span><span class="pill">Relay pumping</span><span class="pill">Water supply</span><span class="pill">Training scenarios</span></div>
       </div>
-    </details>
-
-    <details class="fo-card fo-practice">
-      <summary class="fo-summary">
-        <span class="fo-chip" aria-label="Practice">
-          <span aria-hidden="true">🧠</span> Practice
-        </span>
-        <div>
-          <div class="fo-title">Driver / operator skill building</div>
-          <div class="fo-subtitle">Build speed and confidence with pump math questions.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Best first step:</strong> do a few questions until the setup feels automatic.</p>
-        <ul>
-          <li>Answer the pump pressure question.</li>
-          <li>Check feedback and correct your setup if needed.</li>
-          <li>Repeat for mixed scenarios (including appliances and master stream).</li>
-        </ul>
-        <div class="fo-note"><strong>Tip:</strong> Use <strong>Info</strong> if you need a quick reminder on flows, friction loss, or rules of thumb.</div>
+    </section>
+    <section class="section">
+      <div class="wrap">
+        <h2>Start with a calculation you want to teach or review.</h2>
+        <p class="lead">These are written as quick station-training references. They are not a replacement for your department SOPs, manufacturer data, or instructor direction.</p>
+        <div class="grid"><a class="article-card" href="/how-to/calculate-pump-discharge-pressure.html"><span class="icon">🚒</span><small>How-to guide</small><h3>How to Calculate Pump Discharge Pressure</h3><p>Learn the basic pump pressure formula firefighters use: friction loss + nozzle pressure + elevation + appliance loss.</p></a><a class="article-card" href="/how-to/calculate-fire-hose-friction-loss.html"><span class="icon">📏</span><small>How-to guide</small><h3>How to Calculate Fire Hose Friction Loss</h3><p>Use hose size, length, GPM, and C-value to estimate fire hose friction loss.</p></a><a class="article-card" href="/how-to/pump-1-3-4-attack-line.html"><span class="icon">🔥</span><small>How-to guide</small><h3>How to Pump a 1¾ Inch Attack Line</h3><p>A practical 1¾ inch handline pump pressure example using hose length, GPM, and nozzle pressure.</p></a><a class="article-card" href="/how-to/pump-2-1-2-attack-line.html"><span class="icon">💧</span><small>How-to guide</small><h3>How to Pump a 2½ Inch Attack Line</h3><p>Calculate pump pressure for a 2½ inch handline using GPM, hose length, nozzle pressure, and friction loss.</p></a><a class="article-card" href="/how-to/calculate-wye-pump-pressure.html"><span class="icon">🔀</span><small>How-to guide</small><h3>How to Calculate Pump Pressure for a Wye Operation</h3><p>Learn how to calculate pump pressure when one supply line feeds a wye and two attack lines.</p></a><a class="article-card" href="/how-to/calculate-standpipe-pump-pressure.html"><span class="icon">🏢</span><small>How-to guide</small><h3>How to Calculate Standpipe Pump Pressure</h3><p>A practical standpipe pump pressure process for training and driver/operator review.</p></a><a class="article-card" href="/how-to/relay-pumping-distance-between-engines.html"><span class="icon">🔁</span><small>How-to guide</small><h3>How to Calculate Relay Pumping Distance Between Engines</h3><p>Use total relay distance and number of engines to estimate spacing and per-section pump pressure.</p></a><a class="article-card" href="/how-to/two-supply-lines-one-engine.html"><span class="icon">🔗</span><small>How-to guide</small><h3>How to Calculate Two Supply Lines Feeding One Engine</h3><p>Calculate water supply flow when two hose lines feed one receiving engine or appliance.</p></a><a class="article-card" href="/how-to/tender-shuttle-gpm.html"><span class="icon">🚚</span><small>How-to guide</small><h3>How to Estimate Tender Shuttle GPM</h3><p>Estimate usable water shuttle flow from tank size, fill time, dump time, travel time, and number of tenders.</p></a><a class="article-card" href="/how-to/smooth-bore-vs-fog-nozzle-pump-pressure.html"><span class="icon">🎯</span><small>How-to guide</small><h3>Smooth Bore vs Fog Nozzle Pump Pressure</h3><p>Understand how nozzle pressure affects final pump discharge pressure for smooth bore and fog nozzle packages.</p></a></div>
       </div>
-    </details>
-
-    <details class="fo-card fo-info">
-      <summary class="fo-summary">
-        <span class="fo-chip" aria-label="Info">
-          <span aria-hidden="true">📘</span> Info
-        </span>
-        <div>
-          <div class="fo-title">Tables, formulas, and fireground reference</div>
-          <div class="fo-subtitle">Look up nozzle flows, friction loss, and quick rules.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Best first step:</strong> use this like a digital pump card.</p>
-        <ul>
-          <li>Look up nozzle flows and common tip sizes.</li>
-          <li>Use friction loss tables and rules of thumb.</li>
-          <li>Reference formulas (pump pressure, fire flow, standpipe basics).</li>
-        </ul>
-        <div class="fo-note"><strong>Tip:</strong> After you look something up here, go back to <strong>Pump</strong> to apply it, or <strong>Practice</strong> to reinforce it.</div>
+    </section>
+    <section class="section">
+      <div class="wrap grid two">
+        <div class="card"><h2>How to use these pages</h2><p>Open a guide, review the formula, walk through the example, then use the calculator to change hose length, flow, nozzle pressure, elevation, or appliance loss.</p></div>
+        <div class="card"><h2>Good for instructors</h2><p>Use the examples as quick warm-up problems, driver/operator practice, company drills, or pre-class reading before hands-on pump training.</p></div>
       </div>
-    </details>
+    </section>
+    <section class="section">
+      <div class="wrap final-cta"><h2>Want more examples?</h2><p class="muted">The next useful additions would be printable pump practice sheets, department-specific pump cards, and short scenario packs.</p><div class="cta-row" style="justify-content:center"><a class="btn primary" href="/fire-pump-training-scenarios.html">View Training Scenarios</a><a class="btn secondary" href="/calculator.html">Open Calculator</a></div></div>
+    </section>
+  </main>
 
-    <details class="fo-card fo-how">
-      <summary class="fo-summary">
-        <span class="fo-chip" aria-label="How they work together">
-          <span aria-hidden="true">🔗</span> How they work together
-        </span>
-        <div>
-          <div class="fo-title">Simple workflow</div>
-          <div class="fo-subtitle">Info → Practice → Pump (learn, train, perform).</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <ul>
-          <li><strong>Info</strong> teaches and reminds (tables + formulas).</li>
-          <li><strong>Practice</strong> builds speed and confidence (questions + feedback).</li>
-          <li><strong>Pump</strong> applies it live (real incident calculations).</li>
-        </ul>
+  <footer>
+    <div class="wrap footer-grid">
+      <div>© <span id="year">2026</span> FireOps Calc. Built for firefighters and fire training.</div>
+      <div class="footer-links">
+        <a href="/calculator.html">Calculator</a>
+        <a href="/how-to.html">How-to</a>
+        <a href="/fire-pump-calculator.html">Pump Calculator</a>
+        <a href="/privacy-policy.html">Privacy</a>
       </div>
-    </details>
-
-  </div>
-
-  <div class="fo-spacer"></div>
-
-  <!-- ===================== FULL GUIDE ===================== -->
-  <h2>Full Guide</h2>
-  <div class="fo-muted">A complete walkthrough of each section and what the buttons do.</div>
-  <div class="fo-spacer"></div>
-
-  <div class="fo-accordion">
-
-    <details class="fo-card fo-pump">
-      <summary class="fo-summary">
-        <span class="fo-chip"><span aria-hidden="true">🚒</span> Pump</span>
-        <div>
-          <div class="fo-title">Real-World Pump Calculations</div>
-          <div class="fo-subtitle">Use this section while actively pumping or planning a pump operation.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Purpose:</strong> Get a reliable pump discharge pressure using your hose/nozzle setup and conditions on scene.</p>
-
-        <div class="fo-sectionlabel">What Pump does</div>
-        <ul>
-          <li>Applies friction loss based on hose size and length.</li>
-          <li>Accounts for nozzle type and flow (fog or smooth bore).</li>
-          <li>Adjusts for elevation gain/loss if applicable.</li>
-          <li>Includes losses for appliances (wye, master stream, standpipe, etc.).</li>
-          <li>Outputs a clear final pump discharge pressure.</li>
-        </ul>
-
-        <div class="fo-sectionlabel">How to use Pump (walkthrough)</div>
-        <ul>
-          <li><strong>Set up hoselines:</strong> choose hose diameter, length, and nozzle selection.</li>
-          <li><strong>Add conditions:</strong> include elevation or special factors if needed.</li>
-          <li><strong>Add appliances:</strong> wyes, master stream, standpipe—anything that changes pressure.</li>
-          <li><strong>Read the result:</strong> use the final pressure as your pump setting.</li>
-        </ul>
-
-        <div class="fo-note">
-          <strong>Works with:</strong> Use <strong>Info</strong> to verify nozzle flows and friction loss references, and use <strong>Practice</strong> to build speed so Pump is quick under stress.
-        </div>
-      </div>
-    </details>
-
-    <details class="fo-card fo-practice">
-      <summary class="fo-summary">
-        <span class="fo-chip"><span aria-hidden="true">🧠</span> Practice</span>
-        <div>
-          <div class="fo-title">Driver / Operator Skill Building</div>
-          <div class="fo-subtitle">Train pump math the same way you’ll see it on tests and training.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Purpose:</strong> Build comfort and repetition so calculations become automatic.</p>
-
-        <div class="fo-sectionlabel">What Practice does</div>
-        <ul>
-          <li>Gives realistic pump problems (single line, multiple lines, appliances, master stream, mixed scenarios).</li>
-          <li>Lets you enter your answer and get immediate feedback.</li>
-          <li>Helps you learn consistent setup: hose → nozzle → friction loss → appliances → elevation → final pressure.</li>
-        </ul>
-
-        <div class="fo-sectionlabel">How to use Practice (walkthrough)</div>
-        <ul>
-          <li><strong>Read the scenario:</strong> identify hose sizes/lengths and nozzle type.</li>
-          <li><strong>Do the math:</strong> compute friction loss + nozzle pressure + adjustments.</li>
-          <li><strong>Enter your answer:</strong> submit your pump pressure.</li>
-          <li><strong>Use feedback:</strong> correct any setup mistakes and repeat until consistent.</li>
-        </ul>
-
-        <div class="fo-note">
-          <strong>Works with:</strong> If you get stuck, use <strong>Info</strong> for quick reference, then return to <strong>Practice</strong> until it clicks.
-        </div>
-      </div>
-    </details>
-
-    <details class="fo-card fo-info">
-      <summary class="fo-summary">
-        <span class="fo-chip"><span aria-hidden="true">📘</span> Info</span>
-        <div>
-          <div class="fo-title">Tables, Rules, and Fireground Reference</div>
-          <div class="fo-subtitle">Your quick reference for flows, friction loss, formulas, and fundamentals.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p><strong>Purpose:</strong> Fast lookups and reminders without doing full calculations.</p>
-
-        <div class="fo-sectionlabel">What Info contains</div>
-        <ul>
-          <li><strong>Nozzle tables:</strong> common flows for fog and smooth bore.</li>
-          <li><strong>Friction loss tables:</strong> quick reference by hose size.</li>
-          <li><strong>Rules of thumb:</strong> shortcuts that help mental math.</li>
-          <li><strong>Formulas:</strong> pump pressure, fire flow basics, standpipe fundamentals.</li>
-          <li><strong>Wildland & special ops:</strong> longer lays and lower pressure considerations.</li>
-          <li><strong>Basic HazMat:</strong> awareness-level safety reminders.</li>
-        </ul>
-
-        <div class="fo-sectionlabel">How to use Info (walkthrough)</div>
-        <ul>
-          <li><strong>Look it up:</strong> find the value you need (flow, FL, rule, formula).</li>
-          <li><strong>Apply it:</strong> go back to <strong>Pump</strong> to calculate or to <strong>Practice</strong> to reinforce.</li>
-        </ul>
-
-        <div class="fo-note">
-          <strong>Works with:</strong> Info supports both <strong>Pump</strong> (fast, accurate operations) and <strong>Practice</strong> (learning and repetition).
-        </div>
-      </div>
-    </details>
-
-    <details class="fo-card fo-how">
-      <summary class="fo-summary">
-        <span class="fo-chip"><span aria-hidden="true">🔗</span> How they work together</span>
-        <div>
-          <div class="fo-title">The full workflow</div>
-          <div class="fo-subtitle">Use each section for what it’s best at.</div>
-        </div>
-        <span class="fo-caret" aria-hidden="true">⌄</span>
-      </summary>
-      <div class="fo-body">
-        <p>FireOps Calc is built around a practical cycle:</p>
-        <ul>
-          <li><strong>Info</strong> → learn and reference (tables + formulas).</li>
-          <li><strong>Practice</strong> → train and sharpen (questions + feedback).</li>
-          <li><strong>Pump</strong> → perform on scene (real calculations).</li>
-        </ul>
-        <div class="fo-note">
-          <strong>Recommended path for new users:</strong> start in <strong>Practice</strong>, verify in <strong>Info</strong>, then use <strong>Pump</strong> during training and live incidents.
-        </div>
-      </div>
-    </details>
-
-  </div>
-</div>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body></html>
