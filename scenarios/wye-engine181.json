@@ -6,10 +6,73 @@
   "image": "wye-engine181.svg",
   "scene": "Engine 181 has a 2½″ line stretched to a gated wye. Two 1¾″ handlines are operating from the wye.",
   "studentQuestion": "Calculate the pump pressure. Use the higher branch requirement, then add main-line friction loss and wye loss.",
-  "details": ["Main line: 200′ of 2½″ hose from engine to wye", "Branch A: 200′ of 1¾″ hose, 165 gpm fog nozzle @ 50 psi", "Branch B: 250′ of 1¾″ hose, 150 gpm fog nozzle @ 100 psi", "Wye appliance loss: 10 psi", "No elevation change"],
-  "answers": { "frictionLoss": 227, "nozzlePressure": 0, "elevationPressure": 0, "applianceLoss": 10, "totalGpm": 315, "pumpPressure": 237 },
-  "calculation": { "mainFrictionLoss": 40, "branchARequirement": 134, "branchBRequirement": 187, "higherBranchRequirement": 187, "wyeLoss": 10, "pdp": 237 },
+  "details": [
+    "Main line: 200′ of 2½″ hose from engine to wye",
+    "Branch A: 200′ of 1¾″ hose, 165 gpm fog nozzle @ 50 psi",
+    "Branch B: 250′ of 1¾″ hose, 150 gpm fog nozzle @ 100 psi",
+    "Wye appliance loss: 10 psi",
+    "No elevation change"
+  ],
+  "answers": {
+    "frictionLoss": 227,
+    "nozzlePressure": 0,
+    "elevationPressure": 0,
+    "applianceLoss": 10,
+    "totalGpm": 315,
+    "pumpPressure": 237
+  },
+  "calculation": {
+    "mainFrictionLoss": 40,
+    "branchARequirement": 134,
+    "branchBRequirement": 187,
+    "higherBranchRequirement": 187,
+    "wyeLoss": 10,
+    "pdp": 237
+  },
   "instructorExplanation": "Total flow through the 2½″ main is 315 gpm. Main FL = 2 × (315/100)² × 2 = 40 psi. Branch A needs 84 FL + 50 NP = 134 psi. Branch B needs 87 FL + 100 NP = 187 psi. Use the higher branch: 187 + 40 main FL + 10 wye loss = 237 psi.",
   "explainMistake": "Common errors: adding both branch pressures together, forgetting wye loss, or calculating the main line at only one branch flow instead of total flow.",
-  "variations": ["Make both branch nozzles 185 gpm @ 50 psi and recalculate total flow through the 2½″ main.", "Add 20′ of elevation above the pump and add the elevation pressure to the final answer."]
+  "variations": [
+    {
+      "change": "Make both branch nozzles 185 gpm @ 50 psi. Keep the same 200′ 2½″ main, 200′ Branch A, 250′ Branch B, and 10 psi wye loss.",
+      "question": "Same picture, new setup: Engine 181 is feeding the same wye. Both 1¾″ branch lines are now flowing 185 gpm at 50 psi. Branch A is 200′, Branch B is 250′, the 2½″ main is 200′, and wye loss is 10 psi. What pump pressure should you set?",
+      "correctPP": 248,
+      "tolerance": 5,
+      "details": [
+        "Main line: 200′ of 2½″ hose from engine to wye",
+        "Branch A: 200′ of 1¾″ hose, 185 gpm fog nozzle @ 50 psi",
+        "Branch B: 250′ of 1¾″ hose, 185 gpm fog nozzle @ 50 psi",
+        "Total flow through main: 370 gpm",
+        "Wye appliance loss: 10 psi",
+        "No elevation change"
+      ],
+      "formulaBreakdown": [
+        "Total GPM = 185 + 185 = 370 gpm",
+        "Main FL = 2 × (370 ÷ 100)^2 × 2 = 55 psi",
+        "Branch A FL = 15.5 × (185 ÷ 100)^2 × 2 = 106 psi; Branch A total = 156 psi",
+        "Branch B FL = 15.5 × (185 ÷ 100)^2 × 2.5 = 133 psi; Branch B total = 183 psi",
+        "Use the higher branch: 183 + 55 main FL + 10 wye loss = 248 psi"
+      ],
+      "instructorExplanation": "For a wye, do not add both branch pressures. Use the higher branch requirement, then add the main-line friction loss and appliance loss."
+    },
+    {
+      "change": "Add 20′ of elevation above the pump. Keep the original flows and hose lengths.",
+      "question": "Same picture, new setup: Use the original wye setup, but add 20′ of elevation above the pump. Use approximately +10 psi elevation pressure. What pump pressure should you set?",
+      "correctPP": 247,
+      "tolerance": 5,
+      "details": [
+        "Original wye setup",
+        "Main line: 200′ of 2½″ hose from engine to wye",
+        "Branch A: 200′ of 1¾″ hose, 165 gpm fog nozzle @ 50 psi",
+        "Branch B: 250′ of 1¾″ hose, 150 gpm fog nozzle @ 100 psi",
+        "Wye appliance loss: 10 psi",
+        "Elevation: +20′ above pump, approximately +10 psi"
+      ],
+      "formulaBreakdown": [
+        "Original wye pump pressure = 237 psi",
+        "Elevation pressure = approximately +10 psi for 20′ above the pump",
+        "PP = 237 + 10 = 247 psi"
+      ],
+      "instructorExplanation": "This run reuses the same wye picture but adds elevation pressure to the final pump pressure."
+    }
+  ]
 }

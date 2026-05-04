@@ -6,9 +6,60 @@
   "image": "single-line-engine181.svg",
   "scene": "Engine 181 is set up on the Alpha side. One attack crew is requesting water on a 1¾″ preconnect.",
   "studentQuestion": "Calculate the pump pressure for this attack line.",
-  "details": ["200′ of 1¾″ hose", "185 gpm fog nozzle @ 50 psi", "No elevation change", "No appliance loss"],
-  "answers": { "frictionLoss": 106, "nozzlePressure": 50, "elevationPressure": 0, "applianceLoss": 0, "totalGpm": 185, "pumpPressure": 156 },
+  "details": [
+    "200′ of 1¾″ hose",
+    "185 gpm fog nozzle @ 50 psi",
+    "No elevation change",
+    "No appliance loss"
+  ],
+  "answers": {
+    "frictionLoss": 106,
+    "nozzlePressure": 50,
+    "elevationPressure": 0,
+    "applianceLoss": 0,
+    "totalGpm": 185,
+    "pumpPressure": 156
+  },
   "instructorExplanation": "Using C=15.5 for 1¾″ hose: FL = 15.5 × (185/100)² × 2 = 106 psi. PP = 106 FL + 50 NP = 156 psi.",
   "explainMistake": "If the student enters about 106 psi, they calculated friction loss but forgot to add nozzle pressure. If they enter about 50 psi, they used only nozzle pressure and did not calculate hose friction loss.",
-  "variations": ["Change the length to 250′ and have the student recalculate FL and PP.", "Change the nozzle to 150 gpm @ 100 psi and compare how NP changes the final answer."]
+  "variations": [
+    {
+      "change": "Change the length to 250′ of 1¾″ hose. Keep the same 185 gpm fog nozzle @ 50 psi.",
+      "question": "Same picture, new setup: Engine 181 now has 250′ of 1¾″ hose flowing 185 gpm through a 50 psi fog nozzle. No elevation or appliance loss. What pump pressure should you set?",
+      "correctPP": 183,
+      "tolerance": 5,
+      "details": [
+        "250′ of 1¾″ hose",
+        "185 gpm fog nozzle @ 50 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100′ = 15.5 × (185 ÷ 100)^2 = 53 psi",
+        "Total FL = 53 × 2.5 = 133 psi",
+        "PP = 133 + 50 + 0 + 0 = 183 psi"
+      ],
+      "instructorExplanation": "This is the same 1¾″ preconnect picture, but the hose length is longer. Recalculate friction loss using 2.5 hose lengths."
+    },
+    {
+      "change": "Change the nozzle to 150 gpm @ 100 psi. Keep 200′ of 1¾″ hose.",
+      "question": "Same picture, new setup: Engine 181 has 200′ of 1¾″ hose flowing 150 gpm through a 100 psi fog nozzle. No elevation or appliance loss. What pump pressure should you set?",
+      "correctPP": 170,
+      "tolerance": 5,
+      "details": [
+        "200′ of 1¾″ hose",
+        "150 gpm fog nozzle @ 100 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100′ = 15.5 × (150 ÷ 100)^2 = 35 psi",
+        "Total FL = 35 × 2 = 70 psi",
+        "PP = 70 + 100 + 0 + 0 = 170 psi"
+      ],
+      "instructorExplanation": "This run uses the same picture but changes nozzle pressure. Students must add the 100 psi nozzle pressure instead of 50 psi."
+    }
+  ]
 }

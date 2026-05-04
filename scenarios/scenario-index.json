@@ -294,6 +294,15 @@
     },
     {
       "file": "wye_residential_split_001.json"
+    },
+    {
+      "file": "single-line-engine181.json"
+    },
+    {
+      "file": "wye-engine181.json"
+    },
+    {
+      "file": "portable-master-engine181.json"
     }
   ]
 }
