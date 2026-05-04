@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://fireopscalc.com/</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-05-04</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
@@ -159,5 +159,20 @@
     <loc>https://fireopscalc.com/privacy-policy.html</loc>
     <lastmod>2026-05-03</lastmod>
     <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/friction-loss-table.html</loc>
+    <lastmod>2026-05-04</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/driver-operator-flashcards.html</loc>
+    <lastmod>2026-05-04</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/tools/driver-operator-pumper-flashcards.html</loc>
+    <lastmod>2026-05-04</lastmod>
+    <priority>0.8</priority>
   </url>
 </urlset>
