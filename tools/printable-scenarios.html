@@ -46,16 +46,16 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Printable Scenario Creator V2</div>
-        <h1>Printable scenarios built from reusable artwork files.</h1>
-        <p>This version assembles each printable scene from <strong>individual art files</strong> so you can reuse the same truck, hydrant, building, and hose artwork across many problems.</p>
+        <div class="eyebrow">Printable Scenario Creator V3</div>
+        <h1>Printable scenarios built from reusable assets + SVG hoselines.</h1>
+        <p>This version assembles each printable scene from <strong>individual art files</strong> for the major objects, and uses <strong>SVG hoselines</strong> so the lines actually show and connect cleanly.</p>
       </div>
     </section>
 
     <section class="wrap layout">
       <aside class="panel builder">
         <h2>Build worksheet</h2>
-        <p class="hint">V2 still focuses on single-line driver/operator math, but the scene now comes from reusable image assets instead of inline placeholder graphics.</p>
+        <p class="hint">This version keeps the reusable artwork files for major objects, but replaces the failing hose images with clean SVG-drawn hoselines.</p>
         <div class="controls">
           <div class="field"><label>Worksheet title</label><input id="title" value="Fire Pump Pressure Practice"></div>
           <div class="field"><label>Class / department</label><input id="dept" value="Driver / Operator Training"></div>
@@ -63,7 +63,7 @@
           <label class="checkrow"><input type="checkbox" id="answers"> <span>Include answer key when printing / saving PDF</span></label>
           <div class="btn-row"><button class="btn primary" id="generate">Generate New Sheet</button><button class="btn" id="printBtn">Print / Save PDF</button><button class="btn light" id="copyJson">Copy Scenario JSON</button></div>
         </div>
-        <p class="small-note">Required artwork folder for this page: <code>assets/printable-scenarios/</code>. Keep the included PNG files there.</p>
+        <p class="small-note">Required artwork folder for this page: <code>assets/printable-scenarios/</code>. Main objects use the included PNG files, while hoselines are drawn as SVG for cleaner placement.</p>
         <div class="scenario-mini" id="miniList"></div>
       </aside>
 
@@ -138,6 +138,19 @@
 
   function generate(){ scenarios = [0,1,2,3].map(makeScenario); render(); }
 
+  function hoseSvg(targetType){
+    const attack = targetType === 'house'
+      ? 'M 95 94 C 118 92, 132 86, 150 80 C 166 74, 177 73, 188 74'
+      : 'M 95 94 C 120 92, 138 88, 153 81 C 166 76, 176 73, 184 70';
+    const supply = 'M 112 115 C 106 111, 101 108, 96 103 C 89 96, 83 95, 77 95';
+    return `<svg class="hose-layer" viewBox="0 0 220 150" preserveAspectRatio="none" aria-hidden="true">
+      <path class="hose-main" d="${supply}"/><path class="hose-inner" d="${supply}"/>
+      <path class="hose-main" d="${attack}"/><path class="hose-inner" d="${attack}"/>
+      <circle class="hose-coupling" cx="112" cy="115" r="4.2"/><circle class="hose-coupling" cx="77" cy="95" r="4.2"/>
+      <circle class="hose-coupling" cx="95" cy="94" r="4.2"/><circle class="hose-coupling" cx="188" cy="74" r="4.2"/>
+    </svg>`;
+  }
+
   function sceneHTML(s){
     const target = s.targetType === 'house'
       ? `<img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">`
@@ -149,11 +162,9 @@
       <div class="scene-label lbl-hose">${escapeHtml(s.length + ' ft ' + s.hose)}</div>
       <div class="scene-label lbl-flow">${escapeHtml(s.gpm + ' gpm @ ' + s.np + ' psi')}</div>
       <div class="groundline"></div>
+      ${hoseSvg(s.targetType)}
       <img class="asset truck" alt="Fire truck" src="${ASSET}fire-truck.png">
       <img class="asset hydrant" alt="Hydrant" src="${ASSET}hydrant.png">
-      <img class="asset hose-straight" alt="Supply hose" src="${ASSET}hose-straight.png">
-      <img class="asset hose-curved" alt="Attack hose" src="${ASSET}hose-curved.png">
-      <img class="asset hose-nozzle" alt="Nozzle hose" src="${ASSET}hose-nozzle.png">
       ${target}
       ${extra}
     </div>`;
