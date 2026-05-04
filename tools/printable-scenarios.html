@@ -18,6 +18,8 @@
     .layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;padding-bottom:42px}.panel{background:rgba(16,24,36,.92);border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 70px rgba(0,0,0,.28);border-radius:22px;padding:16px}.panel h2{margin:0 0 12px;font-size:21px;letter-spacing:-.02em}.hint{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 12px}.controls{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#d9e5f5;font-weight:950}.field input,.field select{width:100%;border:1px solid #31435c;background:#07101d;color:#fff;border-radius:13px;padding:11px 12px;font-size:15px;font-weight:760}.checkrow{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:#d8e2ee;line-height:1.35}.checkrow input{margin-top:3px}.btn{border:1px solid rgba(255,255,255,.16);background:#172335;color:#fff;border-radius:15px;padding:12px 13px;font-weight:950;cursor:pointer;text-align:center}.btn.primary{background:linear-gradient(135deg,#f04438,#9f1d18);border-color:rgba(255,255,255,.14);box-shadow:0 14px 28px rgba(229,57,53,.2)}.btn.light{background:#f6f8fb;color:#121923}.btn-row{display:grid;grid-template-columns:1fr;gap:10px}.small-note{font-size:12px;color:#9fb0c4;line-height:1.45;margin:10px 0 0}.scenario-mini{display:grid;gap:8px;margin-top:12px}.mini{border:1px solid rgba(255,255,255,.1);background:#0b131f;border-radius:14px;padding:10px}.mini b{display:block;font-size:13px}.mini span{display:block;color:#aebed1;font-size:12px;margin-top:2px}.preview-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}.preview-head p{margin:0;color:var(--muted);font-size:13px}.screen-sheet{overflow:auto;padding:6px}.sheet{background:var(--paper);color:var(--ink);width:8.5in;min-height:11in;margin:0 auto;padding:.38in;box-shadow:0 22px 70px rgba(0,0,0,.45)}
     .sheet-title{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:8px}.sheet-title h2{margin:0;font-size:21px;letter-spacing:.01em}.sheet-title small{font-size:10.5px;line-height:1.35;text-align:right;color:#222}.student-line{display:grid;grid-template-columns:1.2fr .8fr .7fr;gap:8px;margin:0 0 8px;font-size:11px}.line{border-bottom:1.4px solid #111;min-height:18px}.scenario-grid{display:grid;grid-template-columns:1fr;gap:8px}.card{break-inside:avoid;border:2px solid #111;border-radius:10px;padding:8px;min-height:2.15in;display:flex;flex-direction:column;gap:6px}.card-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #222;padding-bottom:5px}.card-main{display:grid;grid-template-columns:280px 1fr;gap:10px;align-items:start}.card-head b{font-size:14.2px}.card-head span{font-size:10px;color:#333;text-transform:uppercase;font-weight:800;letter-spacing:.05em}.scene{position:relative;height:132px;border:1.4px solid #111;border-radius:8px;overflow:hidden;background:#fff}.groundline{position:absolute;left:0;right:0;bottom:18px;border-top:1px dashed rgba(0,0,0,.35)}
     .asset{position:absolute;display:block;object-fit:contain;filter:grayscale(1) contrast(1.05);mix-blend-mode:multiply;background:transparent}
+    .hose-layer{position:absolute;inset:0;z-index:6;pointer-events:none}.target-fire-layer{position:absolute;inset:0;z-index:5;pointer-events:none}
+    .hose-main{stroke:#111;stroke-width:8;fill:none;stroke-linecap:round;stroke-linejoin:round}.hose-inner{stroke:#fff;stroke-width:3.2;fill:none;stroke-linecap:round;stroke-linejoin:round}.hose-coupling{fill:#fff;stroke:#111;stroke-width:1.8}.flame{fill:#fff;stroke:#111;stroke-width:2.4;stroke-linejoin:round}
     .scene .truck{left:-6px;bottom:12px;width:118px;height:118px;z-index:4}
     .scene .target.house{right:6px;bottom:12px;width:94px;height:94px;z-index:4}
     .scene .target.building{right:8px;bottom:6px;width:94px;height:122px;z-index:4}
@@ -46,16 +48,16 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Printable Scenario Creator V5</div>
-        <h1>Printable scenarios built from reusable assets + SVG hoselines.</h1>
-        <p>This version assembles each printable scene from <strong>individual art files</strong> for the major objects, and uses <strong>SVG hoselines</strong> so the lines actually show and connect cleanly.</p>
+        <div class="eyebrow">Printable Scenario Creator V6</div>
+        <h1>Printable scenarios with simplified scenes and improved hose connections.</h1>
+        <p>This version keeps the scene simple: <strong>fire truck + hoseline + object on fire</strong>, with improved SVG hose routing and optional house or commercial-building targets.</p>
       </div>
     </section>
 
     <section class="wrap layout">
       <aside class="panel builder">
         <h2>Build worksheet</h2>
-        <p class="hint">This version simplifies the scene to only the core elements: fire truck, hoseline, and object on fire.</p>
+        <p class="hint">V6 keeps only the core scene elements and improves the hose connection point at the truck discharge. It also adds house and commercial-building-on-fire targets.</p>
         <div class="controls">
           <div class="field"><label>Worksheet title</label><input id="title" value="Fire Pump Pressure Practice"></div>
           <div class="field"><label>Class / department</label><input id="dept" value="Driver / Operator Training"></div>
@@ -63,12 +65,12 @@
           <label class="checkrow"><input type="checkbox" id="answers"> <span>Include answer key when printing / saving PDF</span></label>
           <div class="btn-row"><button class="btn primary" id="generate">Generate New Sheet</button><button class="btn" id="printBtn">Print / Save PDF</button><button class="btn light" id="copyJson">Copy Scenario JSON</button></div>
         </div>
-        <p class="small-note">Required artwork folder for this page: <code>assets/printable-scenarios/</code>. Main objects use the included PNG files, while hoselines are drawn as SVG for cleaner placement.</p>
+        <p class="small-note">Required artwork folder for this page: <code>assets/printable-scenarios/</code>. Main objects use the included PNG files, while hoselines and building-fire overlay are drawn as SVG for cleaner placement.</p>
         <div class="scenario-mini" id="miniList"></div>
       </aside>
 
       <section class="panel preview">
-        <div class="preview-head"><h2 style="margin:0">Worksheet preview</h2><p>Four simplified scenario rows per page • optional answer key</p></div>
+        <div class="preview-head"><h2 style="margin:0">Worksheet preview</h2><p>Four simplified wide scenarios per page • optional answer key</p></div>
         <div class="screen-sheet"><div class="sheet" id="sheet"></div></div>
       </section>
     </section>
@@ -87,6 +89,7 @@
   const elevationsMixed = [0,10,-10,20,-20,30];
   const appliancesBeginner = [0,0,0,10];
   const appliancesMixed = [0,0,10,10,15];
+  const targetTypes = ['house','building'];
   let scenarios = [];
 
   function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -109,7 +112,14 @@
     const fl = Math.round(c * q * q * l);
     const ppRaw = nozzle.np + fl + elevationPsi + appliance;
     const pp = round5(ppRaw);
-    const sceneTitle = pick(['Residential Attack Line','Front Door Stretch','Garage Fire Stretch','Single Line Structure Fire']);
+    const targetType = pick(targetTypes);
+    const hoseCurve = Math.floor(Math.random() * 3);
+    const sceneTitle = targetType === 'house'
+      ? pick(['Residential Attack Line','Front Door Stretch','Garage Fire Stretch','Single Line House Fire'])
+      : pick(['Commercial Attack Line','Storefront Stretch','Apartment Line','Building Fire Attack']);
+    const problem = targetType === 'house'
+      ? 'Engine 181 is stretching one attack line to a residential fire. Calculate the pump discharge pressure.'
+      : 'Engine 181 is stretching one attack line to a commercial building fire. Calculate the pump discharge pressure.';
     return {
       id:`single_line_${Date.now()}_${i}`,
       type:'single_line',
@@ -126,33 +136,59 @@
       appliance,
       fl,
       pp,
-      problem: 'Engine 181 is stretching one attack line to a structure fire. Calculate the pump discharge pressure.',
+      targetType,
+      hoseCurve,
+      problem,
       math:`FL = ${c} × (${q.toFixed(2)})² × ${l.toFixed(1)} = ${fl} psi. PP = ${nozzle.np} + ${fl} ${elevationPsi>=0?'+':'-'} ${Math.abs(elevationPsi)} + ${appliance} = ${ppRaw} psi. Round to ${pp} psi.`
     };
   }
 
   function generate(){ scenarios = [0,1,2,3].map(makeScenario); render(); }
 
-  function hoseSvg(){
-    // Simplified scene: one attack line only.
-    // Start point overlaps the truck discharge area.
-    // End point overlaps the burning structure so the connection is obvious.
-    const attack = 'M 84 95 C 101 95, 118 95, 134 97 C 149 99, 161 101, 173 103';
+  function hoseSvg(targetType, hoseCurve){
+    // Scene coordinate system: 220 x 150.
+    // The discharge stub intentionally starts inside the truck body so the hose visually hooks to the engine.
+    const dischargeStub = 'M 57 92 L 70 92';
+    const housePaths = [
+      'M 70 92 C 86 92, 100 92, 114 94 C 130 96, 145 99, 160 102 C 170 104, 177 105, 183 105',
+      'M 70 92 C 85 88, 100 88, 116 91 C 131 94, 145 100, 158 104 C 169 106, 176 106, 183 105',
+      'M 70 92 C 84 96, 98 97, 113 96 C 128 95, 144 96, 158 101 C 169 105, 176 106, 183 105'
+    ];
+    const buildingPaths = [
+      'M 70 92 C 88 92, 104 91, 120 89 C 136 87, 150 86, 162 88 C 171 90, 177 94, 182 98',
+      'M 70 92 C 86 89, 102 87, 118 86 C 134 85, 149 86, 161 90 C 171 93, 177 96, 182 98',
+      'M 70 92 C 85 96, 101 95, 118 92 C 134 89, 148 88, 160 90 C 170 92, 177 95, 182 98'
+    ];
+    const attack = (targetType === 'house' ? housePaths : buildingPaths)[hoseCurve % 3];
+    const end = targetType === 'house' ? {x:183, y:105} : {x:182, y:98};
     return `<svg class="hose-layer" viewBox="0 0 220 150" preserveAspectRatio="none" aria-hidden="true">
+      <path class="hose-main" d="${dischargeStub}"/><path class="hose-inner" d="${dischargeStub}"/>
       <path class="hose-main" d="${attack}"/><path class="hose-inner" d="${attack}"/>
-      <circle class="hose-coupling" cx="84" cy="95" r="4.2"/>
-      <circle class="hose-coupling" cx="173" cy="103" r="4.2"/>
+      <circle class="hose-coupling" cx="70" cy="92" r="4.2"/>
+      <circle class="hose-coupling" cx="${end.x}" cy="${end.y}" r="4.2"/>
+    </svg>`;
+  }
+
+  function targetFireSvg(targetType){
+    if(targetType !== 'building') return '';
+    return `<svg class="target-fire-layer" viewBox="0 0 220 150" preserveAspectRatio="none" aria-hidden="true">
+      <path class="flame" d="M165 30 C160 22 167 17 169 24 C172 14 182 13 180 27 C187 18 196 19 193 31 C199 24 206 26 204 36 C198 34 194 39 189 34 C185 42 177 38 178 30 C173 35 168 35 165 30 Z"/>
+      <path class="flame" d="M179 18 C176 12 182 9 183 14 C186 7 193 7 191 16 C197 10 203 11 201 19 C206 15 211 17 210 24 C205 23 202 26 198 23 C195 29 189 26 189 19 C186 22 181 22 179 18 Z"/>
     </svg>`;
   }
 
   function sceneHTML(s){
+    const target = s.targetType === 'house'
+      ? `<img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">`
+      : `<img class="asset target building" alt="Building on fire" src="${ASSET}urban-building.png">`;
     return `<div class="scene">
       <div class="scene-label lbl-hose">${escapeHtml(s.length + ' ft ' + s.hose)}</div>
       <div class="scene-label lbl-flow">${escapeHtml(s.gpm + ' gpm @ ' + s.np + ' psi')}</div>
       <div class="groundline"></div>
       <img class="asset truck" alt="Fire truck" src="${ASSET}fire-truck.png">
-      <img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">
-      ${hoseSvg()}
+      ${target}
+      ${targetFireSvg(s.targetType)}
+      ${hoseSvg(s.targetType, s.hoseCurve)}
     </div>`;
   }
 
@@ -197,7 +233,7 @@
   $('dept').addEventListener('input', render);
   $('difficulty').addEventListener('change', generate);
   $('copyJson').addEventListener('click', async () => {
-    const payload = {version:'printable_scenarios_asset_based_v1', type:'single_line', generatedAt:new Date().toISOString(), assetFolder:'assets/printable-scenarios', scenarios};
+    const payload = {version:'printable_scenarios_v6', type:'single_line', generatedAt:new Date().toISOString(), assetFolder:'assets/printable-scenarios', scenarios};
     try{ await navigator.clipboard.writeText(JSON.stringify(payload,null,2)); $('copyJson').textContent='Copied JSON'; setTimeout(()=>$('copyJson').textContent='Copy Scenario JSON',1400); }
     catch(e){ alert(JSON.stringify(payload,null,2)); }
   });
