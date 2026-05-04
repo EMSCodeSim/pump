@@ -127,35 +127,60 @@
     render();
   }
 
+
   function truck(x,y,s){return `<g transform="translate(${x} ${y}) scale(${s})">
-    <path class="fillwhite" d="M9 53 Q9 38 23 38 H64 Q78 38 84 52 L89 83 H9 Z"/>
-    <path class="fillwhite" d="M78 44 H142 Q151 44 151 53 V84 Q151 90 145 90 H84 L78 44 Z"/>
-    <path class="asset-stroke thin" d="M9 64 H151 M83 44 V90 M106 44 V90"/>
-    <rect class="fillwhite thin" x="19" y="47" width="22" height="18" rx="4"/>
-    <rect class="fillwhite thin" x="45" y="47" width="25" height="18" rx="4"/>
-    <rect class="fillwhite thin" x="89" y="51" width="17" height="17" rx="3"/>
-    <path class="asset-stroke thin" d="M21 76 H46 M22 81 H44 M57 73 H71 M10 86 H80"/>
-    <rect class="fillwhite thin" x="112" y="54" width="18" height="25" rx="2"/>
-    <path class="asset-stroke thin" d="M112 60 H130 M112 66 H130 M112 72 H130"/>
-    <rect class="fillwhite thin" x="133" y="55" width="12" height="24" rx="2"/>
-    <path class="asset-stroke thin" d="M133 62 H145 M133 69 H145"/>
-    <circle class="fillwhite" cx="47" cy="90" r="14"/><circle class="fillwhite thin" cx="47" cy="90" r="7"/><circle fill="#111" cx="47" cy="90" r="2.8"/>
-    <circle class="fillwhite" cx="121" cy="90" r="14"/><circle class="fillwhite thin" cx="121" cy="90" r="7"/><circle fill="#111" cx="121" cy="90" r="2.8"/>
-    <path class="fillwhite thin" d="M19 34 H66 V38 H19 Z"/><path class="fillwhite thin" d="M26 28 H58 Q64 28 66 34 H20 Q22 28 26 28 Z"/>
-    <path class="asset-stroke thin" d="M69 31 H139 M75 25 H145 M82 25 L70 31 M94 25 L82 31 M106 25 L94 31 M118 25 L106 31 M130 25 L118 31 M142 25 L130 31"/>
-    <path class="fillwhite thin" d="M149 72 h9 q3 0 3 3 v0 q0 3-3 3 h-9 z"/>
+    <path class="fillwhite" d="M8 70 V45 Q8 36 18 36 H72 Q83 36 88 46 L92 54 V95 H8 Z"/>
+    <path class="fillwhite" d="M92 50 H152 Q161 50 161 58 V95 H92 Z"/>
+    <path class="fillwhite thin" d="M18 46 H41 V67 H16 V48 Q16 46 18 46 Z"/>
+    <path class="fillwhite thin" d="M43 46 H70 V67 H43 Z"/>
+    <rect class="fillwhite thin" x="74" y="49" width="11" height="15" rx="2"/>
+    <rect class="fillwhite thin" x="12" y="74" width="31" height="13" rx="2"/>
+    <path class="asset-stroke thin" d="M17 79 H38 M17 83 H38"/>
+    <rect class="fillwhite thin" x="47" y="74" width="10" height="10" rx="1.5"/>
+    <rect class="fillwhite thin" x="61" y="74" width="10" height="10" rx="1.5"/>
+    <path class="asset-stroke thin" d="M9 89 H91 M92 62 H161"/>
+    <rect class="fillwhite thin" x="105" y="56" width="19" height="30" rx="2"/>
+    <path class="asset-stroke thin" d="M105 62 H124 M105 68 H124 M105 74 H124 M105 80 H124"/>
+    <rect class="fillwhite thin" x="128" y="56" width="25" height="30" rx="2"/>
+    <path class="asset-stroke thin" d="M128 64 H153 M128 70 H153 M128 76 H153"/>
+    <rect class="fillwhite thin" x="95" y="58" width="7" height="6" rx="1"/>
+    <circle class="fillwhite thin" cx="98" cy="71" r="2.2"/><circle class="fillwhite thin" cx="98" cy="78" r="2.2"/><circle class="fillwhite thin" cx="101" cy="84" r="2.8"/>
+    <path class="fillwhite thin" d="M24 30 H60 V36 H24 Z"/>
+    <path class="asset-stroke thin" d="M77 31 H148 M83 26 H154 M88 26 L79 31 M100 26 L91 31 M112 26 L103 31 M124 26 L115 31 M136 26 L127 31 M148 26 L139 31"/>
+    <rect class="fillwhite thin" x="5" y="50" width="4" height="16" rx="2"/>
+    <rect class="fillwhite thin" x="76" y="68" width="3" height="14" rx="1.5"/>
+    <circle class="fillwhite" cx="46" cy="96" r="15"/><circle class="fillwhite thin" cx="46" cy="96" r="8"/><circle fill="#111" cx="46" cy="96" r="2.6"/>
+    <circle class="fillwhite" cx="132" cy="96" r="15"/><circle class="fillwhite thin" cx="132" cy="96" r="8"/><circle fill="#111" cx="132" cy="96" r="2.6"/>
+    <path class="fillwhite thin" d="M96 86 h11 q4 0 4 4 v0 q0 4-4 4 h-11 z"/>
   </g>`}
 
   function house(x,y,s,flames=true){return `<g transform="translate(${x} ${y}) scale(${s})">
-    <path class="fillwhite" d="M14 51 L51 16 L88 51 V94 H14 Z"/>
-    <path class="fillwhite" d="M88 51 L112 40 L138 58 V94 H88 Z"/>
-    <path class="asset-stroke" d="M8 52 L51 10 L94 53"/>
-    <path class="asset-stroke thin" d="M88 51 L112 40 L139 58"/>
-    <rect class="fillwhite thin" x="45" y="65" width="19" height="29" rx="3"/><circle fill="#111" cx="59" cy="80" r="2"/>
-    <rect class="fillwhite thin" x="25" y="64" width="17" height="16" rx="2"/><path class="asset-stroke thin" d="M33.5 64 V80 M25 72 H42"/>
-    <rect class="fillwhite thin" x="108" y="65" width="18" height="16" rx="2"/><path class="asset-stroke thin" d="M117 65 V81 M108 73 H126"/>
-    <path class="asset-stroke thin" d="M40 95 H69 M43 90 H66"/>
-    ${flames?`<path class="fillwhite" d="M27 35 C18 21 31 12 33 27 C38 9 56 4 53 30 C64 11 81 12 76 37 C88 24 103 28 96 48 C87 43 82 51 73 43 C66 55 54 48 57 35 C47 45 34 45 27 35 Z"/><path class="asset-stroke" d="M27 35 C18 21 31 12 33 27 C38 9 56 4 53 30 C64 11 81 12 76 37 C88 24 103 28 96 48 C87 43 82 51 73 43 C66 55 54 48 57 35 C47 45 34 45 27 35 Z"/><path class="asset-stroke thin" d="M57 35 C63 23 68 27 66 39 M75 42 C84 34 88 39 86 47"/>`:''}
+    <path class="fillwhite" d="M25 44 L58 17 L93 44 V95 H25 Z"/>
+    <path class="fillwhite" d="M93 44 L118 34 L144 52 V95 H93 Z"/>
+    <path class="asset-stroke" d="M18 45 L58 10 L100 46"/>
+    <path class="asset-stroke thin" d="M93 44 L118 34 L145 52"/>
+    <path class="asset-stroke thin" d="M33 58 H85 M33 64 H85 M33 70 H85 M33 76 H85 M33 82 H85"/>
+    <path class="asset-stroke thin" d="M101 57 H135 M101 63 H135 M101 69 H135 M101 75 H135"/>
+    <rect class="fillwhite thin" x="52" y="66" width="18" height="29" rx="2.5"/>
+    <circle fill="#111" cx="66" cy="81" r="2"/>
+    <path class="fillwhite thin" d="M49 95 H74 M51 90 H72"/>
+    <rect class="fillwhite thin" x="35" y="58" width="14" height="18" rx="1.8"/>
+    <path class="asset-stroke thin" d="M42 58 V76 M35 67 H49"/>
+    <rect class="fillwhite thin" x="108" y="60" width="14" height="18" rx="1.8"/>
+    <path class="asset-stroke thin" d="M115 60 V78 M108 69 H122"/>
+    <path class="fillwhite thin" d="M23 94 q-8 1 -12 -4 q4 -6 12 -4 q5 0 8 4 q-3 4 -8 4 Z"/>
+    <path class="fillwhite thin" d="M138 94 q9 1 13 -4 q-4 -6 -13 -4 q-5 0 -8 4 q3 4 8 4 Z"/>
+    ${flames?`<path class="fillwhite" d="M36 33 C26 18 40 10 42 23 C48 7 66 6 64 29 C74 11 91 13 86 34 C97 21 111 25 106 43 C98 40 93 47 86 40 C79 53 65 47 68 35 C58 45 44 43 36 33 Z"/><path class="asset-stroke" d="M36 33 C26 18 40 10 42 23 C48 7 66 6 64 29 C74 11 91 13 86 34 C97 21 111 25 106 43 C98 40 93 47 86 40 C79 53 65 47 68 35 C58 45 44 43 36 33 Z"/><path class="asset-stroke thin" d="M68 35 C71 26 77 24 77 34 M87 39 C92 31 97 34 96 41"/>`:''}
+  </g>`}
+
+  function hydrant(x,y,s){return `<g transform="translate(${x} ${y}) scale(${s})">
+    <path class="fillwhite" d="M20 28 Q20 16 31 16 H37 Q48 16 48 28 V36 H52 Q60 36 60 44 V54 H48 V88 H20 V54 H8 V44 Q8 36 16 36 H20 Z"/>
+    <circle class="fillwhite thin" cx="34" cy="14" r="5"/>
+    <circle class="fillwhite thin" cx="12" cy="46" r="6"/>
+    <circle class="fillwhite thin" cx="56" cy="46" r="6"/>
+    <circle class="fillwhite thin" cx="34" cy="46" r="7"/>
+    <path class="asset-stroke thin" d="M25 60 H43 M25 67 H43 M25 74 H43"/>
+    <path class="fillwhite thin" d="M18 88 H50 V93 H18 Z"/>
   </g>`}
 
   function labels(s){return `<g>
@@ -169,22 +194,22 @@
   </g>`}
 
   function sceneSVG(s){
-    const paths = [
-      'M74 86 C98 91 118 99 139 88 C153 80 166 78 182 80',
-      'M74 86 C95 74 115 81 130 88 C148 97 164 86 182 80',
-      'M74 86 C101 86 111 74 132 79 C153 84 164 77 182 80',
-      'M74 86 C94 96 113 96 133 88 C151 81 164 79 182 80'
-    ];
-    const main = paths[s.scene || 0];
-    const fg = 'M22 106 C62 99 94 106 127 103 C159 101 184 99 211 106';
+    const main = [
+      'M90 87 C112 92 122 96 139 94 C151 93 162 87 173 83',
+      'M90 87 C113 75 126 81 141 90 C156 99 166 89 173 83',
+      'M90 87 C113 88 126 79 141 82 C156 85 165 86 173 83',
+      'M90 87 C109 98 125 96 141 89 C155 83 166 82 173 83'
+    ][s.scene || 0];
+    const supply = 'M100 102 C118 103 126 103 139 101 C150 99 156 100 164 100';
     return `<svg viewBox="0 0 220 120" role="img" aria-label="simple fireground scene">
       <path class="ground" d="M6 104 H214"/>
-      ${truck(3,8,.58)}
-      ${house(135,25,.55,true)}
+      ${truck(1,10,.52)}
+      ${house(140,23,.52,true)}
+      ${hydrant(120,72,.34)}
       <path class="hoseLine" d="${main}"/><path class="hoseInner" d="${main}"/>
-      ${hoseCoupling(75,86,16,.9)}${hoseCoupling(182,80,-8,.82)}
-      <path class="hoseLine" d="${fg}"/><path class="hoseInner" d="${fg}"/>
-      ${hoseCoupling(22,106,-3,.72)}${hoseCoupling(211,106,8,.72)}
+      ${hoseCoupling(92,87,18,.9)}${hoseCoupling(173,83,-10,.82)}
+      <path class="hoseLine" d="${supply}"/><path class="hoseInner" d="${supply}"/>
+      ${hoseCoupling(100,102,0,.68)}${hoseCoupling(164,100,0,.68)}
       ${labels(s)}
     </svg>`;
   }
