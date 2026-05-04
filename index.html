@@ -21,18 +21,122 @@
   <meta name="twitter:description" content="A phone-friendly pump calculator, printable pump card creator, and engineer training resource built for firefighters."/>
   <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
 <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {"@type":"WebSite","@id":"https://fireopscalc.com/#website","name":"FireOps Calc","url":"https://fireopscalc.com/","description":"Fire pump calculator, printable pump card creator, printable training scenarios, and fireground hydraulics reference tools for firefighters."},
-      {"@type":"SoftwareApplication","@id":"https://fireopscalc.com/#software","name":"FireOps Calc","url":"https://fireopscalc.com/","image":"https://fireopscalc.com/fireopscalc.png","applicationCategory":"EducationalApplication","operatingSystem":"Web, iOS, Android","description":"A firefighter-built fire pump calculator and training tool for pump pressure, friction loss, water supply, relay pumping, standpipe calculations, pump cards, and driver/operator training.","sameAs":["https://apps.apple.com/us/app/fireopscalc/id6753922160","https://play.google.com/store/apps/details?id=com.fireopscalc.app"]},
-      {"@type":"FAQPage","@id":"https://fireopscalc.com/#faq","mainEntity":[
-        {"@type":"Question","name":"What is FireOps Calc?","acceptedAnswer":{"@type":"Answer","text":"FireOps Calc is a firefighter-built fire pump calculator and training resource for pump pressure, friction loss, printable pump cards, printable scenarios, and driver/operator practice."}},
-        {"@type":"Question","name":"What tools are available?","acceptedAnswer":{"@type":"Answer","text":"FireOps Calc includes a web pump calculator, pump card creator, printable pump scenarios, Driver/Operator flashcards, DO Pumper flashcards, a friction loss table, hydrant flow calculator, relay pumping calculator, nozzle reaction calculator, tender shuttle timer, fire load calculator, how-to guides, and fireground hydraulics training pages."}},
-        {"@type":"Question","name":"Is FireOps Calc for training or real fireground use?","acceptedAnswer":{"@type":"Answer","text":"FireOps Calc is designed for training, quick reference, and calculation support. Users should always follow department SOPs, local guidelines, instructor direction, and manufacturer data."}}
-      ]}
-    ]
-  }
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://fireopscalc.com/#website",
+      "name": "FireOps Calc",
+      "url": "https://fireopscalc.com/",
+      "description": "Firefighter-built pump pressure calculators, printable pump cards, visual pump scenarios, driver/operator flashcards, and fireground hydraulics training resources."
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://fireopscalc.com/#organization",
+      "name": "FireOps Calc",
+      "url": "https://fireopscalc.com/",
+      "logo": "https://fireopscalc.com/fireopscalc.png"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://fireopscalc.com/#software",
+      "name": "FireOps Calc",
+      "url": "https://fireopscalc.com/",
+      "image": "https://fireopscalc.com/fireopscalc.png",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web, iOS, Android",
+      "description": "A firefighter-built fire pump calculator and training tool for pump pressure, friction loss, water supply, relay pumping, standpipe calculations, pump cards, printable scenarios, and driver/operator training.",
+      "sameAs": [
+        "https://apps.apple.com/us/app/fireopscalc/id6753922160",
+        "https://play.google.com/store/apps/details?id=com.fireopscalc.app"
+      ]
+    },
+    {
+      "@type": "ItemList",
+      "@id": "https://fireopscalc.com/#tool-list",
+      "name": "FireOps Calc Training Tools",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Pump Pressure Calculator",
+          "url": "https://fireopscalc.com/calculator.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Printable Pump Scenarios",
+          "url": "https://fireopscalc.com/tools/printable-scenarios.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Driver/Operator Flashcards",
+          "url": "https://fireopscalc.com/tools/driver-operator-flashcards.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 4,
+          "name": "DO Pumper Flashcards",
+          "url": "https://fireopscalc.com/tools/driver-operator-pumper-flashcards.html"
+        },
+        {
+          "@type": "ListItem",
+          "position": 5,
+          "name": "Printable Instructor Packs",
+          "url": "https://fireopscalc.com/tools/instructor-packs.html"
+        }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://fireopscalc.com/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is FireOps Calc?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "FireOps Calc is a firefighter-built fire pump calculator and training resource for pump pressure, friction loss, printable pump cards, visual pump scenarios, and driver/operator practice."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What tools are available?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "FireOps Calc includes a web pump calculator, pump card creator, printable pump scenarios, Driver/Operator flashcards, DO Pumper flashcards, a friction loss table, hydrant flow calculator, relay pumping calculator, nozzle reaction calculator, tender shuttle timer, fire load calculator, instructor packs, how-to guides, and fireground hydraulics training pages."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can instructors print practice material from FireOps Calc?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. The site includes printable pump scenarios, printable friction loss references, pump cards, flashcard print views, and instructor packs with answer keys for station or academy training."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is this an official certification test bank?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. FireOps Calc uses original training questions and scenarios for study and instruction. It is not an official certification test bank and should be used with department SOPs and instructor direction."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is FireOps Calc for training or real fireground use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "FireOps Calc is designed for training, quick reference, and calculation support. Users should always follow department SOPs, local guidelines, instructor direction, and manufacturer data."
+          }
+        }
+      ]
+    }
+  ]
+}
   </script>
 
   <!-- FireOps source website styling v5: embedded so the homepage cannot load as plain text. -->
@@ -339,6 +443,35 @@
   .site-footer{background:var(--fo-dark);color:#fff;padding:34px 0;border-top:1px solid var(--fo-line-dark)}
   .footer-grid{display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap;color:#c9cdd5;font-size:14px}.footer-grid a{color:#fff;text-decoration:none;font-weight:850}
 
+
+
+  /* High-value homepage update: grouped user paths, scenario showcase, instructor packs, FAQ */
+  .start-panel{
+    margin-top:22px;
+    background:rgba(255,255,255,.09);
+    border:1px solid rgba(255,255,255,.16);
+    border-radius:22px;
+    padding:16px;
+    max-width:720px;
+  }
+  .start-panel strong{display:block;color:#fff;font-size:15px;margin-bottom:8px;letter-spacing:-.015em}
+  .start-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0;padding:0;list-style:none;counter-reset:startstep}
+  .start-steps li{counter-increment:startstep;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.10);border-radius:15px;padding:10px;color:#e9ebf0;font-size:12px;font-weight:850}
+  .start-steps li::before{content:counter(startstep);display:inline-grid;place-items:center;width:21px;height:21px;border-radius:50%;background:#ff4545;color:#fff;font-size:12px;font-weight:1000;margin-right:7px}
+  .tool-path-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+  .tool-path{background:#fff;border:1px solid var(--fo-line);border-radius:28px;box-shadow:var(--fo-shadow-soft);padding:22px;display:flex;flex-direction:column;min-height:100%}
+  .tool-path h3{margin:0 0 8px;font-size:26px;letter-spacing:-.045em;color:var(--fo-ink)}
+  .tool-path p{margin:0 0 18px;color:var(--fo-muted);font-size:15px}
+  .path-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}.path-icon{width:52px;height:52px;border-radius:18px;background:var(--fo-red-soft);color:var(--fo-red);display:grid;place-items:center;font-size:27px;flex:0 0 auto}
+  .path-links{display:grid;gap:10px;margin-top:auto}.path-link{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--fo-line);background:#fafbfc;border-radius:16px;padding:12px 13px;text-decoration:none;font-weight:950;color:#20242c}.path-link small{display:block;color:var(--fo-muted);font-weight:800;margin-top:2px}.path-link:hover{border-color:rgba(227,41,41,.35);background:#fff}.path-link::after{content:"→";color:var(--fo-red);font-weight:1000}
+  .scenario-feature{background:linear-gradient(180deg,#ffffff 0%,#f4f5f7 100%)}
+  .scenario-showcase{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;align-items:stretch}
+  .scenario-main{grid-row:span 2}.scenario-mini-grid{display:grid;gap:18px}.scenario-tile{position:relative;overflow:hidden;background:#11141b;color:#fff;border-radius:28px;min-height:250px;border:1px solid rgba(255,255,255,.12);box-shadow:var(--fo-shadow-soft)}
+  .scenario-tile img{width:100%;height:100%;object-fit:cover;display:block;min-height:250px}.scenario-main img{min-height:530px}.scenario-tile::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.10) 35%,rgba(0,0,0,.78) 100%)}
+  .scenario-tile-body{position:absolute;left:18px;right:18px;bottom:18px;z-index:2}.scenario-tile-body h3{margin:0 0 5px;font-size:24px;letter-spacing:-.04em}.scenario-tile-body p{margin:0;color:#e9ebf0;font-weight:750}.scenario-tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.scenario-tags span{border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);backdrop-filter:blur(8px);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.06em;color:#fff}
+  .pack-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.pack-card{background:#fff;border:1px solid var(--fo-line);border-radius:24px;padding:20px;text-decoration:none;box-shadow:var(--fo-shadow-soft);display:flex;flex-direction:column;min-height:220px}.pack-card:hover{transform:translateY(-3px);box-shadow:var(--fo-shadow);border-color:rgba(227,41,41,.35)}.pack-card small{color:var(--fo-red);font-weight:1000;text-transform:uppercase;letter-spacing:.07em}.pack-card h3{margin:9px 0 8px;font-size:21px;letter-spacing:-.035em}.pack-card p{margin:0 0 14px;color:var(--fo-muted);font-size:14px}.pack-card .open{margin-top:auto;color:var(--fo-red);font-weight:1000}
+  .faq-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}.faq-card{background:#fff;border:1px solid var(--fo-line);border-radius:22px;padding:20px;box-shadow:var(--fo-shadow-soft)}.faq-card h3{margin:0 0 8px;font-size:19px;letter-spacing:-.025em}.faq-card p{margin:0;color:var(--fo-muted)}
+
   /* Unified tool/reference pages */
   body:not(.home-page) .hero{
     background:
@@ -404,6 +537,15 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.05) !important;
   }
   .pill,.chip{background:#fff !important;border:1px solid var(--fo-line) !important;color:var(--fo-muted) !important;border-radius:999px !important}
+
+
+  @media(max-width:980px){
+    .tool-path-grid,.scenario-showcase,.pack-grid,.faq-grid{grid-template-columns:1fr !important}
+    .scenario-main{grid-row:auto}.scenario-main img,.scenario-tile img{min-height:320px}.start-steps{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:620px){
+    .start-steps{grid-template-columns:1fr}.tool-path,.pack-card{border-radius:20px;padding:18px}.scenario-tile{border-radius:22px}.scenario-tile-body h3{font-size:21px}
+  }
 
   @media(max-width:980px){
     .hero-grid,.split-grid,.app-grid{grid-template-columns:1fr !important}
@@ -514,59 +656,101 @@ body:not(.home-page) .mini-table td, body:not(.home-page) .mini-table th{border-
     <section class="home-section" id="tools">
       <div class="wrap">
         <div class="section-head">
-          <div class="eyebrow">Tool hub</div>
-          <h2>Fireground calculators with one clean look.</h2>
-          <p>All tools now use the same professional card style, buttons, spacing, and form controls so users know they are still inside FireOps Calc.</p>
+          <div class="eyebrow">Choose your path</div>
+          <h2>Calculate, train, or print.</h2>
+          <p>The homepage now routes firefighters, students, and instructors by what they came here to do instead of showing one long list of buttons.</p>
         </div>
 
-        <div class="tools-grid">
-          <a class="tool-card" href="/calculator.html"><span class="tool-badge">Core</span><div class="tool-icon">🧮</div><h3>Pump Pressure Calculator</h3><p>Calculate PDP using nozzle pressure, hose friction loss, elevation, and appliance loss.</p><span class="open">Open calculator →</span></a>
-          <a class="tool-card" href="/tools/friction-loss-quick.html"><span class="tool-badge">Quick</span><div class="tool-icon">〰️</div><h3>Friction Loss Quick</h3><p>Run fast hose friction loss calculations for common attack and supply lines.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/friction-loss-table.html"><span class="tool-badge">Reference</span><div class="tool-icon">📊</div><h3>Friction Loss Table</h3><p>Print a quick-reference table for common hose sizes, flows, C values, and hose lengths.</p><span class="open">View table →</span></a>
-          <a class="tool-card" href="/tools/hydrant-flow.html"><span class="tool-badge">Water</span><div class="tool-icon">🚰</div><h3>Hydrant Flow</h3><p>Estimate available hydrant flow from static, residual, and flowing pressures.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/relay-pumping.html"><span class="tool-badge">Water</span><div class="tool-icon">🚒</div><h3>Relay Pumping</h3><p>Determine relay distance, engine spacing, pressure loss, and engine count.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/tender-timer.html"><span class="tool-badge">Rural</span><div class="tool-icon">⏱️</div><h3>Tender Shuttle</h3><p>Estimate cycle time, delivered GPM, and number of tenders needed.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/nozzle-reaction.html"><span class="tool-badge">Attack</span><div class="tool-icon">💦</div><h3>Nozzle Reaction</h3><p>Calculate reaction force for fog and smooth bore nozzles.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/tank-duration.html"><span class="tool-badge">Water</span><div class="tool-icon">🛢️</div><h3>Tank Duration</h3><p>Estimate how long onboard water will last at different flows.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/elevation-pressure.html"><span class="tool-badge">Quick</span><div class="tool-icon">↕️</div><h3>Elevation Pressure</h3><p>Convert elevation change into PSI gain or loss for PDP adjustments.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/standpipe-pump-pressure-calculator.html"><span class="tool-badge">High-rise</span><div class="tool-icon">🏢</div><h3>Standpipe</h3><p>Calculate standpipe pump pressure with elevation, hose, and system needs.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/fire-load-calculator.html"><span class="tool-badge">Training</span><div class="tool-icon">🔥</div><h3>Fire Flow Needed</h3><p>Estimate fire flow needs and attack line requirements for training discussion.</p><span class="open">Calculate →</span></a>
-          <a class="tool-card" href="/tools/pump-card.html"><span class="tool-badge">Print</span><div class="tool-icon">🧾</div><h3>Pump Card Creator</h3><p>Create custom printable pump charts for your apparatus and department setup.</p><span class="open">Generate →</span></a>
-          <a class="tool-card" href="/tools/printable-scenarios.html"><span class="tool-badge">Print</span><div class="tool-icon">📝</div><h3>Printable Scenarios</h3><p>Build four pump-pressure practice problems per page with answer space.</p><span class="open">Create sheets →</span></a>
-          <a class="tool-card" href="/tools/driver-operator-flashcards.html"><span class="tool-badge">Study</span><div class="tool-icon">🚦</div><h3>Driver/Operator Flashcards</h3><p>Review apparatus safety, backing, cone course, scene placement, and practical exam concepts.</p><span class="open">Study cards →</span></a>
-          <a class="tool-card" href="/tools/driver-operator-pumper-flashcards.html"><span class="tool-badge">Study</span><div class="tool-icon">📚</div><h3>DO Pumper Flashcards</h3><p>Practice pump pressure, friction loss, water supply, relay, standpipe, and troubleshooting questions.</p><span class="open">Study cards →</span></a>
+        <div class="tool-path-grid">
+          <article class="tool-path">
+            <div class="path-top"><div class="path-icon">🧮</div><div><h3>Calculate</h3><p>Fast fireground hydraulics tools for pump pressure, friction loss, water supply, and nozzle reaction.</p></div></div>
+            <div class="path-links">
+              <a class="path-link" href="/calculator.html"><span>Pump Pressure Calculator<small>PDP = NP + FL ± elevation + appliance loss</small></span></a>
+              <a class="path-link" href="/tools/friction-loss-quick.html"><span>Friction Loss Quick Calculator<small>Common attack and supply hose calculations</small></span></a>
+              <a class="path-link" href="/tools/hydrant-flow.html"><span>Hydrant Flow / Available GPM<small>Static, residual, and flowing pressure estimate</small></span></a>
+              <a class="path-link" href="/tools/relay-pumping.html"><span>Relay Pumping Calculator<small>Spacing, engine count, and relay pressure loss</small></span></a>
+              <a class="path-link" href="/tools/nozzle-reaction.html"><span>Nozzle Reaction Calculator<small>Fog and smooth bore reaction force</small></span></a>
+            </div>
+          </article>
+
+          <article class="tool-path">
+            <div class="path-top"><div class="path-icon">🚒</div><div><h3>Train</h3><p>Visual scenarios, study cards, and practice questions for driver/operator and pumper review.</p></div></div>
+            <div class="path-links">
+              <a class="path-link" href="/scenario-player.html"><span>Visual Pump Scenarios<small>Phone-friendly scenes with PDP answers and mistake feedback</small></span></a>
+              <a class="path-link" href="/tools/driver-operator-flashcards.html"><span>Driver/Operator Flashcards<small>Apparatus, driving, backing, cones, and placement</small></span></a>
+              <a class="path-link" href="/tools/driver-operator-pumper-flashcards.html"><span>DO Pumper Flashcards<small>Pump math, relay, standpipe, LDH, and troubleshooting</small></span></a>
+              <a class="path-link" href="/how-to.html"><span>How-To Guides<small>Short explanations firefighters can study or share</small></span></a>
+            </div>
+          </article>
+
+          <article class="tool-path">
+            <div class="path-top"><div class="path-icon">🖨️</div><div><h3>Print</h3><p>Printable material for station drills, academy classes, instructor prep, and department reference sheets.</p></div></div>
+            <div class="path-links">
+              <a class="path-link" href="/tools/pump-card.html"><span>Pump Card Creator<small>Build a one-page card from your department setup</small></span></a>
+              <a class="path-link" href="/tools/printable-scenarios.html"><span>Printable Pump Scenarios<small>Four problems per page for classroom practice</small></span></a>
+              <a class="path-link" href="/tools/instructor-packs.html"><span>Instructor Packs + Answer Keys<small>Ready-to-print DO pumper practice sets</small></span></a>
+              <a class="path-link" href="/tools/friction-loss-table.html"><span>Friction Loss Table<small>Printable C × Q² quick reference</small></span></a>
+            </div>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="home-section split-section" id="practice">
-      <div class="wrap split-grid">
-        <div>
-          <div class="eyebrow">Scenario practice</div>
-          <h2>Turn pump math into visual practice.</h2>
-          <p class="lead" style="color:#5d6370!important">Use realistic scene images and JSON scenarios to ask the student for PDP, show the answer, explain the math, and point out common mistakes.</p>
-          <ul class="feature-list">
-            <li>Phone-friendly scene practice for quick station drills.</li>
-            <li>Printable worksheets for classroom or academy use.</li>
-            <li>Formula breakdowns that reinforce driver/operator math.</li>
-          </ul>
-          <div class="hero-actions">
-            <a class="btn primary" href="/scenario-player.html">Play Scenarios</a>
-            <a class="btn light" href="/tools/printable-scenarios.html">Print Scenario Sheets</a>
+    <section class="home-section scenario-feature" id="practice">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Visual scenario practice</div>
+          <h2>Make scenarios the reason firefighters come back.</h2>
+          <p>Use realistic scene images, pump math, answer checks, and mistake explanations to turn the site into a driver/operator training hub.</p>
+        </div>
+        <div class="scenario-showcase">
+          <a class="scenario-tile scenario-main" href="/scenario-player.html" aria-label="Open single attack line scenario practice">
+            <img src="/scenarios/single_line_extended_002.png" alt="Engine 181 supplying a residential single attack line scenario">
+            <div class="scenario-tile-body">
+              <div class="scenario-tags"><span>Single line</span><span>PDP practice</span><span>Beginner</span></div>
+              <h3>Residential attack line</h3>
+              <p>Students calculate pump pressure from nozzle pressure, hose length, friction loss, and elevation.</p>
+            </div>
+          </a>
+          <div class="scenario-mini-grid">
+            <a class="scenario-tile" href="/scenario-player.html" aria-label="Open wye operation scenario practice">
+              <img src="/scenarios/wye_residential_split_001.png" alt="Engine 181 supplying a wye split pump scenario">
+              <div class="scenario-tile-body">
+                <div class="scenario-tags"><span>Wye</span><span>Intermediate</span></div>
+                <h3>Wye operations</h3>
+                <p>Practice branch calculations where the highest pressure branch governs the PDP.</p>
+              </div>
+            </a>
+            <a class="scenario-tile" href="/tools/printable-scenarios.html" aria-label="Open printable pump scenario sheets">
+              <img src="/scenarios/single_line_heavy_003.png" alt="Printable pump pressure scenario preview">
+              <div class="scenario-tile-body">
+                <div class="scenario-tags"><span>Print</span><span>Classroom</span></div>
+                <h3>Printable scenario sheets</h3>
+                <p>Generate four pump-pressure practice problems per page for academy or station training.</p>
+              </div>
+            </a>
           </div>
         </div>
-        <div class="preview-card" aria-label="Scenario preview">
-          <div class="preview-header"><span>Residential attack line</span><span>Scenario preview</span></div>
-          <div class="preview-scene">
-            <img src="/scenarios/single_line_extended_002.png" alt="Engine 181 supplying a residential attack line pump scenario">
-            <div class="preview-overlay">
-              <div>
-                <strong>Visual pump scenario</strong>
-                <span>Engine 181 • single attack line • phone-friendly scene</span>
-              </div>
-              <div class="preview-chip">Use in scenarios</div>
-            </div>
-          </div>
+        <div class="hero-actions" style="justify-content:center;margin-top:26px">
+          <a class="btn primary" href="/scenario-player.html">Play Scenarios</a>
+          <a class="btn light" href="/tools/printable-scenarios.html">Print Scenario Sheets</a>
+          <a class="btn light" href="/tools/instructor-packs.html">Instructor Packs</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section" id="instructor-packs">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Instructor packs</div>
+          <h2>Ready-to-print practice sets with answer keys.</h2>
+          <p>Give instructors a reason to bookmark and share the site: printable DO pumper review packs for station drills, academies, and practical prep.</p>
+        </div>
+        <div class="pack-grid">
+          <a class="pack-card" href="/tools/instructor-packs.html#basic-pump"><small>Pack 1</small><h3>Basic Pump Pressure</h3><p>Attack line PDP, friction loss, elevation, and nozzle pressure practice.</p><span class="open">Open pack →</span></a>
+          <a class="pack-card" href="/tools/instructor-packs.html#wye-pack"><small>Pack 2</small><h3>Wye Operations</h3><p>Determine each branch pressure and use the highest required pressure.</p><span class="open">Open pack →</span></a>
+          <a class="pack-card" href="/tools/instructor-packs.html#relay-pack"><small>Pack 3</small><h3>Relay & Water Supply</h3><p>Relay spacing, LDH loss, tank duration, tender shuttle, and available flow.</p><span class="open">Open pack →</span></a>
+          <a class="pack-card" href="/tools/instructor-packs.html#practical-pack"><small>Pack 4</small><h3>DO Pumper Practical Prep</h3><p>Scenario-based oral review and troubleshooting prompts with answer key.</p><span class="open">Open pack →</span></a>
         </div>
       </div>
     </section>
@@ -604,6 +788,23 @@ body:not(.home-page) .mini-table td, body:not(.home-page) .mini-table th{border-
         </div>
       </div>
     </section>
+
+    <section class="home-section" id="faq">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">FAQ</div>
+          <h2>Common FireOps Calc questions.</h2>
+          <p>Short answers help users understand the tools and give search engines clear page context.</p>
+        </div>
+        <div class="faq-grid">
+          <article class="faq-card"><h3>What is FireOps Calc?</h3><p>A firefighter-built pump calculation and driver/operator training hub with calculators, print tools, scenarios, flashcards, and how-to guides.</p></article>
+          <article class="faq-card"><h3>Is this an official certification question bank?</h3><p>No. The questions and scenarios are original practice material for study and instruction. Use your department SOPs and instructor direction.</p></article>
+          <article class="faq-card"><h3>Can I print training material?</h3><p>Yes. Use the pump card creator, printable scenarios, friction loss table, flashcard print views, and instructor packs with answer keys.</p></article>
+          <article class="faq-card"><h3>Do the web and app versions match exactly?</h3><p>The website is the public tool hub and testing ground. Apple and Android app features may differ while new tools are being added.</p></article>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <footer class="site-footer">
