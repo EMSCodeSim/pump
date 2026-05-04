@@ -128,7 +128,7 @@
     inset:0;
     background:
       linear-gradient(90deg,rgba(8,9,12,.96) 0%,rgba(8,9,12,.86) 42%,rgba(8,9,12,.45) 72%,rgba(8,9,12,.88) 100%),
-      url('/assets/engine181.png');
+      url('../assets/engine181.png');
     background-size:cover;
     background-position:center right;
     filter:saturate(1.05) contrast(1.05);
