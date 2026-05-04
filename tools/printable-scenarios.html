@@ -18,8 +18,8 @@
     .layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start;padding-bottom:42px}.panel{background:rgba(16,24,36,.92);border:1px solid rgba(255,255,255,.1);box-shadow:0 24px 70px rgba(0,0,0,.28);border-radius:22px;padding:16px}.panel h2{margin:0 0 12px;font-size:21px;letter-spacing:-.02em}.hint{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 12px}.controls{display:grid;gap:12px}.field{display:grid;gap:6px}.field label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#d9e5f5;font-weight:950}.field input,.field select{width:100%;border:1px solid #31435c;background:#07101d;color:#fff;border-radius:13px;padding:11px 12px;font-size:15px;font-weight:760}.checkrow{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:#d8e2ee;line-height:1.35}.checkrow input{margin-top:3px}.btn{border:1px solid rgba(255,255,255,.16);background:#172335;color:#fff;border-radius:15px;padding:12px 13px;font-weight:950;cursor:pointer;text-align:center}.btn.primary{background:linear-gradient(135deg,#f04438,#9f1d18);border-color:rgba(255,255,255,.14);box-shadow:0 14px 28px rgba(229,57,53,.2)}.btn.light{background:#f6f8fb;color:#121923}.btn-row{display:grid;grid-template-columns:1fr;gap:10px}.small-note{font-size:12px;color:#9fb0c4;line-height:1.45;margin:10px 0 0}.scenario-mini{display:grid;gap:8px;margin-top:12px}.mini{border:1px solid rgba(255,255,255,.1);background:#0b131f;border-radius:14px;padding:10px}.mini b{display:block;font-size:13px}.mini span{display:block;color:#aebed1;font-size:12px;margin-top:2px}.preview-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:12px}.preview-head p{margin:0;color:var(--muted);font-size:13px}.screen-sheet{overflow:auto;padding:6px}.sheet{background:var(--paper);color:var(--ink);width:8.5in;min-height:11in;margin:0 auto;padding:.38in;box-shadow:0 22px 70px rgba(0,0,0,.45)}
     .sheet-title{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:end;border-bottom:3px solid #111;padding-bottom:8px;margin-bottom:8px}.sheet-title h2{margin:0;font-size:21px;letter-spacing:.01em}.sheet-title small{font-size:10.5px;line-height:1.35;text-align:right;color:#222}.student-line{display:grid;grid-template-columns:1.2fr .8fr .7fr;gap:8px;margin:0 0 8px;font-size:11px}.line{border-bottom:1.4px solid #111;min-height:18px}.scenario-grid{display:grid;grid-template-columns:1fr;gap:8px}.card{break-inside:avoid;border:2px solid #111;border-radius:10px;padding:8px;min-height:2.15in;display:flex;flex-direction:column;gap:6px}.card-head{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #222;padding-bottom:5px}.card-main{display:grid;grid-template-columns:280px 1fr;gap:10px;align-items:start}.card-head b{font-size:14.2px}.card-head span{font-size:10px;color:#333;text-transform:uppercase;font-weight:800;letter-spacing:.05em}.scene{position:relative;height:132px;border:1.4px solid #111;border-radius:8px;overflow:hidden;background:#fff}.groundline{position:absolute;left:0;right:0;bottom:18px;border-top:1px dashed rgba(0,0,0,.35)}
     .asset{position:absolute;display:block;object-fit:contain;filter:grayscale(1) contrast(1.05);mix-blend-mode:multiply;background:transparent}
-    .scene .truck{left:-8px;bottom:14px;width:124px;height:124px;z-index:4}
-    .scene .target.house{right:2px;bottom:10px;width:102px;height:102px;z-index:4}
+    .scene .truck{left:-6px;bottom:12px;width:118px;height:118px;z-index:4}
+    .scene .target.house{right:6px;bottom:12px;width:94px;height:94px;z-index:4}
     .scene .target.building{right:8px;bottom:6px;width:94px;height:122px;z-index:4}
     .scene .hydrant{left:104px;bottom:18px;width:36px;height:58px;z-index:4}
     .scene .hose-curved{left:72px;bottom:38px;width:118px;height:32px;z-index:3;transform:rotate(-3deg)}
@@ -46,7 +46,7 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Printable Scenario Creator V4</div>
+        <div class="eyebrow">Printable Scenario Creator V5</div>
         <h1>Printable scenarios built from reusable assets + SVG hoselines.</h1>
         <p>This version assembles each printable scene from <strong>individual art files</strong> for the major objects, and uses <strong>SVG hoselines</strong> so the lines actually show and connect cleanly.</p>
       </div>
@@ -55,7 +55,7 @@
     <section class="wrap layout">
       <aside class="panel builder">
         <h2>Build worksheet</h2>
-        <p class="hint">This version uses a new wide printable layout: four rectangular scenarios stacked vertically, one wide scenario per row.</p>
+        <p class="hint">This version simplifies the scene to only the core elements: fire truck, hoseline, and object on fire.</p>
         <div class="controls">
           <div class="field"><label>Worksheet title</label><input id="title" value="Fire Pump Pressure Practice"></div>
           <div class="field"><label>Class / department</label><input id="dept" value="Driver / Operator Training"></div>
@@ -68,7 +68,7 @@
       </aside>
 
       <section class="panel preview">
-        <div class="preview-head"><h2 style="margin:0">Worksheet preview</h2><p>Four wide scenario rows per page • optional answer key</p></div>
+        <div class="preview-head"><h2 style="margin:0">Worksheet preview</h2><p>Four simplified scenario rows per page • optional answer key</p></div>
         <div class="screen-sheet"><div class="sheet" id="sheet"></div></div>
       </section>
     </section>
@@ -87,7 +87,6 @@
   const elevationsMixed = [0,10,-10,20,-20,30];
   const appliancesBeginner = [0,0,0,10];
   const appliancesMixed = [0,0,10,10,15];
-  const targetTypes = ['house','building'];
   let scenarios = [];
 
   function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -110,8 +109,7 @@
     const fl = Math.round(c * q * q * l);
     const ppRaw = nozzle.np + fl + elevationPsi + appliance;
     const pp = round5(ppRaw);
-    const targetType = pick(targetTypes);
-    const sceneTitle = targetType === 'house' ? pick(['Residential Attack Line','Front Door Stretch','Garage Fire Stretch']) : pick(['Apartment Line','Commercial Stretch','Storefront Attack Line']);
+    const sceneTitle = pick(['Residential Attack Line','Front Door Stretch','Garage Fire Stretch','Single Line Structure Fire']);
     return {
       id:`single_line_${Date.now()}_${i}`,
       type:'single_line',
@@ -128,50 +126,33 @@
       appliance,
       fl,
       pp,
-      targetType,
-      problem: targetType === 'house'
-        ? 'Engine 181 is stretching one attack line to a residential fire. Calculate the pump discharge pressure.'
-        : 'Engine 181 is pumping one handline to a small commercial / apartment building fire. Calculate the pump discharge pressure.',
+      problem: 'Engine 181 is stretching one attack line to a structure fire. Calculate the pump discharge pressure.',
       math:`FL = ${c} × (${q.toFixed(2)})² × ${l.toFixed(1)} = ${fl} psi. PP = ${nozzle.np} + ${fl} ${elevationPsi>=0?'+':'-'} ${Math.abs(elevationPsi)} + ${appliance} = ${ppRaw} psi. Round to ${pp} psi.`
     };
   }
 
   function generate(){ scenarios = [0,1,2,3].map(makeScenario); render(); }
 
-  function hoseSvg(targetType){
-    // Scene coordinate system: 220 x 150.
-    // These points are tuned to the displayed artwork positions.
-    // Attack line starts at the engine discharge and reaches the target scene.
-    const supply = 'M 112 112 C 102 108, 92 103, 83 98 C 77 95, 71 93, 66 92';
-    const attack = targetType === 'house'
-      ? 'M 92 86 C 110 86, 124 86, 138 89 C 152 92, 163 98, 172 103 C 176 105, 179 106, 182 106'
-      : 'M 92 86 C 111 84, 127 83, 141 82 C 154 81, 165 84, 173 89 C 178 93, 181 98, 183 101';
+  function hoseSvg(){
+    // Simplified scene: one attack line only.
+    // Start point overlaps the truck discharge area.
+    // End point overlaps the burning structure so the connection is obvious.
+    const attack = 'M 84 95 C 101 95, 118 95, 134 97 C 149 99, 161 101, 173 103';
     return `<svg class="hose-layer" viewBox="0 0 220 150" preserveAspectRatio="none" aria-hidden="true">
-      <path class="hose-main" d="${supply}"/><path class="hose-inner" d="${supply}"/>
       <path class="hose-main" d="${attack}"/><path class="hose-inner" d="${attack}"/>
-      <circle class="hose-coupling" cx="112" cy="112" r="4.2"/>
-      <circle class="hose-coupling" cx="66" cy="92" r="4.2"/>
-      <circle class="hose-coupling" cx="92" cy="86" r="4.2"/>
-      <circle class="hose-coupling" cx="182" cy="106" r="4.2"/>
+      <circle class="hose-coupling" cx="84" cy="95" r="4.2"/>
+      <circle class="hose-coupling" cx="173" cy="103" r="4.2"/>
     </svg>`;
   }
 
   function sceneHTML(s){
-    const target = s.targetType === 'house'
-      ? `<img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">`
-      : `<img class="asset target building" alt="Building" src="${ASSET}urban-building.png">`;
-    const extra = s.targetType === 'house'
-      ? `<img class="asset bush" alt="Bush" src="${ASSET}bush.png">`
-      : `<img class="asset sedan" alt="Sedan" src="${ASSET}sedan.png">`;
     return `<div class="scene">
       <div class="scene-label lbl-hose">${escapeHtml(s.length + ' ft ' + s.hose)}</div>
       <div class="scene-label lbl-flow">${escapeHtml(s.gpm + ' gpm @ ' + s.np + ' psi')}</div>
       <div class="groundline"></div>
-      ${hoseSvg(s.targetType)}
       <img class="asset truck" alt="Fire truck" src="${ASSET}fire-truck.png">
-      <img class="asset hydrant" alt="Hydrant" src="${ASSET}hydrant.png">
-      ${target}
-      ${extra}
+      <img class="asset target house" alt="Burning house" src="${ASSET}house-fire.png">
+      ${hoseSvg()}
     </div>`;
   }
 
