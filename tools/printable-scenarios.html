@@ -48,7 +48,7 @@
   <main>
     <section class="hero">
       <div class="wrap">
-        <div class="eyebrow">Printable Scenario Creator V6</div>
+        <div class="eyebrow">Printable Scenario Creator V6.1</div>
         <h1>Printable scenarios with simplified scenes and improved hose connections.</h1>
         <p>This version keeps the scene simple: <strong>fire truck + hoseline + object on fire</strong>, with improved SVG hose routing and optional house or commercial-building targets.</p>
       </div>
@@ -57,7 +57,7 @@
     <section class="wrap layout">
       <aside class="panel builder">
         <h2>Build worksheet</h2>
-        <p class="hint">V6 keeps only the core scene elements and improves the hose connection point at the truck discharge. It also adds house and commercial-building-on-fire targets.</p>
+        <p class="hint">V6.1 fixes the hose alignment so it connects correctly on desktop and mobile, while keeping the simplified core scene elements and house/commercial targets.</p>
         <div class="controls">
           <div class="field"><label>Worksheet title</label><input id="title" value="Fire Pump Pressure Practice"></div>
           <div class="field"><label>Class / department</label><input id="dept" value="Driver / Operator Training"></div>
@@ -146,25 +146,25 @@
   function generate(){ scenarios = [0,1,2,3].map(makeScenario); render(); }
 
   function hoseSvg(targetType, hoseCurve){
-    // Scene coordinate system: 220 x 150.
-    // The discharge stub intentionally starts inside the truck body so the hose visually hooks to the engine.
-    const dischargeStub = 'M 57 92 L 70 92';
+    // Coordinate system matches the desktop scene box more closely: 280 x 132.
+    // This keeps hose placement consistent between desktop and phone scaling.
+    const dischargeStub = 'M 82 82 L 98 82';
     const housePaths = [
-      'M 70 92 C 86 92, 100 92, 114 94 C 130 96, 145 99, 160 102 C 170 104, 177 105, 183 105',
-      'M 70 92 C 85 88, 100 88, 116 91 C 131 94, 145 100, 158 104 C 169 106, 176 106, 183 105',
-      'M 70 92 C 84 96, 98 97, 113 96 C 128 95, 144 96, 158 101 C 169 105, 176 106, 183 105'
+      'M 98 82 C 118 82, 136 83, 154 85 C 173 88, 191 92, 208 96 C 219 98, 228 99, 236 99',
+      'M 98 82 C 118 78, 137 79, 156 83 C 176 87, 193 92, 209 97 C 220 99, 229 99, 236 99',
+      'M 98 82 C 117 86, 136 87, 156 86 C 176 85, 194 88, 210 95 C 222 98, 230 99, 236 99'
     ];
     const buildingPaths = [
-      'M 70 92 C 88 92, 104 91, 120 89 C 136 87, 150 86, 162 88 C 171 90, 177 94, 182 98',
-      'M 70 92 C 86 89, 102 87, 118 86 C 134 85, 149 86, 161 90 C 171 93, 177 96, 182 98',
-      'M 70 92 C 85 96, 101 95, 118 92 C 134 89, 148 88, 160 90 C 170 92, 177 95, 182 98'
+      'M 98 82 C 120 82, 140 81, 160 79 C 179 77, 196 77, 211 81 C 222 84, 230 89, 236 93',
+      'M 98 82 C 119 79, 139 77, 160 76 C 180 76, 197 78, 211 82 C 223 86, 231 90, 236 93',
+      'M 98 82 C 119 86, 139 85, 160 82 C 180 79, 197 79, 211 82 C 223 85, 231 89, 236 93'
     ];
     const attack = (targetType === 'house' ? housePaths : buildingPaths)[hoseCurve % 3];
-    const end = targetType === 'house' ? {x:183, y:105} : {x:182, y:98};
-    return `<svg class="hose-layer" viewBox="0 0 220 150" preserveAspectRatio="none" aria-hidden="true">
+    const end = targetType === 'house' ? {x:236, y:99} : {x:236, y:93};
+    return `<svg class="hose-layer" viewBox="0 0 280 132" preserveAspectRatio="none" aria-hidden="true">
       <path class="hose-main" d="${dischargeStub}"/><path class="hose-inner" d="${dischargeStub}"/>
       <path class="hose-main" d="${attack}"/><path class="hose-inner" d="${attack}"/>
-      <circle class="hose-coupling" cx="70" cy="92" r="4.2"/>
+      <circle class="hose-coupling" cx="98" cy="82" r="4.2"/>
       <circle class="hose-coupling" cx="${end.x}" cy="${end.y}" r="4.2"/>
     </svg>`;
   }
