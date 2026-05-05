@@ -1,0 +1,472 @@
+{
+  "id": "wildland_structure_engine181_001",
+  "title": "Engine 181 Wildland Structure Protection",
+  "type": "attack-line",
+  "chip": "WILDLAND",
+  "image": "wildland-structure-engine181-001.png",
+  "scene": "Engine 181 is positioned on a rural road for wildland structure protection. A single hose line is stretched from the engine toward a firefighter protecting the exposure side of a house from advancing brush fire. The picture has no built-in labels. All labels are generated from this JSON using overlay coordinates.",
+  "studentQuestion": "Calculate the pump pressure for the wildland structure protection hose line.",
+  "details": [
+    "Engine 181 operating near a threatened structure",
+    "200′ of 2″ hose stretched from the engine",
+    "Wildland structure protection nozzle flowing 100 gpm",
+    "Wildland nozzle pressure: 100 psi",
+    "2″ hose C value: 8",
+    "No elevation change",
+    "No appliance loss",
+    "Use ±5 psi tolerance",
+    "Training note: 1″ forestry hose uses C value 150 for the comparison problem"
+  ],
+  "trainingAssumptions": {
+    "cValues": [
+      {
+        "hose": "2″ attack / wildland supply hose",
+        "cValue": 8
+      },
+      {
+        "hose": "1″ forestry hose",
+        "cValue": 150
+      }
+    ],
+    "nozzles": [
+      {
+        "name": "Wildland structure protection nozzle",
+        "type": "adjustable fog / straight stream",
+        "flowGpm": 100,
+        "nozzlePressure": 100,
+        "use": "Structure protection and exposure cooling"
+      },
+      {
+        "name": "Low-flow forestry nozzle",
+        "type": "adjustable forestry nozzle",
+        "flowGpm": 30,
+        "nozzlePressure": 100,
+        "use": "Mop-up, patrol, and limited reach operations"
+      }
+    ]
+  },
+  "overlays": [
+    {
+      "label": "Engine",
+      "text": "Engine 181",
+      "x": 20,
+      "y": 62
+    },
+    {
+      "label": "Line",
+      "text": "200′ 2″",
+      "x": 43,
+      "y": 51
+    },
+    {
+      "label": "C Value",
+      "text": "C 8",
+      "x": 42,
+      "y": 56
+    },
+    {
+      "label": "Nozzle",
+      "text": "Wildland 100 @ 100",
+      "x": 58,
+      "y": 33
+    },
+    {
+      "label": "Exposure",
+      "text": "Structure Protection",
+      "x": 76,
+      "y": 29
+    },
+    {
+      "label": "Fire",
+      "text": "Brush Fire",
+      "x": 18,
+      "y": 18
+    },
+    {
+      "label": "Elevation",
+      "text": "No Elevation",
+      "x": 76,
+      "y": 54
+    },
+    {
+      "label": "Appliance",
+      "text": "No Appliance",
+      "x": 52,
+      "y": 61
+    }
+  ],
+  "answers": {
+    "frictionLoss": 16,
+    "nozzlePressure": 100,
+    "elevationPressure": 0,
+    "elevation": 0,
+    "applianceLoss": 0,
+    "totalGpm": 100,
+    "pumpPressure": 116,
+    "tolerance": 5
+  },
+  "formulaBreakdown": [
+    "PP = FL + NP + elevation + appliance loss",
+    "2″ hose C = 8",
+    "Flow = 100 gpm",
+    "Hose length = 200′ = 2 hundred-foot sections",
+    "FL = C × (GPM ÷ 100)^2 × hose length in hundreds",
+    "FL = 8 × (100 ÷ 100)^2 × 2",
+    "FL = 8 × 1^2 × 2",
+    "FL = 16 psi",
+    "Nozzle pressure = 100 psi",
+    "Elevation = 0 psi",
+    "Appliance loss = 0 psi",
+    "PP = 16 + 100 + 0 + 0",
+    "PP = 116 psi"
+  ],
+  "correctPP": 116,
+  "tolerance": 5,
+  "instructorExplanation": "For this wildland structure protection line, calculate friction loss in the 200′ of 2″ hose, then add the 100 psi nozzle pressure. There is no elevation change and no appliance loss. The 1″ hose comparison shows why small forestry hose should not be used for high-flow structure protection streams.",
+  "explainMistake": "Common mistakes are using a 1¾″ C value instead of the assigned 2″ C value, forgetting that 200′ equals 2 hundred-foot sections, using 50 psi nozzle pressure instead of the listed 100 psi wildland nozzle pressure, adding appliance loss when there is no appliance, or trying to flow 100 gpm through 1″ hose without recognizing the extreme friction loss.",
+  "variations": [
+    {
+      "change": "Base question: 200′ of 2″ hose with a wildland structure protection nozzle flowing 100 gpm at 100 psi.",
+      "question": "Engine 181 is protecting a structure from advancing brush fire. The crew stretched 200′ of 2″ hose to a wildland structure protection nozzle flowing 100 gpm at 100 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 116,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating near a threatened structure",
+        "200′ of 2″ hose",
+        "2″ hose C value: 8",
+        "Wildland structure protection nozzle flowing 100 gpm",
+        "Nozzle pressure: 100 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 16,
+        "nozzlePressure": 100,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 100,
+        "pumpPressure": 116,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 62
+        },
+        {
+          "label": "Line",
+          "text": "200′ 2″",
+          "x": 43,
+          "y": 51
+        },
+        {
+          "label": "C Value",
+          "text": "C 8",
+          "x": 42,
+          "y": 56
+        },
+        {
+          "label": "Nozzle",
+          "text": "Wildland 100 @ 100",
+          "x": 58,
+          "y": 33
+        },
+        {
+          "label": "Exposure",
+          "text": "Structure Protection",
+          "x": 76,
+          "y": 29
+        },
+        {
+          "label": "Fire",
+          "text": "Brush Fire",
+          "x": 18,
+          "y": 18
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 76,
+          "y": 54
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 52,
+          "y": 61
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 8 × (100 ÷ 100)^2 × 2",
+        "FL = 16 psi",
+        "PP = 16 FL + 100 NP + 0 elevation + 0 appliance loss",
+        "PP = 116 psi"
+      ],
+      "instructorExplanation": "Use the 2″ hose C value of 8. Calculate friction loss for the 200′ stretch, then add the 100 psi wildland nozzle pressure."
+    },
+    {
+      "change": "Increase the 2″ hose length to 250′. Keep the wildland nozzle at 100 gpm and 100 psi.",
+      "question": "Same picture, new setup: Engine 181 is protecting a structure from advancing brush fire. The crew stretched 250′ of 2″ hose to a wildland structure protection nozzle flowing 100 gpm at 100 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 120,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating near a threatened structure",
+        "250′ of 2″ hose",
+        "2″ hose C value: 8",
+        "Wildland structure protection nozzle flowing 100 gpm",
+        "Nozzle pressure: 100 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 20,
+        "nozzlePressure": 100,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 100,
+        "pumpPressure": 120,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 62
+        },
+        {
+          "label": "Line",
+          "text": "250′ 2″",
+          "x": 43,
+          "y": 51
+        },
+        {
+          "label": "C Value",
+          "text": "C 8",
+          "x": 42,
+          "y": 56
+        },
+        {
+          "label": "Nozzle",
+          "text": "Wildland 100 @ 100",
+          "x": 58,
+          "y": 33
+        },
+        {
+          "label": "Exposure",
+          "text": "Structure Protection",
+          "x": 76,
+          "y": 29
+        },
+        {
+          "label": "Fire",
+          "text": "Brush Fire",
+          "x": 18,
+          "y": 18
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 76,
+          "y": 54
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 52,
+          "y": 61
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 8 × (100 ÷ 100)^2 × 2.5",
+        "FL = 20 psi",
+        "PP = 20 FL + 100 NP + 0 elevation + 0 appliance loss",
+        "PP = 120 psi"
+      ],
+      "instructorExplanation": "Only the hose length changed. The longer 2″ stretch increases friction loss from 16 psi to 20 psi."
+    },
+    {
+      "change": "Problem setup: Change to 200′ of 1″ forestry hose while trying to flow the same 100 gpm nozzle setting.",
+      "question": "Same picture, problem setup: Engine 181 is protecting the same structure, but the line is changed to 200′ of 1″ forestry hose while still trying to flow 100 gpm at 100 psi. Use C value 150 for the 1″ hose. There is no elevation change and no appliance loss. What pump pressure would the math require?",
+      "correctPP": 400,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating near a threatened structure",
+        "200′ of 1″ forestry hose",
+        "1″ hose C value: 150",
+        "Trying to flow 100 gpm",
+        "Nozzle pressure: 100 psi",
+        "No elevation change",
+        "No appliance loss",
+        "Training note: this is not a good operational setup because the friction loss is extreme"
+      ],
+      "answers": {
+        "frictionLoss": 300,
+        "nozzlePressure": 100,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 100,
+        "pumpPressure": 400,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 62
+        },
+        {
+          "label": "Line",
+          "text": "200′ 1″",
+          "x": 43,
+          "y": 51
+        },
+        {
+          "label": "C Value",
+          "text": "C 150",
+          "x": 42,
+          "y": 56
+        },
+        {
+          "label": "Nozzle",
+          "text": "100 GPM @ 100",
+          "x": 58,
+          "y": 33
+        },
+        {
+          "label": "Warning",
+          "text": "High FL Problem",
+          "x": 68,
+          "y": 43
+        },
+        {
+          "label": "Fire",
+          "text": "Brush Fire",
+          "x": 18,
+          "y": 18
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 76,
+          "y": 54
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 52,
+          "y": 61
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 150 × (100 ÷ 100)^2 × 2",
+        "FL = 300 psi",
+        "PP = 300 FL + 100 NP + 0 elevation + 0 appliance loss",
+        "PP = 400 psi",
+        "Operational note: this is not a practical setup for that flow"
+      ],
+      "instructorExplanation": "Only the hose size changed, but the C value jumped from 8 to 150. Trying to move 100 gpm through 200′ of 1″ hose creates extreme friction loss. The correct tactical fix is to lower the flow, shorten the stretch, or use larger hose."
+    },
+    {
+      "change": "Practical 1″ hose setup: Keep 200′ of 1″ forestry hose but change to a low-flow forestry nozzle flowing 30 gpm at 100 psi.",
+      "question": "Same picture, practical 1″ setup: Engine 181 is protecting the same structure with 200′ of 1″ forestry hose and a low-flow forestry nozzle flowing 30 gpm at 100 psi. Use C value 150 for the 1″ hose. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 127,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating near a threatened structure",
+        "200′ of 1″ forestry hose",
+        "1″ hose C value: 150",
+        "Low-flow forestry nozzle flowing 30 gpm",
+        "Nozzle pressure: 100 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 27,
+        "nozzlePressure": 100,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 30,
+        "pumpPressure": 127,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 62
+        },
+        {
+          "label": "Line",
+          "text": "200′ 1″",
+          "x": 43,
+          "y": 51
+        },
+        {
+          "label": "C Value",
+          "text": "C 150",
+          "x": 42,
+          "y": 56
+        },
+        {
+          "label": "Nozzle",
+          "text": "Forestry 30 @ 100",
+          "x": 58,
+          "y": 33
+        },
+        {
+          "label": "Exposure",
+          "text": "Structure Protection",
+          "x": 76,
+          "y": 29
+        },
+        {
+          "label": "Fire",
+          "text": "Brush Fire",
+          "x": 18,
+          "y": 18
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 76,
+          "y": 54
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 52,
+          "y": 61
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 150 × (30 ÷ 100)^2 × 2",
+        "FL = 150 × 0.09 × 2",
+        "FL = 27 psi",
+        "PP = 27 FL + 100 NP + 0 elevation + 0 appliance loss",
+        "PP = 127 psi"
+      ],
+      "instructorExplanation": "This is a practical low-flow 1″ forestry hose setup. The lower flow keeps friction loss manageable, but it is not the same fire stream as the 100 gpm 2″ structure protection line."
+    }
+  ],
+  "tags": [
+    "wildland",
+    "structure protection",
+    "engine 181",
+    "2 inch hose",
+    "1 inch forestry hose",
+    "wildland nozzle",
+    "friction loss",
+    "phone display",
+    "reusable photo",
+    "overlay labels"
+  ]
+}

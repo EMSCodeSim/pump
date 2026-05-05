@@ -1,0 +1,360 @@
+{
+  "id": "car_fire_engine181_001",
+  "title": "Engine 181 Car Fire Attack Line",
+  "type": "attack-line",
+  "chip": "CAR FIRE",
+  "image": "car-fire-engine181-001.png",
+  "scene": "Engine 181 is positioned on the street for a working car fire. A single 1¾″ attack line is stretched from the engine to the vehicle. The picture has no built-in labels. All scenario labels are generated from this JSON using overlay coordinates.",
+  "studentQuestion": "Calculate the pump pressure for the car fire attack line setup.",
+  "details": [
+    "Engine 181 operating on tank water or hydrant supply",
+    "Single 1¾″ attack line stretched to a vehicle fire",
+    "150′ of 1¾″ hose",
+    "Fog nozzle flowing 150 gpm",
+    "Fog nozzle pressure: 50 psi",
+    "1¾″ hose C value: 15.5",
+    "No elevation change",
+    "No appliance loss",
+    "Use ±5 psi tolerance"
+  ],
+  "overlays": [
+    {
+      "label": "Engine",
+      "text": "Engine 181",
+      "x": 18,
+      "y": 63
+    },
+    {
+      "label": "Attack Line",
+      "text": "150′ 1¾″",
+      "x": 43,
+      "y": 49
+    },
+    {
+      "label": "Nozzle",
+      "text": "Fog 150 @ 50",
+      "x": 66,
+      "y": 36
+    },
+    {
+      "label": "Fire",
+      "text": "Vehicle Fire",
+      "x": 76,
+      "y": 28
+    },
+    {
+      "label": "Elevation",
+      "text": "No Elevation",
+      "x": 74,
+      "y": 53
+    },
+    {
+      "label": "Appliance",
+      "text": "No Appliance",
+      "x": 48,
+      "y": 58
+    }
+  ],
+  "answers": {
+    "frictionLoss": 52,
+    "nozzlePressure": 50,
+    "elevationPressure": 0,
+    "elevation": 0,
+    "applianceLoss": 0,
+    "totalGpm": 150,
+    "pumpPressure": 102
+  },
+  "formulaBreakdown": [
+    "PP = FL + NP + elevation + appliance loss",
+    "1¾″ hose C = 15.5",
+    "Flow = 150 gpm",
+    "Hose length = 150′ = 1.5 hundred-foot sections",
+    "FL = C × (GPM ÷ 100)^2 × hose length in hundreds",
+    "FL = 15.5 × (150 ÷ 100)^2 × 1.5",
+    "FL = 15.5 × 1.5^2 × 1.5",
+    "FL = 52 psi",
+    "Nozzle pressure = 50 psi",
+    "Elevation = 0 psi",
+    "Appliance loss = 0 psi",
+    "PP = 52 + 50 + 0 + 0",
+    "PP = 102 psi"
+  ],
+  "correctPP": 102,
+  "tolerance": 5,
+  "instructorExplanation": "For this car fire, calculate friction loss in the single 1¾″ attack line, then add the fog nozzle pressure. There is no elevation change and no appliance loss, so the pump pressure is friction loss plus nozzle pressure.",
+  "explainMistake": "Common mistakes are using the wrong C value for 1¾″ hose, forgetting to convert 150′ into 1.5 hundred-foot sections, using 100 psi nozzle pressure when the question says 50 psi, adding appliance loss when there is no appliance, or rounding friction loss too early.",
+  "variations": [
+    {
+      "change": "Base question: 150′ of 1¾″ hose with a fog nozzle flowing 150 gpm at 50 psi.",
+      "question": "Engine 181 is operating at a car fire. The crew stretched 150′ of 1¾″ hose with a fog nozzle flowing 150 gpm at 50 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 102,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating at a vehicle fire",
+        "150′ of 1¾″ attack line",
+        "Fog nozzle flowing 150 gpm",
+        "Fog nozzle pressure: 50 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 52,
+        "nozzlePressure": 50,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 102
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 63
+        },
+        {
+          "label": "Attack Line",
+          "text": "150′ 1¾″",
+          "x": 43,
+          "y": 49
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 66,
+          "y": 36
+        },
+        {
+          "label": "Fire",
+          "text": "Vehicle Fire",
+          "x": 76,
+          "y": 28
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 74,
+          "y": 53
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 48,
+          "y": 58
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 15.5 × (150 ÷ 100)^2 × 1.5",
+        "FL = 52 psi",
+        "PP = 52 FL + 50 NP + 0 elevation + 0 appliance loss",
+        "PP = 102 psi"
+      ],
+      "instructorExplanation": "Use the 1¾″ hose friction loss for the 150′ stretch, then add 50 psi nozzle pressure."
+    },
+    {
+      "change": "Increase the attack line length to 200′. Keep the fog nozzle at 150 gpm and 50 psi.",
+      "question": "Same picture, new setup: Engine 181 is operating at a car fire. The crew stretched 200′ of 1¾″ hose with a fog nozzle flowing 150 gpm at 50 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 120,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating at a vehicle fire",
+        "200′ of 1¾″ attack line",
+        "Fog nozzle flowing 150 gpm",
+        "Fog nozzle pressure: 50 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 120
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 63
+        },
+        {
+          "label": "Attack Line",
+          "text": "200′ 1¾″",
+          "x": 43,
+          "y": 49
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 66,
+          "y": 36
+        },
+        {
+          "label": "Fire",
+          "text": "Vehicle Fire",
+          "x": 76,
+          "y": 28
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 74,
+          "y": 53
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 48,
+          "y": 58
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 15.5 × (150 ÷ 100)^2 × 2",
+        "FL = 70 psi",
+        "PP = 70 FL + 50 NP + 0 elevation + 0 appliance loss",
+        "PP = 120 psi"
+      ],
+      "instructorExplanation": "Only the hose length changed. The longer 1¾″ stretch increases friction loss from 52 psi to 70 psi."
+    },
+    {
+      "change": "Increase the fog nozzle flow to 185 gpm. Keep the line length at 150′ and nozzle pressure at 50 psi.",
+      "question": "Same picture, new setup: Engine 181 is operating at a car fire. The crew stretched 150′ of 1¾″ hose with a fog nozzle flowing 185 gpm at 50 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 130,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating at a vehicle fire",
+        "150′ of 1¾″ attack line",
+        "Fog nozzle flowing 185 gpm",
+        "Fog nozzle pressure: 50 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 80,
+        "nozzlePressure": 50,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 130
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 63
+        },
+        {
+          "label": "Attack Line",
+          "text": "150′ 1¾″",
+          "x": 43,
+          "y": 49
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 185 @ 50",
+          "x": 66,
+          "y": 36
+        },
+        {
+          "label": "Fire",
+          "text": "Vehicle Fire",
+          "x": 76,
+          "y": 28
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 74,
+          "y": 53
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 48,
+          "y": 58
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 15.5 × (185 ÷ 100)^2 × 1.5",
+        "FL = 80 psi",
+        "PP = 80 FL + 50 NP + 0 elevation + 0 appliance loss",
+        "PP = 130 psi"
+      ],
+      "instructorExplanation": "Only the flow changed. The higher fog nozzle flow increases friction loss in the 1¾″ attack line."
+    },
+    {
+      "change": "Change the nozzle package to a 100 psi fog nozzle. Keep 150′ of 1¾″ hose flowing 150 gpm.",
+      "question": "Same picture, new setup: Engine 181 is operating at a car fire. The crew stretched 150′ of 1¾″ hose with a fog nozzle flowing 150 gpm at 100 psi. There is no elevation change and no appliance loss. What pump pressure should you set?",
+      "correctPP": 152,
+      "tolerance": 5,
+      "details": [
+        "Engine 181 operating at a vehicle fire",
+        "150′ of 1¾″ attack line",
+        "Fog nozzle flowing 150 gpm",
+        "Fog nozzle pressure: 100 psi",
+        "No elevation change",
+        "No appliance loss"
+      ],
+      "answers": {
+        "frictionLoss": 52,
+        "nozzlePressure": 100,
+        "elevationPressure": 0,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 152
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 63
+        },
+        {
+          "label": "Attack Line",
+          "text": "150′ 1¾″",
+          "x": 43,
+          "y": 49
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 100",
+          "x": 66,
+          "y": 36
+        },
+        {
+          "label": "Fire",
+          "text": "Vehicle Fire",
+          "x": 76,
+          "y": 28
+        },
+        {
+          "label": "Elevation",
+          "text": "No Elevation",
+          "x": 74,
+          "y": 53
+        },
+        {
+          "label": "Appliance",
+          "text": "No Appliance",
+          "x": 48,
+          "y": 58
+        }
+      ],
+      "formulaBreakdown": [
+        "FL = 15.5 × (150 ÷ 100)^2 × 1.5",
+        "FL = 52 psi",
+        "PP = 52 FL + 100 NP + 0 elevation + 0 appliance loss",
+        "PP = 152 psi"
+      ],
+      "instructorExplanation": "Only the nozzle pressure changed. The hose friction loss stays 52 psi, but the nozzle pressure increases to 100 psi."
+    }
+  ]
+}
