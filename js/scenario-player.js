@@ -23,7 +23,18 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
-  const escapeHtml = (value) => String(safe(value)).replace(/[&<>'"]/g, (ch) => ({
+  const cleanText = (value) => {
+    if(value === undefined || value === null) return '';
+
+    return String(value)
+      .replace(/The picture has no built-in labels\.?\s*/gi, '')
+      .replace(/All labels are generated from this JSON using overlay coordinates\.?\s*/gi, '')
+      .replace(/Same picture,\s*new setup:\s*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const escapeHtml = (value) => String(cleanText(value)).replace(/[&<>'"]/g, (ch) => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
@@ -41,26 +52,26 @@
     return {
       id: s.id || s.file || `scenario-${Math.random().toString(16).slice(2)}`,
       baseId: s.baseId || s.id || s.file || '',
-      title: s.title || 'Untitled Scenario',
+      title: cleanText(s.title || 'Untitled Scenario'),
       difficulty,
       category,
       chip: s.chip || `${safe(difficulty, 'PRACTICE').toString().toUpperCase()} • ${safe(category, 'PUMP').toString().toUpperCase()}`,
       image: s.image || '',
-      scene: s.scene || '',
-      question: s.studentQuestion || s.question || 'Calculate the pump pressure for this setup.',
-      details: Array.isArray(s.details) ? s.details : detailsFromSceneElements(s.sceneElements),
+      scene: cleanText(s.scene || ''),
+      question: cleanText(s.studentQuestion || s.question || 'Calculate the pump pressure for this setup.'),
+      details: Array.isArray(s.details) ? s.details.map(cleanText).filter(Boolean) : detailsFromSceneElements(s.sceneElements),
       overlays: Array.isArray(s.overlays) ? s.overlays : [],
       correctPP,
       tolerance: toNumber(s.tolerance ?? answers.tolerance, 5),
       answers,
       calculation,
-      formulaBreakdown: Array.isArray(s.formulaBreakdown) ? s.formulaBreakdown : explanationToFormula(s.instructorExplanation),
-      instructorExplanation: s.instructorExplanation || '',
-      explainMistake: s.explainMistake || '',
+      formulaBreakdown: Array.isArray(s.formulaBreakdown) ? s.formulaBreakdown.map(cleanText).filter(Boolean) : explanationToFormula(s.instructorExplanation),
+      instructorExplanation: cleanText(s.instructorExplanation || ''),
+      explainMistake: cleanText(s.explainMistake || ''),
       problems: Array.isArray(s.problems) ? s.problems : [],
       variations: Array.isArray(s.variations) ? s.variations : [],
       isVariation: Boolean(s.isVariation),
-      variationChange: s.variationChange || '',
+      variationChange: cleanText(s.variationChange || ''),
       source: s
     };
   };
@@ -72,33 +83,34 @@
 
     (sceneElements.hoses || []).forEach(h => {
       if(typeof h === 'string'){
-        out.push(h);
+        out.push(cleanText(h));
       } else {
-        out.push(`${safe(h.length)} of ${safe(h.diameter)} hose${h.flowGpm ? ` • ${h.flowGpm} gpm` : ''}`);
+        out.push(cleanText(`${safe(h.length)} of ${safe(h.diameter)} hose${h.flowGpm ? ` • ${h.flowGpm} gpm` : ''}`));
       }
     });
 
     (sceneElements.nozzles || []).forEach(n => {
       if(typeof n === 'string'){
-        out.push(n);
+        out.push(cleanText(n));
       } else {
-        out.push(`${safe(n.type, 'Nozzle')}${n.tip ? ` ${n.tip}` : ''}${n.flowGpm ? ` • ${n.flowGpm} gpm` : ''}${n.nozzlePressure ? ` @ ${n.nozzlePressure} psi` : ''}`);
+        out.push(cleanText(`${safe(n.type, 'Nozzle')}${n.tip ? ` ${n.tip}` : ''}${n.flowGpm ? ` • ${n.flowGpm} gpm` : ''}${n.nozzlePressure ? ` @ ${n.nozzlePressure} psi` : ''}`));
       }
     });
 
     (sceneElements.appliances || []).forEach(a => {
-      out.push(typeof a === 'string' ? a : safe(a.name || a.type));
+      out.push(cleanText(typeof a === 'string' ? a : safe(a.name || a.type)));
     });
 
     if(sceneElements.elevation){
-      out.push(`Elevation: ${sceneElements.elevation}`);
+      out.push(cleanText(`Elevation: ${sceneElements.elevation}`));
     }
 
     return out.filter(Boolean);
   }
 
   function explanationToFormula(text){
-    return text ? [text] : [];
+    const cleaned = cleanText(text);
+    return cleaned ? [cleaned] : [];
   }
 
   async function fetchJson(url){
@@ -220,30 +232,6 @@
   }
 
   function getProblemDefinitions(base){
-    /*
-      New supported format:
-
-      {
-        "id": "example-scene",
-        "image": "same-picture.png",
-        "problems": [
-          {
-            "question": "200' 1¾ hose, 185 gpm @ 50 psi...",
-            "overlays": [...],
-            "correctPP": 156
-          },
-          {
-            "question": "200' 1¾ hose, 150 gpm @ 100 psi...",
-            "overlays": [...],
-            "correctPP": 170
-          }
-        ]
-      }
-
-      Each problem becomes one playable screen.
-      The app does not display the full problem list to the student.
-    */
-
     if(base.problems.length){
       return base.problems.map(problem => ({
         kind: 'problem',
@@ -286,26 +274,23 @@
       ? toNumber(problemCorrectValue ?? baseCorrectValue, 0)
       : toNumber(problemCorrectValue, 0);
 
-    /*
-      Variation/problem entries without an answer stay in the JSON for instructor ideas,
-      but they are not used as playable student screens.
-    */
     if(!correctPP) return null;
 
-    const change = p.change || p.scenarioChange || p.setup || '';
-    const title = p.title || base.title;
-    const chip = p.chip || base.chip;
+    const change = cleanText(p.change || p.scenarioChange || p.setup || '');
+    const title = cleanText(p.title || base.title);
+    const chip = cleanText(p.chip || base.chip);
     const image = p.image || base.image;
-    const scene = p.scene || base.scene;
+    const scene = cleanText(p.scene || base.scene);
 
-    const question = p.studentQuestion || p.question || (
-      change
-        ? `Same picture, new setup: ${change} What pump pressure should the operator set?`
-        : base.question
+    const question = cleanText(
+      p.studentQuestion ||
+      p.question ||
+      change ||
+      base.question
     );
 
     const details = Array.isArray(p.details) && p.details.length
-      ? p.details
+      ? p.details.map(cleanText).filter(Boolean)
       : (p.sceneElements ? detailsFromSceneElements(p.sceneElements) : base.details);
 
     const overlays = Array.isArray(p.overlays)
@@ -313,21 +298,16 @@
       : base.overlays;
 
     const formulaBreakdown = Array.isArray(p.formulaBreakdown) && p.formulaBreakdown.length
-      ? p.formulaBreakdown
+      ? p.formulaBreakdown.map(cleanText).filter(Boolean)
       : (
         change
           ? [
-              `Changed setup: ${change}`,
               `Correct pump pressure: ${correctPP} PSI`
             ]
           : base.formulaBreakdown
       );
 
-    const instructorExplanation = p.instructorExplanation || base.instructorExplanation || (
-      change
-        ? 'This problem reuses the same picture but changes the operating numbers. Use the numbers shown in the current question and labels.'
-        : ''
-    );
+    const instructorExplanation = cleanText(p.instructorExplanation || base.instructorExplanation || '');
 
     const problemId = p.id || p.problemId || `${base.id}-${kind}-${index + 1}`;
 
@@ -353,7 +333,7 @@
       },
       formulaBreakdown,
       instructorExplanation,
-      explainMistake: p.explainMistake || base.explainMistake,
+      explainMistake: cleanText(p.explainMistake || base.explainMistake),
       variations: [],
       isVariation: !isBase,
       variationChange: change,
@@ -442,8 +422,6 @@
     scenarioPanel.innerHTML = `
       <div class="chip">${escapeHtml(s.chip)}</div>
       <h2>${escapeHtml(s.title)}</h2>
-
-      ${s.scene ? `<p style="color:#aab3c0;line-height:1.45">${escapeHtml(s.scene)}</p>` : ''}
 
       <div class="question">${escapeHtml(s.question)}</div>
 
