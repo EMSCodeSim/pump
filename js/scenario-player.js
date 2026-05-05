@@ -44,12 +44,15 @@
       correctPP,
       tolerance: toNumber(s.tolerance ?? answers.tolerance, 5),
       answers,
+      calculation,
       formulaBreakdown: Array.isArray(s.formulaBreakdown) ? s.formulaBreakdown : explanationToFormula(s.instructorExplanation),
       instructorExplanation: s.instructorExplanation || '',
       explainMistake: s.explainMistake || '',
+      problems: Array.isArray(s.problems) ? s.problems : [],
       variations: Array.isArray(s.variations) ? s.variations : [],
       isVariation: Boolean(s.isVariation),
-      variationChange: s.variationChange || ''
+      variationChange: s.variationChange || '',
+      source: s
     };
   };
 
@@ -92,14 +95,19 @@
         }
       }
 
-      state.baseScenarios = scenarios.map(normalizeScenario).filter(s => s.correctPP || s.question);
+      state.baseScenarios = scenarios
+        .map(normalizeScenario)
+        .filter(s => s.correctPP || s.question || s.problems.length || s.variations.length);
+
       state.scenarios = expandPlayableRuns(state.baseScenarios);
 
-      if(!state.scenarios.length) throw new Error('No valid scenarios loaded.');
+      if(!state.scenarios.length) throw new Error('No valid scenarios loaded. Each playable problem needs a question and a correctPP or answers.pumpPressure value.');
 
       const params = new URLSearchParams(location.search);
       const requested = params.get('id');
-      const requestedIdx = requested ? state.scenarios.findIndex(s=>s.id===requested || s.baseId===requested) : -1;
+      const requestedProblem = params.get('problem');
+      const requestedIdx = findRequestedScenarioIndex(requested, requestedProblem);
+
       state.selected = requestedIdx >= 0 ? requestedIdx : randomIndex(state.scenarios.length);
       rebuildDeck();
       renderPracticeInfo();
@@ -112,53 +120,134 @@
     }
   }
 
+  function findRequestedScenarioIndex(requested, requestedProblem){
+    if(!requested) return -1;
+
+    const exact = state.scenarios.findIndex(s => s.id === requested || s.problemId === requested);
+    if(exact >= 0) return exact;
+
+    const sameBase = state.scenarios
+      .map((scenario, i) => ({scenario, i}))
+      .filter(({scenario}) => scenario.baseId === requested || scenario.originalId === requested);
+
+    if(!sameBase.length) return -1;
+
+    const problemNumber = toNumber(requestedProblem, 0);
+    if(problemNumber > 0){
+      const problemMatch = sameBase.find(({scenario}) => scenario.problemNumber === problemNumber);
+      if(problemMatch) return problemMatch.i;
+    }
+
+    return sameBase[0].i;
+  }
+
   function expandPlayableRuns(baseScenarios){
     const playable = [];
 
     baseScenarios.forEach((base) => {
-      playable.push({...base, baseId: base.baseId || base.id, isVariation: false});
+      const problemDefs = getProblemDefinitions(base);
+      const runs = problemDefs
+        .map((def, i) => buildProblemRun(base, def.problem, i, def.kind))
+        .filter(Boolean);
 
-      base.variations.forEach((variation, i) => {
-        const playableVariation = buildVariationRun(base, variation, i);
-        if(playableVariation) playable.push(playableVariation);
+      runs.forEach((run, i) => {
+        run.problemNumber = i + 1;
+        run.problemCount = runs.length;
+        playable.push(run);
       });
     });
 
     return playable;
   }
 
-  function buildVariationRun(base, variation, index){
-    const isStringVariation = typeof variation === 'string';
-    const change = isStringVariation ? variation : (variation.change || variation.question || variation.title || 'Use the changed setup.');
-    const correctPP = isStringVariation ? 0 : toNumber(variation.correctPP ?? variation.answers?.pumpPressure, 0);
+  function getProblemDefinitions(base){
+    // Preferred new format:
+    // {
+    //   "id": "example-scene",
+    //   "image": "same-picture.png",
+    //   "problems": [
+    //     { "question": "200' 1¾ hose, 185 gpm @ 50 psi...", "overlays": [...], "correctPP": 156 },
+    //     { "question": "200' 1¾ hose, 150 gpm @ 100 psi...", "overlays": [...], "correctPP": 170 }
+    //   ]
+    // }
+    // Each problem becomes one playable screen. The app never displays the full problem list to the student.
+    if(base.problems.length){
+      return base.problems.map(problem => ({kind: 'problem', problem}));
+    }
 
-    // Variations without an answer are kept in the JSON for instructor ideas, but they are not used as random playable runs.
+    const defs = [{kind: 'base', problem: null}];
+    base.variations.forEach(problem => defs.push({kind: 'variation', problem}));
+    return defs;
+  }
+
+  function buildProblemRun(base, problem, index, kind){
+    const isBase = kind === 'base';
+    const isStringProblem = typeof problem === 'string';
+    const p = isStringProblem ? {change: problem} : (problem || {});
+
+    if(!isBase && (!p || typeof p !== 'object')) return null;
+
+    const problemAnswers = p.answers || {};
+    const problemCalculation = p.calculation || {};
+    const problemCorrectValue = p.correctPP ?? problemAnswers.pumpPressure ?? problemCalculation.pdp;
+    const baseCorrectValue = base.correctPP ?? base.answers?.pumpPressure ?? base.calculation?.pdp;
+    const correctPP = isBase ? toNumber(problemCorrectValue ?? baseCorrectValue, 0) : toNumber(problemCorrectValue, 0);
+
+    // Variation/problem entries without an answer stay in the JSON for instructor ideas,
+    // but they are not used as playable student screens.
     if(!correctPP) return null;
 
-    const variationTitle = variation.title || base.title;
-    const variationDetails = Array.isArray(variation.details) && variation.details.length
-      ? variation.details
-      : [...base.details, `Changed condition: ${change}`];
+    const change = p.change || p.scenarioChange || p.setup || '';
+    const title = p.title || base.title;
+    const chip = p.chip || base.chip;
+    const image = p.image || base.image;
+    const scene = p.scene || base.scene;
+    const question = p.studentQuestion || p.question || (change
+      ? `Same picture, new setup: ${change} What pump pressure should the operator set?`
+      : base.question);
+
+    const details = Array.isArray(p.details) && p.details.length
+      ? p.details
+      : (p.sceneElements ? detailsFromSceneElements(p.sceneElements) : base.details);
+
+    const overlays = Array.isArray(p.overlays) ? p.overlays : base.overlays;
+    const formulaBreakdown = Array.isArray(p.formulaBreakdown) && p.formulaBreakdown.length
+      ? p.formulaBreakdown
+      : (change
+        ? [`Changed setup: ${change}`, `Correct pump pressure: ${correctPP} PSI`]
+        : base.formulaBreakdown);
+
+    const instructorExplanation = p.instructorExplanation || base.instructorExplanation || (change
+      ? 'This problem reuses the same picture but changes the operating numbers. Use the numbers shown in the current question and labels.'
+      : '');
+
+    const problemId = p.id || p.problemId || `${base.id}-${kind}-${index + 1}`;
 
     return {
-      ...base,
-      id: `${base.id}__variation_${index + 1}`,
+      id: isBase ? base.id : `${base.id}__${kind}_${index + 1}`,
+      problemId,
+      originalId: base.id,
       baseId: base.baseId || base.id,
-      title: variationTitle,
-      chip: variation.chip || `${safe(base.category,'PUMP').toString().toUpperCase()} • RANDOM RUN`,
-      question: variation.question || `Same picture, new setup: ${change} What pump pressure should the operator set?`,
-      details: variationDetails,
-      overlays: Array.isArray(variation.overlays) ? variation.overlays : base.overlays,
+      title,
+      difficulty: p.difficulty || base.difficulty,
+      category: p.category || base.category,
+      chip,
+      image,
+      scene,
+      question,
+      details,
+      overlays,
       correctPP,
-      tolerance: toNumber(variation.tolerance, base.tolerance),
-      formulaBreakdown: Array.isArray(variation.formulaBreakdown) && variation.formulaBreakdown.length
-        ? variation.formulaBreakdown
-        : [`Changed condition: ${change}`, `Correct pump pressure: ${correctPP} PSI`],
-      instructorExplanation: variation.instructorExplanation || 'This run reuses the same picture but changes one operating detail. Use the changed condition for the new calculation.',
-      explainMistake: variation.explainMistake || base.explainMistake,
+      tolerance: toNumber(p.tolerance ?? problemAnswers.tolerance, base.tolerance),
+      answers: {...base.answers, ...problemAnswers},
+      formulaBreakdown,
+      instructorExplanation,
+      explainMistake: p.explainMistake || base.explainMistake,
       variations: [],
-      isVariation: true,
-      variationChange: change
+      isVariation: !isBase,
+      variationChange: change,
+      problemNumber: 1,
+      problemCount: 1
     };
   }
 
@@ -186,18 +275,25 @@
     renderScenario();
   }
 
+  function getSamePictureRuns(current){
+    return state.scenarios
+      .map((scenario, i) => ({scenario, i}))
+      .filter(({scenario}) => scenario.baseId === current.baseId || scenario.image === current.image)
+      .sort((a, b) => a.i - b.i);
+  }
+
   function nextSamePictureRun(){
     const current = state.scenarios[state.selected];
-    const options = state.scenarios
-      .map((scenario, i) => ({scenario, i}))
-      .filter(({scenario, i}) => i !== state.selected && (scenario.baseId === current.baseId || scenario.image === current.image));
+    const options = getSamePictureRuns(current);
 
-    if(!options.length){
+    if(options.length <= 1){
       nextRandomScenario();
       return;
     }
 
-    state.selected = options[randomIndex(options.length)].i;
+    const currentPos = options.findIndex(({i}) => i === state.selected);
+    const nextPos = currentPos >= 0 ? (currentPos + 1) % options.length : 0;
+    state.selected = options[nextPos].i;
     state.deck = state.deck.filter(i => i !== state.selected);
     renderPracticeInfo();
     renderScenario();
@@ -208,17 +304,15 @@
     if(!info) return;
 
     const current = state.scenarios[state.selected];
-    const samePictureRuns = current
-      ? state.scenarios.filter(s => s.image === current.image || s.baseId === current.baseId).length
-      : 0;
+    const samePictureRuns = current ? getSamePictureRuns(current).length : 0;
 
     info.innerHTML = `
       <div class="practice-card-title">Random scenario mode</div>
-      <p class="practice-copy">Students cannot pick the scenario or level. Each press loads a random problem. Variation runs reuse the same picture with changed numbers or conditions.</p>
+      <p class="practice-copy">Each JSON scene can contain multiple problems, but the student only sees one problem at a time. Same picture problems can use different questions, answers, and picture labels.</p>
       <div class="practice-stats">
         <div><strong>${state.baseScenarios.length}</strong><span>Base scenes</span></div>
-        <div><strong>${state.scenarios.length}</strong><span>Playable runs</span></div>
-        <div><strong>${samePictureRuns}</strong><span>Runs for this picture</span></div>
+        <div><strong>${state.scenarios.length}</strong><span>Playable problems</span></div>
+        <div><strong>${samePictureRuns}</strong><span>This picture</span></div>
       </div>`;
   }
 
@@ -226,21 +320,24 @@
     const s = state.scenarios[state.selected];
     renderSceneImage(s);
 
-    const samePictureCount = state.scenarios.filter(run => run.image === s.image || run.baseId === s.baseId).length;
+    const samePictureCount = getSamePictureRuns(s).length;
     const samePictureDisabled = samePictureCount <= 1 ? 'disabled' : '';
+    const problemNote = s.problemCount > 1
+      ? `<div class="detail variation-note"><strong>Problem ${s.problemNumber} of ${s.problemCount}</strong>${s.variationChange ? ` — ${escapeHtml(s.variationChange)}` : ''}</div>`
+      : '';
 
     $('scenarioPanel').innerHTML = `
       <div class="chip">${escapeHtml(s.chip)}</div>
       <h2>${escapeHtml(s.title)}</h2>
       ${s.scene ? `<p style="color:#aab3c0;line-height:1.45">${escapeHtml(s.scene)}</p>` : ''}
-      ${s.isVariation ? `<div class="detail variation-note"><strong>Same picture variation:</strong> ${escapeHtml(s.variationChange)}</div>` : ''}
+      ${problemNote}
       <div class="question">${escapeHtml(s.question)}</div>
       <div class="details">${s.details.map(d=>`<div class="detail">${escapeHtml(d)}</div>`).join('')}</div>
       <label for="ppInput" style="font-weight:900">Your pump pressure answer</label>
       <div class="answer-row"><input id="ppInput" type="number" inputmode="numeric" placeholder="Enter PSI"><button id="checkBtn" class="btn">Check</button></div>
       <div class="controls">
         <button id="showAnswerBtn" class="btn secondary">Show Answer</button>
-        <button id="samePictureBtn" class="btn secondary" ${samePictureDisabled}>Same Picture / New Numbers</button>
+        <button id="samePictureBtn" class="btn secondary" ${samePictureDisabled}>Same Picture / Next Problem</button>
         <button id="nextBtn" class="btn ghost">Next Random Scenario</button>
       </div>
       <div id="result" class="result"></div>`;
