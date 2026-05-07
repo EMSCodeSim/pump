@@ -1,0 +1,108 @@
+{
+  "id": "single_line_engine181",
+  "title": "Single 1¾″ Attack Line",
+  "category": "single_line",
+  "difficulty": "beginner",
+  "type": "pump",
+  "image": "single-line-engine181.svg",
+  "scene": {
+    "engine": "Engine 181",
+    "description": "Engine 181 is set up on the Alpha side. One attack crew is requesting water on a 1¾″ preconnect.",
+    "baseOverlays": []
+  },
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [],
+    "nozzles": [],
+    "appliances": [],
+    "elevation": ""
+  },
+  "problems": [
+    {
+      "id": "single_line_engine181_q1",
+      "title": "Single 1¾″ Attack Line",
+      "question": "Engine 181 is set up on the Alpha side. One attack crew is requesting water on a 1¾″ preconnect. 200′ of 1¾″ hose. 185 gpm fog nozzle @ 50 psi. No elevation change. No appliance loss What pump pressure should Engine 181 set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 156,
+      "correctPP": 156,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 106,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 156,
+        "tolerance": 5
+      },
+      "overlays": [],
+      "formulaBreakdown": [],
+      "instructorExplanation": "Using C=15.5 for 1¾″ hose: FL = 15.5 × (185/100)² × 2 = 106 psi. PP = 106 FL + 50 NP = 156 psi.",
+      "explainMistake": "If the student enters about 106 psi, they calculated friction loss but forgot to add nozzle pressure. If they enter about 50 psi, they used only nozzle pressure and did not calculate hose friction loss."
+    },
+    {
+      "id": "single_line_engine181_q2",
+      "title": "Single 1¾″ Attack Line",
+      "question": "Engine 181 now has 250′ of 1¾″ hose flowing 185 gpm through a 50 psi fog nozzle. No elevation or appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 183,
+      "correctPP": 183,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 106,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 183,
+        "tolerance": 5
+      },
+      "overlays": [],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100′ = 15.5 × (185 ÷ 100)^2 = 53 psi",
+        "Total FL = 53 × 2.5 = 133 psi",
+        "PP = 133 + 50 + 0 + 0 = 183 psi"
+      ],
+      "instructorExplanation": "This is the same 1¾″ preconnect picture, but the hose length is longer. Recalculate friction loss using 2.5 hose lengths.",
+      "explainMistake": "If the student enters about 106 psi, they calculated friction loss but forgot to add nozzle pressure. If they enter about 50 psi, they used only nozzle pressure and did not calculate hose friction loss."
+    },
+    {
+      "id": "single_line_engine181_q3",
+      "title": "Single 1¾″ Attack Line",
+      "question": "Engine 181 has 200′ of 1¾″ hose flowing 150 gpm through a 100 psi fog nozzle. No elevation or appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 170,
+      "correctPP": 170,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 106,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 170,
+        "tolerance": 5
+      },
+      "overlays": [],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100′ = 15.5 × (150 ÷ 100)^2 = 35 psi",
+        "Total FL = 35 × 2 = 70 psi",
+        "PP = 70 + 100 + 0 + 0 = 170 psi"
+      ],
+      "instructorExplanation": "This run uses the same picture but changes nozzle pressure. Students must add the 100 psi nozzle pressure instead of 50 psi.",
+      "explainMistake": "If the student enters about 106 psi, they calculated friction loss but forgot to add nozzle pressure. If they enter about 50 psi, they used only nozzle pressure and did not calculate hose friction loss."
+    }
+  ],
+  "tags": []
+}

@@ -1,450 +1,136 @@
 {
-  "version": 2,
-  "packId": "fireops_single_line_pack",
-  "title": "FireOps Single Line Scenario Pack",
+  "version": 3,
+  "packId": "fireops_scene_trainer",
+  "title": "FireOps Scene Trainer Scenario Index",
+  "format": "scene_root_with_problems",
   "scenarios": [
     {
+      "file": "single_line_preconnect_001.json",
       "id": "single_line_preconnect_001",
       "title": "Basic 1¾ Preconnect to Front Door",
+      "category": "single_line",
       "difficulty": "beginner",
-      "category": "attack line",
-      "type": "pump",
-      "image": "single_line_preconnect_001.png",
-      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
-      "correctPP": 120,
-      "tolerance": 5,
-      "answers": {
-        "frictionLoss": 70,
-        "nozzlePressure": 50,
-        "elevation": 0,
-        "applianceLoss": 0,
-        "totalGpm": 150,
-        "pumpPressure": 120,
-        "tolerance": 5
-      },
-      "sceneElements": {
-        "engine": "Engine 181",
-        "hoses": [
-          {
-            "diameter": "1¾\"",
-            "length": "200'",
-            "flowGpm": 150,
-            "cValue": 15.5,
-            "status": "charged"
-          }
-        ],
-        "nozzles": [
-          {
-            "type": "fog",
-            "flowGpm": 150,
-            "nozzlePressure": 50
-          }
-        ],
-        "appliances": [],
-        "elevation": "0 PSI"
-      },
-      "overlays": [
-        {
-          "label": "Engine",
-          "text": "Engine 181",
-          "x": 18,
-          "y": 68
-        },
-        {
-          "label": "Line",
-          "text": "200' 1¾\"",
-          "x": 45,
-          "y": 52
-        },
-        {
-          "label": "Nozzle",
-          "text": "Fog 150 @ 50",
-          "x": 70,
-          "y": 33
-        },
-        {
-          "label": "Elev",
-          "text": "Level grade",
-          "x": 49,
-          "y": 72
-        }
-      ],
-      "formulaBreakdown": [
-        "PP = FL + NP + elevation + appliance loss",
-        "FL per 100' = 15.5 × (150 ÷ 100)^2",
-        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
-        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
-        "PP = 70 + 50 + 0 + 0 = 120 PSI"
-      ],
-      "variations": [
-        {
-          "change": "Change hose length to 150' 1¾\". Same flow and nozzle.",
-          "correctPP": 102
-        },
-        {
-          "change": "Change flow to 185 GPM. Same 200' 1¾\" line and 50 PSI fog nozzle.",
-          "correctPP": 156
-        },
-        {
-          "change": "Change nozzle pressure to 75 PSI. Same 200' 1¾\" line at 150 GPM.",
-          "correctPP": 145
-        }
-      ],
-      "tags": [
-        "single line",
-        "preconnect",
-        "1.75 inch",
-        "fog nozzle",
-        "beginner",
-        "Engine 181"
-      ]
+      "problemCount": 4
     },
     {
+      "file": "single_line_extended_002.json",
       "id": "single_line_extended_002",
       "title": "Extended 1¾ Line to Second Floor",
+      "category": "single_line",
       "difficulty": "intermediate",
-      "category": "attack line",
-      "type": "pump",
-      "image": "single_line_extended_002.png",
-      "question": "Engine 181 has a 250' 1¾\" line stretched to a second-floor apartment fire. The fog nozzle is flowing 185 GPM at 50 PSI. Add 5 PSI for the floor above the pump. No appliance loss. What pump pressure should you set?",
-      "correctPP": 188,
-      "tolerance": 5,
-      "answers": {
-        "frictionLoss": 133,
-        "nozzlePressure": 50,
-        "elevation": 5,
-        "applianceLoss": 0,
-        "totalGpm": 185,
-        "pumpPressure": 188,
-        "tolerance": 5
-      },
-      "sceneElements": {
-        "engine": "Engine 181",
-        "hoses": [
-          {
-            "diameter": "1¾\"",
-            "length": "250'",
-            "flowGpm": 185,
-            "cValue": 15.5,
-            "status": "charged"
-          }
-        ],
-        "nozzles": [
-          {
-            "type": "fog",
-            "flowGpm": 185,
-            "nozzlePressure": 50
-          }
-        ],
-        "appliances": [],
-        "elevation": "+5 PSI, one floor above pump"
-      },
-      "overlays": [
-        {
-          "label": "Engine",
-          "text": "Engine 181",
-          "x": 18,
-          "y": 69
-        },
-        {
-          "label": "Line",
-          "text": "250' 1¾\"",
-          "x": 43,
-          "y": 55
-        },
-        {
-          "label": "Nozzle",
-          "text": "Fog 185 @ 50",
-          "x": 72,
-          "y": 29
-        },
-        {
-          "label": "Elev",
-          "text": "+5 PSI",
-          "x": 64,
-          "y": 39
-        }
-      ],
-      "formulaBreakdown": [
-        "PP = FL + NP + elevation + appliance loss",
-        "FL per 100' = 15.5 × (185 ÷ 100)^2",
-        "FL per 100' = 15.5 × 3.4225 = 53.04875 PSI",
-        "Total FL = 53.04875 × 2.5 = 132.621875 ≈ 133 PSI",
-        "PP = 133 + 50 + 5 + 0 = 188 PSI"
-      ],
-      "variations": [
-        {
-          "change": "Change hose length to 200' 1¾\". Same 185 GPM nozzle and +5 PSI elevation.",
-          "correctPP": 161
-        },
-        {
-          "change": "Change flow to 150 GPM. Same 250' 1¾\" line and +5 PSI elevation.",
-          "correctPP": 142
-        },
-        {
-          "change": "Change elevation to three floors above the pump, +15 PSI. Same line and flow.",
-          "correctPP": 198
-        }
-      ],
-      "tags": [
-        "single line",
-        "extended preconnect",
-        "1.75 inch",
-        "fog nozzle",
-        "elevation",
-        "Engine 181"
-      ]
+      "problemCount": 4
     },
     {
+      "file": "single_line_heavy_003.json",
       "id": "single_line_heavy_003",
       "title": "Heavy 2½ Smooth Bore Attack Line",
+      "category": "single_line",
       "difficulty": "intermediate",
-      "category": "attack line",
-      "type": "pump",
-      "image": "single_line_heavy_003.png",
-      "question": "Engine 181 is supplying a 250' 2½\" attack line to the corner of a commercial strip. The nozzle is a 1⅛\" smooth bore flowing about 265 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
-      "correctPP": 85,
-      "tolerance": 5,
-      "answers": {
-        "frictionLoss": 35,
-        "nozzlePressure": 50,
-        "elevation": 0,
-        "applianceLoss": 0,
-        "totalGpm": 265,
-        "pumpPressure": 85,
-        "tolerance": 5
-      },
-      "sceneElements": {
-        "engine": "Engine 181",
-        "hoses": [
-          {
-            "diameter": "2½\"",
-            "length": "250'",
-            "flowGpm": 265,
-            "cValue": 2,
-            "status": "charged"
-          }
-        ],
-        "nozzles": [
-          {
-            "type": "smooth bore",
-            "tip": "1⅛\"",
-            "flowGpm": 265,
-            "nozzlePressure": 50
-          }
-        ],
-        "appliances": [],
-        "elevation": "0 PSI"
-      },
-      "overlays": [
-        {
-          "label": "Engine",
-          "text": "Engine 181",
-          "x": 16,
-          "y": 68
-        },
-        {
-          "label": "Line",
-          "text": "250' 2½\"",
-          "x": 43,
-          "y": 55
-        },
-        {
-          "label": "Nozzle",
-          "text": "SB 1⅛ @ 50",
-          "x": 73,
-          "y": 32
-        },
-        {
-          "label": "Target",
-          "text": "Commercial",
-          "x": 67,
-          "y": 20
-        }
-      ],
-      "formulaBreakdown": [
-        "PP = FL + NP + elevation + appliance loss",
-        "FL per 100' = 2 × (265 ÷ 100)^2",
-        "FL per 100' = 2 × 7.0225 = 14.045 PSI",
-        "Total FL = 14.045 × 2.5 = 35.1125 ≈ 35 PSI",
-        "PP = 35 + 50 + 0 + 0 = 85 PSI"
-      ],
-      "variations": [
-        {
-          "change": "Change hose length to 200' 2½\". Same 1⅛\" smooth bore at 265 GPM.",
-          "correctPP": 78
-        },
-        {
-          "change": "Change nozzle to 1\" smooth bore flowing about 210 GPM. Same 250' 2½\" line.",
-          "correctPP": 72
-        },
-        {
-          "change": "Add one floor of elevation, +5 PSI. Same line, flow, and nozzle.",
-          "correctPP": 90
-        }
-      ],
-      "tags": [
-        "single line",
-        "2.5 inch",
-        "smooth bore",
-        "commercial",
-        "heavy attack",
-        "Engine 181"
-      ]
+      "problemCount": 4
     },
     {
+      "file": "single_line_engine181.json",
+      "id": "single_line_engine181",
+      "title": "Single 1¾″ Attack Line",
+      "category": "single_line",
+      "difficulty": "beginner",
+      "problemCount": 3
+    },
+    {
+      "file": "car_fire_engine181_001.json",
+      "id": "car_fire_engine181_001",
+      "title": "Engine 181 Car Fire Attack Line",
+      "category": "vehicle_fire",
+      "difficulty": "beginner",
+      "problemCount": 4
+    },
+    {
+      "file": "wildland_structure_engine181_001.json",
+      "id": "wildland_structure_engine181_001",
+      "title": "Engine 181 Wildland Structure Protection",
+      "category": "wildland",
+      "difficulty": "beginner",
+      "problemCount": 4
+    },
+    {
+      "file": "wye_residential_split_001.json",
+      "id": "wye_residential_split_001",
+      "title": "Residential Wye Split",
+      "category": "wye",
+      "difficulty": "intermediate",
+      "problemCount": 4
+    },
+    {
+      "file": "wye_engine181.json",
+      "id": "wye_engine181",
+      "title": "2½″ Supply to Wye — Two Handlines",
+      "category": "wye",
+      "difficulty": "intermediate",
+      "problemCount": 3
+    },
+    {
+      "file": "standpipe_engine181_multi.json",
+      "id": "standpipe_engine181_multi",
+      "title": "Standpipe Operation — Engine Hose and Attack Hose",
+      "category": "standpipe",
+      "difficulty": "intermediate",
+      "problemCount": 5
+    },
+    {
+      "file": "advanced_standpipe_floor5.json",
+      "id": "advanced_standpipe_floor5",
+      "title": "Advanced Standpipe Floor 5",
+      "category": "standpipe",
+      "difficulty": "advanced",
+      "problemCount": 1
+    },
+    {
+      "file": "masterstream_181_001.json",
+      "id": "masterstream_181_001",
+      "title": "Engine 181 Portable Master Stream",
+      "category": "master_stream",
+      "difficulty": "advanced",
+      "problemCount": 4
+    },
+    {
+      "file": "portable_master_engine181.json",
+      "id": "portable_master_engine181",
+      "title": "Portable Master Stream with Dual 2½″ Lines",
+      "category": "master_stream",
+      "difficulty": "advanced",
+      "problemCount": 3
+    },
+    {
+      "file": "advanced_portable_monitor_dual_supply.json",
       "id": "advanced_portable_monitor_dual_supply",
       "title": "Advanced Portable Monitor Dual Supply",
-      "difficulty": "advanced",
       "category": "master_stream",
-      "type": "pump",
-      "answerLabel": "Pump Pressure",
-      "answerUnit": "PSI",
-      "inputLabel": "Enter pump pressure",
-      "inputPlaceholder": "PSI",
-      "answerValue": 115,
-      "image": "advanced_portable_monitor_dual_supply.png",
-      "question": "Engine 181 is supplying a portable monitor at a commercial strip fire. The monitor is fed by two 200’ 2½” supply lines. The monitor is flowing 500 GPM at 80 PSI. Use a 10 PSI appliance loss for the portable monitor. No elevation change. What pump pressure should the driver/operator set?",
-      "correctPP": 115,
-      "tolerance": 5,
-      "answers": {
-        "frictionLoss": 25,
-        "nozzlePressure": 80,
-        "elevation": 0,
-        "applianceLoss": 10,
-        "totalGpm": 500,
-        "pumpPressure": 115,
-        "tolerance": 5
-      },
-      "sceneElements": {
-        "engine": "Engine 181",
-        "hoses": [
-          {
-            "id": "line_a",
-            "diameter": "2½\"",
-            "length": "200'",
-            "flowGpm": 250,
-            "cValue": 2,
-            "status": "charged"
-          },
-          {
-            "id": "line_b",
-            "diameter": "2½\"",
-            "length": "200'",
-            "flowGpm": 250,
-            "cValue": 2,
-            "status": "charged"
-          }
-        ],
-        "nozzles": [
-          {
-            "type": "portable monitor",
-            "flowGpm": 500,
-            "nozzlePressure": 80
-          }
-        ],
-        "appliances": [
-          {
-            "type": "portable monitor",
-            "lossPsi": 10
-          }
-        ],
-        "elevation": "0 PSI"
-      },
-      "overlays": [
-        {
-          "label": "Engine",
-          "text": "Engine 181",
-          "x": 18,
-          "y": 72
-        },
-        {
-          "label": "Line A",
-          "text": "A: 200' 2½\"",
-          "x": 38,
-          "y": 59
-        },
-        {
-          "label": "Line B",
-          "text": "B: 200' 2½\"",
-          "x": 40,
-          "y": 66
-        },
-        {
-          "label": "Monitor",
-          "text": "Portable Monitor",
-          "x": 63,
-          "y": 49
-        },
-        {
-          "label": "Flow",
-          "text": "500 GPM",
-          "x": 74,
-          "y": 43
-        },
-        {
-          "label": "NP",
-          "text": "80 PSI NP",
-          "x": 78,
-          "y": 36
-        },
-        {
-          "label": "Appliance",
-          "text": "+10 PSI",
-          "x": 60,
-          "y": 55
-        }
-      ],
-      "formulaBreakdown": [
-        "PP = FL + NP + elevation + appliance loss",
-        "Total monitor flow = 500 GPM",
-        "Flow is split between two 2½” supply lines",
-        "500 ÷ 2 = 250 GPM per line",
-        "FL = C × (GPM / 100)^2 × hose length in hundreds",
-        "FL = 2 × (250 / 100)^2 × 2",
-        "FL = 2 × 2.5^2 × 2",
-        "FL = 25 PSI",
-        "NP = 80 PSI",
-        "Elevation = 0 PSI",
-        "Appliance loss = 10 PSI",
-        "PP = 25 + 80 + 0 + 10 = 115 PSI",
-        "Rounded final pump pressure = 115 PSI"
-      ],
-      "instructorExplanation": "This is an advanced portable master stream problem. The driver/operator must split the 500 GPM monitor flow between the two 2½” supply lines before calculating friction loss. Each line carries 250 GPM, so the governing line friction loss is 25 PSI. Add 80 PSI nozzle pressure and 10 PSI appliance loss for a final pump pressure of 115 PSI.",
-      "explainMistake": "Common mistakes include using 500 GPM for each supply line, adding both friction losses together, forgetting the portable monitor appliance loss, using 50 PSI handline nozzle pressure instead of 80 PSI master stream pressure, or adding elevation when none is present.",
-      "tags": [
-        "advanced",
-        "master_stream",
-        "portable_monitor",
-        "dual_supply",
-        "engine_181",
-        "pump_pressure",
-        "commercial_fire"
-      ]
+      "difficulty": "advanced",
+      "problemCount": 1
     },
     {
-      "file": "wye_residential_split_001.json"
+      "file": "relay_ldh_supply_001.json",
+      "id": "relay_ldh_supply_001",
+      "title": "Relay Pumping: LDH Supply to Attack Engine",
+      "category": "relay",
+      "difficulty": "intermediate",
+      "problemCount": 4
     },
     {
-      "file": "masterstream_181_001.json"
+      "file": "tender_shuttle_single_tender_001.json",
+      "id": "tender_shuttle_single_tender_001",
+      "title": "Tender Shuttle: Single Tender Sustained Flow",
+      "category": "water_supply",
+      "difficulty": "intermediate",
+      "problemCount": 4
     },
     {
-      "file": "standpipe-engine181-multi.json"
-    },
-    {
-      "file": "car-fire-engine181-001.json"
-    },
-    {
-      "file": "wildland-structure-engine181-001.json"
-    },
-    {
-      "file": "relay_ldh_supply_001.json"
-    },
-    {
-      "file": "tender_shuttle_single_tender_001.json"
-    },
-    {
-      "file": "hydrant_drop_add_lines_001.json"
+      "file": "hydrant_drop_add_lines_001.json",
+      "id": "hydrant_drop_add_lines_001",
+      "title": "Hydrant Pressure Drop: Additional Attack Lines",
+      "category": "hydrant_drop",
+      "difficulty": "intermediate",
+      "problemCount": 4
     }
   ]
 }

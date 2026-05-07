@@ -1,26 +1,14 @@
 {
   "id": "advanced_portable_monitor_dual_supply",
   "title": "Advanced Portable Monitor Dual Supply",
-  "difficulty": "advanced",
   "category": "master_stream",
+  "difficulty": "advanced",
   "type": "pump",
-  "answerLabel": "Pump Pressure",
-  "answerUnit": "PSI",
-  "inputLabel": "Enter pump pressure",
-  "inputPlaceholder": "PSI",
-  "answerValue": 115,
   "image": "advanced_portable_monitor_dual_supply.png",
-  "question": "Engine 181 is supplying a portable monitor at a commercial strip fire. The monitor is fed by two 200’ 2½” supply lines. The monitor is flowing 500 GPM at 80 PSI. Use a 10 PSI appliance loss for the portable monitor. No elevation change. What pump pressure should the driver/operator set?",
-  "correctPP": 115,
-  "tolerance": 5,
-  "answers": {
-    "frictionLoss": 25,
-    "nozzlePressure": 80,
-    "elevation": 0,
-    "applianceLoss": 10,
-    "totalGpm": 500,
-    "pumpPressure": 115,
-    "tolerance": 5
+  "scene": {
+    "engine": "Engine 181",
+    "description": "Engine 181 is supplying a portable monitor at a commercial strip fire. The monitor is fed by two 200’ 2½” supply lines. The monitor is flowing 500 GPM at 80 PSI. Use a 10 PSI appliance loss for the portable monitor. No elevation change. What pump pressure should the driver/operator set?",
+    "baseOverlays": []
   },
   "sceneElements": {
     "engine": "Engine 181",
@@ -36,67 +24,90 @@
     ],
     "elevation": "No elevation change"
   },
-  "overlays": [
+  "problems": [
     {
-      "id": "engine",
-      "text": "Engine 181",
-      "x": 18,
-      "y": 72
-    },
-    {
-      "id": "line_a",
-      "text": "A: 200' 2½",
-      "x": 38,
-      "y": 59
-    },
-    {
-      "id": "line_b",
-      "text": "B: 200' 2½",
-      "x": 40,
-      "y": 66
-    },
-    {
-      "id": "monitor",
-      "text": "Portable Monitor",
-      "x": 63,
-      "y": 49
-    },
-    {
-      "id": "flow",
-      "text": "500 GPM",
-      "x": 74,
-      "y": 43
-    },
-    {
-      "id": "np",
-      "text": "80 PSI NP",
-      "x": 78,
-      "y": 36
-    },
-    {
-      "id": "appliance",
-      "text": "+10 PSI",
-      "x": 60,
-      "y": 55
+      "id": "advanced_portable_monitor_dual_supply_q1",
+      "title": "Advanced Portable Monitor Dual Supply",
+      "question": "Engine 181 is supplying a portable monitor at a commercial strip fire. The monitor is fed by two 200’ 2½” supply lines. The monitor is flowing 500 GPM at 80 PSI. Use a 10 PSI appliance loss for the portable monitor. No elevation change. What pump pressure should the driver/operator set?",
+      "answerLabel": "Pump Pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Enter pump pressure",
+      "inputPlaceholder": "PSI",
+      "answerValue": 115,
+      "correctPP": 115,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 25,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 10,
+        "totalGpm": 500,
+        "pumpPressure": 115,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "id": "engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 72
+        },
+        {
+          "id": "line_a",
+          "text": "A: 200' 2½",
+          "x": 38,
+          "y": 59
+        },
+        {
+          "id": "line_b",
+          "text": "B: 200' 2½",
+          "x": 40,
+          "y": 66
+        },
+        {
+          "id": "monitor",
+          "text": "Portable Monitor",
+          "x": 63,
+          "y": 49
+        },
+        {
+          "id": "flow",
+          "text": "500 GPM",
+          "x": 74,
+          "y": 43
+        },
+        {
+          "id": "np",
+          "text": "80 PSI NP",
+          "x": 78,
+          "y": 36
+        },
+        {
+          "id": "appliance",
+          "text": "+10 PSI",
+          "x": 60,
+          "y": 55
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "Total monitor flow = 500 GPM",
+        "Flow is split between two 2½” supply lines",
+        "500 ÷ 2 = 250 GPM per line",
+        "FL = C × (GPM / 100)^2 × hose length in hundreds",
+        "FL = 2 × (250 / 100)^2 × 2",
+        "FL = 2 × 2.5^2 × 2",
+        "FL = 25 PSI",
+        "NP = 80 PSI",
+        "Elevation = 0 PSI",
+        "Appliance loss = 10 PSI",
+        "PP = 25 + 80 + 0 + 10 = 115 PSI",
+        "Rounded final pump pressure = 115 PSI"
+      ],
+      "instructorExplanation": "This is an advanced portable master stream problem. The driver/operator must split the 500 GPM monitor flow between the two 2½” supply lines before calculating friction loss. Each line carries 250 GPM, so the governing line friction loss is 25 PSI. Add 80 PSI nozzle pressure and 10 PSI appliance loss for a final pump pressure of 115 PSI.",
+      "explainMistake": "Common mistakes include using 500 GPM for each supply line, adding both friction losses together, forgetting the portable monitor appliance loss, using 50 PSI handline nozzle pressure instead of 80 PSI master stream pressure, or adding elevation when none is present."
     }
   ],
-  "formulaBreakdown": [
-    "PP = FL + NP + elevation + appliance loss",
-    "Total monitor flow = 500 GPM",
-    "Flow is split between two 2½” supply lines",
-    "500 ÷ 2 = 250 GPM per line",
-    "FL = C × (GPM / 100)^2 × hose length in hundreds",
-    "FL = 2 × (250 / 100)^2 × 2",
-    "FL = 2 × 2.5^2 × 2",
-    "FL = 25 PSI",
-    "NP = 80 PSI",
-    "Elevation = 0 PSI",
-    "Appliance loss = 10 PSI",
-    "PP = 25 + 80 + 0 + 10 = 115 PSI",
-    "Rounded final pump pressure = 115 PSI"
-  ],
-  "instructorExplanation": "This is an advanced portable master stream problem. The driver/operator must split the 500 GPM monitor flow between the two 2½” supply lines before calculating friction loss. Each line carries 250 GPM, so the governing line friction loss is 25 PSI. Add 80 PSI nozzle pressure and 10 PSI appliance loss for a final pump pressure of 115 PSI.",
-  "explainMistake": "Common mistakes include using 500 GPM for each supply line, adding both friction losses together, forgetting the portable monitor appliance loss, using 50 PSI handline nozzle pressure instead of 80 PSI master stream pressure, or adding elevation when none is present.",
   "tags": [
     "advanced",
     "master_stream",

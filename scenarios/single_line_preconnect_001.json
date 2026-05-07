@@ -1,0 +1,268 @@
+{
+  "id": "single_line_preconnect_001",
+  "title": "Basic 1¾ Preconnect to Front Door",
+  "category": "single_line",
+  "difficulty": "beginner",
+  "type": "pump",
+  "image": "single_line_preconnect_001.png",
+  "scene": {
+    "engine": "Engine 181",
+    "description": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+    "baseOverlays": []
+  },
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [
+      {
+        "diameter": "1¾\"",
+        "length": "200'",
+        "flowGpm": 150,
+        "cValue": 15.5,
+        "status": "charged"
+      }
+    ],
+    "nozzles": [
+      {
+        "type": "fog",
+        "flowGpm": 150,
+        "nozzlePressure": 50
+      }
+    ],
+    "appliances": [],
+    "elevation": "0 PSI"
+  },
+  "problems": [
+    {
+      "id": "single_line_preconnect_001_q1",
+      "title": "Basic 1¾ Preconnect to Front Door",
+      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 120,
+      "correctPP": 120,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 120,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "200' 1¾\"",
+          "x": 45,
+          "y": 52
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 70,
+          "y": 33
+        },
+        {
+          "label": "Elev",
+          "text": "Level grade",
+          "x": 49,
+          "y": 72
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (150 ÷ 100)^2",
+        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
+        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
+        "PP = 70 + 50 + 0 + 0 = 120 PSI"
+      ],
+      "instructorExplanation": "",
+      "explainMistake": ""
+    },
+    {
+      "id": "single_line_preconnect_001_q2",
+      "title": "Basic 1¾ Preconnect to Front Door",
+      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 102,
+      "correctPP": 102,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 102,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "200' 1¾\"",
+          "x": 45,
+          "y": 52
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 70,
+          "y": 33
+        },
+        {
+          "label": "Elev",
+          "text": "Level grade",
+          "x": 49,
+          "y": 72
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (150 ÷ 100)^2",
+        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
+        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
+        "PP = 70 + 50 + 0 + 0 = 120 PSI"
+      ],
+      "instructorExplanation": "",
+      "explainMistake": ""
+    },
+    {
+      "id": "single_line_preconnect_001_q3",
+      "title": "Basic 1¾ Preconnect to Front Door",
+      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 156,
+      "correctPP": 156,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 156,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "200' 1¾\"",
+          "x": 45,
+          "y": 52
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 70,
+          "y": 33
+        },
+        {
+          "label": "Elev",
+          "text": "Level grade",
+          "x": 49,
+          "y": 72
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (150 ÷ 100)^2",
+        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
+        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
+        "PP = 70 + 50 + 0 + 0 = 120 PSI"
+      ],
+      "instructorExplanation": "",
+      "explainMistake": ""
+    },
+    {
+      "id": "single_line_preconnect_001_q4",
+      "title": "Basic 1¾ Preconnect to Front Door",
+      "question": "Engine 181 is stretching a 200' 1¾\" preconnect to the front door of a single-family dwelling. The fog nozzle is flowing 150 GPM at 50 PSI. No elevation and no appliance loss. What pump pressure should you set?",
+      "answerLabel": "Pump discharge pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Your pump pressure answer",
+      "inputPlaceholder": "Enter PSI",
+      "answerValue": 145,
+      "correctPP": 145,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 70,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 150,
+        "pumpPressure": 145,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 68
+        },
+        {
+          "label": "Line",
+          "text": "200' 1¾\"",
+          "x": 45,
+          "y": 52
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog 150 @ 50",
+          "x": 70,
+          "y": 33
+        },
+        {
+          "label": "Elev",
+          "text": "Level grade",
+          "x": 49,
+          "y": 72
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL per 100' = 15.5 × (150 ÷ 100)^2",
+        "FL per 100' = 15.5 × 2.25 = 34.875 PSI",
+        "Total FL = 34.875 × 2 = 69.75 ≈ 70 PSI",
+        "PP = 70 + 50 + 0 + 0 = 120 PSI"
+      ],
+      "instructorExplanation": "",
+      "explainMistake": ""
+    }
+  ],
+  "tags": [
+    "single line",
+    "preconnect",
+    "1.75 inch",
+    "fog nozzle",
+    "beginner",
+    "Engine 181"
+  ]
+}

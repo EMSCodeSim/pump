@@ -1,26 +1,14 @@
 {
   "id": "advanced_standpipe_floor5",
   "title": "Advanced Standpipe Floor 5",
-  "difficulty": "advanced",
   "category": "standpipe",
+  "difficulty": "advanced",
   "type": "pump",
-  "answerLabel": "Pump Pressure",
-  "answerUnit": "PSI",
-  "inputLabel": "Enter pump pressure",
-  "inputPlaceholder": "PSI",
-  "answerValue": 120,
   "image": "advanced_standpipe_floor5.png",
-  "question": "Engine 181 is pumping a standpipe operation at a 5-story apartment building. Crews are operating from the 5th-floor standpipe outlet with 150’ of 2½” hose and a 1⅛” smooth bore nozzle flowing 265 GPM at 50 PSI. Add 25 PSI for standpipe/FDC system loss. What pump pressure should the driver/operator set?",
-  "correctPP": 120,
-  "tolerance": 5,
-  "answers": {
-    "frictionLoss": 21,
-    "nozzlePressure": 50,
-    "elevation": 25,
-    "applianceLoss": 25,
-    "totalGpm": 265,
-    "pumpPressure": 120,
-    "tolerance": 5
+  "scene": {
+    "engine": "Engine 181",
+    "description": "Engine 181 is pumping a standpipe operation at a 5-story apartment building. Crews are operating from the 5th-floor standpipe outlet with 150’ of 2½” hose and a 1⅛” smooth bore nozzle flowing 265 GPM at 50 PSI. Add 25 PSI for standpipe/FDC system loss. What pump pressure should the driver/operator set?",
+    "baseOverlays": []
   },
   "sceneElements": {
     "engine": "Engine 181",
@@ -38,58 +26,81 @@
     ],
     "elevation": "5 floors above pump level, +25 PSI"
   },
-  "overlays": [
+  "problems": [
     {
-      "id": "engine",
-      "text": "Engine 181",
-      "x": 18,
-      "y": 72
-    },
-    {
-      "id": "fdc",
-      "text": "FDC +25 PSI",
-      "x": 42,
-      "y": 66
-    },
-    {
-      "id": "floor",
-      "text": "Floor 5 +25 PSI",
-      "x": 70,
-      "y": 22
-    },
-    {
-      "id": "hose",
-      "text": "150' 2½",
-      "x": 64,
-      "y": 33
-    },
-    {
-      "id": "nozzle",
-      "text": "SB 1⅛ 265 @ 50",
-      "x": 78,
-      "y": 38
-    },
-    {
-      "id": "flow",
-      "text": "265 GPM",
-      "x": 52,
-      "y": 47
+      "id": "advanced_standpipe_floor5_q1",
+      "title": "Advanced Standpipe Floor 5",
+      "question": "Engine 181 is pumping a standpipe operation at a 5-story apartment building. Crews are operating from the 5th-floor standpipe outlet with 150’ of 2½” hose and a 1⅛” smooth bore nozzle flowing 265 GPM at 50 PSI. Add 25 PSI for standpipe/FDC system loss. What pump pressure should the driver/operator set?",
+      "answerLabel": "Pump Pressure",
+      "answerUnit": "PSI",
+      "inputLabel": "Enter pump pressure",
+      "inputPlaceholder": "PSI",
+      "answerValue": 120,
+      "correctPP": 120,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 21,
+        "nozzlePressure": 50,
+        "elevation": 25,
+        "applianceLoss": 25,
+        "totalGpm": 265,
+        "pumpPressure": 120,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "id": "engine",
+          "text": "Engine 181",
+          "x": 18,
+          "y": 72
+        },
+        {
+          "id": "fdc",
+          "text": "FDC +25 PSI",
+          "x": 42,
+          "y": 66
+        },
+        {
+          "id": "floor",
+          "text": "Floor 5 +25 PSI",
+          "x": 70,
+          "y": 22
+        },
+        {
+          "id": "hose",
+          "text": "150' 2½",
+          "x": 64,
+          "y": 33
+        },
+        {
+          "id": "nozzle",
+          "text": "SB 1⅛ 265 @ 50",
+          "x": 78,
+          "y": 38
+        },
+        {
+          "id": "flow",
+          "text": "265 GPM",
+          "x": 52,
+          "y": 47
+        }
+      ],
+      "formulaBreakdown": [
+        "PP = FL + NP + elevation + appliance loss",
+        "FL = C × (GPM / 100)^2 × hose length in hundreds",
+        "FL = 2 × (265 / 100)^2 × 1.5",
+        "FL = 2 × 2.65^2 × 1.5",
+        "FL = 21 PSI",
+        "NP = 50 PSI",
+        "Elevation = 5 floors × 5 PSI = 25 PSI",
+        "Standpipe/FDC loss = 25 PSI",
+        "PP = 21 + 50 + 25 + 25 = 121 PSI",
+        "Rounded final pump pressure = 120 PSI"
+      ],
+      "instructorExplanation": "This is an advanced standpipe pump pressure problem. The driver/operator must supply the 5th-floor handline by adding 2½” hose friction loss, smooth bore nozzle pressure, elevation pressure, and standpipe/FDC system loss. The calculated pressure is 121 PSI, rounded to 120 PSI.",
+      "explainMistake": "Common mistakes include forgetting the 25 PSI standpipe/FDC loss, using the wrong hose coefficient, skipping the 5-floor elevation gain, double-counting nozzle pressure, or rounding before the final pump pressure calculation."
     }
   ],
-  "formulaBreakdown": [
-    "PP = FL + NP + elevation + appliance loss",
-    "FL = C × (GPM / 100)^2 × hose length in hundreds",
-    "FL = 2 × (265 / 100)^2 × 1.5",
-    "FL = 2 × 2.65^2 × 1.5",
-    "FL = 21 PSI",
-    "NP = 50 PSI",
-    "Elevation = 5 floors × 5 PSI = 25 PSI",
-    "Standpipe/FDC loss = 25 PSI",
-    "PP = 21 + 50 + 25 + 25 = 121 PSI",
-    "Rounded final pump pressure = 120 PSI"
-  ],
-  "instructorExplanation": "This is an advanced standpipe pump pressure problem. The driver/operator must supply the 5th-floor handline by adding 2½” hose friction loss, smooth bore nozzle pressure, elevation pressure, and standpipe/FDC system loss. The calculated pressure is 121 PSI, rounded to 120 PSI.",
-  "explainMistake": "Common mistakes include forgetting the 25 PSI standpipe/FDC loss, using the wrong hose coefficient, skipping the 5-floor elevation gain, double-counting nozzle pressure, or rounding before the final pump pressure calculation.",
   "tags": [
     "advanced",
     "standpipe",
