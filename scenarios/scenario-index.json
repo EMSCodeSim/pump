@@ -306,6 +306,15 @@
     },
     {
       "file": "wildland-structure-engine181-001.json"
+    },
+    {
+      "file": "relay_ldh_supply_001.json"
+    },
+    {
+      "file": "tender_shuttle_single_tender_001.json"
+    },
+    {
+      "file": "hydrant_drop_add_lines_001.json"
     }
   ]
 }
