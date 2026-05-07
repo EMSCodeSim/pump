@@ -1,0 +1,38 @@
+[
+  {
+    "label": "Attack Engine",
+    "text": "Engine 181",
+    "x": 22,
+    "y": 72
+  },
+  {
+    "label": "Portable Tank",
+    "text": "Draft Tank",
+    "x": 45,
+    "y": 70
+  },
+  {
+    "label": "Tender",
+    "text": "Tender 184",
+    "x": 66,
+    "y": 62
+  },
+  {
+    "label": "Capacity",
+    "text": "2,500 gal",
+    "x": 68,
+    "y": 54
+  },
+  {
+    "label": "Cycle",
+    "text": "19 min cycle",
+    "x": 48,
+    "y": 38
+  },
+  {
+    "label": "Fill Site",
+    "text": "Fill Site",
+    "x": 76,
+    "y": 24
+  }
+]
