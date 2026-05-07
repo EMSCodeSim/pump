@@ -38,12 +38,42 @@
     "elevation": "+30 feet from Engine 181 to Engine 183"
   },
   "overlays": [
-    { "label": "Supply Engine", "text": "Engine 181", "x": 20, "y": 76 },
-    { "label": "Relay Lay", "text": "800' 4\" LDH", "x": 48, "y": 52 },
-    { "label": "Receiving Engine", "text": "Engine 183", "x": 66, "y": 28 },
-    { "label": "Flow", "text": "500 GPM", "x": 50, "y": 42 },
-    { "label": "Elevation", "text": "+30'", "x": 72, "y": 44 },
-    { "label": "Residual", "text": "20 PSI intake", "x": 67, "y": 35 }
+    {
+      "label": "Supply Engine",
+      "text": "Engine 181",
+      "x": 20,
+      "y": 76
+    },
+    {
+      "label": "Relay Lay",
+      "text": "800' 4\" LDH",
+      "x": 48,
+      "y": 52
+    },
+    {
+      "label": "Receiving Engine",
+      "text": "Engine 183",
+      "x": 66,
+      "y": 28
+    },
+    {
+      "label": "Flow",
+      "text": "500 GPM",
+      "x": 50,
+      "y": 42
+    },
+    {
+      "label": "Elevation",
+      "text": "+30'",
+      "x": 72,
+      "y": 44
+    },
+    {
+      "label": "Residual",
+      "text": "20 PSI intake",
+      "x": 67,
+      "y": 35
+    }
   ],
   "formulaBreakdown": [
     "Relay Pumping PDP = friction loss + elevation pressure + desired residual intake pressure.",
