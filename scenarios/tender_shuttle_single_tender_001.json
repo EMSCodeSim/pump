@@ -47,12 +47,42 @@
     "elevation": "None"
   },
   "overlays": [
-    { "label": "Attack Engine", "text": "Engine 181", "x": 22, "y": 72 },
-    { "label": "Portable Tank", "text": "Draft Tank", "x": 45, "y": 70 },
-    { "label": "Tender", "text": "Tender 184", "x": 66, "y": 62 },
-    { "label": "Capacity", "text": "2,500 gal", "x": 68, "y": 54 },
-    { "label": "Cycle", "text": "19 min cycle", "x": 48, "y": 38 },
-    { "label": "Fill Site", "text": "Fill Site", "x": 76, "y": 24 }
+    {
+      "label": "Attack Engine",
+      "text": "Engine 181",
+      "x": 22,
+      "y": 72
+    },
+    {
+      "label": "Portable Tank",
+      "text": "Draft Tank",
+      "x": 45,
+      "y": 70
+    },
+    {
+      "label": "Tender",
+      "text": "Tender 184",
+      "x": 66,
+      "y": 62
+    },
+    {
+      "label": "Capacity",
+      "text": "2,500 gal",
+      "x": 68,
+      "y": 54
+    },
+    {
+      "label": "Cycle",
+      "text": "19 min cycle",
+      "x": 48,
+      "y": 38
+    },
+    {
+      "label": "Fill Site",
+      "text": "Fill Site",
+      "x": 76,
+      "y": 24
+    }
   ],
   "formulaBreakdown": [
     "This is a water-supply scenario. The final answer is sustained shuttle flow in GPM, not pump pressure.",
@@ -70,17 +100,46 @@
     {
       "change": "Change tender capacity from 2,500 gallons to 3,000 gallons. Same 90% usable capacity and 19-minute cycle.",
       "answerValue": 140,
-      "correctPP": 0
+      "correctPP": 0,
+      "waterSupplyAnswers": {
+        "tenderCapacity": 3000,
+        "usablePercent": 90,
+        "usableGallons": 2700,
+        "totalCycleMinutes": 19,
+        "sustainedGpm": 140
+      }
     },
     {
       "change": "Change travel time to scene from 6 minutes to 8 minutes. Same 2,500-gallon tender and 90% usable capacity.",
       "answerValue": 105,
-      "correctPP": 0
+      "correctPP": 0,
+      "waterSupplyAnswers": {
+        "tenderCapacity": 2500,
+        "usablePercent": 90,
+        "usableGallons": 2250,
+        "fillTimeMinutes": 4,
+        "travelToSceneMinutes": 8,
+        "dumpTimeMinutes": 3,
+        "returnTravelMinutes": 6,
+        "totalCycleMinutes": 21,
+        "sustainedGpm": 105
+      }
     },
     {
       "change": "Change dump time from 3 minutes to 5 minutes. Same 2,500-gallon tender and 90% usable capacity.",
       "answerValue": 105,
-      "correctPP": 0
+      "correctPP": 0,
+      "waterSupplyAnswers": {
+        "tenderCapacity": 2500,
+        "usablePercent": 90,
+        "usableGallons": 2250,
+        "fillTimeMinutes": 4,
+        "travelToSceneMinutes": 6,
+        "dumpTimeMinutes": 5,
+        "returnTravelMinutes": 6,
+        "totalCycleMinutes": 21,
+        "sustainedGpm": 105
+      }
     }
   ],
   "tags": [
