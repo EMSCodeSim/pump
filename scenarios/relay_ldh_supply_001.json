@@ -1,38 +1,86 @@
-[
-  {
-    "label": "Supply Engine",
-    "text": "Engine 181",
-    "x": 20,
-    "y": 76
+{
+  "id": "relay_ldh_supply_001",
+  "title": "Relay Pumping: LDH Supply to Attack Engine",
+  "difficulty": "intermediate",
+  "category": "relay",
+  "type": "pump",
+  "answerLabel": "Pump discharge pressure",
+  "answerUnit": "PSI",
+  "inputLabel": "Your relay pump discharge pressure answer",
+  "inputPlaceholder": "Enter PSI",
+  "image": "relay_ldh_supply_001.png",
+  "question": "Engine 181 is at the hydrant supplying Engine 183 through 800 feet of 4\" LDH. Engine 183 needs 500 GPM delivered. The relay lay has a 30-foot elevation gain from Engine 181 to Engine 183. Engine 183 needs 20 PSI residual intake pressure. What discharge pressure should Engine 181 pump?",
+  "correctPP": 75,
+  "answerValue": 75,
+  "tolerance": 5,
+  "answers": {
+    "frictionLoss": 40,
+    "nozzlePressure": 0,
+    "elevation": 15,
+    "applianceLoss": 0,
+    "totalGpm": 500,
+    "pumpPressure": 75,
+    "tolerance": 5
   },
-  {
-    "label": "Relay Lay",
-    "text": "800' 4\" LDH",
-    "x": 48,
-    "y": 52
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [
+      {
+        "id": "relay_ldh",
+        "diameter": "4\"",
+        "lengthFt": 800,
+        "cValue": 0.2,
+        "flowGpm": 500
+      }
+    ],
+    "nozzles": [],
+    "appliances": [],
+    "elevation": "+30 feet from Engine 181 to Engine 183"
   },
-  {
-    "label": "Receiving Engine",
-    "text": "Engine 183",
-    "x": 66,
-    "y": 28
-  },
-  {
-    "label": "Flow",
-    "text": "500 GPM",
-    "x": 50,
-    "y": 42
-  },
-  {
-    "label": "Elevation",
-    "text": "+30'",
-    "x": 72,
-    "y": 44
-  },
-  {
-    "label": "Residual",
-    "text": "20 PSI intake",
-    "x": 67,
-    "y": 35
-  }
-]
+  "overlays": [
+    { "label": "Supply Engine", "text": "Engine 181", "x": 20, "y": 76 },
+    { "label": "Relay Lay", "text": "800' 4\" LDH", "x": 48, "y": 52 },
+    { "label": "Receiving Engine", "text": "Engine 183", "x": 66, "y": 28 },
+    { "label": "Flow", "text": "500 GPM", "x": 50, "y": 42 },
+    { "label": "Elevation", "text": "+30'", "x": 72, "y": 44 },
+    { "label": "Residual", "text": "20 PSI intake", "x": 67, "y": 35 }
+  ],
+  "formulaBreakdown": [
+    "Relay Pumping PDP = friction loss + elevation pressure + desired residual intake pressure.",
+    "FL = C × (GPM / 100)^2 × hose length in hundreds of feet.",
+    "GPM / 100 = 500 / 100 = 5.",
+    "FL per 100' = 0.2 × 5² = 0.2 × 25 = 5 PSI.",
+    "800' = 8 hundreds of feet.",
+    "Total FL = 5 × 8 = 40 PSI.",
+    "Elevation = 30' × 0.5 = 15 PSI.",
+    "Desired residual intake pressure at Engine 183 = 20 PSI.",
+    "PDP = 40 + 15 + 20 = 75 PSI.",
+    "Nozzle pressure is 0 because Engine 181 is supplying the receiving engine, not the nozzle."
+  ],
+  "instructorExplanation": "This is a relay supply problem. Engine 181 only needs to overcome LDH friction loss, elevation gain, and maintain the desired intake pressure at Engine 183.",
+  "explainMistake": "Common mistakes: adding nozzle pressure, forgetting residual intake pressure, forgetting elevation gain, using the wrong C-value for 4\" LDH, or calculating friction loss for only 100 feet instead of 800 feet.",
+  "variations": [
+    {
+      "change": "Change hose length from 800' to 1000'. Same 500 GPM, +30' elevation, and 20 PSI desired intake pressure.",
+      "correctPP": 85,
+      "answerValue": 85
+    },
+    {
+      "change": "Change flow from 500 GPM to 600 GPM. Same 800' of 4\" LDH, +30' elevation, and 20 PSI desired intake pressure.",
+      "correctPP": 95,
+      "answerValue": 95
+    },
+    {
+      "change": "Change elevation gain from 30' to 50'. Same 800' of 4\" LDH, 500 GPM, and 20 PSI desired intake pressure.",
+      "correctPP": 85,
+      "answerValue": 85
+    }
+  ],
+  "tags": [
+    "relay pumping",
+    "LDH",
+    "water supply",
+    "driver operator",
+    "Engine 181"
+  ]
+}
