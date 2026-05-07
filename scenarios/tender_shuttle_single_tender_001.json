@@ -1,38 +1,93 @@
-[
-  {
-    "label": "Attack Engine",
-    "text": "Engine 181",
-    "x": 22,
-    "y": 72
+{
+  "id": "tender_shuttle_single_tender_001",
+  "title": "Tender Shuttle: Single Tender Sustained Flow",
+  "difficulty": "intermediate",
+  "category": "water_supply",
+  "type": "tender_shuttle",
+  "answerLabel": "Sustained shuttle flow",
+  "answerUnit": "GPM",
+  "inputLabel": "Your sustained water supply answer",
+  "inputPlaceholder": "Enter GPM",
+  "image": "tender_shuttle_single_tender_001.png",
+  "question": "Engine 181 is operating at a rural structure fire with no hydrants available. Engine 181 is drafting from a portable tank. Tender 184 has a 2,500-gallon tank. Use 90% usable tank capacity. Fill time is 4 minutes, travel to the scene is 6 minutes, dump time is 3 minutes, and return travel is 6 minutes. What sustained water supply in GPM can this single-tender shuttle provide?",
+  "correctPP": 0,
+  "answerValue": 120,
+  "tolerance": 5,
+  "answers": {
+    "frictionLoss": 0,
+    "nozzlePressure": 0,
+    "elevation": 0,
+    "applianceLoss": 0,
+    "totalGpm": 120,
+    "pumpPressure": 0,
+    "tolerance": 5
   },
-  {
-    "label": "Portable Tank",
-    "text": "Draft Tank",
-    "x": 45,
-    "y": 70
+  "waterSupplyAnswers": {
+    "tenderCapacity": 2500,
+    "usablePercent": 90,
+    "usableGallons": 2250,
+    "fillTimeMinutes": 4,
+    "travelToSceneMinutes": 6,
+    "dumpTimeMinutes": 3,
+    "returnTravelMinutes": 6,
+    "totalCycleMinutes": 19,
+    "sustainedGpm": 120
   },
-  {
-    "label": "Tender",
-    "text": "Tender 184",
-    "x": 66,
-    "y": 62
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [],
+    "nozzles": [],
+    "appliances": [
+      {
+        "id": "portable_tank",
+        "type": "portable tank",
+        "lossPsi": 0
+      }
+    ],
+    "elevation": "None"
   },
-  {
-    "label": "Capacity",
-    "text": "2,500 gal",
-    "x": 68,
-    "y": 54
-  },
-  {
-    "label": "Cycle",
-    "text": "19 min cycle",
-    "x": 48,
-    "y": 38
-  },
-  {
-    "label": "Fill Site",
-    "text": "Fill Site",
-    "x": 76,
-    "y": 24
-  }
-]
+  "overlays": [
+    { "label": "Attack Engine", "text": "Engine 181", "x": 22, "y": 72 },
+    { "label": "Portable Tank", "text": "Draft Tank", "x": 45, "y": 70 },
+    { "label": "Tender", "text": "Tender 184", "x": 66, "y": 62 },
+    { "label": "Capacity", "text": "2,500 gal", "x": 68, "y": 54 },
+    { "label": "Cycle", "text": "19 min cycle", "x": 48, "y": 38 },
+    { "label": "Fill Site", "text": "Fill Site", "x": 76, "y": 24 }
+  ],
+  "formulaBreakdown": [
+    "This is a water-supply scenario. The final answer is sustained shuttle flow in GPM, not pump pressure.",
+    "Tender Shuttle GPM = usable water delivered per trip ÷ total shuttle cycle time in minutes.",
+    "Usable water = 2,500 gallons × 0.90 = 2,250 gallons.",
+    "Cycle time = fill time + travel to scene + dump time + return travel.",
+    "Cycle time = 4 + 6 + 3 + 6 = 19 minutes.",
+    "Sustained flow = 2,250 ÷ 19 = 118.4 GPM.",
+    "Round to 120 GPM.",
+    "Pump pressure fields are 0 because this scenario is not asking for pump discharge pressure."
+  ],
+  "instructorExplanation": "This problem estimates sustained water supply from a single tender shuttle by dividing usable gallons per trip by the full round-trip cycle time.",
+  "explainMistake": "Common mistakes: using full tank capacity instead of usable water, forgetting fill time, forgetting dump time, only counting one-way travel, or calculating gallons per trip but not dividing by cycle time.",
+  "variations": [
+    {
+      "change": "Change tender capacity from 2,500 gallons to 3,000 gallons. Same 90% usable capacity and 19-minute cycle.",
+      "answerValue": 140,
+      "correctPP": 0
+    },
+    {
+      "change": "Change travel time to scene from 6 minutes to 8 minutes. Same 2,500-gallon tender and 90% usable capacity.",
+      "answerValue": 105,
+      "correctPP": 0
+    },
+    {
+      "change": "Change dump time from 3 minutes to 5 minutes. Same 2,500-gallon tender and 90% usable capacity.",
+      "answerValue": 105,
+      "correctPP": 0
+    }
+  ],
+  "tags": [
+    "tender shuttle",
+    "water supply",
+    "rural water supply",
+    "driver operator",
+    "portable tank"
+  ]
+}
