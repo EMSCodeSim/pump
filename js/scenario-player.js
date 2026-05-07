@@ -23,6 +23,68 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  const getAnswerMeta = (raw={}) => {
+    const answers = raw.answers || {};
+    const water = raw.waterSupplyAnswers || {};
+    const hydrant = raw.hydrantDropAnswers || {};
+    const calculation = raw.calculation || {};
+    const type = String(raw.answerType || raw.type || raw.category || '').toLowerCase();
+
+    let value = raw.answerValue;
+    let label = raw.answerLabel;
+    let unit = raw.answerUnit;
+    let inputLabel = raw.inputLabel;
+    let placeholder = raw.inputPlaceholder;
+    let defaultTolerance = 5;
+
+    if(value === undefined || value === null){
+      if(type.includes('tender') || water.sustainedGpm !== undefined){
+        value = water.sustainedGpm ?? answers.totalGpm;
+        label = label || 'Sustained shuttle flow';
+        unit = unit || 'GPM';
+        inputLabel = inputLabel || 'Your sustained water supply answer';
+        placeholder = placeholder || 'Enter GPM';
+        defaultTolerance = 5;
+      } else if(type.includes('hydrant') || hydrant.additionalLines !== undefined || raw.additionalLines !== undefined){
+        value = hydrant.additionalLines ?? raw.additionalLines;
+        label = label || 'Additional same-size lines';
+        unit = unit || 'lines';
+        inputLabel = inputLabel || 'How many additional lines can be added?';
+        placeholder = placeholder || 'Enter line count';
+        defaultTolerance = 0;
+      } else {
+        value = raw.correctPP ?? answers.pumpPressure ?? calculation.pdp;
+        label = label || 'Pump pressure';
+        unit = unit || 'PSI';
+        inputLabel = inputLabel || 'Your pump pressure answer';
+        placeholder = placeholder || 'Enter PSI';
+        defaultTolerance = 5;
+      }
+    }
+
+    label = label || 'Answer';
+    unit = unit || '';
+    inputLabel = inputLabel || `Your ${label.toLowerCase()} answer`;
+    placeholder = placeholder || 'Enter answer';
+
+    const numericValue = Number(value);
+    const tolerance = raw.answerTolerance ?? raw.tolerance ?? answers.tolerance ?? defaultTolerance;
+
+    return {
+      value: Number.isFinite(numericValue) ? numericValue : NaN,
+      label,
+      unit,
+      inputLabel,
+      placeholder,
+      tolerance: toNumber(tolerance, defaultTolerance)
+    };
+  };
+
+  const formatAnswer = (value, unit='') => {
+    const rounded = Number.isInteger(value) ? value : Math.round(value * 10) / 10;
+    return `${rounded}${unit ? ` ${unit}` : ''}`;
+  };
+
   const cleanText = (value) => {
     if(value === undefined || value === null) return '';
 
@@ -47,7 +109,8 @@
     const calculation = s.calculation || {};
     const category = s.category || s.type || 'pump';
     const difficulty = s.difficulty || (s.chip || '').split('•')[0]?.trim() || 'practice';
-    const correctPP = toNumber(s.correctPP ?? answers.pumpPressure ?? calculation.pdp, 0);
+    const answerMeta = getAnswerMeta(s);
+    const correctPP = answerMeta.value;
 
     return {
       id: s.id || s.file || `scenario-${Math.random().toString(16).slice(2)}`,
@@ -62,7 +125,11 @@
       details: Array.isArray(s.details) ? s.details.map(cleanText).filter(Boolean) : detailsFromSceneElements(s.sceneElements),
       overlays: Array.isArray(s.overlays) ? s.overlays : [],
       correctPP,
-      tolerance: toNumber(s.tolerance ?? answers.tolerance, 5),
+      answerLabel: answerMeta.label,
+      answerUnit: answerMeta.unit,
+      inputLabel: answerMeta.inputLabel,
+      inputPlaceholder: answerMeta.placeholder,
+      tolerance: answerMeta.tolerance,
       answers,
       calculation,
       formulaBreakdown: Array.isArray(s.formulaBreakdown) ? s.formulaBreakdown.map(cleanText).filter(Boolean) : explanationToFormula(s.instructorExplanation),
@@ -85,7 +152,11 @@
       if(typeof h === 'string'){
         out.push(cleanText(h));
       } else {
-        out.push(cleanText(`${safe(h.length)} of ${safe(h.diameter)} hose${h.flowGpm ? ` • ${h.flowGpm} gpm` : ''}`));
+        const length = h.length || (h.lengthFt ? `${h.lengthFt}'` : '');
+        const diameter = h.diameter || '';
+        const flow = h.flowGpm || h.gpm || '';
+        const cValue = h.cValue !== undefined ? ` • C=${h.cValue}` : '';
+        out.push(cleanText(`${length} ${diameter} hose${flow ? ` • ${flow} GPM` : ''}${cValue}`));
       }
     });
 
@@ -93,12 +164,20 @@
       if(typeof n === 'string'){
         out.push(cleanText(n));
       } else {
-        out.push(cleanText(`${safe(n.type, 'Nozzle')}${n.tip ? ` ${n.tip}` : ''}${n.flowGpm ? ` • ${n.flowGpm} gpm` : ''}${n.nozzlePressure ? ` @ ${n.nozzlePressure} psi` : ''}`));
+        const flow = n.flowGpm || n.gpm || '';
+        const pressure = n.nozzlePressure || n.pressure || '';
+        out.push(cleanText(`${safe(n.type, 'Nozzle')}${n.tip ? ` ${n.tip}` : ''}${flow ? ` • ${flow} GPM` : ''}${pressure ? ` @ ${pressure} PSI` : ''}`));
       }
     });
 
     (sceneElements.appliances || []).forEach(a => {
-      out.push(cleanText(typeof a === 'string' ? a : safe(a.name || a.type)));
+      if(typeof a === 'string'){
+        out.push(cleanText(a));
+      } else {
+        const label = a.name || a.type || a.id || 'Appliance';
+        const loss = a.lossPsi !== undefined ? ` • ${a.lossPsi} PSI loss` : '';
+        out.push(cleanText(`${label}${loss}`));
+      }
     });
 
     if(sceneElements.elevation){
@@ -139,12 +218,12 @@
 
       state.baseScenarios = scenarios
         .map(normalizeScenario)
-        .filter(s => s.correctPP || s.question || s.problems.length || s.variations.length);
+        .filter(s => Number.isFinite(s.correctPP) || s.question || s.problems.length || s.variations.length);
 
       state.scenarios = expandPlayableRuns(state.baseScenarios);
 
       if(!state.scenarios.length){
-        throw new Error('No valid scenarios loaded. Each playable problem needs a question and a correctPP or answers.pumpPressure value.');
+        throw new Error('No valid scenarios loaded. Each playable problem needs a question and an answer value.');
       }
 
       const params = new URLSearchParams(location.search);
@@ -267,14 +346,31 @@
 
     const problemAnswers = p.answers || {};
     const problemCalculation = p.calculation || {};
-    const problemCorrectValue = p.correctPP ?? problemAnswers.pumpPressure ?? problemCalculation.pdp;
-    const baseCorrectValue = base.correctPP ?? base.answers?.pumpPressure ?? base.calculation?.pdp;
+    const mergedRaw = {
+      ...(base.source || {}),
+      ...p,
+      answers: {
+        ...(base.answers || {}),
+        ...problemAnswers
+      },
+      waterSupplyAnswers: {
+        ...((base.source || {}).waterSupplyAnswers || {}),
+        ...(p.waterSupplyAnswers || {})
+      },
+      hydrantDropAnswers: {
+        ...((base.source || {}).hydrantDropAnswers || {}),
+        ...(p.hydrantDropAnswers || {})
+      },
+      calculation: {
+        ...(base.calculation || {}),
+        ...problemCalculation
+      }
+    };
 
-    const correctPP = isBase
-      ? toNumber(problemCorrectValue ?? baseCorrectValue, 0)
-      : toNumber(problemCorrectValue, 0);
+    const answerMeta = getAnswerMeta(mergedRaw);
+    const correctPP = answerMeta.value;
 
-    if(!correctPP) return null;
+    if(!Number.isFinite(correctPP)) return null;
 
     const change = cleanText(p.change || p.scenarioChange || p.setup || '');
     const title = cleanText(p.title || base.title);
@@ -302,7 +398,7 @@
       : (
         change
           ? [
-              `Correct pump pressure: ${correctPP} PSI`
+              `${answerMeta.label || 'Correct answer'}: ${formatAnswer(correctPP, answerMeta.unit)}`
             ]
           : base.formulaBreakdown
       );
@@ -326,7 +422,11 @@
       details,
       overlays,
       correctPP,
-      tolerance: toNumber(p.tolerance ?? problemAnswers.tolerance, base.tolerance),
+      answerLabel: answerMeta.label || base.answerLabel,
+      answerUnit: answerMeta.unit || base.answerUnit,
+      inputLabel: answerMeta.inputLabel || base.inputLabel,
+      inputPlaceholder: answerMeta.placeholder || base.inputPlaceholder,
+      tolerance: answerMeta.tolerance,
       answers: {
         ...base.answers,
         ...problemAnswers
@@ -429,10 +529,10 @@
         ${s.details.map(d => `<div class="detail">${escapeHtml(d)}</div>`).join('')}
       </div>
 
-      <label for="ppInput" style="font-weight:900">Your pump pressure answer</label>
+      <label for="ppInput" style="font-weight:900">${escapeHtml(s.inputLabel || 'Your answer')}</label>
 
       <div class="answer-row">
-        <input id="ppInput" type="number" inputmode="numeric" placeholder="Enter PSI">
+        <input id="ppInput" type="number" inputmode="numeric" placeholder="${escapeHtml(s.inputPlaceholder || 'Enter answer')}">
         <button id="checkBtn" class="btn">Check</button>
       </div>
 
@@ -529,12 +629,16 @@
 
     r.className = `result show ${correct ? 'good' : 'bad'}`;
 
+    const correctText = formatAnswer(s.correctPP, s.answerUnit);
+    const userText = formatAnswer(val, s.answerUnit);
+    const toleranceText = s.tolerance > 0 ? ` • tolerance ±${s.tolerance}${s.answerUnit ? ` ${s.answerUnit}` : ''}` : '';
+
     const header = forceShow
-      ? `Correct pump pressure: ${s.correctPP} PSI`
-      : (correct ? `Correct — ${s.correctPP} PSI` : `Not quite. Correct answer: ${s.correctPP} PSI`);
+      ? `${s.answerLabel || 'Correct answer'}: ${correctText}`
+      : (correct ? `Correct — ${correctText}` : `Not quite. Correct answer: ${correctText}`);
 
     const userLine = answered && !forceShow
-      ? `<p>Your answer: <strong>${val} PSI</strong> • tolerance ±${s.tolerance} PSI</p>`
+      ? `<p>Your answer: <strong>${userText}</strong>${toleranceText}</p>`
       : '';
 
     r.innerHTML = `
