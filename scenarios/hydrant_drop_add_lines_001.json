@@ -4,10 +4,16 @@
   "difficulty": "intermediate",
   "category": "hydrant_drop",
   "type": "hydrant_pressure_drop",
+  "answerLabel": "Additional same-size lines",
+  "answerUnit": "lines",
+  "inputLabel": "How many additional lines can be added?",
+  "inputPlaceholder": "Enter line count",
+  "answerValue": 1,
+  "answerTolerance": 0,
   "image": "hydrant_drop_add_lines_001.png",
   "question": "Engine 181 is connected to a hydrant. Static hydrant pressure is 80 PSI. One 1.75\" attack line is opened, flowing 185 GPM. After the line is opened, residual hydrant pressure drops to 70 PSI. Using 20 PSI as the minimum residual pressure, how many additional 185 GPM attack lines can be added?",
   "correctPP": 0,
-  "tolerance": 5,
+  "tolerance": 0,
   "answers": {
     "frictionLoss": 0,
     "nozzlePressure": 0,
@@ -15,7 +21,7 @@
     "applianceLoss": 0,
     "totalGpm": 453,
     "pumpPressure": 0,
-    "tolerance": 5
+    "tolerance": 0
   },
   "hydrantDropAnswers": {
     "staticPressure": 80,
@@ -102,10 +108,18 @@
     "Total same-size lines supported = 2, including the first line already flowing.",
     "Friction loss = 0, nozzle pressure = 0, elevation = 0, appliance loss = 0, and pump pressure = 0 because no pump-pressure calculation is required."
   ],
+  "instructorExplanation": "This problem estimates hydrant capacity from the pressure drop caused by one known flowing line. The final answer is the number of additional same-size attack lines that can be added while maintaining the selected minimum residual pressure.",
+  "explainMistake": "Common mistakes: treating this like a pump-pressure problem, dividing pressure by GPM instead of using the square-root formula, forgetting to subtract the first flowing line, rounding up instead of down, or failing to maintain the 20 PSI minimum residual.",
   "variations": [
     {
       "change": "Static pressure changes from 80 PSI to 90 PSI. Same base image: hydrant_drop_add_lines_001.png. Available GPM = 185 × sqrt((90 - 20) / (90 - 70)) = 185 × sqrt(70 / 20) = 346 GPM. Additional available = 346 - 185 = 161 GPM. Additional lines = 161 / 185 = 0.87, rounded down to 0.",
       "correctPP": 0,
+      "answerValue": 0,
+      "answerLabel": "Additional same-size lines",
+      "answerUnit": "lines",
+      "inputLabel": "How many additional lines can be added?",
+      "inputPlaceholder": "Enter line count",
+      "tolerance": 0,
       "estimatedAvailableGpm": 346,
       "additionalAvailableGpm": 161,
       "additionalLines": 0,
@@ -114,6 +128,12 @@
     {
       "change": "Current residual pressure changes from 70 PSI to 65 PSI. Same base image: hydrant_drop_add_lines_001.png. Available GPM = 185 × sqrt((80 - 20) / (80 - 65)) = 185 × sqrt(60 / 15) = 370 GPM. Additional available = 370 - 185 = 185 GPM. Additional lines = 185 / 185 = 1.",
       "correctPP": 0,
+      "answerValue": 1,
+      "answerLabel": "Additional same-size lines",
+      "answerUnit": "lines",
+      "inputLabel": "How many additional lines can be added?",
+      "inputPlaceholder": "Enter line count",
+      "tolerance": 0,
       "estimatedAvailableGpm": 370,
       "additionalAvailableGpm": 185,
       "additionalLines": 1,
@@ -122,6 +142,12 @@
     {
       "change": "Line flow changes from 185 GPM to 150 GPM. Same base image: hydrant_drop_add_lines_001.png. Available GPM = 150 × sqrt((80 - 20) / (80 - 70)) = 150 × sqrt(6) = 367 GPM. Additional available = 367 - 150 = 217 GPM. Additional lines = 217 / 150 = 1.45, rounded down to 1.",
       "correctPP": 0,
+      "answerValue": 1,
+      "answerLabel": "Additional same-size lines",
+      "answerUnit": "lines",
+      "inputLabel": "How many additional lines can be added?",
+      "inputPlaceholder": "Enter line count",
+      "tolerance": 0,
       "estimatedAvailableGpm": 367,
       "additionalAvailableGpm": 217,
       "additionalLines": 1,
