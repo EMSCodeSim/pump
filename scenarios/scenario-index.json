@@ -29,14 +29,6 @@
       "problemCount": 4
     },
     {
-      "file": "single_line_engine181.json",
-      "id": "single_line_engine181",
-      "title": "Single 1¾″ Attack Line",
-      "category": "single_line",
-      "difficulty": "beginner",
-      "problemCount": 3
-    },
-    {
       "file": "car_fire_engine181_001.json",
       "id": "car_fire_engine181_001",
       "title": "Engine 181 Car Fire Attack Line",
@@ -59,14 +51,6 @@
       "category": "wye",
       "difficulty": "intermediate",
       "problemCount": 4
-    },
-    {
-      "file": "wye_engine181.json",
-      "id": "wye_engine181",
-      "title": "2½″ Supply to Wye — Two Handlines",
-      "category": "wye",
-      "difficulty": "intermediate",
-      "problemCount": 3
     },
     {
       "file": "standpipe_engine181_multi.json",
@@ -93,20 +77,20 @@
       "problemCount": 4
     },
     {
-      "file": "portable_master_engine181.json",
-      "id": "portable_master_engine181",
-      "title": "Portable Master Stream with Dual 2½″ Lines",
-      "category": "master_stream",
-      "difficulty": "advanced",
-      "problemCount": 3
-    },
-    {
       "file": "advanced_portable_monitor_dual_supply.json",
       "id": "advanced_portable_monitor_dual_supply",
       "title": "Advanced Portable Monitor Dual Supply",
       "category": "master_stream",
       "difficulty": "advanced",
       "problemCount": 1
+    },
+    {
+      "file": "deck_gun_solid_bore_gpm_001.json",
+      "id": "deck_gun_solid_bore_gpm_001",
+      "title": "Deck Gun Solid Bore Flow",
+      "category": "master_stream",
+      "difficulty": "intermediate",
+      "problemCount": 5
     },
     {
       "file": "relay_ldh_supply_001.json",
@@ -131,6 +115,14 @@
       "category": "hydrant_drop",
       "difficulty": "intermediate",
       "problemCount": 4
+    },
+    {
+      "file": "nozzle_reaction_engine181_001.json",
+      "id": "nozzle_reaction_engine181_001",
+      "title": "Nozzle Reaction Practice",
+      "category": "nozzle_reaction",
+      "difficulty": "intermediate",
+      "problemCount": 5
     }
   ]
 }
