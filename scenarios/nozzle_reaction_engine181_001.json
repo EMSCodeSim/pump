@@ -1,0 +1,314 @@
+{
+  "id": "nozzle_reaction_engine181_001",
+  "title": "Nozzle Reaction Practice",
+  "difficulty": "intermediate",
+  "category": "nozzle_reaction",
+  "type": "nozzle_reaction",
+  "image": "nozzle_reaction_engine181_001.png",
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [
+      "1.75-inch attack line",
+      "2.5-inch smooth bore attack line",
+      "Deck gun"
+    ],
+    "nozzles": [
+      "Fog nozzle",
+      "15/16-inch smooth bore",
+      "1 1/8-inch smooth bore",
+      "1 1/2-inch smooth bore deck gun tip"
+    ],
+    "appliances": [
+      "Deck gun"
+    ],
+    "elevation": "0 PSI"
+  },
+  "problems": [
+    {
+      "id": "nr_fog_185_001",
+      "title": "Nozzle Reaction: 185 GPM Fog",
+      "question": "Engine 181 is supplying a 1.75-inch attack line with a fog nozzle flowing 185 GPM at 50 PSI nozzle pressure. What is the nozzle reaction?",
+      "answerLabel": "Nozzle reaction",
+      "answerUnit": "lbs",
+      "inputLabel": "Your nozzle reaction answer",
+      "inputPlaceholder": "Enter lbs",
+      "answerValue": 66,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 185,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 72
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog Nozzle",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "Flow",
+          "text": "185 GPM",
+          "x": 70,
+          "y": 41
+        },
+        {
+          "label": "NP",
+          "text": "50 PSI NP",
+          "x": 68,
+          "y": 48
+        }
+      ],
+      "formulaBreakdown": [
+        "Fog nozzle reaction: NR = 0.0505 × GPM × √NP",
+        "NR = 0.0505 × 185 × √50",
+        "NR = 0.0505 × 185 × 7.07",
+        "NR = 66 lbs"
+      ],
+      "instructorExplanation": "This is a fog nozzle reaction problem, not a pump-pressure problem. Use NR = 0.0505 × GPM × √NP. With 185 GPM at 50 PSI nozzle pressure, nozzle reaction is 66 lbs.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the nozzle reaction formula, using the smooth bore formula on a fog nozzle, using pump pressure instead of nozzle pressure, or rounding too early."
+    },
+    {
+      "id": "nr_fog_265_001",
+      "title": "Nozzle Reaction: 265 GPM Fog",
+      "question": "Engine 181 is supplying a fog nozzle flowing 265 GPM at 50 PSI nozzle pressure. What is the nozzle reaction?",
+      "answerLabel": "Nozzle reaction",
+      "answerUnit": "lbs",
+      "inputLabel": "Your nozzle reaction answer",
+      "inputPlaceholder": "Enter lbs",
+      "answerValue": 95,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 265,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 72
+        },
+        {
+          "label": "Nozzle",
+          "text": "Fog Nozzle",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "Flow",
+          "text": "265 GPM",
+          "x": 70,
+          "y": 41
+        },
+        {
+          "label": "NP",
+          "text": "50 PSI NP",
+          "x": 68,
+          "y": 48
+        }
+      ],
+      "formulaBreakdown": [
+        "Fog nozzle reaction: NR = 0.0505 × GPM × √NP",
+        "NR = 0.0505 × 265 × √50",
+        "NR = 0.0505 × 265 × 7.07",
+        "NR = 95 lbs"
+      ],
+      "instructorExplanation": "This is a fog nozzle reaction problem, not a pump-pressure problem. Use NR = 0.0505 × GPM × √NP. With 265 GPM at 50 PSI nozzle pressure, nozzle reaction is 95 lbs.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the nozzle reaction formula, using the smooth bore formula on a fog nozzle, using pump pressure instead of nozzle pressure, or rounding too early."
+    },
+    {
+      "id": "nr_sb_15_16_001",
+      "title": "Nozzle Reaction: 15/16-inch Smooth Bore",
+      "question": "Engine 181 is supplying a 15/16-inch smooth bore nozzle operating at 50 PSI nozzle pressure. What is the nozzle reaction?",
+      "answerLabel": "Nozzle reaction",
+      "answerUnit": "lbs",
+      "inputLabel": "Your nozzle reaction answer",
+      "inputPlaceholder": "Enter lbs",
+      "answerValue": 70,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 0,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 72
+        },
+        {
+          "label": "Nozzle",
+          "text": "Smooth Bore",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "Tip",
+          "text": "15/16 inch SB",
+          "x": 70,
+          "y": 41
+        },
+        {
+          "label": "NP",
+          "text": "50 PSI NP",
+          "x": 68,
+          "y": 48
+        }
+      ],
+      "formulaBreakdown": [
+        "Smooth bore nozzle reaction: NR = 1.57 × diameter² × NP",
+        "NR = 1.57 × 0.9375² × 50",
+        "NR = 1.57 × 0.8789 × 50",
+        "NR = 69 lbs",
+        "Rounded answer = 70 lbs"
+      ],
+      "instructorExplanation": "This is a smooth bore nozzle reaction problem, not a pump-pressure problem. Use NR = 1.57 × diameter² × NP. With a 15/16-inch smooth bore at 50 PSI nozzle pressure, nozzle reaction is 69 lbs, rounded to 70 lbs.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the nozzle reaction formula, using the fog formula on a smooth bore, forgetting to square the smooth bore diameter, using pump pressure instead of nozzle pressure, or rounding too early."
+    },
+    {
+      "id": "nr_sb_1_1_8_001",
+      "title": "Nozzle Reaction: 1 1/8-inch Smooth Bore",
+      "question": "Engine 181 is supplying a 1 1/8-inch smooth bore nozzle operating at 50 PSI nozzle pressure. What is the nozzle reaction?",
+      "answerLabel": "Nozzle reaction",
+      "answerUnit": "lbs",
+      "inputLabel": "Your nozzle reaction answer",
+      "inputPlaceholder": "Enter lbs",
+      "answerValue": 100,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 50,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 0,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 72
+        },
+        {
+          "label": "Nozzle",
+          "text": "Smooth Bore",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "Tip",
+          "text": "1 1/8 inch SB",
+          "x": 70,
+          "y": 41
+        },
+        {
+          "label": "NP",
+          "text": "50 PSI NP",
+          "x": 68,
+          "y": 48
+        }
+      ],
+      "formulaBreakdown": [
+        "Smooth bore nozzle reaction: NR = 1.57 × diameter² × NP",
+        "NR = 1.57 × 1.125² × 50",
+        "NR = 1.57 × 1.2656 × 50",
+        "NR = 99 lbs",
+        "Rounded answer = 100 lbs"
+      ],
+      "instructorExplanation": "This is a smooth bore nozzle reaction problem, not a pump-pressure problem. Use NR = 1.57 × diameter² × NP. With a 1 1/8-inch smooth bore at 50 PSI nozzle pressure, nozzle reaction is 99 lbs, rounded to 100 lbs.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the nozzle reaction formula, using the fog formula on a smooth bore, forgetting to square the smooth bore diameter, using pump pressure instead of nozzle pressure, or rounding too early."
+    },
+    {
+      "id": "nr_deckgun_sb_1_1_2_001",
+      "title": "Nozzle Reaction: Deck Gun 1 1/2-inch Smooth Bore",
+      "question": "Engine 181 is operating a deck gun with a 1 1/2-inch smooth bore tip at 80 PSI nozzle pressure. What is the nozzle reaction?",
+      "answerLabel": "Nozzle reaction",
+      "answerUnit": "lbs",
+      "inputLabel": "Your nozzle reaction answer",
+      "inputPlaceholder": "Enter lbs",
+      "answerValue": 285,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 0,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 72
+        },
+        {
+          "label": "Nozzle",
+          "text": "Deck Gun",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "Tip",
+          "text": "1 1/2 inch SB",
+          "x": 70,
+          "y": 41
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 68,
+          "y": 48
+        }
+      ],
+      "formulaBreakdown": [
+        "Smooth bore nozzle reaction: NR = 1.57 × diameter² × NP",
+        "NR = 1.57 × 1.5² × 80",
+        "NR = 1.57 × 2.25 × 80",
+        "NR = 283 lbs",
+        "Rounded answer = 285 lbs"
+      ],
+      "instructorExplanation": "This is a deck gun smooth bore nozzle reaction problem, not a pump-pressure problem. Use NR = 1.57 × diameter² × NP. With a 1 1/2-inch smooth bore deck gun tip at 80 PSI nozzle pressure, nozzle reaction is 283 lbs, rounded to 285 lbs.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the nozzle reaction formula, using the fog formula on a smooth bore, forgetting to square the smooth bore diameter, using pump pressure instead of nozzle pressure, or rounding too early."
+    }
+  ],
+  "tags": [
+    "nozzle_reaction",
+    "fog_nozzle",
+    "smooth_bore",
+    "deck_gun",
+    "engine_181",
+    "intermediate"
+  ]
+}
