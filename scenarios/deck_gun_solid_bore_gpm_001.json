@@ -1,0 +1,309 @@
+{
+  "id": "deck_gun_solid_bore_gpm_001",
+  "title": "Deck Gun Solid Bore Flow",
+  "difficulty": "intermediate",
+  "category": "master_stream",
+  "type": "nozzle_reaction",
+  "image": "deck_gun_solid_bore_gpm_001.png",
+  "sceneElements": {
+    "engine": "Engine 181",
+    "hoses": [],
+    "nozzles": [
+      "Deck gun with solid bore tip at 80 PSI nozzle pressure"
+    ],
+    "appliances": [
+      "Deck gun"
+    ],
+    "elevation": "0 PSI"
+  },
+  "problems": [
+    {
+      "id": "deck_gun_flow_1_1_4",
+      "title": "Deck Gun Flow: 1 1/4-inch Solid Bore",
+      "question": "Engine 181 is operating its deck gun with a 1 1/4-inch solid bore tip. Use 80 PSI nozzle pressure. What GPM is flowing from the deck gun?",
+      "answerLabel": "Solid bore flow",
+      "answerUnit": "GPM",
+      "inputLabel": "Your deck gun flow answer",
+      "inputPlaceholder": "Enter GPM",
+      "answerValue": 415,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 415,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 70
+        },
+        {
+          "label": "Deck Gun",
+          "text": "Deck Gun",
+          "x": 48,
+          "y": 42
+        },
+        {
+          "label": "Tip",
+          "text": "1 1/4 inch SB",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 70,
+          "y": 45
+        }
+      ],
+      "formulaBreakdown": [
+        "Solid bore GPM = 29.7 × diameter² × √NP",
+        "GPM = 29.7 × 1.25² × √80",
+        "GPM = 29.7 × 1.5625 × 8.94",
+        "GPM = 415"
+      ],
+      "instructorExplanation": "This is a deck gun solid bore flow problem, not a pump-pressure problem. Use the solid bore flow formula. With a 1 1/4-inch solid bore tip at 80 PSI nozzle pressure, the deck gun is flowing 415 GPM.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the solid bore flow formula, forgetting to square the tip diameter, using 50 PSI instead of 80 PSI for a deck gun/master stream, rounding too early, or entering pump pressure instead of GPM."
+    },
+    {
+      "id": "deck_gun_flow_1_3_8",
+      "title": "Deck Gun Flow: 1 3/8-inch Solid Bore",
+      "question": "Engine 181 is operating its deck gun with a 1 3/8-inch solid bore tip. Use 80 PSI nozzle pressure. What GPM is flowing from the deck gun?",
+      "answerLabel": "Solid bore flow",
+      "answerUnit": "GPM",
+      "inputLabel": "Your deck gun flow answer",
+      "inputPlaceholder": "Enter GPM",
+      "answerValue": 500,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 500,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 70
+        },
+        {
+          "label": "Deck Gun",
+          "text": "Deck Gun",
+          "x": 48,
+          "y": 42
+        },
+        {
+          "label": "Tip",
+          "text": "1 3/8 inch SB",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 70,
+          "y": 45
+        }
+      ],
+      "formulaBreakdown": [
+        "Solid bore GPM = 29.7 × diameter² × √NP",
+        "GPM = 29.7 × 1.375² × √80",
+        "GPM = 29.7 × 1.8906 × 8.94",
+        "GPM = 502",
+        "Rounded answer = 500 GPM"
+      ],
+      "instructorExplanation": "This is a deck gun solid bore flow problem, not a pump-pressure problem. Use the solid bore flow formula. With a 1 3/8-inch solid bore tip at 80 PSI nozzle pressure, the calculated flow is 502 GPM, rounded to 500 GPM.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the solid bore flow formula, forgetting to square the tip diameter, using 50 PSI instead of 80 PSI for a deck gun/master stream, rounding too early, or entering pump pressure instead of GPM."
+    },
+    {
+      "id": "deck_gun_flow_1_1_2",
+      "title": "Deck Gun Flow: 1 1/2-inch Solid Bore",
+      "question": "Engine 181 is operating its deck gun with a 1 1/2-inch solid bore tip. Use 80 PSI nozzle pressure. What GPM is flowing from the deck gun?",
+      "answerLabel": "Solid bore flow",
+      "answerUnit": "GPM",
+      "inputLabel": "Your deck gun flow answer",
+      "inputPlaceholder": "Enter GPM",
+      "answerValue": 600,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 600,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 70
+        },
+        {
+          "label": "Deck Gun",
+          "text": "Deck Gun",
+          "x": 48,
+          "y": 42
+        },
+        {
+          "label": "Tip",
+          "text": "1 1/2 inch SB",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 70,
+          "y": 45
+        }
+      ],
+      "formulaBreakdown": [
+        "Solid bore GPM = 29.7 × diameter² × √NP",
+        "GPM = 29.7 × 1.5² × √80",
+        "GPM = 29.7 × 2.25 × 8.94",
+        "GPM = 598",
+        "Rounded answer = 600 GPM"
+      ],
+      "instructorExplanation": "This is a deck gun solid bore flow problem, not a pump-pressure problem. Use the solid bore flow formula. With a 1 1/2-inch solid bore tip at 80 PSI nozzle pressure, the calculated flow is 598 GPM, rounded to 600 GPM.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the solid bore flow formula, forgetting to square the tip diameter, using 50 PSI instead of 80 PSI for a deck gun/master stream, rounding too early, or entering pump pressure instead of GPM."
+    },
+    {
+      "id": "deck_gun_flow_1_3_4",
+      "title": "Deck Gun Flow: 1 3/4-inch Solid Bore",
+      "question": "Engine 181 is operating its deck gun with a 1 3/4-inch solid bore tip. Use 80 PSI nozzle pressure. What GPM is flowing from the deck gun?",
+      "answerLabel": "Solid bore flow",
+      "answerUnit": "GPM",
+      "inputLabel": "Your deck gun flow answer",
+      "inputPlaceholder": "Enter GPM",
+      "answerValue": 815,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 815,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 70
+        },
+        {
+          "label": "Deck Gun",
+          "text": "Deck Gun",
+          "x": 48,
+          "y": 42
+        },
+        {
+          "label": "Tip",
+          "text": "1 3/4 inch SB",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 70,
+          "y": 45
+        }
+      ],
+      "formulaBreakdown": [
+        "Solid bore GPM = 29.7 × diameter² × √NP",
+        "GPM = 29.7 × 1.75² × √80",
+        "GPM = 29.7 × 3.0625 × 8.94",
+        "GPM = 814",
+        "Rounded answer = 815 GPM"
+      ],
+      "instructorExplanation": "This is a deck gun solid bore flow problem, not a pump-pressure problem. Use the solid bore flow formula. With a 1 3/4-inch solid bore tip at 80 PSI nozzle pressure, the calculated flow is 814 GPM, rounded to 815 GPM.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the solid bore flow formula, forgetting to square the tip diameter, using 50 PSI instead of 80 PSI for a deck gun/master stream, rounding too early, or entering pump pressure instead of GPM."
+    },
+    {
+      "id": "deck_gun_flow_2_inch",
+      "title": "Deck Gun Flow: 2-inch Solid Bore",
+      "question": "Engine 181 is operating its deck gun with a 2-inch solid bore tip. Use 80 PSI nozzle pressure. What GPM is flowing from the deck gun?",
+      "answerLabel": "Solid bore flow",
+      "answerUnit": "GPM",
+      "inputLabel": "Your deck gun flow answer",
+      "inputPlaceholder": "Enter GPM",
+      "answerValue": 1060,
+      "correctPP": 0,
+      "tolerance": 5,
+      "answers": {
+        "frictionLoss": 0,
+        "nozzlePressure": 80,
+        "elevation": 0,
+        "applianceLoss": 0,
+        "totalGpm": 1060,
+        "pumpPressure": 0,
+        "tolerance": 5
+      },
+      "overlays": [
+        {
+          "label": "Engine",
+          "text": "Engine 181",
+          "x": 20,
+          "y": 70
+        },
+        {
+          "label": "Deck Gun",
+          "text": "Deck Gun",
+          "x": 48,
+          "y": 42
+        },
+        {
+          "label": "Tip",
+          "text": "2 inch SB",
+          "x": 62,
+          "y": 34
+        },
+        {
+          "label": "NP",
+          "text": "80 PSI NP",
+          "x": 70,
+          "y": 45
+        }
+      ],
+      "formulaBreakdown": [
+        "Solid bore GPM = 29.7 × diameter² × √NP",
+        "GPM = 29.7 × 2.0² × √80",
+        "GPM = 29.7 × 4 × 8.94",
+        "GPM = 1062",
+        "Rounded answer = 1060 GPM"
+      ],
+      "instructorExplanation": "This is a deck gun solid bore flow problem, not a pump-pressure problem. Use the solid bore flow formula. With a 2-inch solid bore tip at 80 PSI nozzle pressure, the calculated flow is 1062 GPM, rounded to 1060 GPM.",
+      "explainMistake": "Common mistakes include using the pump-pressure formula instead of the solid bore flow formula, forgetting to square the tip diameter, using 50 PSI instead of 80 PSI for a deck gun/master stream, rounding too early, or entering pump pressure instead of GPM."
+    }
+  ],
+  "tags": [
+    "deck_gun",
+    "solid_bore",
+    "master_stream",
+    "gpm",
+    "flow_calculation",
+    "engine_181",
+    "intermediate"
+  ]
+}
