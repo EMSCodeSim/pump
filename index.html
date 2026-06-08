@@ -9,17 +9,18 @@
   <link rel="icon" href="/fireopscalc.png"/>
   <link rel="apple-touch-icon" href="/fireopscalc.png"/>
   <link rel="manifest" href="/manifest.json"/>
+  <link rel="preload" as="image" href="/assets/images/hero-pump-panel-bg.png"/>
   <meta name="robots" content="index,follow,max-image-preview:large"/>
   <meta name="theme-color" content="#08090c"/>
   <meta property="og:type" content="website"/>
   <meta property="og:title" content="FireOps Calc — Fire Pump Math Built for the Engineer's Seat"/>
   <meta property="og:description" content="Run pump pressure calculations, build printable pump cards, practice visual pump scenarios, and teach driver/operator hydraulics from one firefighter-built tool hub."/>
   <meta property="og:url" content="https://fireopscalc.com/"/>
-  <meta property="og:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  <meta property="og:image" content="https://fireopscalc.com/assets/images/hero-pump-panel-bg.png"/>
   <meta name="twitter:card" content="summary_large_image"/>
   <meta name="twitter:title" content="FireOps Calc — Fire Pump Math Built for the Engineer's Seat"/>
   <meta name="twitter:description" content="A phone-friendly pump calculator, printable pump card creator, visual scenario trainer, and engineer training resource built for firefighters."/>
-  <meta name="twitter:image" content="https://fireopscalc.com/fireopscalc.png"/>
+  <meta name="twitter:image" content="https://fireopscalc.com/assets/images/hero-pump-panel-bg.png"/>
   <script type="application/ld+json">
   {
     "@context":"https://schema.org",
@@ -197,6 +198,116 @@
     @media (max-width:640px){
       .wrap{padding:0 16px}.nav{min-height:68px}.brand img{width:42px;height:42px}.brand-text{font-size:23px}.brand-text span:last-child{font-size:13px}.nav-cta{display:none}.hero-grid{padding:44px 16px 46px}.hero-actions .btn{width:100%}.job-strip,.tools-grid,.phones,.training-items,.scenario-card.large,.scenario-card{grid-template-columns:1fr}.quick-tools{margin-top:0}.quick-card{grid-template-columns:1fr;border-radius:0;margin-left:-16px;margin-right:-16px;border-left:0;border-right:0}.quick-item{padding-left:16px;padding-right:16px}.section{padding:46px 0}.section-kicker:before,.section-kicker:after{width:28px}.tool-card{min-height:240px}.phones{max-width:320px;margin:0 auto}.phone{min-height:285px}.scenario-card img,.scenario-card.large img{height:180px}.action-inner{display:block}.action-inner .btn{margin-top:16px;width:100%}.footer-grid{display:grid}.footer-links{gap:12px}.apps .store{width:100%}.store-row{width:100%}
     }
+  
+    /* FireOps graphic asset update - uses /assets/images/*.png */
+    .hero:before{
+      background:
+        linear-gradient(90deg,rgba(7,8,11,.98) 0%,rgba(7,8,11,.88) 34%,rgba(7,8,11,.48) 66%,rgba(7,8,11,.22) 100%),
+        linear-gradient(0deg,rgba(7,8,11,.78),rgba(7,8,11,.12)),
+        url('/assets/images/hero-pump-panel-bg.png') !important;
+      background-position:center !important;
+      background-size:cover !important;
+      background-repeat:no-repeat !important;
+      filter:saturate(1.06) contrast(1.08) !important;
+    }
+    .hero:after{height:190px;background:linear-gradient(0deg,#101219 0%,rgba(16,18,25,.82) 36%,transparent 100%)}
+
+    .tool-card:nth-child(3):before{
+      background:
+        linear-gradient(180deg,rgba(8,9,12,.74),rgba(8,9,12,.92)),
+        url('/assets/images/hydrant-flow-banner.png') !important;
+      background-size:cover !important;
+      background-position:center !important;
+      opacity:1 !important;
+    }
+
+    .action-band{
+      position:relative;
+      overflow:hidden;
+      background:
+        linear-gradient(90deg,rgba(8,9,12,.96),rgba(8,9,12,.78) 46%,rgba(227,55,47,.20)),
+        url('/assets/images/training-printables-section.png') !important;
+      background-size:cover !important;
+      background-position:center 56% !important;
+    }
+    .action-band:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 28%,rgba(0,0,0,.16));
+    }
+    .action-band .wrap{position:relative;z-index:1}
+
+    .built-card{
+      position:relative;
+      overflow:hidden;
+      background:
+        linear-gradient(180deg,rgba(8,9,12,.74),rgba(8,9,12,.94)),
+        url('/assets/images/engine-feature-image.png') !important;
+      background-size:cover !important;
+      background-position:center !important;
+      min-height:330px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      box-shadow:inset 0 -120px 110px rgba(0,0,0,.48),0 18px 44px rgba(0,0,0,.28);
+    }
+    .built-card h3,.built-card p,.built-card .signature{text-shadow:0 3px 18px rgba(0,0,0,.92)}
+
+    .training-panel:first-child{
+      position:relative;
+      overflow:hidden;
+      padding-top:214px;
+    }
+    .training-panel:first-child:before{
+      content:"";
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      height:190px;
+      background:
+        linear-gradient(180deg,rgba(8,9,12,.08),rgba(8,9,12,.60)),
+        url('/assets/images/training-printables-section.png');
+      background-size:cover;
+      background-position:center;
+      border-bottom:1px solid rgba(255,255,255,.14);
+    }
+    .training-panel:first-child > *{position:relative;z-index:1}
+
+    .apps{
+      background:
+        linear-gradient(90deg,rgba(8,9,12,.98),rgba(8,9,12,.82) 56%,rgba(8,9,12,.48)),
+        url('/assets/images/engine-feature-image.png') !important;
+      background-size:cover !important;
+      background-position:center 46% !important;
+    }
+
+    .responsible{
+      background:
+        linear-gradient(90deg,rgba(8,9,12,.96),rgba(8,9,12,.76) 52%,rgba(8,9,12,.38)),
+        url('/assets/images/hydrant-flow-banner.png') !important;
+      background-size:cover !important;
+      background-position:center !important;
+    }
+
+    @media (max-width:1000px){
+      .built-card{min-height:260px}
+      .training-panel:first-child{padding-top:190px}
+      .training-panel:first-child:before{height:170px}
+    }
+    @media (max-width:640px){
+      .hero:before{
+        background:
+          linear-gradient(180deg,rgba(7,8,11,.90) 0%,rgba(7,8,11,.83) 48%,rgba(7,8,11,.96) 100%),
+          url('/assets/images/hero-pump-panel-bg.png') !important;
+        background-position:center top !important;
+      }
+      .training-panel:first-child{padding-top:170px}
+      .training-panel:first-child:before{height:150px}
+    }
+
   </style>
 </head>
 <body>
