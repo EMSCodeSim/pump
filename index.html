@@ -193,11 +193,28 @@
     footer{border-top:1px solid rgba(255,255,255,.12);padding:28px 0;color:#bcb7ad}.footer-grid{display:flex;justify-content:space-between;gap:16px;align-items:center}.footer-brand{display:flex;align-items:center;gap:12px;font-weight:1000;text-transform:uppercase}.footer-brand img{width:38px;height:38px;border-radius:10px}.footer-links{display:flex;gap:18px;flex-wrap:wrap}.footer-links a{text-decoration:none}.footer-links a:hover{color:white}
 
     @media (max-width:1000px){
-      .nav-links{display:none}.mobile-note{display:block;color:#bdb8af;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.hero-grid,.demo-grid,.training-grid,.scenario-grid,.apps-inner{grid-template-columns:1fr}.pump-panel{max-width:620px}.quick-card{grid-template-columns:repeat(2,1fr)}.quick-item{border-right:0;border-bottom:1px solid rgba(255,255,255,.12)}.quick-item:last-child{border-bottom:0}.tools-grid{grid-template-columns:repeat(2,1fr)}.job-strip{grid-template-columns:repeat(2,1fr)}.section-head{display:block}.section-head p{margin-top:10px}.bottom-grid{grid-template-columns:1fr}.scenario-card.large,.scenario-card{grid-template-columns:170px 1fr}.training-items{grid-template-columns:repeat(2,1fr)}.train-item:nth-child(even){border-right:0}.hero:before{background-size:720px auto;background-position:center bottom 40px;opacity:.58}.hero-grid{min-height:auto;padding-top:56px}.hero-copy{max-width:760px}.pump-panel{display:none}
+      .nav-links{display:none}.mobile-note{display:block;color:#bdb8af;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.hero-grid,.demo-grid,.training-grid,.scenario-grid,.apps-inner,.platform-grid{grid-template-columns:1fr}.pump-panel{max-width:620px}.quick-card{grid-template-columns:repeat(2,1fr)}.quick-item{border-right:0;border-bottom:1px solid rgba(255,255,255,.12)}.quick-item:last-child{border-bottom:0}.tools-grid{grid-template-columns:repeat(2,1fr)}.job-strip{grid-template-columns:repeat(2,1fr)}.section-head{display:block}.section-head p{margin-top:10px}.bottom-grid{grid-template-columns:1fr}.scenario-card.large,.scenario-card{grid-template-columns:170px 1fr}.training-items{grid-template-columns:repeat(2,1fr)}.train-item:nth-child(even){border-right:0}.hero:before{background-size:720px auto;background-position:center bottom 40px;opacity:.58}.hero-grid{min-height:auto;padding-top:56px}.hero-copy{max-width:760px}.pump-panel{display:none}
     }
     @media (max-width:640px){
       .wrap{padding:0 16px}.nav{min-height:68px}.brand img{width:42px;height:42px}.brand-text{font-size:23px}.brand-text span:last-child{font-size:13px}.nav-cta{display:none}.hero-grid{padding:44px 16px 46px}.hero-actions .btn{width:100%}.job-strip,.tools-grid,.phones,.training-items,.scenario-card.large,.scenario-card{grid-template-columns:1fr}.quick-tools{margin-top:0}.quick-card{grid-template-columns:1fr;border-radius:0;margin-left:-16px;margin-right:-16px;border-left:0;border-right:0}.quick-item{padding-left:16px;padding-right:16px}.section{padding:46px 0}.section-kicker:before,.section-kicker:after{width:28px}.tool-card{min-height:240px}.phones{max-width:320px;margin:0 auto}.phone{min-height:285px}.scenario-card img,.scenario-card.large img{height:180px}.action-inner{display:block}.action-inner .btn{margin-top:16px;width:100%}.footer-grid{display:grid}.footer-links{gap:12px}.apps .store{width:100%}.store-row{width:100%}
     }
+  
+    /* Cross-platform FireOps Calc system section */
+    .platforms{position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.05))}
+    .platforms:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(227,55,47,.18),transparent 28rem),radial-gradient(circle at 88% 20%,rgba(244,196,77,.10),transparent 26rem)}
+    .platforms .wrap{position:relative;z-index:1}
+    .platform-card{border:1px solid rgba(244,196,77,.20);border-radius:22px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.025));padding:24px;box-shadow:0 18px 46px rgba(0,0,0,.28);margin-bottom:18px}
+    .platform-card p{margin:0;color:#ddd6cd;font-weight:650;max-width:920px}
+    .platform-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+    .platform-tile{border:1px solid var(--line);border-radius:18px;background:rgba(10,12,17,.72);padding:20px;min-height:210px;box-shadow:0 14px 34px rgba(0,0,0,.22)}
+    .platform-tile small{display:inline-flex;margin-bottom:12px;color:#151515;background:var(--gold);border-radius:999px;padding:5px 9px;text-transform:uppercase;letter-spacing:.08em;font-weight:1000;font-size:11px}
+    .platform-tile h3{font-size:23px;line-height:1.02;margin:0 0 9px;text-transform:uppercase;letter-spacing:-.035em}
+    .platform-tile p{margin:0;color:#cfc8bd;font-size:15px}
+    .platform-note{margin-top:18px;color:#d6d0c6;font-weight:700;border-left:4px solid var(--red);padding:10px 0 10px 14px;background:rgba(227,55,47,.07);border-radius:0 12px 12px 0}
+
+    @media (max-width:1000px){.platform-grid{grid-template-columns:1fr}.platform-card{padding:20px}.platform-tile{min-height:auto}}
+    @media (max-width:640px){.platform-note{font-size:14px}.platform-tile h3{font-size:21px}}
+
   
     /* FireOps graphic asset update - uses /assets/images/*.png */
     .hero:before{
@@ -230,13 +247,7 @@
       background-size:cover !important;
       background-position:center 56% !important;
     }
-    .action-band:before{
-      content:"";
-      position:absolute;
-      inset:0;
-      pointer-events:none;
-      background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 28%,rgba(0,0,0,.16));
-    }
+    .action-band:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 28%,rgba(0,0,0,.16))}
     .action-band .wrap{position:relative;z-index:1}
 
     .built-card{
@@ -255,24 +266,11 @@
     }
     .built-card h3,.built-card p,.built-card .signature{text-shadow:0 3px 18px rgba(0,0,0,.92)}
 
-    .training-panel:first-child{
-      position:relative;
-      overflow:hidden;
-      padding-top:214px;
-    }
+    .training-panel:first-child{position:relative;overflow:hidden;padding-top:214px}
     .training-panel:first-child:before{
-      content:"";
-      position:absolute;
-      top:0;
-      left:0;
-      right:0;
-      height:190px;
-      background:
-        linear-gradient(180deg,rgba(8,9,12,.08),rgba(8,9,12,.60)),
-        url('/assets/images/training-printables-section.png');
-      background-size:cover;
-      background-position:center;
-      border-bottom:1px solid rgba(255,255,255,.14);
+      content:"";position:absolute;top:0;left:0;right:0;height:190px;
+      background:linear-gradient(180deg,rgba(8,9,12,.08),rgba(8,9,12,.60)),url('/assets/images/training-printables-section.png');
+      background-size:cover;background-position:center;border-bottom:1px solid rgba(255,255,255,.14)
     }
     .training-panel:first-child > *{position:relative;z-index:1}
 
@@ -292,20 +290,10 @@
       background-position:center !important;
     }
 
-    @media (max-width:1000px){
-      .built-card{min-height:260px}
-      .training-panel:first-child{padding-top:190px}
-      .training-panel:first-child:before{height:170px}
-    }
+    @media (max-width:1000px){.built-card{min-height:260px}.training-panel:first-child{padding-top:190px}.training-panel:first-child:before{height:170px}}
     @media (max-width:640px){
-      .hero:before{
-        background:
-          linear-gradient(180deg,rgba(7,8,11,.90) 0%,rgba(7,8,11,.83) 48%,rgba(7,8,11,.96) 100%),
-          url('/assets/images/hero-pump-panel-bg.png') !important;
-        background-position:center top !important;
-      }
-      .training-panel:first-child{padding-top:170px}
-      .training-panel:first-child:before{height:150px}
+      .hero:before{background:linear-gradient(180deg,rgba(7,8,11,.90) 0%,rgba(7,8,11,.83) 48%,rgba(7,8,11,.96) 100%),url('/assets/images/hero-pump-panel-bg.png') !important;background-position:center top !important}
+      .training-panel:first-child{padding-top:170px}.training-panel:first-child:before{height:150px}
     }
 
   </style>
@@ -323,7 +311,7 @@
         <a href="#practice">Train</a>
         <a href="#print">Print</a>
         <a href="#guides">Reference</a>
-        <a href="#apps">App</a>
+        <a href="#platforms">Platforms</a>
         <a href="#faq">FAQ</a>
         <a href="/about.html">About</a>
       </nav>
@@ -472,9 +460,29 @@
       </div>
     </section>
 
+
+    <section class="section platforms" id="platforms">
+      <div class="wrap">
+        <div class="section-head">
+          <div><div class="section-kicker">Web • Android • iPhone</div><h2>One FireOps Calc system. Built for the engineer's seat.</h2></div>
+          <p>Each version is designed for its platform, but the mission stays the same: fast pump math, practical fireground tools, department setup, pump cards, and driver/operator training support.</p>
+        </div>
+        <div class="platform-card">
+          <p>Use FireOps Calc on the platform that fits your workflow. The web and Android versions are built for fast calculator access and field-style tools. The Apple version uses a polished Engineer Console layout. All versions support the same core fire-service workflow: calculate, set up your department, build pump cards, and train with practical pump problems.</p>
+        </div>
+        <div class="platform-grid">
+          <article class="platform-tile"><small>Core tool</small><h3>Pump Calculator</h3><p>Build attack lines, standpipes, wyes, master streams, foam lines, and FDC setups.</p></article>
+          <article class="platform-tile"><small>Quick reference</small><h3>Fireground Tools</h3><p>Use friction loss, hydrant flow, relay pumping, nozzle reaction, and water supply calculators.</p></article>
+          <article class="platform-tile"><small>Local setup</small><h3>Department Setup</h3><p>Save common hose, nozzle, and apparatus presets so calculations match your department.</p></article>
+          <article class="platform-tile"><small>Print / save</small><h3>Pump Card</h3><p>Build printable reference cards for preconnects, friction loss, smooth bore charts, and department notes.</p></article>
+        </div>
+        <div class="platform-note">FireOps Calc can look slightly different on Android, iPhone, and web, but the names, tools, purpose, and training workflow now line up as one product family.</div>
+      </div>
+    </section>
+
     <section class="apps" id="apps">
       <div class="wrap apps-inner">
-        <div><h2>Take it anywhere. Practice anytime.</h2><p style="margin:8px 0 0;color:#cfcac1">The FireOps Calc app keeps the pump tools close when you are training, teaching, or reviewing.</p></div>
+        <div><h2>Web, Android, and iPhone. Same pump mission.</h2><p style="margin:8px 0 0;color:#cfcac1">FireOps Calc is available on web, Android, and iPhone. Each version is designed for its platform, but the core mission is the same: fast pump math, practical fireground tools, department setup, pump cards, and driver/operator training support.</p></div>
         <div class="store-row">
           <a class="store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener"><span><small>Download on the</small><strong>App Store</strong></span></a>
           <a class="store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app" target="_blank" rel="noopener"><span><small>Get it on</small><strong>Google Play</strong></span></a>

@@ -538,6 +538,25 @@
       cursor:pointer;
     }
 
+
+    /* Engineer Console consistency update */
+    .console-landing{
+      border:1px solid rgba(244,196,77,.24);
+      background:linear-gradient(135deg,rgba(227,55,47,.14),rgba(17,24,39,.94));
+      border-radius:22px;
+      padding:18px;
+      margin:12px 0 14px;
+      box-shadow:0 18px 42px rgba(0,0,0,.28);
+    }
+    .console-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#f6cf69;font-weight:900;margin-bottom:6px}
+    .console-landing h1{margin:0;font-size:28px;letter-spacing:-.04em;line-height:1.02;color:#fff;text-transform:uppercase}
+    .console-landing p{margin:8px 0 14px;color:#d6dfed;font-size:14px;line-height:1.45}
+    .console-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+    .console-actions a,.console-actions button{border:1px solid rgba(255,255,255,.18);background:#111827;color:#e9f1ff;border-radius:14px;padding:11px 10px;text-decoration:none;font-weight:900;text-align:center;font-size:13px;cursor:pointer}
+    .console-actions .primary{background:linear-gradient(135deg,#ef4444,#991b1b);border-color:rgba(255,255,255,.22)}
+    .console-note{margin-top:10px;color:#aeb8ca;font-size:12px}
+    @media (min-width:720px){.console-actions{grid-template-columns:repeat(5,1fr)}.console-landing h1{font-size:34px}}
+
     @media (min-width:768px){
       .shell{padding:16px 16px 90px}
       .navbtn{font-size:13px;padding:8px 10px}
@@ -564,6 +583,22 @@
       </button>
     </div>
 
+
+    <section class="console-landing" aria-label="Engineer Console overview">
+      <div class="console-kicker">FireOps Calc: Engineer Console</div>
+      <h1>Engineer Console</h1>
+      <p>Your pump pressure, fireground tools, department setup, pump card, and scenario practice hub.</p>
+      <div class="console-actions">
+        <a class="primary" href="/calculator.html">Open Pump Calculator</a>
+        <button id="deptSetupConsole" type="button">Department Setup</button>
+        <a href="/#tools">Fireground Tools</a>
+        <a href="/tools/pump-card.html">Pump Card</a>
+        <a href="/scenario-player.html">Scenario Practice</a>
+      </div>
+      <div class="console-note">The Android/web and iPhone versions may use platform-specific layouts, but the tool names and workflow now match across FireOps Calc.</div>
+    </section>
+
+
     <main id="app" class="grid" aria-live="polite" aria-busy="false">
       <div class="card">Loading…</div>
     </main>
@@ -572,15 +607,15 @@
   <nav class="bottom-nav">
     <button class="navbtn active" data-view="calc">
       <span class="icon">⚙️</span>
-      <span>Pump</span>
+      <span>Calc</span>
     </button>
     <button class="navbtn" data-view="practice">
       <span class="icon">🎯</span>
-      <span>Scenarios</span>
+      <span>Practice</span>
     </button>
     <button class="navbtn" data-view="charts">
       <span class="icon">📊</span>
-      <span>Info</span>
+      <span>Tools</span>
     </button>
     <!-- Hidden nav button for Department Setup (used as a fallback) -->
     <button class="navbtn" data-view="settings" id="navSettings" style="display:none">
@@ -596,7 +631,7 @@
         <button id="closeAbout" type="button">Close</button>
       </div>
       <div id="aboutBody">
-        <p>FireOps Calc is a phone-friendly fire pump calculator built by a firefighter for firefighters.</p>
+        <p>FireOps Calc is an Engineer Console for pump pressure, fireground tools, department setup, pump cards, and driver/operator training support.</p>
         <ul class="about-list">
           <li>
             <a href="/about.html">
@@ -648,21 +683,21 @@
   <!-- Quick Start overlay -->
   <div id="quickStartModal" class="qs-modal hidden" role="dialog" aria-modal="true" aria-label="Quick start guide">
     <div class="qs-window">
-      <h2>FireOps Calc — Start Here</h2>
-      <p class="qs-sub">Pick a section to see what’s inside. Each one includes a quick walkthrough and a button to jump you straight into the app.</p>
+      <h2>Engineer Console — Start Here</h2>
+      <p class="qs-sub">Pick a section of the Engineer Console. Each one uses the same FireOps Calc tool names across web, Android, and iPhone.</p>
 
       <!-- Home: 3 big category buttons -->
       <div id="qsHome" class="qs-home" aria-label="Startup categories">
         <button class="qs-big" type="button" data-qscat="pump">
-          <div class="qs-big-title">⚙️ Pump</div>
+          <div class="qs-big-title">⚙️ Pump Calculator</div>
           <div class="qs-big-sub">Real-world pumping calculations: preconnects, hydrant/tender supply, wye &amp; elevation.</div>
         </button>
         <button class="qs-big" type="button" data-qscat="practice">
-          <div class="qs-big-title">🎯 Scenarios</div>
+          <div class="qs-big-title">🎯 Scenario Practice</div>
           <div class="qs-big-sub">Artwork-based pump scenarios with overlays, full answer fields, and instant feedback.</div>
         </button>
         <button class="qs-big" type="button" data-qscat="info">
-          <div class="qs-big-title">📊 Info</div>
+          <div class="qs-big-title">📊 Fireground Tools</div>
           <div class="qs-big-sub">Reference tables + how-to. Quick math, rules of thumb, and fireground info.</div>
         </button>
       </div>
@@ -671,7 +706,7 @@
       <section id="qsDetailPump" class="qs-detail" hidden>
         <div class="qs-detail-head">
           <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Pump</h3>
+          <h3 style="margin:0">Pump Calculator</h3>
         </div>
         <p class="qs-sub" style="margin-top:8px">This is the main calculator. Set up your engine once, then run fast, consistent numbers on the fireground.</p>
         <div class="qs-detail-body">
@@ -694,7 +729,7 @@
       <section id="qsDetailPractice" class="qs-detail" hidden>
         <div class="qs-detail-head">
           <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Scenarios</h3>
+          <h3 style="margin:0">Scenario Practice</h3>
         </div>
         <p class="qs-sub" style="margin-top:8px">Scenario Trainer is for artwork-based pump-pressure practice. Enter friction loss, nozzle pressure, elevation, appliance loss, total GPM, and final pump pressure.</p>
         <div class="qs-detail-body">
@@ -714,7 +749,7 @@
       <section id="qsDetailInfo" class="qs-detail" hidden>
         <div class="qs-detail-head">
           <button class="qs-back" type="button" data-qsback>← Back</button>
-          <h3 style="margin:0">Info</h3>
+          <h3 style="margin:0">Fireground Tools</h3>
         </div>
         <p class="qs-sub" style="margin-top:8px">Quick reference: tables, formulas, and the full how-to guide.</p>
         <div class="qs-detail-body">
@@ -896,6 +931,7 @@
       const closeAbout = document.getElementById('closeAbout');
       const deptBtn = document.getElementById('aboutDeptBtn');
       const deptTopBtn = document.getElementById('deptSetupTop');
+      const deptConsoleBtn = document.getElementById('deptSetupConsole');
       const navSettings = document.getElementById('navSettings');
 
       function open(){
@@ -942,6 +978,7 @@
 
       if (deptBtn) deptBtn.addEventListener('click', openDeptSetup);
       if (deptTopBtn) deptTopBtn.addEventListener('click', openDeptSetup);
+      if (deptConsoleBtn) deptConsoleBtn.addEventListener('click', openDeptSetup);
     })();
   </script>
 
