@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="800" viewBox="0 0 1400 800">
+  <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#08090c"/><stop offset="1" stop-color="#181d27"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity=".45"/></filter></defs>
+  <rect width="1400" height="800" fill="url(#g)"/>
+  <circle cx="1240" cy="90" r="220" fill="#e3372f" opacity=".12"/><circle cx="150" cy="710" r="280" fill="#f4c44d" opacity=".09"/>
+  <text x="70" y="92" fill="#f4c44d" font-family="Arial Black,Arial,sans-serif" font-size="34" letter-spacing="3">FIREOPS CALC</text>
+  <text x="70" y="156" fill="#f7f1e7" font-family="Arial Black,Arial,sans-serif" font-size="72" letter-spacing="-3">NFPA-STYLE FIRE ENGINEER</text>
+  <text x="70" y="210" fill="#f7f1e7" font-family="Arial Black,Arial,sans-serif" font-size="72" letter-spacing="-3">TRAINING LIBRARY</text>
+  <text x="74" y="260" fill="#cac3b9" font-family="Arial,sans-serif" font-size="25">Original training guides, checklists, and drill prompts. Use the official NFPA standard and department SOP for compliance.</text>
+  <g filter="url(#s)" font-family="Arial Black,Arial,sans-serif">
+    <g transform="translate(70 330)"><rect width="285" height="150" rx="24" fill="#f4efe5"/><text x="24" y="48" fill="#e3372f" font-size="36">1960</text><text x="24" y="88" fill="#151515" font-size="27">HOSE / NOZZLE</text><text x="24" y="121" fill="#444" font-family="Arial" font-size="20">Appliances + inspection</text></g>
+    <g transform="translate(385 330)"><rect width="285" height="150" rx="24" fill="#f4efe5"/><text x="24" y="48" fill="#e3372f" font-size="36">1900</text><text x="24" y="88" fill="#151515" font-size="27">APPARATUS</text><text x="24" y="121" fill="#444" font-family="Arial" font-size="20">Engineer checkoff</text></g>
+    <g transform="translate(700 330)"><rect width="285" height="150" rx="24" fill="#f4efe5"/><text x="24" y="48" fill="#e3372f" font-size="36">1410</text><text x="24" y="88" fill="#151515" font-size="27">DRILLS</text><text x="24" y="121" fill="#444" font-family="Arial" font-size="20">Company evolutions</text></g>
+    <g transform="translate(1015 330)"><rect width="285" height="150" rx="24" fill="#f4efe5"/><text x="24" y="48" fill="#e3372f" font-size="36">14 / 13</text><text x="24" y="88" fill="#151515" font-size="27">FDC SYSTEMS</text><text x="24" y="121" fill="#444" font-family="Arial" font-size="20">Standpipe + sprinkler</text></g>
+    <g transform="translate(70 520)"><rect width="285" height="150" rx="24" fill="#11141b" stroke="#f4c44d" stroke-width="3"/><text x="24" y="48" fill="#f4c44d" font-size="36">20</text><text x="24" y="88" fill="#fff" font-size="27">FIRE PUMP</text><text x="24" y="121" fill="#cac3b9" font-family="Arial" font-size="20">Pump room awareness</text></g>
+    <g transform="translate(385 520)"><rect width="285" height="150" rx="24" fill="#11141b" stroke="#f4c44d" stroke-width="3"/><text x="24" y="48" fill="#f4c44d" font-size="36">25</text><text x="24" y="88" fill="#fff" font-size="27">ITM / PREPLAN</text><text x="24" y="121" fill="#cac3b9" font-family="Arial" font-size="20">Inspection awareness</text></g>
+    <g transform="translate(700 520)"><rect width="285" height="150" rx="24" fill="#11141b" stroke="#f4c44d" stroke-width="3"/><text x="24" y="48" fill="#f4c44d" font-size="36">1550</text><text x="24" y="88" fill="#fff" font-size="27">SAFETY</text><text x="24" y="121" fill="#cac3b9" font-family="Arial" font-size="20">Engineer scene checklist</text></g>
+    <g transform="translate(1015 520)"><rect width="285" height="150" rx="24" fill="#11141b" stroke="#f4c44d" stroke-width="3"/><text x="24" y="48" fill="#f4c44d" font-size="36">1010</text><text x="24" y="88" fill="#fff" font-size="27">SKILL MAP</text><text x="24" y="121" fill="#cac3b9" font-family="Arial" font-size="20">FF / DO learning path</text></g>
+  </g>
+</svg>
