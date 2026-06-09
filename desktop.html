@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>FireOps Calc | Fire Pump Math Built for the Engineer's Seat</title>
+  <title>FireOps Calc Desktop | Fire Pump Math Built for the Engineer's Seat</title>
   <meta name="description" content="FireOps Calc is a firefighter-built pump calculator and driver/operator training hub with PDP, friction loss, hydrant flow, relay pumping, nozzle reaction, pump cards, printable scenarios, and instructor resources."/>
   <link rel="canonical" href="https://fireopscalc.com/"/>
   <link rel="icon" href="/fireopscalc.png"/>
@@ -306,20 +306,6 @@
     @media (max-width:1000px){.site-version-link{display:none}}
 
   </style>
-  <script>
-    (function(){
-      try {
-        var path = window.location.pathname.replace(/\/+$/, '') || '/';
-        var isHome = path === '/' || path === '/index.html';
-        var params = new URLSearchParams(window.location.search);
-        var manual = params.get('view') || localStorage.getItem('fireops_site_view');
-        var isPhone = window.matchMedia && window.matchMedia('(max-width: 760px)').matches;
-        if (isHome && isPhone && manual !== 'desktop') {
-          window.location.replace('/mobile.html');
-        }
-      } catch (e) {}
-    })();
-  </script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -550,7 +536,7 @@
   <footer>
     <div class="wrap footer-grid">
       <div class="footer-brand"><img src="/fireopscalc.png" alt=""/> FireOps Calc</div>
-      <div class="footer-links"><a href="/desktop.html" onclick="localStorage.setItem('fireops_site_view','desktop')">Desktop Site</a><a href="/mobile.html" onclick="localStorage.setItem('fireops_site_view','mobile')">Phone Site</a><a href="/about.html">About</a><a href="/contact.html">Contact</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/sitemap.xml">Sitemap</a></div>
+      <div class="footer-links"><a href="/mobile.html" onclick="localStorage.setItem('fireops_site_view','mobile')">Phone Site</a><a href="/about.html">About</a><a href="/contact.html">Contact</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/sitemap.xml">Sitemap</a></div>
       <div>Proudly supporting fire service training.</div>
     </div>
   </footer>

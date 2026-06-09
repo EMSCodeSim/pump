@@ -230,4 +230,14 @@
     <lastmod>2026-06-09</lastmod>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://fireopscalc.com/desktop.html</loc>
+    <lastmod>2026-06-09</lastmod>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/mobile.html</loc>
+    <lastmod>2026-06-09</lastmod>
+    <priority>0.6</priority>
+  </url>
 </urlset>

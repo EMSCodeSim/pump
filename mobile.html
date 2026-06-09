@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>FireOps Calc Phone Site | Fire Pump Tools for Mobile</title>
+  <meta name="description" content="A phone-first FireOps Calc homepage with fast access to pump pressure, engineer tools, hand method training, pump cards, scenarios, and water supply calculators."/>
+  <link rel="canonical" href="https://fireopscalc.com/"/>
+  <link rel="icon" href="/fireopscalc.png"/>
+  <link rel="apple-touch-icon" href="/fireopscalc.png"/>
+  <meta name="theme-color" content="#08090c"/>
+  <meta property="og:title" content="FireOps Calc Phone Site"/>
+  <meta property="og:description" content="Phone-first fire pump calculator and engineer tool launcher."/>
+  <meta property="og:image" content="https://fireopscalc.com/assets/images/hero-pump-panel-bg.png"/>
+  <style>
+    :root{--bg:#08090c;--panel:#11141b;--panel2:#181c25;--ink:#f7f1e7;--muted:#c8c0b4;--red:#e3372f;--gold:#f4c44d;--line:rgba(255,255,255,.14);--ok:#65d286}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.45}a{color:inherit}.wrap{width:min(100%,640px);margin:0 auto;padding:0 16px}.top{position:sticky;top:0;z-index:20;background:rgba(8,9,12,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.nav{min-height:70px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:1000;text-transform:uppercase;letter-spacing:-.03em}.brand img{width:42px;height:42px;border-radius:11px}.brand span{display:block;line-height:.9}.brand small{display:block;color:var(--gold);font-size:12px;letter-spacing:.09em}.desktop-link{border:1px solid var(--line);border-radius:999px;padding:9px 12px;text-decoration:none;font-size:13px;font-weight:900;background:rgba(255,255,255,.06)}.hero{position:relative;overflow:hidden;padding:30px 0 24px;background:linear-gradient(180deg,rgba(8,9,12,.42),var(--bg)),url('/assets/images/hero-pump-panel-bg.png');background-size:cover;background-position:center top;border-bottom:1px solid var(--line)}.kicker{display:inline-flex;align-items:center;gap:8px;color:#161616;background:var(--gold);border-radius:999px;padding:6px 10px;font-weight:1000;text-transform:uppercase;font-size:12px;letter-spacing:.08em}.hero h1{font-size:42px;line-height:.96;margin:16px 0 10px;text-transform:uppercase;letter-spacing:-.055em;text-shadow:0 4px 22px rgba(0,0,0,.8)}.hero h1 span{color:#ff584e}.lead{font-size:17px;color:#eee6dc;margin:0 0 18px;max-width:32rem;text-shadow:0 3px 15px rgba(0,0,0,.76)}.primary-actions{display:grid;gap:10px}.big-btn{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:74px;border-radius:18px;padding:16px;text-decoration:none;background:linear-gradient(135deg,var(--red),#9f1712);box-shadow:0 14px 34px rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14)}.big-btn.secondary{background:linear-gradient(135deg,#202632,#11141b)}.big-btn strong{display:block;font-size:22px;line-height:1;text-transform:uppercase;letter-spacing:-.035em}.big-btn span{display:block;color:#eee1d3;font-weight:700;font-size:13px;margin-top:3px}.arrow{font-size:28px;font-weight:1000}.section{padding:26px 0;border-bottom:1px solid rgba(255,255,255,.08)}.section h2{font-size:26px;line-height:1;margin:0 0 14px;text-transform:uppercase;letter-spacing:-.04em}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card{min-height:112px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.075),rgba(255,255,255,.03));padding:14px;text-decoration:none;box-shadow:0 10px 22px rgba(0,0,0,.18)}.card.full{grid-column:1/-1;min-height:104px}.icon{font-size:28px;line-height:1}.card strong{font-size:16px;line-height:1.05;text-transform:uppercase;letter-spacing:-.025em}.card span{color:var(--muted);font-size:13px;font-weight:650}.quick-calc{border:1px solid rgba(244,196,77,.28);border-radius:20px;background:linear-gradient(180deg,rgba(244,196,77,.10),rgba(255,255,255,.035));padding:16px;margin-top:12px}.formula{font-weight:1000;color:#fff;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;text-align:center}.note{color:var(--muted);font-size:14px;margin:10px 0 0}.app-row{display:grid;gap:10px}.store{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:15px;background:#050609;padding:14px;text-decoration:none}.store small{display:block;color:#aaa;text-transform:uppercase;font-weight:900;font-size:10px;letter-spacing:.08em}.store strong{font-size:20px}.bottom-nav{position:sticky;bottom:0;z-index:15;background:rgba(8,9,12,.94);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:8px max(10px,env(safe-area-inset-left)) max(8px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.bottom-nav a{text-align:center;text-decoration:none;border-radius:14px;padding:9px 4px;color:#eee;font-size:11px;font-weight:900}.bottom-nav a:first-child{background:rgba(227,55,47,.18);color:#fff}.fine{color:#aaa;font-size:12px;margin:16px 0 0}.desktop-choice{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}.pill{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:8px 11px;text-decoration:none;font-size:12px;font-weight:900;background:rgba(255,255,255,.06)}@media(max-width:390px){.hero h1{font-size:36px}.grid{gap:8px}.card{padding:12px}.card strong{font-size:15px}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap nav">
+      <a class="brand" href="/mobile.html" aria-label="FireOps Calc phone home"><img src="/fireopscalc.png" alt="FireOps Calc logo"><span>FireOps<br><small>Phone Site</small></span></a>
+      <a class="desktop-link" href="/desktop.html" onclick="localStorage.setItem('fireops_site_view','desktop')">Desktop Site</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="kicker">Phone-first engineer tools</div>
+        <h1>Fast pump tools <span>for the cab and pump panel.</span></h1>
+        <p class="lead">This phone version keeps the home screen simple: calculate, troubleshoot, train, and open the tools you need without digging through a desktop layout.</p>
+        <div class="primary-actions">
+          <a class="big-btn" href="/calculator.html"><div><strong>Open Calculator</strong><span>PDP, hose, nozzle, wye, standpipe, foam</span></div><b class="arrow">→</b></a>
+          <a class="big-btn secondary" href="/tools/engineer-tools.html"><div><strong>Engineer Tools</strong><span>Troubleshooting, water supply, drafting, checkoff</span></div><b class="arrow">→</b></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="tools">
+      <div class="wrap">
+        <h2>Quick tools</h2>
+        <div class="grid">
+          <a class="card" href="/tools/pump-troubleshooting.html"><div class="icon">⚠️</div><strong>Pump Troubleshooting</strong><span>Pressure drops, cavitation, intake issues</span></a>
+          <a class="card" href="/tools/water-supply-decision.html"><div class="icon">💧</div><strong>Water Supply</strong><span>Hydrant, tank, relay, tender choices</span></a>
+          <a class="card" href="/tools/tank-duration.html"><div class="icon">⏱️</div><strong>Tank Timer</strong><span>How long until the tank is empty</span></a>
+          <a class="card" href="/tools/foam-eductor.html"><div class="icon">🫧</div><strong>Foam Eductor</strong><span>Correct eductor pressure setup</span></a>
+          <a class="card" href="/tools/drafting-calculator.html"><div class="icon">🌊</div><strong>Drafting</strong><span>Lift, checklist, common failures</span></a>
+          <a class="card" href="/tools/preconnect-verification.html"><div class="icon">🚒</div><strong>Preconnects</strong><span>Build quick pump settings</span></a>
+          <a class="card" href="/tools/hydrant-flow-logger.html"><div class="icon">🔴</div><strong>Hydrant Logger</strong><span>Static, residual, pitot, GPM</span></a>
+          <a class="card" href="/tools/engineer-checkoff.html"><div class="icon">✅</div><strong>Daily Checkoff</strong><span>Apparatus and pump check list</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="learn">
+      <div class="wrap">
+        <h2>Learn pump math</h2>
+        <div class="quick-calc">
+          <div class="formula">PDP = NP + FL ± Elevation + Appliance Loss</div>
+          <p class="note">Use the hand method to remember the order: thumb is nozzle pressure, index is friction loss, middle is elevation, ring is appliance loss, and pinky is final pump discharge pressure.</p>
+        </div>
+        <div class="grid" style="margin-top:10px">
+          <a class="card full" href="/how-to/hand-method-pump-calculations.html"><div class="icon">✋</div><strong>Hand Method Guide</strong><span>Teach pump calculations with a simple hand diagram</span></a>
+          <a class="card" href="/how-to/calculate-pump-discharge-pressure.html"><div class="icon">🧮</div><strong>PDP Guide</strong><span>Step-by-step pump pressure</span></a>
+          <a class="card" href="/how-to/calculate-fire-hose-friction-loss.html"><div class="icon">📈</div><strong>Friction Loss</strong><span>Hose math and charts</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="train">
+      <div class="wrap">
+        <h2>Train and print</h2>
+        <div class="grid">
+          <a class="card" href="/scenario-player.html"><div class="icon">🎯</div><strong>Scenario Player</strong><span>Practice visual pump problems</span></a>
+          <a class="card" href="/tools/printable-scenarios.html"><div class="icon">🖨️</div><strong>Printables</strong><span>Worksheets and answer keys</span></a>
+          <a class="card" href="/tools/pump-card.html"><div class="icon">📋</div><strong>Pump Card</strong><span>Build a quick reference card</span></a>
+          <a class="card" href="/how-to.html"><div class="icon">📚</div><strong>How-To Library</strong><span>All pump guides and references</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="apps">
+      <div class="wrap">
+        <h2>Apps</h2>
+        <div class="app-row">
+          <a class="store" href="https://apps.apple.com/us/app/fireopscalc/id6753922160" target="_blank" rel="noopener"><span><small>Download on the</small><strong>App Store</strong></span><b>→</b></a>
+          <a class="store" href="https://play.google.com/store/apps/details?id=com.fireopscalc.app" target="_blank" rel="noopener"><span><small>Get it on</small><strong>Google Play</strong></span><b>→</b></a>
+        </div>
+        <div class="desktop-choice">
+          <a class="pill" href="/desktop.html" onclick="localStorage.setItem('fireops_site_view','desktop')">View desktop version</a>
+          <a class="pill" href="/" onclick="localStorage.removeItem('fireops_site_view')">Auto choose version</a>
+        </div>
+        <p class="fine">Training and reference only. Always follow department SOPs, manufacturer information, and instructor direction.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Phone quick navigation">
+    <a href="/calculator.html">Calc</a>
+    <a href="/tools/engineer-tools.html">Tools</a>
+    <a href="/scenario-player.html">Train</a>
+    <a href="/how-to.html">Learn</a>
+  </nav>
+  <script>try{localStorage.setItem('fireops_site_view','mobile')}catch(e){}</script>
+</body>
+</html>
