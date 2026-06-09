@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>The Hand Method for Pump Calculations | FireOps Calc</title>
+  <meta name="description" content="Learn the firefighter hand method for pump calculations: nozzle pressure, friction loss, elevation, appliance loss, and pump discharge pressure. Includes a hand diagram and worked PDP example."/>
+  <link rel="canonical" href="https://fireopscalc.com/how-to/hand-method-pump-calculations.html"/>
+  <link rel="icon" href="/fireopscalc.png"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="robots" content="index,follow,max-image-preview:large"/>
+  <meta name="theme-color" content="#08111e"/>
+  <meta property="og:type" content="article"/>
+  <meta property="og:title" content="The Hand Method for Pump Calculations | FireOps Calc"/>
+  <meta property="og:description" content="A simple driver/operator teaching method for remembering pump discharge pressure: NP + FL ± Elevation + AL."/>
+  <meta property="og:url" content="https://fireopscalc.com/how-to/hand-method-pump-calculations.html"/>
+  <meta property="og:image" content="https://fireopscalc.com/assets/images/hand-method-pump-calculations.png"/>
+  <meta name="twitter:card" content="summary_large_image"/>
+  <meta name="twitter:title" content="The Hand Method for Pump Calculations | FireOps Calc"/>
+  <meta name="twitter:description" content="Use one hand to remember pump discharge pressure calculations: nozzle pressure, friction loss, elevation, appliance loss, and PDP."/>
+  <meta name="twitter:image" content="https://fireopscalc.com/assets/images/hand-method-pump-calculations.png"/>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"HowTo",
+    "name":"How to Use the Hand Method for Pump Calculations",
+    "description":"A firefighter training method for remembering pump discharge pressure calculations using each finger as a calculation step.",
+    "image":"https://fireopscalc.com/assets/images/hand-method-pump-calculations.png",
+    "url":"https://fireopscalc.com/how-to/hand-method-pump-calculations.html",
+    "step":[
+      {"@type":"HowToStep","name":"Thumb: nozzle pressure","text":"Start with the nozzle pressure required by the selected nozzle."},
+      {"@type":"HowToStep","name":"Index finger: friction loss","text":"Add friction loss for the hose size, length, and flow."},
+      {"@type":"HowToStep","name":"Middle finger: elevation","text":"Add or subtract elevation pressure, commonly 5 psi per 10 feet in training examples."},
+      {"@type":"HowToStep","name":"Ring finger: appliance loss","text":"Add appliance loss when required by the device or department SOP."},
+      {"@type":"HowToStep","name":"Pinky: pump discharge pressure","text":"Add the values to find the pump discharge pressure."}
+    ]
+  }
+  </script>
+  <style>
+:root{--bg:#050a12;--panel:#0b1320;--panel2:#0e192a;--edge:#1d3352;--edge2:rgba(120,190,255,.30);--fg:#edf5ff;--muted:#c4d6ee;--soft:#8ea7c7;--accent:#46b0ff;--warn:#ffa74d;--good:#6be38a;--shadow:0 22px 60px rgba(0,0,0,.35)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(circle at 15% -10%,rgba(70,176,255,.25),transparent 34rem),linear-gradient(180deg,#050a12,#07101d 42%,#050a12);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;line-height:1.58}a{color:inherit}.wrap{max-width:1100px;margin:0 auto;padding:0 18px}.skip{position:absolute;left:-999px}.skip:focus{left:16px;top:16px;background:#fff;color:#000;padding:8px 10px;border-radius:8px;z-index:9999}.topbar{position:sticky;top:0;z-index:20;background:rgba(5,10,18,.78);backdrop-filter:blur(16px);border-bottom:1px solid rgba(120,190,255,.16)}.nav{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0}.brand{display:flex;align-items:center;gap:10px;text-decoration:none}.brand img{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.18)}.brand strong{font-size:18px}.navlinks{display:flex;align-items:center;gap:14px;color:var(--muted);font-size:14px}.navlinks a{text-decoration:none}.navlinks a:hover{color:#fff}.nav-cta,.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:900}.nav-cta{border:1px solid rgba(70,176,255,.5);background:linear-gradient(135deg,#0f5ea9,#123666);border-radius:999px;padding:9px 14px}.hero{padding:50px 0 26px}.crumbs{font-size:13px;color:var(--soft);margin-bottom:18px}.crumbs a{text-decoration:none;color:#cfe4ff}.eyebrow{display:inline-flex;gap:8px;align-items:center;border:1px solid rgba(70,176,255,.32);background:rgba(70,176,255,.09);border-radius:999px;padding:7px 10px;font-size:13px;font-weight:800;margin-bottom:16px}h1{font-size:clamp(34px,6vw,58px);line-height:1.04;margin:0 0 14px;letter-spacing:-.04em}h2{font-size:clamp(25px,4vw,38px);line-height:1.15;margin:0 0 10px;letter-spacing:-.025em}h3{font-size:20px;margin:0 0 8px}.lead{font-size:clamp(18px,2.1vw,22px);color:var(--muted);max-width:820px;margin:0 0 22px}.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin:22px 0}.btn{border-radius:14px;padding:13px 16px;border:1px solid rgba(255,255,255,.14);min-height:48px}.btn.primary{background:linear-gradient(135deg,#1e82ff,#123c73);border-color:#58b4ff}.btn.secondary{background:rgba(255,255,255,.06);color:#ecf5ff}.btn.store{background:#050913;color:#f4f8ff;border-color:rgba(255,255,255,.22)}.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.pill{border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 9px;color:var(--soft);font-size:13px}.section{padding:34px 0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.grid.two{grid-template-columns:repeat(2,1fr)}.card,.article-card,.example,.note,.formula,.warning{background:rgba(11,19,32,.86);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:18px;box-shadow:0 14px 32px rgba(0,0,0,.18)}.article-card{text-decoration:none;display:block}.article-card:hover{border-color:rgba(120,190,255,.48);transform:translateY(-1px)}.article-card p,.card p,.note p,.warning p{color:var(--muted);margin:0}.article-card small{color:var(--soft);font-weight:800;text-transform:uppercase;letter-spacing:.08em}.content{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}.main-article{display:grid;gap:18px}.toc{position:sticky;top:78px;background:rgba(11,19,32,.88);border:1px solid rgba(120,190,255,.18);border-radius:18px;padding:16px}.toc strong{display:block;margin-bottom:8px}.toc a{display:block;color:var(--muted);text-decoration:none;padding:7px 0;border-top:1px solid rgba(255,255,255,.07)}.toc a:hover{color:#fff}.formula{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;color:#dceeff}.example h3{color:#fff}.line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.08);padding:9px 0}.line span:first-child{color:var(--soft)}.line b{text-align:right}.total{font-size:22px;color:#fff}.steps{counter-reset:step;display:grid;gap:12px}.step{counter-increment:step;display:grid;grid-template-columns:42px 1fr;gap:12px;align-items:start;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.step:before{content:counter(step);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#123c73;border:1px solid #58b4ff;font-weight:900}.step b{display:block}.step span{color:var(--muted)}.warning{border-color:rgba(255,167,77,.32);background:rgba(255,167,77,.07)}.note{background:rgba(255,255,255,.04)}.faq details{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.11);border-radius:16px;padding:14px;margin-bottom:10px}.faq summary{cursor:pointer;font-weight:850}.faq p{color:var(--muted);margin:10px 0 0}.final-cta{background:radial-gradient(circle at 10% 0,rgba(70,176,255,.28),transparent 60%),linear-gradient(135deg,#0b1320,#0d1c31);border:1px solid rgba(120,190,255,.25);border-radius:24px;padding:28px;text-align:center;box-shadow:var(--shadow)}footer{border-top:1px solid rgba(255,255,255,.08);padding:28px 0 44px;color:var(--soft);font-size:14px}.footer-grid{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:var(--muted);text-decoration:none}.footer-links a:hover{color:#fff}ul{color:var(--muted)}li{margin:7px 0}.muted{color:var(--muted)}.icon{font-size:26px;display:block;margin-bottom:8px}@media (max-width:880px){.navlinks{display:none}.content{grid-template-columns:1fr}.toc{position:static}.grid,.grid.two{grid-template-columns:1fr}.cta-row .btn{flex:1 1 100%}h1{font-size:38px}.hero{padding-top:32px}}
+
+.hero-visual{margin:24px 0 0;border:1px solid rgba(120,190,255,.22);border-radius:22px;background:rgba(255,255,255,.04);padding:14px;box-shadow:var(--shadow)}
+.hero-visual img{display:block;width:100%;height:auto;border-radius:16px;background:#fff}
+.caption{color:var(--soft);font-size:14px;margin:10px 4px 0}.finger-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}.finger{border:1px solid rgba(120,190,255,.18);background:rgba(255,255,255,.04);border-radius:16px;padding:14px}.finger b{display:block;color:#fff;margin-bottom:4px}.finger small{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:999px;background:#123c73;border:1px solid #58b4ff;margin-bottom:8px;font-weight:900}.print-box{background:#f6f1e7;color:#171717;border-radius:18px;padding:18px;border:1px solid rgba(0,0,0,.14)}.print-box h2,.print-box h3{color:#111}.print-box p,.print-box li{color:#2b2b2b}.mini-formula{font-size:clamp(20px,4vw,34px);font-weight:1000;text-align:center;color:#fff;background:#050913;border:1px solid rgba(255,255,255,.18);border-radius:18px;padding:18px;letter-spacing:-.03em}.mini-formula span{color:#58b4ff}.callout-list{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.callout{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:14px}.callout b{display:block;color:#fff}.callout p{margin:4px 0 0;color:var(--muted)}@media (max-width:880px){.finger-grid,.callout-list{grid-template-columns:1fr}.hero-visual{padding:8px;border-radius:16px}.hero-visual img{border-radius:12px}}
+</style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="wrap nav">
+      <a class="brand" href="/" aria-label="FireOps Calc home"><img src="/fireopscalc2.png" alt="FireOps Calc logo"/><strong>FireOps Calc</strong></a>
+      <nav class="navlinks" aria-label="Main navigation">
+        <a href="/how-to.html">How-To Library</a>
+        <a href="/fire-pump-calculator.html">Pump Calculator</a>
+        <a href="/friction-loss-calculator.html">Friction Loss</a>
+        <a href="/relay-pumping-calculator.html">Relay</a>
+        <a href="/fire-pump-training-scenarios.html">Training</a>
+      </nav>
+      <a class="nav-cta" href="/calculator.html">Open Calculator</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="wrap">
+        <div class="crumbs"><a href="/">Home</a> / <a href="/how-to.html">How-To Library</a> / Hand Method</div>
+        <div class="eyebrow">✋ Driver/operator memory aid</div>
+        <h1>The hand method for fire pump calculations.</h1>
+        <p class="lead">The hand method gives firefighters a quick way to remember the pump discharge pressure process. Each finger represents one part of the calculation: nozzle pressure, friction loss, elevation, appliance loss, and final pump pressure.</p>
+        <div class="cta-row">
+          <a class="btn primary" href="/calculator.html">Open the Web Calculator</a>
+          <a class="btn secondary" href="#diagram">View the Hand Diagram</a>
+          <a class="btn secondary" href="#example">See the Example</a>
+        </div>
+        <div class="pills"><span class="pill">PDP</span><span class="pill">Nozzle Pressure</span><span class="pill">Friction Loss</span><span class="pill">Elevation</span><span class="pill">Appliance Loss</span></div>
+        <figure id="diagram" class="hero-visual">
+          <img src="/assets/images/hand-method-pump-calculations.png" alt="FireOps Calc hand method pump calculation diagram showing nozzle pressure, friction loss, elevation, appliance loss, and pump discharge pressure."/>
+          <figcaption class="caption">Training graphic: start at the nozzle, work back toward the pump, and add each needed pressure factor.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap content">
+        <article class="main-article">
+          <section id="what" class="card">
+            <h2>What is the hand method?</h2>
+            <p>The hand method is a teaching shortcut for pump pressure calculations. Instead of memorizing a long process, the operator uses the fingers of one hand to remember the order of the pump calculation.</p>
+            <div class="mini-formula">PDP = <span>NP</span> + <span>FL</span> ± <span>Elevation</span> + <span>AL</span></div>
+          </section>
+
+          <section id="fingers" class="card">
+            <h2>What each finger means</h2>
+            <div class="finger-grid">
+              <div class="finger"><small>1</small><b>Thumb</b>Nozzle Pressure<br/><span class="muted">Pressure required at the nozzle.</span></div>
+              <div class="finger"><small>2</small><b>Index</b>Friction Loss<br/><span class="muted">Pressure lost moving water through hose.</span></div>
+              <div class="finger"><small>3</small><b>Middle</b>Elevation<br/><span class="muted">Add or subtract for height.</span></div>
+              <div class="finger"><small>4</small><b>Ring</b>Appliance Loss<br/><span class="muted">Add when required by a device or SOP.</span></div>
+              <div class="finger"><small>5</small><b>Pinky</b>Pump Discharge Pressure<br/><span class="muted">The final pressure to set at the pump.</span></div>
+            </div>
+          </section>
+
+          <section id="steps" class="card">
+            <h2>Step-by-step pump calculation</h2>
+            <div class="steps">
+              <div class="step"><span><b>Start with nozzle pressure.</b>Use the nozzle your crew is actually operating. Common training values are 50 psi for a smooth bore handline, 80 psi for a smooth bore master stream, and 50 or 100 psi for many fog nozzles depending on the nozzle.</span></div>
+              <div class="step"><span><b>Add friction loss.</b>Friction loss depends on hose size, hose length, flow, and department hose data. Use a chart, your department pump card, or FireOps Calc.</span></div>
+              <div class="step"><span><b>Add or subtract elevation.</b>A common training rule is 5 psi for every 10 feet of elevation. Add pressure when pumping uphill or above grade. Subtract when appropriate for downhill operations.</span></div>
+              <div class="step"><span><b>Add appliance loss when needed.</b>Add for wyes, valves, manifolds, master stream devices, or other appliances when required by the device or your department SOP.</span></div>
+              <div class="step"><span><b>Total the pump discharge pressure.</b>The final number is the pressure the pump needs to produce. Set it, communicate with the crew, and verify line performance.</span></div>
+            </div>
+          </section>
+
+          <section id="example" class="example">
+            <h2>Example calculation using the hand method</h2>
+            <p class="muted">Training setup: 200 feet of 1¾ inch hose, fog nozzle flowing 185 GPM at 50 psi, friction loss from chart is 30 psi, operating on the 3rd floor, and using a wye.</p>
+            <div class="line"><span>Thumb: Nozzle Pressure</span><b>50 psi</b></div>
+            <div class="line"><span>Index: Friction Loss</span><b>30 psi</b></div>
+            <div class="line"><span>Middle: Elevation</span><b>+10 psi</b></div>
+            <div class="line"><span>Ring: Appliance Loss</span><b>+10 psi</b></div>
+            <div class="line total"><span>Pinky: Pump Discharge Pressure</span><b>100 psi</b></div>
+            <p class="muted">So the training answer is 100 psi PDP. In real operations, use your department hose data, nozzle package, and SOP.</p>
+          </section>
+
+          <section id="teach" class="print-box">
+            <h2>How to teach it in class</h2>
+            <ul>
+              <li>Have students hold up one hand and name each finger in order.</li>
+              <li>Give a simple line setup and have them touch each finger as they add that part of the calculation.</li>
+              <li>Make them say the formula out loud: nozzle pressure plus friction loss, plus or minus elevation, plus appliance loss.</li>
+              <li>Then have them verify the answer using the FireOps Calc pump calculator.</li>
+            </ul>
+          </section>
+
+          <section id="mistakes" class="warning">
+            <h2>Common mistakes to avoid</h2>
+            <div class="callout-list">
+              <div class="callout"><b>Wrong nozzle pressure</b><p>Do not assume every fog nozzle is 100 psi or every handline is the same.</p></div>
+              <div class="callout"><b>Forgot elevation</b><p>Above-grade operations need pressure added for elevation.</p></div>
+              <div class="callout"><b>Overusing appliance loss</b><p>Only add appliance loss when the appliance, flow, or SOP requires it.</p></div>
+              <div class="callout"><b>No field verification</b><p>The math is the start. The operator still needs crew feedback and line performance checks.</p></div>
+            </div>
+          </section>
+
+          <section id="fireops" class="note">
+            <h2>Use FireOps Calc to check the hand method</h2>
+            <p>FireOps Calc lets students build the same calculation on a phone and see the breakdown. This makes the hand method useful as both a memory tool and a quick way to double-check pump math during training.</p>
+            <div class="cta-row">
+              <a class="btn primary" href="/calculator.html">Try the Web Calculator</a>
+              <a class="btn secondary" href="/how-to/calculate-pump-discharge-pressure.html">Read the PDP Guide</a>
+              <a class="btn secondary" href="/fire-pump-training-scenarios.html">Practice Scenarios</a>
+            </div>
+          </section>
+
+          <section id="faq" class="faq">
+            <h2>FAQ</h2>
+            <details><summary>Is the hand method a formula?</summary><p>It is a memory aid for the standard pump discharge pressure formula: PDP = NP + FL ± Elevation + AL.</p></details>
+            <details><summary>Is appliance loss always 10 psi?</summary><p>No. Ten psi is a common training guideline for some devices and flows, but operators should use the appliance data, department policy, or instructor standard.</p></details>
+            <details><summary>Does this replace department SOPs?</summary><p>No. This page is for training and review. Always follow your department pump procedures, hose/nozzle data, and instructor guidance.</p></details>
+          </section>
+        </article>
+        <aside class="toc">
+          <strong>On this page</strong>
+          <a href="#diagram">Diagram</a>
+          <a href="#what">What it is</a>
+          <a href="#fingers">Finger guide</a>
+          <a href="#steps">Steps</a>
+          <a href="#example">Example</a>
+          <a href="#teach">Teach it</a>
+          <a href="#mistakes">Mistakes</a>
+          <a href="#fireops">Use FireOps Calc</a>
+          <a href="#faq">FAQ</a>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap final-cta">
+        <h2>Practice the hand method with live pump math.</h2>
+        <p class="muted">Use the FireOps Calc calculator to build the line, adjust the hose and nozzle package, and check the full pump pressure breakdown.</p>
+        <div class="cta-row" style="justify-content:center"><a class="btn primary" href="/calculator.html">Open Calculator</a><a class="btn secondary" href="/how-to.html">More How-To Guides</a></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-grid">
+      <div>© <span id="year">2026</span> FireOps Calc. Built for firefighters and fire training.</div>
+      <div class="footer-links">
+        <a href="/calculator.html">Calculator</a>
+        <a href="/how-to.html">How-to</a>
+        <a href="/fire-pump-calculator.html">Pump Calculator</a>
+        <a href="/privacy-policy.html">Privacy</a>
+      </div>
+    </div>
+  </footer>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body></html>
