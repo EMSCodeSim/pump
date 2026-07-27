@@ -11,6 +11,7 @@
 @media(max-width:980px){.layout{grid-template-columns:1fr}.preview-wrap{position:static}.navlinks{display:none}}@media(max-width:620px){.field-grid{grid-template-columns:1fr}.meta-strip{grid-template-columns:1fr 1fr}.saved-row{grid-template-columns:1fr 1fr}.saved-row select{grid-column:1/-1}.paper{padding:10px;overflow:auto}.table{font-size:9.5px}}
 @media print{body{background:#fff}.top,.hero,.builder{display:none!important}.wrap{max-width:none;padding:0}.layout{display:block;padding:0}.preview-wrap,.panel{position:static;border:0;box-shadow:none;padding:0;background:#fff}.paper{box-shadow:none;border-radius:0;padding:0}@page{size:letter landscape;margin:.28in}.pump-card{page-break-inside:avoid}.table{font-size:9.5px}.rules{grid-template-columns:repeat(4,1fr)}.rule{font-size:9px}}
 </style>
+  <link rel="stylesheet" href="/ccs/app-promo.css">
 </head>
 <body>
 <header class="top"><div class="wrap nav"><a class="brand" href="/"><img src="/fireopscalc2.png" alt="FireOps Calc"><span>FireOps Calc</span></a><nav class="navlinks"><a href="/calculator.html">Calculator</a><a href="/tools/engineer-tools.html">Engineer Tools</a><a href="/how-to.html">How-to</a></nav><button class="btn primary" id="printTop">Print / Save PDF</button></div></header>
@@ -73,4 +74,5 @@ $('importFile').onchange=async e=>{try{let j=JSON.parse(await e.target.files[0].
 const print=()=>{renderPreview();window.print()};$('printBtn').onclick=print;$('printTop').onclick=print;$('resetBtn').onclick=()=>{if(confirm('Reset unsaved card to the engine preset?')){lines=structuredClone(defaults.engine);document.querySelectorAll('input,textarea').forEach(()=>{});renderEditors();renderPreview()}};
 $('cardDate').value=new Date().toISOString().slice(0,10);refreshSaved();renderEditors();renderPreview();
 })();
-</script></body></html>
+</script>  <script src="/js/app-promo.js" defer></script>
+</body></html>

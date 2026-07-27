@@ -14,6 +14,7 @@
     @media(max-width:820px){.grid,.form-grid{grid-template-columns:1fr}.nav{gap:10px}.hide-sm{display:none}.actions .btn{flex:1 1 100%}}
     @media print{body{background:#fff;color:#000}.top,.hero .actions,.no-print{display:none!important}.wrap{max-width:none}.hero{padding:0}.panel{box-shadow:none;border:1px solid #000;background:#fff;color:#000}.grid{display:block}.panel.input-panel{display:none}.print-card{display:block}.result-card,.formula{background:#fff;color:#000;border:1px solid #222}.big,.good,.warn,.bad{color:#000}label,input,select,p.lead,.note,.chip{color:#000}.table th,.table td{border-bottom:1px solid #888}.page-break{break-after:page}}
 </style>
+  <link rel="stylesheet" href="/ccs/app-promo.css">
 </head>
 <body>
 <header class="top"><div class="wrap nav"><a class="brand" href="/"><img src="/fireopscalc2.png" alt="FireOps Calc logo">FireOps Calc</a><a class="btn" href="/#tools">← Tools</a></div></header>
@@ -85,4 +86,5 @@ Heat potential = ${fmt(fuelPounds)} lb × ${fmt(heat)} BTU/lb = ${fmt(btu)} BTU`
   function resetFireLoad(){['length','width','floors','percent','fuel','heat','lineflow'].forEach((id,i)=>$(id).value=[50,30,1,50,10,8000,185][i]);$('application').value='1.25';calcFireLoad()}
   calcFireLoad();
 </script>
+  <script src="/js/app-promo.js" defer></script>
 </body></html>
