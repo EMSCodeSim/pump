@@ -3,7 +3,9 @@
   var IOS='https://apps.apple.com/us/app/fireopscalc/id6753922160';
   var APPLE_WEB='https://t1wgtxvjk0hdhef9pk23.share.dreamflow.app/';
   var ANDROID='https://play.google.com/store/apps/details?id=com.fireopscalc.app&pcampaignid=web_share';
-  var FIREPUMPSIM='https://firepumpsim.com/';
+  var FIREPUMPSIM_WEB='https://firepumpsim.com/';
+  var FIREPUMPSIM_ANDROID='https://play.google.com/store/apps/details?id=com.fireopssim.firepumpsim';
+  var FIREPUMPSIM_IOS='https://apps.apple.com/us/app/firepumpsim-driver-operator/id6768447355';
   var HIDE_KEY='fireops_app_promo_hidden_until';
   function isNative(){try{return !!(window.Capacitor&&((window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())||(window.Capacitor.getPlatform&&window.Capacitor.getPlatform()!=='web')))}catch(e){return false}}
   function hidden(){try{return Number(localStorage.getItem(HIDE_KEY)||0)>Date.now()}catch(e){return false}}
@@ -17,7 +19,7 @@
       '<div class="app-promo-copy"><'+(compact?'h3':'h2')+'>'+(compact?'Keep FireOps Calc in your pocket':'Take FireOps Calc to the fireground')+'</'+(compact?'h3':'h2')+'>'+
       '<p>'+(compact?'Use the app for faster access, offline-ready reference, and saved department setups.':'Get one-tap access to pump math, saved department setups, and engineer tools from your phone.')+'</p>'+
       '<div class="app-promo-benefits"><span>iPhone and Android</span><span>Saved department settings</span><span>Quick field access</span></div></div>'+
-      '<div class="app-promo-actions"><a class="app-promo-store firepumpsim-link" href="'+FIREPUMPSIM+'" target="_blank" rel="noopener">Practice in FirePumpSim</a><a class="app-promo-store apple-web" href="'+APPLE_WEB+'" target="_blank" rel="noopener">Use Apple Version Online</a><a class="app-promo-store primary" href="'+ANDROID+'" target="_blank" rel="noopener">Get it on Android</a><a class="app-promo-store" href="'+IOS+'" target="_blank" rel="noopener">Download on iPhone</a>'+ 
+      '<div class="app-promo-actions"><div class="app-promo-mini-label">Train with FirePumpSim</div><a class="app-promo-store firepumpsim-link" href="'+FIREPUMPSIM_WEB+'" target="_blank" rel="noopener">Open Web Version</a><a class="app-promo-store firepumpsim-android" href="'+FIREPUMPSIM_ANDROID+'" target="_blank" rel="noopener">FirePumpSim on Android</a><a class="app-promo-store firepumpsim-ios" href="'+FIREPUMPSIM_IOS+'" target="_blank" rel="noopener">FirePumpSim on iPhone</a><a class="app-promo-store apple-web" href="'+APPLE_WEB+'" target="_blank" rel="noopener">Use Apple Version Online</a><a class="app-promo-store primary" href="'+ANDROID+'" target="_blank" rel="noopener">Get it on Android</a><a class="app-promo-store" href="'+IOS+'" target="_blank" rel="noopener">Download on iPhone</a>'+ 
       (compact?'<button class="app-promo-dismiss" type="button">Don\'t show again</button>':'')+'</div></div></div>';
     var btn=wrap.querySelector('.app-promo-dismiss'); if(btn) btn.addEventListener('click',function(){dismiss(30)});
     return wrap;
@@ -54,7 +56,7 @@
     var m=trainingMessage(), section=document.createElement('section');
     section.className='firepumpsim-promo';
     section.setAttribute('aria-label','FirePumpSim training app');
-    section.innerHTML='<div class="firepumpsim-promo-card"><div class="firepumpsim-mark" aria-hidden="true">TRAIN</div><div class="firepumpsim-copy"><div class="firepumpsim-kicker">'+m.kicker+'</div><h2>'+m.title+'</h2><p>'+m.text+'</p><div class="firepumpsim-tags"><span>Visual scenarios</span><span>Daily pump problems</span><span>Driver/operator practice</span><span>Printable training</span></div></div><div class="firepumpsim-actions"><a class="firepumpsim-primary" href="'+FIREPUMPSIM+'" target="_blank" rel="noopener">Open FirePumpSim</a><a class="firepumpsim-secondary" href="/fire-pump-training-scenarios.html">Try free web scenarios</a></div></div>';
+    section.innerHTML='<div class="firepumpsim-promo-card"><div class="firepumpsim-mark" aria-hidden="true">TRAIN</div><div class="firepumpsim-copy"><div class="firepumpsim-kicker">'+m.kicker+'</div><h2>'+m.title+'</h2><p>'+m.text+'</p><div class="firepumpsim-tags"><span>Visual scenarios</span><span>Daily pump problems</span><span>Driver/operator practice</span><span>Printable training</span></div></div><div class="firepumpsim-actions"><a class="firepumpsim-primary" href="'+FIREPUMPSIM_WEB+'" target="_blank" rel="noopener">Open Web Version</a><a class="firepumpsim-secondary" href="'+FIREPUMPSIM_ANDROID+'" target="_blank" rel="noopener">Google Play</a><a class="firepumpsim-secondary" href="'+FIREPUMPSIM_IOS+'" target="_blank" rel="noopener">App Store</a><a class="firepumpsim-secondary" href="/fire-pump-training-scenarios.html">Try free site scenarios</a></div></div>';
     footer.parentNode.insertBefore(section,footer);
   }
 
