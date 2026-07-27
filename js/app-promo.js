@@ -1,6 +1,7 @@
 (function(){
   'use strict';
   var IOS='https://apps.apple.com/us/app/fireopscalc/id6753922160';
+  var APPLE_WEB='https://t1wgtxvjk0hdhef9pk23.share.dreamflow.app/';
   var ANDROID='https://play.google.com/store/apps/details?id=com.fireopscalc.app&pcampaignid=web_share';
   var HIDE_KEY='fireops_app_promo_hidden_until';
   function isNative(){try{return !!(window.Capacitor&&((window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())||(window.Capacitor.getPlatform&&window.Capacitor.getPlatform()!=='web')))}catch(e){return false}}
@@ -15,7 +16,7 @@
       '<div class="app-promo-copy"><'+(compact?'h3':'h2')+'>'+(compact?'Keep FireOps Calc in your pocket':'Take FireOps Calc to the fireground')+'</'+(compact?'h3':'h2')+'>'+
       '<p>'+(compact?'Use the app for faster access, offline-ready reference, and saved department setups.':'Get one-tap access to pump math, saved department setups, and engineer tools from your phone.')+'</p>'+
       '<div class="app-promo-benefits"><span>iPhone and Android</span><span>Saved department settings</span><span>Quick field access</span></div></div>'+
-      '<div class="app-promo-actions"><a class="app-promo-store primary" href="'+ANDROID+'" target="_blank" rel="noopener">Get it on Android</a><a class="app-promo-store" href="'+IOS+'" target="_blank" rel="noopener">Download on iPhone</a>'+
+      '<div class="app-promo-actions"><a class="app-promo-store apple-web" href="'+APPLE_WEB+'" target="_blank" rel="noopener">Use Apple Version Online</a><a class="app-promo-store primary" href="'+ANDROID+'" target="_blank" rel="noopener">Get it on Android</a><a class="app-promo-store" href="'+IOS+'" target="_blank" rel="noopener">Download on iPhone</a>'+ 
       (compact?'<button class="app-promo-dismiss" type="button">Don\'t show again</button>':'')+'</div></div></div>';
     var btn=wrap.querySelector('.app-promo-dismiss'); if(btn) btn.addEventListener('click',function(){dismiss(30)});
     return wrap;
