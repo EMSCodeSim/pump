@@ -11,6 +11,7 @@
 .app-promo-actions{display:flex;flex-direction:column;gap:10px;min-width:190px}
 .app-promo-store{display:flex;align-items:center;justify-content:center;min-height:48px;padding:10px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:#050609;color:#fff!important;text-decoration:none!important;font-weight:900;text-align:center}
 .app-promo-store:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.4)}
+.app-promo-store.apple-web{background:linear-gradient(135deg,#f4c44d,#d89c16);border-color:#f6d36f;color:#17130a!important}
 .app-promo-store.primary{background:linear-gradient(135deg,#f24a3f,#b91f1a)}
 .app-promo-dismiss{border:0;background:transparent;color:#aaa;cursor:pointer;font:inherit;font-size:12px;text-decoration:underline}
 .app-promo-result{display:none;margin:18px auto;max-width:760px}
@@ -21,5 +22,6 @@
 .app-promo-floating{display:none;position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom));z-index:9000;align-items:center;gap:8px;min-height:46px;padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:#11141b;color:#fff!important;text-decoration:none!important;font-weight:900;box-shadow:0 14px 35px rgba(0,0,0,.42)}
 .app-promo-floating img{width:28px;height:28px;border-radius:7px}
 @keyframes appPromoIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@media(max-width:760px){.app-promo-inner,.app-promo-result .app-promo-inner{grid-template-columns:64px 1fr;gap:14px}.app-promo-icon,.app-promo-result .app-promo-icon{width:62px;height:62px;border-radius:15px}.app-promo-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;min-width:0}.app-promo-benefits{display:grid;gap:5px}.app-promo-floating{display:flex}.app-promo-showcase{padding:0 14px;margin:24px auto}.app-promo-copy h2{font-size:25px}}
+@media(max-width:760px){.app-promo-inner,.app-promo-result .app-promo-inner{grid-template-columns:64px 1fr;gap:14px}.app-promo-icon,.app-promo-result .app-promo-icon{width:62px;height:62px;border-radius:15px}.app-promo-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;min-width:0}.app-promo-benefits{display:grid;gap:5px}.app-promo-floating{display:flex}.app-promo-showcase{padding:0 14px;margin:24px auto}.app-promo-copy h2{font-size:25px}}
+@media(max-width:560px){.app-promo-actions{grid-template-columns:1fr}}
 @media(max-width:430px){.app-promo-actions{grid-template-columns:1fr}.app-promo-result .app-promo-inner{grid-template-columns:1fr}.app-promo-result .app-promo-icon{display:none}}
