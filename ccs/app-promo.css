@@ -25,3 +25,23 @@
 @media(max-width:760px){.app-promo-inner,.app-promo-result .app-promo-inner{grid-template-columns:64px 1fr;gap:14px}.app-promo-icon,.app-promo-result .app-promo-icon{width:62px;height:62px;border-radius:15px}.app-promo-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;min-width:0}.app-promo-benefits{display:grid;gap:5px}.app-promo-floating{display:flex}.app-promo-showcase{padding:0 14px;margin:24px auto}.app-promo-copy h2{font-size:25px}}
 @media(max-width:560px){.app-promo-actions{grid-template-columns:1fr}}
 @media(max-width:430px){.app-promo-actions{grid-template-columns:1fr}.app-promo-result .app-promo-inner{grid-template-columns:1fr}.app-promo-result .app-promo-icon{display:none}}
+
+
+/* FirePumpSim training companion */
+.firepumpsim-promo{max-width:1180px;margin:34px auto;padding:0 20px}
+.firepumpsim-promo-card{position:relative;overflow:hidden;display:grid;grid-template-columns:120px 1fr auto;align-items:center;gap:24px;padding:26px;border:1px solid rgba(244,196,77,.28);border-radius:22px;background:linear-gradient(135deg,#17120b,#12151c 52%,#0b0d12);color:#fff;box-shadow:0 18px 46px rgba(0,0,0,.25)}
+.firepumpsim-promo-card:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 0 50%,rgba(244,196,77,.16),transparent 24rem);pointer-events:none}
+.firepumpsim-mark{position:relative;z-index:1;display:grid;place-items:center;width:108px;height:108px;border:2px solid #f4c44d;border-radius:22px;background:#090a0d;color:#f4c44d;font-weight:1000;font-size:20px;letter-spacing:.08em;transform:rotate(-2deg)}
+.firepumpsim-copy,.firepumpsim-actions{position:relative;z-index:1}
+.firepumpsim-kicker{color:#f4c44d;font-size:12px;font-weight:1000;letter-spacing:.13em;text-transform:uppercase}
+.firepumpsim-copy h2{margin:4px 0 8px;color:#fff;font-size:clamp(24px,3vw,34px);line-height:1.05;letter-spacing:-.035em;text-transform:uppercase}
+.firepumpsim-copy p{max-width:680px;margin:0 0 12px;color:#d8d4cc}
+.firepumpsim-tags{display:flex;flex-wrap:wrap;gap:8px}
+.firepumpsim-tags span{padding:6px 9px;border:1px solid rgba(244,196,77,.22);border-radius:999px;background:rgba(244,196,77,.07);color:#f7e8ae;font-size:12px;font-weight:850}
+.firepumpsim-actions{display:flex;flex-direction:column;gap:10px;min-width:205px}
+.firepumpsim-primary,.firepumpsim-secondary{display:flex;align-items:center;justify-content:center;min-height:48px;padding:11px 16px;border-radius:12px;text-align:center;text-decoration:none!important;font-weight:950}
+.firepumpsim-primary{background:linear-gradient(135deg,#f4c44d,#d99d17);color:#17130a!important;border:1px solid #f6d36f}
+.firepumpsim-secondary{background:#08090c;color:#fff!important;border:1px solid rgba(255,255,255,.2)}
+.app-promo-store.firepumpsim-link{background:linear-gradient(135deg,#f4c44d,#d99d17);border-color:#f6d36f;color:#17130a!important}
+@media(max-width:800px){.firepumpsim-promo-card{grid-template-columns:82px 1fr}.firepumpsim-mark{width:78px;height:78px;border-radius:17px;font-size:14px}.firepumpsim-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;min-width:0}}
+@media(max-width:560px){.firepumpsim-promo{padding:0 14px;margin:24px auto}.firepumpsim-promo-card{grid-template-columns:1fr;padding:20px}.firepumpsim-mark{display:none}.firepumpsim-actions{grid-template-columns:1fr}.firepumpsim-copy h2{font-size:25px}}
