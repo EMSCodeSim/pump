@@ -1,0 +1,8 @@
+# NFPA 1410 drill compatibility redirects
+/training/nfpd-1410/* /training/nfpa-1410/:splat 301
+/training/nfpa-1410 /training/nfpa-1410-drills.html 301
+/training/nfpa-1410/ /training/nfpa-1410-drills.html 301
+/training/1410-drills /training/nfpa-1410-drills.html 301
+/training/1410-drills.html /training/nfpa-1410-drills.html 301
+/nfpa-1410 /training/nfpa-1410-drills.html 301
+/1410-drills /training/nfpa-1410-drills.html 301
