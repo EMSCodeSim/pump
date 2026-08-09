@@ -1,8 +1,8 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://fireopscalc.com/</loc>
-    <lastmod>2026-05-04</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>1.0</priority>
   </url>
   <url>
@@ -52,37 +52,37 @@
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/hydrant-flow.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/relay-pumping.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/tender-timer.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/nozzle-reaction.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/tank-duration.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/elevation-pressure.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/tools/friction-loss-quick.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
@@ -102,7 +102,7 @@
   </url>
   <url>
     <loc>https://fireopscalc.com/how-to/calculate-pump-discharge-pressure.html</loc>
-    <lastmod>2026-05-03</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.75</priority>
   </url>
   <url>
@@ -182,7 +182,7 @@
   </url>
   <url>
     <loc>https://fireopscalc.com/how-to/hand-method-pump-calculations.html</loc>
-    <lastmod>2026-06-09</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.8</priority>
   </url>
   <url>
@@ -229,16 +229,6 @@
     <loc>https://fireopscalc.com/tools/engineer-checkoff.html</loc>
     <lastmod>2026-06-09</lastmod>
     <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/desktop.html</loc>
-    <lastmod>2026-06-09</lastmod>
-    <priority>0.6</priority>
-  </url>
-  <url>
-    <loc>https://fireopscalc.com/mobile.html</loc>
-    <lastmod>2026-06-09</lastmod>
-    <priority>0.6</priority>
   </url>
   <url>
     <loc>https://fireopscalc.com/start-here.html</loc>
@@ -297,7 +287,7 @@
   </url>
   <url>
     <loc>https://fireopscalc.com/training/nfpa-1410-drills.html</loc>
-    <lastmod>2026-06-09</lastmod>
+    <lastmod>2026-08-09</lastmod>
     <priority>0.82</priority>
   </url>
   <url>
