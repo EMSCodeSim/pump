@@ -375,4 +375,19 @@
     <lastmod>2026-06-09</lastmod>
     <priority>0.72</priority>
   </url>
+  <url>
+    <loc>https://fireopscalc.com/academy/driver-operator.html</loc>
+    <lastmod>2026-08-09</lastmod>
+    <priority>0.92</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/academy/do1.html</loc>
+    <lastmod>2026-08-09</lastmod>
+    <priority>0.90</priority>
+  </url>
+  <url>
+    <loc>https://fireopscalc.com/academy/do2.html</loc>
+    <lastmod>2026-08-09</lastmod>
+    <priority>0.90</priority>
+  </url>
 </urlset>
